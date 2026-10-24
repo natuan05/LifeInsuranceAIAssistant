@@ -1,0 +1,66 @@
+# Secrets and local configuration; examples must contain placeholders only.
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account*.json
+
+# Local data, credentials, databases, PDFs, indexes and checkpoints live here.
+/.local/
+
+# Public corpus stays local; explicitly allow reviewed manifests later.
+/data/public/**
+!/data/public/README.md
+!/data/public/manifest*.json
+
+# JavaScript / TypeScript outputs
+node_modules/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+.turbo/
+.nx/
+
+# Python environments and outputs
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime artifacts
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.sql.gz
+*.dump
+
+# Local infrastructure state
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+.aws-sam/
+cdk.out/
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
