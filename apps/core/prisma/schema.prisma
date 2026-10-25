@@ -1,0 +1,423 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+  schemas  = ["business", "rag"]
+}
+
+enum UserRole {
+  CUSTOMER
+  STAFF
+
+  @@schema("business")
+}
+
+enum AccountStatus {
+  ACTIVE
+  LOCKED
+
+  @@schema("business")
+}
+
+enum AccessScope {
+  PUBLIC
+  PRIVATE_POLICY
+
+  @@schema("business")
+}
+
+enum ContractStatus {
+  ACTIVE
+  LAPSED
+  MATURED
+  PENDING
+
+  @@schema("business")
+}
+
+enum PaymentFrequency {
+  ANNUAL
+  SEMI_ANNUAL
+  QUARTERLY
+  MONTHLY
+
+  @@schema("business")
+}
+
+enum ConversationChannel {
+  CUSTOMER_SUPPORT
+  STAFF_COPILOT
+
+  @@schema("business")
+}
+
+enum ConversationStatus {
+  AI_ACTIVE
+  PENDING_HANDOFF
+  STAFF_ACTIVE
+  CLOSED
+
+  @@schema("business")
+}
+
+enum SenderType {
+  CUSTOMER
+  STAFF
+  AI_AGENT
+  SYSTEM
+
+  @@schema("business")
+}
+
+enum TicketStatus {
+  OPEN
+  ASSIGNED
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+
+  @@schema("business")
+}
+
+enum OutboxStatus {
+  PENDING
+  PROCESSING
+  PUBLISHED
+  FAILED_DLQ
+
+  @@schema("business")
+}
+
+model User {
+  id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  accountCode               String           @unique @map("account_code") @db.VarChar(32)
+  email                     String           @unique @db.VarChar(254)
+  phone                     String?          @unique @db.VarChar(20)
+  passwordHash              String           @map("password_hash") @db.VarChar(255)
+  role                      UserRole
+  status                    AccountStatus    @default(ACTIVE)
+  passwordChangeRecommended Boolean          @default(true) @map("password_change_recommended")
+  passwordChangedAt         DateTime?        @map("password_changed_at") @db.Timestamptz(3)
+  failedLoginAttempts       Int              @default(0) @map("failed_login_attempts")
+  lockedUntil               DateTime?        @map("locked_until") @db.Timestamptz(3)
+  createdAt                 DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt                 DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  customerProfile           CustomerProfile?
+  staffProfile              StaffProfile?
+  sessions                  AuthSession[]
+  messages                  Message[]
+  auditLogs                 AuditLog[]
+
+  @@unique([id, role])
+  @@map("users")
+  @@schema("business")
+}
+
+model CustomerProfile {
+  userId            String              @id @map("user_id") @db.Uuid
+  role              UserRole            @default(CUSTOMER)
+  citizenId         String?             @unique @map("citizen_id") @db.VarChar(20)
+  fullName          String              @map("full_name") @db.VarChar(255)
+  birth             DateTime?           @db.Date
+  address           String?
+  assignmentVersion Int                 @default(0) @map("assignment_version")
+  user              User                @relation(fields: [userId, role], references: [id, role], onDelete: Restrict)
+  assignments       StaffAssignment[]
+  contracts         InsuranceContract[]
+  documents         Document[]
+  conversations     Conversation[]
+  tickets           SupportTicket[]
+
+  @@unique([userId, role])
+  @@map("customer_profiles")
+  @@schema("business")
+}
+
+model StaffProfile {
+  userId        String            @id @map("user_id") @db.Uuid
+  role          UserRole          @default(STAFF)
+  fullName      String            @map("full_name") @db.VarChar(255)
+  department    String?           @db.VarChar(100)
+  user          User              @relation(fields: [userId, role], references: [id, role], onDelete: Restrict)
+  assignments   StaffAssignment[]
+  conversations Conversation[]
+  tickets       SupportTicket[]
+  notifications Notification[]
+
+  @@unique([userId, role])
+  @@map("staff_profiles")
+  @@schema("business")
+}
+
+model StaffAssignment {
+  id         String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  staffId    String          @map("staff_id") @db.Uuid
+  customerId String          @map("customer_id") @db.Uuid
+  isActive   Boolean         @default(true) @map("is_active")
+  assignedAt DateTime        @default(now()) @map("assigned_at") @db.Timestamptz(3)
+  endedAt    DateTime?       @map("ended_at") @db.Timestamptz(3)
+  operatorId String          @map("operator_id") @db.VarChar(100)
+  staff      StaffProfile    @relation(fields: [staffId], references: [userId], onDelete: Restrict)
+  customer   CustomerProfile @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+
+  @@index([staffId, isActive])
+  @@index([customerId, assignedAt])
+  @@map("staff_assignments")
+  @@schema("business")
+}
+
+model AuthSession {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId        String    @map("user_id") @db.Uuid
+  tokenHash     String    @unique @map("token_hash") @db.Char(64)
+  csrfTokenHash String    @map("csrf_token_hash") @db.Char(64)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  expiresAt     DateTime  @map("expires_at") @db.Timestamptz(3)
+  revokedAt     DateTime? @map("revoked_at") @db.Timestamptz(3)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+  @@map("auth_sessions")
+  @@schema("business")
+}
+
+model RateLimitBucket {
+  clientToken   String    @map("client_token") @db.VarChar(255)
+  endpointGroup String    @map("endpoint_group") @db.VarChar(50)
+  windowStart   DateTime  @default(now()) @map("window_start") @db.Timestamptz(3)
+  requestCount  Int       @default(0) @map("request_count")
+  blockedUntil  DateTime? @map("blocked_until") @db.Timestamptz(3)
+
+  @@id([clientToken, endpointGroup])
+  @@map("rate_limit_buckets")
+  @@schema("business")
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?  @map("actor_id") @db.Uuid
+  actorType  String   @map("actor_type") @db.VarChar(20)
+  actorRole  String?  @map("actor_role") @db.VarChar(50)
+  operatorId String?  @map("operator_id") @db.VarChar(100)
+  action     String   @db.VarChar(100)
+  targetType String?  @map("target_type") @db.VarChar(100)
+  targetId   String?  @map("target_id") @db.Uuid
+  outcome    String   @db.VarChar(20)
+  requestId  String   @map("request_id") @db.Uuid
+  metadata   Json?    @db.JsonB
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+  @@schema("business")
+}
+
+model InsuranceProduct {
+  id          String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productCode String              @unique @map("product_code") @db.VarChar(50)
+  name        String              @db.VarChar(255)
+  summary     String?
+  isActive    Boolean             @default(true) @map("is_active")
+  createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  contracts   InsuranceContract[]
+  documents   Document[]
+
+  @@map("insurance_products")
+  @@schema("business")
+}
+
+model InsuranceContract {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  policyNumber     String            @unique @map("policy_number") @db.VarChar(100)
+  customerId       String            @map("customer_id") @db.Uuid
+  productId        String            @map("product_id") @db.Uuid
+  status           ContractStatus
+  premiumAmount    Decimal?          @map("premium_amount") @db.Decimal(15, 2)
+  paymentFrequency PaymentFrequency? @map("payment_frequency")
+  nextDueDate      DateTime?         @map("next_due_date") @db.Date
+  effectiveDate    DateTime?         @map("effective_date") @db.Date
+  expiryDate       DateTime?         @map("expiry_date") @db.Date
+  sumAssured       Decimal?          @map("sum_assured") @db.Decimal(15, 2)
+  benefitsSnapshot Json?             @map("benefits_snapshot") @db.JsonB
+  createdAt        DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  customer         CustomerProfile   @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+  product          InsuranceProduct  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  documents        Document[]
+  conversations    Conversation[]
+  tickets          SupportTicket[]
+
+  @@unique([id, customerId])
+  @@index([customerId])
+  @@map("insurance_contracts")
+  @@schema("business")
+}
+
+model Document {
+  id              String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title           String             @db.VarChar(255)
+  accessScope     AccessScope        @map("access_scope")
+  productId       String?            @map("product_id") @db.Uuid
+  policyId        String?            @map("policy_id") @db.Uuid
+  ownerCustomerId String?            @map("owner_customer_id") @db.Uuid
+  currentVersion  String?            @map("current_version") @db.VarChar(20)
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  product         InsuranceProduct?  @relation(fields: [productId], references: [id], onDelete: Restrict)
+  policy          InsuranceContract? @relation(fields: [policyId, ownerCustomerId], references: [id, customerId], onDelete: Restrict)
+  owner           CustomerProfile?   @relation(fields: [ownerCustomerId], references: [userId], onDelete: Restrict)
+  versions        DocumentVersion[]  @relation("DocumentVersions")
+  current         DocumentVersion?   @relation("CurrentVersion", fields: [id, currentVersion], references: [documentId, versionNumber], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([ownerCustomerId])
+  @@map("documents")
+  @@schema("business")
+}
+
+model DocumentVersion {
+  id               String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId       String     @map("document_id") @db.Uuid
+  versionNumber    String     @map("version_number") @db.VarChar(20)
+  storageBucket    String     @map("storage_bucket") @db.VarChar(100)
+  storageObjectKey String     @map("storage_object_key")
+  checksumSha256   String     @map("checksum_sha256") @db.Char(64)
+  isActive         Boolean    @default(true) @map("is_active")
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  document         Document   @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Restrict)
+  currentFor       Document[] @relation("CurrentVersion")
+
+  @@unique([documentId, versionNumber])
+  @@map("document_versions")
+  @@schema("business")
+}
+
+model Conversation {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  channelType          ConversationChannel @map("channel_type")
+  customerId           String              @map("customer_id") @db.Uuid
+  assignedStaffId      String?             @map("assigned_staff_id") @db.Uuid
+  linkedContextConvId  String?             @map("linked_context_conv_id") @db.Uuid
+  linkedPolicyId       String?             @map("linked_policy_id") @db.Uuid
+  status               ConversationStatus
+  aiSummary            String?             @map("ai_summary")
+  draftTicketPayload   Json?               @map("draft_ticket_payload") @db.JsonB
+  createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  customer             CustomerProfile     @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+  staff                StaffProfile?       @relation(fields: [assignedStaffId], references: [userId], onDelete: Restrict)
+  policy               InsuranceContract?  @relation(fields: [linkedPolicyId, customerId], references: [id, customerId], onDelete: Restrict)
+  context              Conversation?       @relation("CopilotContext", fields: [linkedContextConvId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  copilotConversations Conversation[]      @relation("CopilotContext")
+  messages             Message[]
+  tickets              SupportTicket[]
+  notifications        Notification[]
+
+  @@index([customerId, createdAt])
+  @@map("conversations")
+  @@schema("business")
+}
+
+model Message {
+  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId    String       @map("conversation_id") @db.Uuid
+  senderType        SenderType   @map("sender_type")
+  senderId          String?      @map("sender_id") @db.Uuid
+  content           String
+  citations         Json?        @db.JsonB
+  toolCallsMetadata Json?        @map("tool_calls_metadata") @db.JsonB
+  createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  sender            User?        @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+  @@schema("business")
+}
+
+model SupportTicket {
+  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ticketCode       String             @unique @map("ticket_code") @db.VarChar(50)
+  conversationId   String?            @map("conversation_id") @db.Uuid
+  customerId       String             @map("customer_id") @db.Uuid
+  assignedStaffId  String?            @map("assigned_staff_id") @db.Uuid
+  policyId         String?            @map("policy_id") @db.Uuid
+  title            String             @db.VarChar(255)
+  aiSummary        String?            @map("ai_summary")
+  extractedDetails Json?              @map("extracted_details") @db.JsonB
+  status           TicketStatus
+  idempotencyKey   String             @unique @map("idempotency_key") @db.VarChar(255)
+  confirmedAt      DateTime           @map("confirmed_at") @db.Timestamptz(3)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
+  conversation     Conversation?      @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  customer         CustomerProfile    @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+  staff            StaffProfile?      @relation(fields: [assignedStaffId], references: [userId], onDelete: Restrict)
+  policy           InsuranceContract? @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
+  notifications    Notification[]
+
+  @@index([customerId, createdAt])
+  @@map("support_tickets")
+  @@schema("business")
+}
+
+model OutboxEvent {
+  id            String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  aggregateType String       @map("aggregate_type") @db.VarChar(50)
+  aggregateId   String       @map("aggregate_id") @db.Uuid
+  eventType     String       @map("event_type") @db.VarChar(100)
+  payload       Json         @db.JsonB
+  status        OutboxStatus @default(PENDING)
+  retryCount    Int          @default(0) @map("retry_count")
+  nextAttemptAt DateTime     @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
+  lastError     String?      @map("last_error")
+  createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([status, nextAttemptAt])
+  @@map("outbox_events")
+  @@schema("business")
+}
+
+model Notification {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientStaffId String         @map("recipient_staff_id") @db.Uuid
+  ticketId         String?        @map("ticket_id") @db.Uuid
+  conversationId   String?        @map("conversation_id") @db.Uuid
+  title            String         @db.VarChar(255)
+  body             String?
+  isRead           Boolean        @default(false) @map("is_read")
+  dedupKey         String         @unique @map("dedup_key") @db.VarChar(255)
+  deliveredAt      DateTime?      @map("delivered_at") @db.Timestamptz(3)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  recipient        StaffProfile   @relation(fields: [recipientStaffId], references: [userId], onDelete: Restrict)
+  ticket           SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  conversation     Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+
+  @@index([recipientStaffId, isRead, createdAt])
+  @@map("notifications")
+  @@schema("business")
+}
+
+// Metadata only in Core; runtime Core has no grants on rag.
+// Unknown embedding dimension is deliberately not fixed to 768.
+model RagKnowledgeChunk {
+  id              String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  documentId      String                @map("document_id") @db.Uuid
+  documentVersion String                @map("document_version") @db.VarChar(20)
+  chunkIndex      Int                   @map("chunk_index")
+  content         String
+  embedding       Unsupported("public.vector")
+  accessScope     String                @map("access_scope") @db.VarChar(50)
+  productId       String?               @map("product_id") @db.Uuid
+  policyId        String?               @map("policy_id") @db.Uuid
+  ownerCustomerId String?               @map("owner_customer_id") @db.Uuid
+  pageNumber      Int?                  @map("page_number")
+  metadata        Json?                 @db.JsonB
+
+  @@unique([documentId, documentVersion, chunkIndex])
+  @@map("rag_knowledge_chunks")
+  @@schema("rag")
+}

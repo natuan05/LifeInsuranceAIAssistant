@@ -1,0 +1,43 @@
+{
+  "name": "life-insurance-ai-assistant",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "npm@11.16.0",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "npm": ">=11.16.0 <12"
+  },
+  "workspaces": ["apps/core", "apps/web"],
+  "scripts": {
+    "dev": "concurrently --kill-others --names core,web npm:dev:core npm:dev:web",
+    "dev:core": "npm run dev --workspace @life-insurance/core",
+    "dev:web": "npm run dev --workspace @life-insurance/web",
+    "dev:setup": "node scripts/dev-local.mjs setup",
+    "dev:db": "node scripts/dev-local.mjs start",
+    "bootstrap:dev": "node scripts/dev-local.mjs bootstrap",
+    "test:accounts": "node scripts/dev-local.mjs test-accounts",
+    "test:auth": "node scripts/dev-local.mjs test-auth",
+    "test:customers": "node scripts/dev-local.mjs test-customers",
+    "admin:setup": "node scripts/dev-local.mjs admin-setup",
+    "admin": "node scripts/dev-local.mjs admin",
+    "test:admin": "node scripts/dev-local.mjs test-admin",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "check:connection": "node scripts/check-connection.mjs",
+    "db:setup": "node scripts/postgres.mjs setup",
+    "db:up": "node scripts/postgres.mjs up",
+    "db:ui": "node scripts/postgres.mjs ui",
+    "db:check": "node scripts/postgres.mjs check",
+    "db:status": "node scripts/postgres.mjs status",
+    "db:down": "node scripts/postgres.mjs down",
+    "db:psql": "docker compose exec postgres psql -X -U local_owner -d life_insurance",
+    "local:up": "node scripts/postgres.mjs up",
+    "local:check": "node scripts/postgres.mjs check",
+    "local:down": "node scripts/postgres.mjs down"
+  },
+  "devDependencies": {
+    "concurrently": "10.0.6"
+  },
+  "overrides": { "multer": "2.5.0" }
+}

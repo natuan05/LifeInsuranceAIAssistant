@@ -14,6 +14,7 @@
 - Local dùng biến môi trường/file env bị bỏ qua; artifact và credential tạm đặt trong `.local/`. Cloud dùng cơ chế danh tính dịch vụ và quản lý secrets khi triển khai; chưa chọn hay tạo dịch vụ ở đợt này.
 - Frontend chỉ nhận cấu hình công khai cần thiết. Biến `NEXT_PUBLIC_*` phải được coi là công khai; model key và DB credential chỉ ở phía server có thẩm quyền.
 - Tách quyền Core business, retrieval chỉ đọc, chuẩn bị dữ liệu và checkpoint. Không tái dùng credential quản trị cho ứng dụng.
+- Compose local hiện sinh credential vào named volumes riêng theo role; chỉ job prepare/bootstrap được truy cập bộ credential để khởi tạo. Runtime chỉ mount volume cần dùng. `.local/postgres/bootstrap-password` cũ chỉ để nhập credential khi nâng cấu hình; không đưa credential volumes vào image hoặc bản chia sẻ repo.
 - `.gitignore` chỉ giảm lỗi đưa nhầm file, không phát hiện hết secrets. Rà soát diff trước mỗi commit; nếu lộ bí mật phải thu hồi/đổi bí mật và xử lý lịch sử liên quan.
 
 ## Dữ liệu

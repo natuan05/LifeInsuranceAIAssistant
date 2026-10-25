@@ -23,9 +23,11 @@ node_modules/
 .next/
 out/
 dist/
+dist-admin/
 build/
 coverage/
 *.tsbuildinfo
+/apps/core/src/generated/
 .turbo/
 .nx/
 

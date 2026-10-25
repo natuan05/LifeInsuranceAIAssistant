@@ -1,6 +1,6 @@
 # Đối chiếu nguồn và việc cần chốt
 
-Đọc ngày **24/10/2026**. Chưa sửa tài liệu gốc. Các liên kết Google Docs trỏ đến từng tab đã đọc.
+Đọc ngày **24/10/2026**. Không sửa Google Docs nguồn. Ngày 25/10/2026 đã bổ sung AuthSession vào bản Data Model trong repo theo yêu cầu người dùng; xem [bảng 17](specifications/Data_Model.md#bảng-17-auth_sessions). Các liên kết Google Docs trỏ đến từng tab đã đọc.
 
 ## Nguồn
 
@@ -24,7 +24,7 @@ Hai tab cha Application Architecture và Data & Integration Architecture gần n
 - Yêu cầu khởi tạo hiện tại xác nhận AWS, Next.js, NestJS modular monolith, Python + custom LangGraph, PostgreSQL + pgvector và các ranh giới nghiệp vụ.
 - AgentCore Runtime, ECS + EC2 và RDS là hướng triển khai. Redis/BullMQ đang cân nhắc. Provider, embedding và tự host chưa chốt.
 - Nguồn có chữ “đề xuất”, “Draft” hoặc “chờ review” không tự thành quyết định được duyệt. Đặc biệt ADR-AI-01/02/03/04/09/10/11/12/13 còn chứa lựa chọn và điều kiện.
-- Repo chỉ áp dụng quyết định tổ chức thư mục tại [ADR-REPO-0001](adr/0001-repository-layout.md). Không sửa trạng thái ADR nguồn hoặc suy ra lựa chọn model từ việc dùng AWS.
+- Repo giữ quyết định tổ chức thư mục tại [ADR-REPO-0001](adr/0001-repository-layout.md); baseline đã triển khai local được tổng hợp ở [kiến trúc](architecture.md) và [hướng dẫn chạy](getting-started.md). Không sửa trạng thái ADR nguồn hoặc suy ra lựa chọn model từ việc dùng AWS.
 
 ## Điểm chưa thống nhất và quyết định cần chốt
 
@@ -42,3 +42,7 @@ Chốt từng điểm trước phần code phụ thuộc vào nó; không cần 
 | 8. Audit và vận hành | Security yêu cầu truy vết đầu vào/tham số/kết quả; NFR-002 và RAG §9/11 hạn chế nội dung Private. Roadmap có mục tiêu tải, idle, quota và HA/DR mang tính đề xuất. | Trường được log, che dữ liệu, người xem, retention/xóa; sau đó mới chốt giới hạn chạy và mục tiêu kiểm thử. Region, sizing, SLO/RTO/RPO còn mở trước cloud. |
 
 Nguyên tắc giữ nguyên: chỉ dữ liệu riêng giả lập; Core thực thi quyền và nghiệp vụ; retrieval đúng quyền; trạng thái Agent bền vững; Ticket cần xác nhận và chống trùng. Các điểm mở trên chưa được giải quyết bằng implementation.
+
+## Cập nhật implementation local ngày 25/10/2026
+
+Theo yêu cầu tiếp theo, đã tạo toàn bộ model/bảng và Compose full stack. Phạm vi cùng khác biệt nguồn được ghi tại [ADR-REPO-0004](architecture.md#local-data-model) và [data models](architecture.md#local-data-model): auth sessions, mã tài khoản, lịch sử phân công, operator audit, con trỏ phiên bản tài liệu, timestamp xác nhận Ticket không mặc định và vector không cố định chiều. Đây là baseline cấu trúc local; không suy ra các điểm mở về identity cloud, scope retrieval, checkpoint, xác nhận Ticket, concurrency takeover hoặc queue đã hoàn tất chỉ vì bảng tồn tại.

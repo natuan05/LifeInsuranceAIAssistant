@@ -1,0 +1,181 @@
+name: life-insurance-local
+
+x-migrator: &migrator-image
+  image: life-insurance-core-migrator:local
+  user: node
+  build:
+    context: .
+    dockerfile: apps/core/Dockerfile
+    target: migrator
+
+services:
+  prepare:
+    image: node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+    command: ["node", "/prepare-local.mjs"]
+    restart: "no"
+    volumes:
+      - ./scripts/prepare-local.mjs:/prepare-local.mjs:ro
+      - ./.local/postgres:/legacy/postgres:ro
+      - postgres_data:/existing-db:ro
+      - credential_bootstrap:/credentials/bootstrap
+      - credential_migration:/credentials/migration
+      - credential_core:/credentials/core
+      - credential_admin:/credentials/admin
+      - credential_viewer:/credentials/viewer
+
+  postgres:
+    image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+    environment:
+      POSTGRES_DB: life_insurance
+      POSTGRES_USER: local_owner
+      POSTGRES_PASSWORD_FILE: /credentials/bootstrap/password
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - credential_bootstrap:/credentials/bootstrap:ro
+    depends_on:
+      prepare: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U local_owner -d life_insurance"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  bootstrap:
+    <<: *migrator-image
+    command: ["node", "scripts/bootstrap-database.mjs"]
+    environment: { PGHOST: postgres }
+    volumes:
+      - credential_bootstrap:/credentials/bootstrap:ro
+      - credential_migration:/credentials/migration:ro
+      - credential_core:/credentials/core:ro
+      - credential_admin:/credentials/admin:ro
+      - credential_viewer:/credentials/viewer:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  migrate:
+    <<: *migrator-image
+    environment: { PGHOST: postgres }
+    volumes:
+      - credential_migration:/credentials/migration:ro
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    restart: "no"
+
+  seed-dev:
+    image: life-insurance-seed:local
+    build: { context: ., dockerfile: apps/core/Dockerfile, target: seed }
+    command: ["node", "dist/cli/bootstrap-dev.js", "--compose-local"]
+    environment:
+      NODE_ENV: development
+      LOCAL_DEV_SEED: "true"
+      PGHOST: postgres
+    volumes:
+      - credential_admin:/credentials/admin:ro
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
+  core:
+    image: life-insurance-core:local
+    build: { context: ., dockerfile: apps/core/Dockerfile, target: runtime }
+    environment:
+      NODE_ENV: development
+      ENABLE_API_DOCS: "true"
+      HOST: 0.0.0.0
+      PORT: "4000"
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: core_runtime
+      PGDATABASE: life_insurance
+      DATABASE_PASSWORD_FILE: /credentials/core/password
+      CORS_ORIGINS: http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081},http://localhost:3000,http://127.0.0.1:3000
+    volumes:
+      - credential_core:/credentials/core:ro
+    depends_on:
+      seed-dev: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    image: life-insurance-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_CORE_API_URL: /api/v1
+        NEXT_PUBLIC_DATABASE_UI_URL: http://127.0.0.1:${DATABASE_UI_PORT:-5050}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
+    ports:
+      - "127.0.0.1:${GATEWAY_PORT:-8080}:80"
+      - "127.0.0.1:${SWAGGER_PORT:-8081}:81"
+    volumes:
+      - ./infra/local/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      core: { condition: service_healthy }
+      web: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gateway-health && wget -q -O /dev/null http://127.0.0.1:81/api/v1/docs-json"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  database-ui:
+    image: dbgate/dbgate@sha256:fc68e7c433963bff17af7372ce87f4b94873551a1c1b124220c8c04a22a80311
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export PASSWORD_insurance="$$(cat /credentials/viewer/password)"; exec /home/dbgate-docker/entrypoint.sh'
+    environment:
+      CONNECTIONS: insurance
+      LABEL_insurance: Life Insurance Local
+      SERVER_insurance: postgres
+      PORT_insurance: "5432"
+      USER_insurance: db_viewer
+      ENGINE_insurance: postgres@dbgate-plugin-postgres
+      DATABASE_insurance: life_insurance
+      SINGLE_CONNECTION: insurance
+      SINGLE_DATABASE: life_insurance
+    ports:
+      - "127.0.0.1:${DATABASE_UI_PORT:-5050}:3000"
+    volumes:
+      - credential_viewer:/credentials/viewer:ro
+      - database_ui_data:/root/.dbgate
+    depends_on:
+      seed-dev: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 15s
+    restart: unless-stopped
+
+volumes:
+  postgres_data: { name: life-insurance-local-postgres-data }
+  credential_bootstrap: { name: life-insurance-local-credential-bootstrap }
+  credential_migration: { name: life-insurance-local-credential-migration }
+  credential_core: { name: life-insurance-local-credential-core }
+  credential_admin: { name: life-insurance-local-credential-admin }
+  credential_viewer: { name: life-insurance-local-credential-viewer }
+  database_ui_data: { name: life-insurance-local-database-ui-data }

@@ -1,11 +1,9 @@
 # Core
 
-Nơi phát triển NestJS theo modular monolith: một ứng dụng nghiệp vụ, chia module khi triển khai từng luồng.
+NestJS modular monolith sở hữu danh tính, quyền và nghiệp vụ. Source tại src/, Prisma schema/migrations tại prisma/, operator entrypoint/UI tách khỏi public Core. Không cho Agent truy cập trực tiếp business DB.
 
-- Xác minh danh tính; kiểm tra Customer ownership và Staff assignment tại mỗi thao tác.
-- Sở hữu API khách hàng, hợp đồng, danh mục tài liệu, hội thoại, tiếp quản và Ticket.
-- Cung cấp Business API cho Agent; tự kiểm tra quyền và tham số ở mỗi lời gọi.
-- Xác thực xác nhận tạo Ticket, chống trùng và chỉ báo thành công sau commit. Ticket và outbox cùng giao dịch theo SRS UC-005.
-- Phân phối thông báo sau khi nghiệp vụ đã lưu; queue và vị trí chạy Worker cần chốt.
+Setup env, chạy npm/Docker/admin, cổng, Swagger, tài khoản dev và lệnh test đều ở [hướng dẫn chung](../../docs/getting-started.md). Thiết kế/ràng buộc ở [kiến trúc](../../docs/architecture.md).
 
-Chưa tạo module con, schema, ORM hoặc cơ chế đăng nhập. Identity provider và việc lưu credential cần đối chiếu trước khi thiết kế. Hướng hosting: ECS + EC2, chưa triển khai.
+Source chia theo tính năng `auth/`, `customers/`, `accounts/`, `admin/`; mỗi tính năng có thư mục `controllers/`, `dto/`, `services/` theo nhu cầu và file `*.module.ts` để khai báo Nest dependency injection. `database/` cung cấp Prisma qua `DatabaseModule`; model database nằm trong `prisma/schema.prisma`, không lặp lại bằng file model TypeScript thủ công.
+
+Public `AppModule` chỉ import Auth/Customers/Database. `AdminModule` và `AccountsModule` được ghép tại entrypoint local `src/admin/main.ts` với client `admin_runtime`. Fixtures/seed nằm ở `src/cli/`; helper mật khẩu ở `src/accounts/utils/`.
