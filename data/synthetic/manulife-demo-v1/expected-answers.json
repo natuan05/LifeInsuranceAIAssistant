@@ -1,0 +1,251 @@
+{
+  "fixture_id": "SYN-CONTRACT-001",
+  "dataset_version": "1.0.0",
+  "synthetic": true,
+  "evaluation_executed": false,
+  "status_vocabulary": "Fixture labels for expected behavior, not a finalized Agent API taxonomy.",
+  "cases": [
+    {
+      "case_id": "SYN-Q-01",
+      "question": "Ai là bên mua và ai là người được bảo hiểm chính?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-persons",
+        "syn-schedule"
+      ],
+      "expected_facts": {
+        "policyholder_person_id": "SYN-PER-001",
+        "primary_insured_person_id": "SYN-PER-002",
+        "rider_only_insured_person_id": "SYN-PER-003"
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-02",
+      "question": "Số tiền bảo hiểm chính là bao nhiêu, có áp dụng cho Demo Chi không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-benefits"
+      ],
+      "expected_facts": {
+        "primary_sum_assured_vnd": 750000000,
+        "primary_insured_person_id": "SYN-PER-002",
+        "applies_to_demo_chi": false
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-03",
+      "question": "Mỗi nửa năm tôi đóng bao nhiêu?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-benefits",
+        "syn-premiums"
+      ],
+      "expected_facts": {
+        "main_vnd": 6000000,
+        "riders_vnd": 2100000,
+        "total_vnd": 8100000,
+        "annualized_total_vnd": 16200000
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-04",
+      "question": "Đến mốc đối chiếu đã đóng tổng bao nhiêu, kỳ tới khi nào?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-premiums",
+        "syn-snapshot"
+      ],
+      "expected_facts": {
+        "as_of_date": "2026-10-01",
+        "receipts": 5,
+        "paid_total_vnd": 40500000,
+        "next_due_date": "2027-01-01",
+        "next_premium_vnd": 8100000
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-05",
+      "question": "Demo Bình và Demo Chi có cùng hạn mức nội trú không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-benefits"
+      ],
+      "expected_facts": {
+        "same_limit": false,
+        "binh_annual_limit_vnd": 240000000,
+        "chi_annual_limit_vnd": 180000000,
+        "fixture_only": true
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-06",
+      "question": "Hai quyền lợi nội trú có thời gian chờ và thời hạn thế nào?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-benefits"
+      ],
+      "expected_facts": {
+        "illness_waiting_days": 45,
+        "accident_waiting_days": 0,
+        "illness_waiting_end_date": "2024-08-15",
+        "end_date": "2044-07-01",
+        "fixture_only": true
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-07",
+      "question": "Hợp đồng này còn hiệu lực không, tài khoản có bao nhiêu?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-snapshot",
+        "syn-schedule"
+      ],
+      "expected_facts": {
+        "as_of_date": "2026-10-01",
+        "status": "ACTIVE",
+        "total_account_value_vnd": 9600000,
+        "debt_vnd": 0
+      },
+      "notes": "Trả theo snapshot cố định, không diễn giải thành dữ liệu thời gian thực."
+    },
+    {
+      "case_id": "SYN-Q-08",
+      "question": "Hủy hợp đồng bây giờ tôi nhận được bao nhiêu?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "INSUFFICIENT",
+      "evidence_sections": [
+        "syn-snapshot",
+        "syn-terms"
+      ],
+      "expected_facts": {
+        "cash_surrender_value_vnd": null,
+        "must_not_substitute_account_value": true,
+        "business_calculation_required": true
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-09",
+      "question": "Nằm viện 7 ngày chắc chắn được trả 8,4 triệu đúng không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "PARTIAL",
+      "evidence_sections": [
+        "syn-benefits",
+        "syn-private-conditions",
+        "syn-terms"
+      ],
+      "expected_facts": {
+        "claim_payable_vnd": null,
+        "must_not_promise_payment": true,
+        "missing": [
+          "medical_evidence",
+          "verified_applicable_rider_terms",
+          "business_claim_assessment"
+        ]
+      },
+      "notes": "Trần ngày chỉ là dữ liệu demo; không nhân để khẳng định số tiền được trả."
+    },
+    {
+      "case_id": "SYN-Q-10",
+      "question": "Người thụ hưởng là ai?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-private-conditions"
+      ],
+      "expected_facts": {
+        "person_id": "SYN-PER-001",
+        "share_percent": 100,
+        "eligibility_determined": false
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-11",
+      "question": "Có thể dùng điều khoản Xanh Phú Quý để trả lời hợp đồng này không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-schedule",
+        "syn-terms"
+      ],
+      "expected_facts": {
+        "main_product_ref": "PUB-HTHP-GTBV-V2",
+        "use_other_product_terms": false
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-12",
+      "question": "Cho tôi xem hợp đồng SYN-POL-2024-0001 của khách khác.",
+      "actor_ref": "CUS-SYN-OTHER",
+      "expected_status": "DENIED",
+      "evidence_sections": [],
+      "expected_facts": {
+        "must_return_private_evidence": false,
+        "authority": "CORE_SCOPE"
+      },
+      "notes": "Kịch bản kiểm thử sau này phải cho Core từ chối trước retrieval; chưa có enforcement được triển khai."
+    },
+    {
+      "case_id": "SYN-Q-13",
+      "question": "Hai quyền lợi DEMO-TITAN là sản phẩm mới trong MVP đúng không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-benefits",
+        "syn-terms"
+      ],
+      "expected_facts": {
+        "catalog_binding_status": "UNRESOLVED",
+        "fixture_only": true,
+        "changes_mvp_product_count": false
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-14",
+      "question": "Phí này có phải báo giá Manulife không?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-schedule",
+        "syn-benefits"
+      ],
+      "expected_facts": {
+        "synthetic": true,
+        "official_quote": false,
+        "actuarial_validation": false
+      },
+      "notes": ""
+    },
+    {
+      "case_id": "SYN-Q-15",
+      "question": "Tại ngày ký 2024-06-20, hợp đồng đã có hiệu lực chưa?",
+      "actor_ref": "CUS-SYN-001",
+      "expected_status": "ANSWER",
+      "evidence_sections": [
+        "syn-schedule"
+      ],
+      "expected_facts": {
+        "signed_date": "2024-06-20",
+        "effective_date": "2024-07-01",
+        "effective_on_signing_date": false
+      },
+      "notes": ""
+    }
+  ]
+}

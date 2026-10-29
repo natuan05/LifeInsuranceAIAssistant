@@ -1,0 +1,44 @@
+{
+  "dataset_id": "manulife-demo-v1",
+  "dataset_version": "1.0.0",
+  "synthetic": true,
+  "created_date": "2026-10-29",
+  "as_of_date": "2026-10-01",
+  "fixture_id": "SYN-CONTRACT-001",
+  "generation_seed": 20261029,
+  "real_person_or_business_values_used": false,
+  "real_private_source_fingerprints_included": false,
+  "applicable_only_to_synthetic_scenario": true,
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "2bcad48fc5e5db3063d1c20a8955d48742661eadfbd0a6b02040b8ede1f68166"
+    },
+    {
+      "path": "contract.md",
+      "sha256": "2f0423b631ba99660a190e1c5bdf3ff07d412f0144e20dab198ad03c52e15662"
+    },
+    {
+      "path": "contract.json",
+      "sha256": "7ba531eb66a6ef85fd67df78c25f66dde8b9270b67d3ce187f9af79272360c12"
+    },
+    {
+      "path": "expected-answers.json",
+      "sha256": "90d34bee9aea7eedb9beb5fa8be4541c1df6f190f59abe35d9cc67c5029bcc86"
+    }
+  ],
+  "public_references": [
+    {
+      "document_ref": "PUB-HTHP-GTBV-V2",
+      "path": "data/public/manulife/text/HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.md",
+      "sha256": "12d6c1eed305bdb5adc42a1de2e882e8df128fb4c84fbc0284f11ad35fae213d",
+      "use": "Main-product terms; explicit fixture binding, not a verified commercial contract mapping."
+    }
+  ],
+  "validation": {
+    "static_consistency": "passed",
+    "agent_evaluation": "not_run",
+    "commercial_pricing_or_compatibility": "not_validated",
+    "checked_date": "2026-10-29"
+  }
+}

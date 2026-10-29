@@ -1,0 +1,252 @@
+{
+  "fixture_id": "SYN-CONTRACT-001",
+  "dataset_version": "1.0.0",
+  "synthetic": true,
+  "created_date": "2026-10-29",
+  "as_of_date": "2026-10-01",
+  "currency": "VND",
+  "generation": {
+    "seed": 20261029,
+    "strategy": "Fixed authored synthetic scenario; seed is used in uuid5 identity namespace only. Personal and business values are newly authored, not modified from original customer values.",
+    "template_use": "Generic section/field structure only; no input copied from a real or redacted contract.",
+    "actuarial_validation": false,
+    "commercial_compatibility_validation": false
+  },
+  "integration": {
+    "seeded_to_database": false,
+    "agent_or_retrieval_implemented": false,
+    "embedding_created": false,
+    "schema_is_api_contract": false,
+    "document_only_fixture": true
+  },
+  "owner_customer": {
+    "fixture_actor_ref": "CUS-SYN-001",
+    "proposed_uuid": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+    "person_id": "SYN-PER-001",
+    "account_created": false
+  },
+  "assigned_staff": {
+    "fixture_actor_ref": "STF-SYN-001",
+    "proposed_uuid": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+    "display_name": "Nhân viên Demo Minh",
+    "assignment_start_date": "2024-07-01",
+    "account_created": false
+  },
+  "persons": [
+    {
+      "person_id": "SYN-PER-001",
+      "display_name": "Khách hàng Demo An",
+      "birth_date": "1987-07-01",
+      "gender": "FEMALE",
+      "roles": [
+        "POLICYHOLDER",
+        "BENEFICIARY"
+      ],
+      "identity_document": "SYN-ID-AN-001",
+      "email": "demo.an@example.invalid",
+      "address": "Địa chỉ giả lập AN-001, Khu Demo; không có địa điểm thực",
+      "relationship_to_primary_insured": "MOTHER",
+      "age_at_inception": 37,
+      "age_at_snapshot": 39
+    },
+    {
+      "person_id": "SYN-PER-002",
+      "display_name": "Người được bảo hiểm Demo Bình",
+      "birth_date": "2011-07-01",
+      "gender": "MALE",
+      "roles": [
+        "PRIMARY_INSURED",
+        "RIDER_INSURED"
+      ],
+      "identity_document": "SYN-ID-BINH-002",
+      "relationship_to_primary_insured": "SELF",
+      "age_at_inception": 13,
+      "age_at_snapshot": 15
+    },
+    {
+      "person_id": "SYN-PER-003",
+      "display_name": "Người được bảo hiểm Demo Chi",
+      "birth_date": "2015-07-01",
+      "gender": "FEMALE",
+      "roles": [
+        "RIDER_INSURED"
+      ],
+      "identity_document": "SYN-ID-CHI-003",
+      "relationship_to_primary_insured": "SIBLING",
+      "age_at_inception": 9,
+      "age_at_snapshot": 11
+    }
+  ],
+  "contract": {
+    "proposed_uuid": "484f961d-a7d7-5a44-82ce-669ca213a7f0",
+    "policy_number": "SYN-POL-2024-0001",
+    "policyholder_person_id": "SYN-PER-001",
+    "primary_insured_person_id": "SYN-PER-002",
+    "status": "ACTIVE",
+    "signed_date": "2024-06-20",
+    "issue_date": "2024-07-01",
+    "effective_date": "2024-07-01",
+    "delivery_date": "2024-07-05",
+    "maturity_date": "2111-07-01",
+    "term_years": 87,
+    "planned_premium_payment_years": 20,
+    "payment_frequency": "SEMI_ANNUAL",
+    "main_product": {
+      "fixture_product_ref": "PUB-HTHP-GTBV-V2",
+      "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ",
+      "option": "Quyền lợi cơ bản",
+      "sum_assured_vnd": 750000000,
+      "semiannual_premium_vnd": 6000000,
+      "annual_premium_vnd": 12000000
+    },
+    "riders": [
+      {
+        "benefit_id": "SYN-BEN-001",
+        "display_name": "Quyền lợi nội trú DEMO-TITAN A",
+        "insured_person_id": "SYN-PER-002",
+        "catalog_product_id": null,
+        "catalog_binding_status": "UNRESOLVED",
+        "fixture_only": true,
+        "start_date": "2024-07-01",
+        "end_date": "2044-07-01",
+        "term_years": 20,
+        "semiannual_premium_vnd": 1200000,
+        "annual_premium_vnd": 2400000,
+        "annual_limit_vnd": 240000000,
+        "room_limit_per_day_vnd": 1200000,
+        "max_room_days_per_policy_year": 30,
+        "illness_waiting_days": 45,
+        "accident_waiting_days": 0,
+        "illness_waiting_end_date": "2024-08-15"
+      },
+      {
+        "benefit_id": "SYN-BEN-002",
+        "display_name": "Quyền lợi nội trú DEMO-TITAN B",
+        "insured_person_id": "SYN-PER-003",
+        "catalog_product_id": null,
+        "catalog_binding_status": "UNRESOLVED",
+        "fixture_only": true,
+        "start_date": "2024-07-01",
+        "end_date": "2044-07-01",
+        "term_years": 20,
+        "semiannual_premium_vnd": 900000,
+        "annual_premium_vnd": 1800000,
+        "annual_limit_vnd": 180000000,
+        "room_limit_per_day_vnd": 900000,
+        "max_room_days_per_policy_year": 30,
+        "illness_waiting_days": 45,
+        "accident_waiting_days": 0,
+        "illness_waiting_end_date": "2024-08-15"
+      }
+    ],
+    "beneficiaries": [
+      {
+        "person_id": "SYN-PER-001",
+        "share_percent": 100,
+        "applies_to": "DEATH_BENEFIT",
+        "eligibility_determined": false
+      }
+    ],
+    "current_semiannual_premium_vnd": 8100000,
+    "current_annualized_premium_vnd": 16200000,
+    "planned_topup_premium_vnd": 0,
+    "next_due_date": "2027-01-01",
+    "paid_through_due_date": "2026-07-01",
+    "outstanding_premium_vnd": 0
+  },
+  "payments": [
+    {
+      "receipt_id": "SYN-RCPT-001",
+      "due_date": "2024-07-01",
+      "paid_date": "2024-07-01",
+      "main_premium_vnd": 6000000,
+      "riders_premium_vnd": 2100000,
+      "topup_premium_vnd": 0,
+      "amount_vnd": 8100000,
+      "status": "PAID"
+    },
+    {
+      "receipt_id": "SYN-RCPT-002",
+      "due_date": "2025-01-01",
+      "paid_date": "2025-01-01",
+      "main_premium_vnd": 6000000,
+      "riders_premium_vnd": 2100000,
+      "topup_premium_vnd": 0,
+      "amount_vnd": 8100000,
+      "status": "PAID"
+    },
+    {
+      "receipt_id": "SYN-RCPT-003",
+      "due_date": "2025-07-01",
+      "paid_date": "2025-07-01",
+      "main_premium_vnd": 6000000,
+      "riders_premium_vnd": 2100000,
+      "topup_premium_vnd": 0,
+      "amount_vnd": 8100000,
+      "status": "PAID"
+    },
+    {
+      "receipt_id": "SYN-RCPT-004",
+      "due_date": "2026-01-01",
+      "paid_date": "2026-01-01",
+      "main_premium_vnd": 6000000,
+      "riders_premium_vnd": 2100000,
+      "topup_premium_vnd": 0,
+      "amount_vnd": 8100000,
+      "status": "PAID"
+    },
+    {
+      "receipt_id": "SYN-RCPT-005",
+      "due_date": "2026-07-01",
+      "paid_date": "2026-07-01",
+      "main_premium_vnd": 6000000,
+      "riders_premium_vnd": 2100000,
+      "topup_premium_vnd": 0,
+      "amount_vnd": 8100000,
+      "status": "PAID"
+    }
+  ],
+  "business_snapshot": {
+    "source_type": "MOCK_CORE_RESPONSE",
+    "as_of_date": "2026-10-01",
+    "paid_main_premium_total_vnd": 30000000,
+    "paid_riders_premium_total_vnd": 10500000,
+    "paid_total_vnd": 40500000,
+    "basic_account_value_vnd": 9600000,
+    "topup_account_value_vnd": 0,
+    "total_account_value_vnd": 9600000,
+    "debt_vnd": 0,
+    "cash_surrender_value_vnd": null,
+    "claim_payable_vnd": null,
+    "claim_status": "NOT_ASSESSED",
+    "notes": "Snapshot values are fixture declarations, not derived through an actuarial engine; cash value and claim payout have not been calculated."
+  },
+  "private_conditions": {
+    "scope": "SYNTHETIC_RIDER_RULES_ONLY",
+    "text": "Quyền lợi nội trú demo không bao gồm khám sức khỏe định kỳ, khám ngoại trú hoặc chăm sóc răng định kỳ. Các ngưỡng/ngày chờ do bộ dữ liệu này tự đặt cho thử nghiệm, không mô tả điều khoản thương mại của Manulife. Không thay đổi nội dung điều khoản Public của sản phẩm chính.",
+    "health_declaration": "Không tạo hoặc sao chép bệnh sử cá nhân; dữ liệu này không có hồ sơ y tế để kết luận chi trả.",
+    "signature": "Không có chữ ký, OTP hay xác thực điện tử thực."
+  },
+  "terms_binding": {
+    "public_document_ref": "PUB-HTHP-GTBV-V2",
+    "relative_repository_path": "data/public/manulife/text/HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.md",
+    "public_markdown_sha256": "12d6c1eed305bdb5adc42a1de2e882e8df128fb4c84fbc0284f11ad35fae213d",
+    "technical_version_label": "Đóng Phí Linh Hoạt (Phiên Bản 2) – Gia Tăng Bảo Vệ; 6865/BTC-QLBH ngày 14/06/2019",
+    "binding_status": "EXPLICIT_FIXTURE_BINDING_ONLY",
+    "public_authority_not_overridden": true,
+    "rider_public_terms_ref": null,
+    "rider_terms_status": "DEMO_RULES_ONLY_NO_VERIFIED_CATALOG_BINDING"
+  },
+  "private_document": {
+    "document_id": "DOC-SYN-CONTRACT-001",
+    "proposed_uuid": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+    "version": "synthetic-v1",
+    "access_scope": "PRIVATE_POLICY",
+    "owner_customer_ref": "CUS-SYN-001",
+    "policy_ref": "SYN-CONTRACT-001",
+    "format": "MARKDOWN",
+    "synthetic_section_anchors": true,
+    "original_pdf_page_mapping": false,
+    "retrieval_access_must_be_granted_by_core": true
+  }
+}
