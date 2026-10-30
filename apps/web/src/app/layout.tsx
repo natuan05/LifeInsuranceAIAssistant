@@ -2,13 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'LifeCare · Cổng dịch vụ bảo hiểm',
-  description: 'Cổng dành cho khách hàng và nhân viên chăm sóc bảo hiểm nhân thọ.',
+  title: 'LifeCare · Insurance Services',
+  description: 'A portal for life insurance customers and support staff.',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="vi">
+    <html lang="en">
       <body>{children}</body>
     </html>
   );

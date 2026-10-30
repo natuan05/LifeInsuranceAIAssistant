@@ -1,10 +1,14 @@
 # Mô hình Dữ liệu & Từ điển Dữ liệu (Data Model & Data Dictionary)
 
+> **Đối chiếu implementation 30/10/2026:** Schema local đã có 17 bảng ứng dụng và 4 migrations; InsurancePolicy/PolicyStatus/insurance_policies đã đổi tên. Auth/profile/assigned customers là API đang hoạt động; phần model policy/document/conversation/Ticket/outbox/notification/RAG chưa có business API/pipeline tương ứng. Không xem bảng tồn tại là UI/nghiệp vụ đã hoàn thành. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+
 > Cập nhật local 25/10/2026 theo thống nhất: giữ 16 bảng nguồn và bổ sung bảng 17 `AUTH_SESSIONS` để quản lý phiên đăng nhập. Không dùng bảng `ADMIN_REQUESTS`. Các khác biệt triển khai còn lại được ghi trong [baseline data model](../architecture.md#local-data-model); bản nguồn bên ngoài repo không tự thay đổi.
 
 > **Tài liệu chuyển đổi từ:** `Data Model.pdf`  
 > **Hệ thống:** Enterprise Customer Service AI Agent — Bảo hiểm Nhân thọ (SRS-BHNT)  
 > **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector (Tách 2 schema: `business` và `rag`)
+
+> Cập nhật local 30/10/2026 theo yêu cầu người dùng: chuẩn hóa InsurancePolicy / INSURANCE_POLICIES / business.insurance_policies, enum PolicyStatus; giữ policy_number, policy_id, linked_policy_id. Áp dụng bằng migration mới 202610300001_rename_insurance_policies, không sửa lịch sử migration hoặc Google Docs nguồn.
 
 ---
 
@@ -19,16 +23,16 @@ erDiagram
 
     STAFF_PROFILES ||--o{ STAFF_ASSIGNMENTS : "staff_id (phụ trách)"
     CUSTOMER_PROFILES ||--|| STAFF_ASSIGNMENTS : "customer_id (duy nhất 1 staff)"
-    INSURANCE_PRODUCTS ||--o{ INSURANCE_CONTRACTS : "product_id"
-    CUSTOMER_PROFILES ||--o{ INSURANCE_CONTRACTS : "customer_id"
+    INSURANCE_PRODUCTS ||--o{ INSURANCE_POLICIES : "product_id"
+    CUSTOMER_PROFILES ||--o{ INSURANCE_POLICIES : "customer_id"
 
     INSURANCE_PRODUCTS ||--o{ DOCUMENTS : "product_id (PDF chung)"
-    INSURANCE_CONTRACTS ||--o{ DOCUMENTS : "policy_id (PDF hợp đồng)"
+    INSURANCE_POLICIES ||--o{ DOCUMENTS : "policy_id (PDF hợp đồng)"
     CUSTOMER_PROFILES ||--o{ DOCUMENTS : "owner_customer_id"
     DOCUMENTS ||--|{ DOCUMENT_VERSIONS : "document_id"
     CUSTOMER_PROFILES ||--|{ CONVERSATIONS : "customer_id (bắt buộc)"
     STAFF_PROFILES ||--o{ CONVERSATIONS : "assigned_staff_id (Staff được phân công; nullable)"
-    INSURANCE_CONTRACTS ||--o{ CONVERSATIONS : "linked_policy_id"
+    INSURANCE_POLICIES ||--o{ CONVERSATIONS : "linked_policy_id"
     CONVERSATIONS ||--o{ CONVERSATIONS : "linked_context_conv_id (Staff Copilot)"
 
     CONVERSATIONS ||--|{ MESSAGES : "conversation_id"
@@ -36,12 +40,12 @@ erDiagram
     CONVERSATIONS ||--o{ SUPPORT_TICKETS : "conversation_id"
     CUSTOMER_PROFILES ||--o{ SUPPORT_TICKETS : "customer_id"
     STAFF_PROFILES ||--o{ SUPPORT_TICKETS : "assigned_staff_id"
-    INSURANCE_CONTRACTS ||--o{ SUPPORT_TICKETS : "policy_id"
+    INSURANCE_POLICIES ||--o{ SUPPORT_TICKETS : "policy_id"
     SUPPORT_TICKETS ||--o{ NOTIFICATIONS : "ticket_id"
     CONVERSATIONS ||--o{ NOTIFICATIONS : "conversation_id"
     STAFF_PROFILES ||--o{ NOTIFICATIONS : "recipient_staff_id"
     DOCUMENTS ||..o{ RAG_KNOWLEDGE_CHUNKS : "document_id (Logic FK)"
-    INSURANCE_CONTRACTS ||..o{ RAG_KNOWLEDGE_CHUNKS : "policy_id (Scoped Filter)"
+    INSURANCE_POLICIES ||..o{ RAG_KNOWLEDGE_CHUNKS : "policy_id (Scoped Filter)"
     CUSTOMER_PROFILES ||..o{ RAG_KNOWLEDGE_CHUNKS : "owner_customer_id (Scoped Filter)"
 
     USERS {
@@ -109,7 +113,7 @@ erDiagram
         boolean is_active
         timestamptz created_at
     }
-    INSURANCE_CONTRACTS {
+    INSURANCE_POLICIES {
         uuid id PK
         varchar policy_number UK "Số hợp đồng (HD-2026-08912)"
         uuid customer_id FK "REFERENCES customer_profiles(user_id)"
@@ -323,7 +327,7 @@ erDiagram
 
 ---
 
-### Bảng 8: `INSURANCE_CONTRACTS`
+### Bảng 8: `INSURANCE_POLICIES`
 > **Mục đích:** Hợp đồng bảo hiểm cá nhân đã ký kết giữa khách hàng và công ty, bảo đảm quyền lợi pháp lý (FR-005, FR-008, UC-007).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
@@ -353,7 +357,7 @@ erDiagram
 | **title** | VARCHAR(255) | NOT NULL | Tên hiển thị tài liệu (vd: `'Quy tắc điều khoản chung 2026'`, `'Hợp đồng điện tử ký số HD-08912'`). |
 | **access_scope** | VARCHAR(50) | CHECK | Phạm vi bảo mật: `'PUBLIC'` (công khai), `'PRIVATE_POLICY'` (hợp đồng cá nhân riêng tư). |
 | **product_id** | UUID | FK, NULLable | Tham chiếu `insurance_products(id)` nếu là file tài liệu giới thiệu sản phẩm chung. |
-| **policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_contracts(id)` nếu là file hợp đồng bảo hiểm cá nhân. |
+| **policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_policies(id)` nếu là file hợp đồng bảo hiểm cá nhân. |
 | **owner_customer_id** | UUID | FK, NULLable | Tham chiếu `customer_profiles(user_id)`: Chủ sở hữu file (dùng để Core Backend kiểm tra quyền tải). |
 | **current_version** | VARCHAR(20) | DEFAULT `'v1.0'` | Phiên bản tài liệu đang hoạt động hiện tại. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Ngày tạo bản ghi tài liệu. |
@@ -386,7 +390,7 @@ erDiagram
 | **customer_id** | UUID | FK, NOT NULL | Tham chiếu `customer_profiles(user_id)`; bắt buộc NOT NULL. |
 | **assigned_staff_id** | UUID | FK, NULLable | Staff tiếp quản phiên chat (Staff tiếp nhận phiên chat của Customer). |
 | **linked_context_conv_id** | UUID | Self-FK, NULLable | Neo hội thoại Staff Copilot Sidebar vào ID cuộc chat chính để AI nắm bối cảnh hỗ trợ nhân viên (FR-007). |
-| **linked_policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_contracts(id)` nếu cuộc chat xoay quanh hợp đồng cụ thể. |
+| **linked_policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_policies(id)` nếu cuộc chat xoay quanh hợp đồng cụ thể. |
 | **status** | VARCHAR(50) | CHECK | Trạng thái: `'AI_ACTIVE'` (chat bot), `'PENDING_HANDOFF'` (chờ người nhận), `'STAFF_ACTIVE'` (nhân viên đang chat), `'CLOSED'` (đóng chat). |
 | **ai_summary** | TEXT | NULLable | Đoạn văn tóm tắt toàn bộ cuộc trao đổi do AI tự động tổng hợp sau khi hoàn tất. |
 | **draft_ticket_payload** | JSONB | NULLable | Bản nháp thông tin Ticket do AI soạn trước, lưu tạm trong phiên trước khi khách xác nhận tạo Ticket (UC-005). |

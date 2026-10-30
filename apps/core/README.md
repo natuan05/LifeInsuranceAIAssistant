@@ -6,4 +6,9 @@ Setup env, chạy npm/Docker/admin, cổng, Swagger, tài khoản dev và lệnh
 
 Source chia theo tính năng `auth/`, `customers/`, `accounts/`, `admin/`; mỗi tính năng có thư mục `controllers/`, `dto/`, `services/` theo nhu cầu và file `*.module.ts` để khai báo Nest dependency injection. `database/` cung cấp Prisma qua `DatabaseModule`; model database nằm trong `prisma/schema.prisma`, không lặp lại bằng file model TypeScript thủ công.
 
-Public `AppModule` chỉ import Auth/Customers/Database. `AdminModule` và `AccountsModule` được ghép tại entrypoint local `src/admin/main.ts` với client `admin_runtime`. Fixtures/seed nằm ở `src/cli/`; helper mật khẩu ở `src/accounts/utils/`.
+Public `AppModule` import Auth/Customers/Database và đăng ký `RealtimeService`. `AdminModule` và `AccountsModule` được ghép tại entrypoint local `src/admin/main.ts` với client `admin_runtime`. Fixtures/seed nằm ở `src/cli/`; helper mật khẩu ở `src/accounts/utils/`.
+
+
+Đối chiếu 30/10/2026: public APIs hiện gồm auth, `customers/me`, assigned `staff/customers` list/detail và health. Native WebSocket receive-only `/api/v1/realtime` kiểm cookie/Origin và snapshot theo scope mỗi 2 giây, phát invalidation account/profile/assignment; không nhận mutation. Không có policy/product/document/conversation/Ticket/Copilot/notification controllers hoặc outbox worker.
+
+Prisma `InsurancePolicy`/`PolicyStatus` và bảng `business.insurance_policies` được chuẩn hóa bằng migration `202610300001_rename_insurance_policies`; ba migration trước giữ nguyên. A01–06 trong [bản đồ UI/API](../../docs/ui/staff/api-map.md) đã dùng; A07–28 vẫn đề xuất. [Checklist/gap](../../docs/ui/implementation-status.md) không coi schema/route/UI shell là hoàn thành nghiệp vụ.

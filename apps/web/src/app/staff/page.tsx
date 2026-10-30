@@ -1,2 +1,2 @@
-import { AuthScreen } from '@/components/auth-screen';
-export default function StaffPage() { return <AuthScreen mode="STAFF" />; }
+import { redirect } from 'next/navigation';
+export default function StaffPage() { redirect('/staff/customers'); }

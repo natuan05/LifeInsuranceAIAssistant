@@ -1,6 +1,6 @@
 # Kiến trúc nền
 
-Đối chiếu ngày 24/10/2026. Đây là ranh giới để phát triển tiếp, chưa phải thiết kế API hoặc triển khai hoàn chỉnh. Xem [nguồn và trạng thái quyết định](source-review.md).
+Ranh giới ban đầu ngày 24/10/2026; đối chiếu implementation local **30/10/2026**. Đây là nền để phát triển tiếp, chưa phải hệ thống nghiệp vụ/AI hoàn chỉnh. Xem [nguồn và trạng thái quyết định](source-review.md).
 
 ## Phân chia trách nhiệm
 
@@ -52,7 +52,7 @@ Cập nhật 25/10/2026. Các ADR local 0002–0007 đã được hợp nhất v
 - Root Compose có Web/Core/Nginx/PostgreSQL/DbGate. Full Docker đi qua gateway 8080; Web/Core không publish host port. Nginx có thêm listener 81, publish loopback 8081 cho Swagger và API Try it out cùng origin; SWAGGER_PORT đổi cổng host và allowlist tương ứng. Npm dev gọi Core và Swagger trực tiếp ở 4000. Cấu hình và lệnh dùng trong [hướng dẫn sử dụng](getting-started.md).
 - DbGate thay pgAdmin, kết nối tự động bằng role chỉ đọc. Prepare/bootstrap/migrate/seed tách job; credential volumes tách role, consumer mount readonly. Bootstrap/migrate chạy node; prepare chỉ mount legacy PostgreSQL và các volumes cần khởi tạo.
 - Docker seed image riêng; Core public runtime không có seed CLI, admin entrypoint hoặc UI tool. Tool admin chạy host, không được gateway proxy.
-- Core chia theo tính năng: auth/customers/accounts/admin có controllers/dto/services theo nhu cầu và module riêng. AppModule import DatabaseModule, AuthModule và CustomersModule; AuthModule export AuthService để CustomersModule kiểm quyền. AdminModule.register ghép AccountsModule.register với client admin_runtime chỉ tại entrypoint local; không import hai module này vào public AppModule. Fixtures ở cli/dev-accounts.ts; Prisma schema là nguồn model, không thêm model TypeScript trùng lặp.
+- Core chia theo tính năng: auth/customers/accounts/admin có controllers/dto/services theo nhu cầu và module riêng. AppModule import DatabaseModule, AuthModule và CustomersModule, đăng ký RealtimeService; AuthModule export AuthService để CustomersModule kiểm quyền. AdminModule.register ghép AccountsModule.register với client admin_runtime chỉ tại entrypoint local; không import hai module này vào public AppModule. Fixtures ở cli/dev-accounts.ts; Prisma schema là nguồn model, không thêm model TypeScript trùng lặp.
 
 <a id="local-data-model"></a>
 ### Data model và bất biến
@@ -69,7 +69,7 @@ ORM Prisma 7.10.1 + adapter-pg, schema source ở apps/core/prisma/schema.prisma
 | business.rate_limit_buckets | RateLimitBucket | Bộ đếm theo actor/nhóm endpoint |
 | business.audit_logs | AuditLog | Actor user/operator/system, hành động và kết quả |
 | business.insurance_products | InsuranceProduct | Danh mục sản phẩm |
-| business.insurance_contracts | InsuranceContract | Hợp đồng và số liệu nghiệp vụ |
+| business.insurance_policies | InsurancePolicy | Hợp đồng và số liệu nghiệp vụ |
 | business.documents | Document | Metadata và ownership tài liệu |
 | business.document_versions | DocumentVersion | Phiên bản PDF, object key và checksum |
 | business.conversations | Conversation | Hội thoại Customer/Staff Copilot theo Customer |
@@ -127,3 +127,24 @@ Credential ở volumes riêng; không tự rotate role password đã tồn tại
 - Khóa/mở khóa/reset dùng expectedUpdatedAt + user row lock; stale 409. Khóa/mở khóa đều revoke sessions; reset đổi bcrypt, bật nhắc, giữ ACTIVE/LOCKED và không ép đổi lần đầu.
 - Gán/chuyển/gỡ khóa user liên quan theo thứ tự ID; expectedVersion và partial index giữ một active. Staff/Customer phải active khi gán mới, Staff không tạm khóa; gỡ vẫn được khi Customer khóa. History + version + audit cùng transaction; Staff cũ mất quyền sau commit.
 - Tool chỉ target local, credential admin_runtime qua stdin, kiểm schema compatibility; không tự mở RDS hoặc thêm public admin API. RDS/cloud cần yêu cầu riêng sau.
+
+### Chuẩn hóa Policy ngày 30/10/2026
+
+Theo yêu cầu người dùng, model InsurancePolicy và enum PolicyStatus thay tên Contract; bảng business.insurance_policies được đổi tên bằng migration 202610300001_rename_insurance_policies. Quan hệ Prisma ở CustomerProfile/InsuranceProduct là policies. Giữ policy_number/policy_id/linked_policy_id và các FK hiện hữu; rename giữ dữ liệu và quyền trên bảng. Ba migration trước giữ nguyên, kiểm compatibility Core/operator yêu cầu migration thứ tư. API Policy vẫn chưa triển khai; đường dẫn đề xuất trong docs/ui dùng /policies.
+
+### Realtime dữ liệu local
+
+Đã có native WebSocket `/api/v1/realtime` cho invalidation account/profile/active assignment. Web dùng cookie phiên hiện tại, Origin allowlist; Core kiểm lại phiên và đọc snapshot RepeatableRead đúng scope. So sánh hash snapshot mỗi 2 giây, chỉ phát ready/invalidate/session-expired, không gửi payload Private; Web tải lại REST theo quyền. Có heartbeat, reconnect/backoff và giới hạn kết nối local. Nginx proxy Upgrade tại cùng path để cookie Path=/api/v1 được gửi đúng.
+
+Đây là cơ chế đối chiếu định kỳ local qua WebSocket, chưa phải pipeline push theo commit/outbox, chưa benchmark production hoặc đồng bộ chat/Ticket/notification. Không quyết định queue/transport Core–Agent hay backend checkpoint. Không dùng channel này để ghi nghiệp vụ. Kiểm tra `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs` sau build: 6 test pass; E2E qua gateway xác nhận profile synthetic tự cập nhật và không có payload hồ sơ trong frame.
+
+
+### Baseline Web và tiến độ UI — 30/10/2026
+
+Web dùng Next App Router/React/Tailwind 4 prefix `tw:`. Login hai role và Staff workspace theo UI người dùng cung cấp, font Lexend tự host. Staff fullscreen, UI tiếng Anh; Customers list/detail riêng với policy làm vùng chính, account menu hai hành động và Personal information/Security cùng style. Customer profile/account vẫn dùng layout cũ đang hoạt động; chưa có menu Customer MVP.
+
+`/staff` redirect `/staff/customers`; group `/staff/(workspace)` giữ layout cho customers/inbox/policies/tickets và detail IDs. Page markers đăng ký route, nội dung lấy pathname/params/query trong workspace. Shared layout giữ socket khi chuyển route trong group; `/account` là entry riêng cho cả role. URL không cấp quyền, Core xác minh mỗi request. [Routes](ui/staff/routes.md) và [checklist tiến độ/gap](ui/implementation-status.md) là tham chiếu trạng thái.
+
+API đã nối: auth/session/password/logout, `GET /customers/me`, `GET /staff/customers` với page/pageSize và detail theo assignment. Không có search DTO, policy/product/document/chat/Ticket/Copilot/notification APIs. Khung UI cho các phần đó không được coi là hoàn thành nghiệp vụ. Không còn preview hoặc fixture thành công Ticket/Claim; thao tác chưa có Core giữ disabled.
+
+WebSocket invalidation local đã nêu ở trên chỉ phục vụ dữ liệu hiện có. Profile/list không refetch theo focus, dùng ready/invalidate và refresh nền để giữ nội dung; AuthScreen vẫn kiểm phiên khi focus/visible. Quyền bị thu hồi được kiểm lại qua REST và xóa dữ liệu trên 401/403/404. Không coi snapshot 2 giây là cam kết độ trễ hay kiến trúc production đã duyệt.

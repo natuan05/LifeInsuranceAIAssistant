@@ -18,7 +18,7 @@ export async function checkCoreConnection(): Promise<CoreHealth> {
   });
 
   if (!response.ok) {
-    throw new Error(`Backend trả về HTTP ${response.status}.`);
+    throw new Error(`Backend returned HTTP ${response.status}.`);
   }
 
   const health: unknown = await response.json();
@@ -28,7 +28,7 @@ export async function checkCoreConnection(): Promise<CoreHealth> {
     !('service' in health) || health.service !== 'core' ||
     !('timestamp' in health) || typeof health.timestamp !== 'string'
   ) {
-    throw new Error('Phản hồi backend chưa đúng định dạng health check.');
+    throw new Error('Invalid backend health response.');
   }
 
   return health as CoreHealth;

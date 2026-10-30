@@ -1,5 +1,7 @@
 # Tài liệu Đặc tả Yêu cầu Phần mềm (SRS - BHNT)
 
+> **Đối chiếu implementation 30/10/2026:** FR-001 local mới login/session/account, chưa public registration; FR-002 read-only profile; FR-003 list/detail/pagination, thiếu search. Chat/AI/policy/PDF/Ticket/history/summary/notification chưa có nghiệp vụ. Staff route/panel và bảng DB không đánh dấu các FR/NFR đó hoàn tất. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+
 > **Tên tài liệu:** SRS-BHNT — Enterprise Customer Service AI Agent cho lĩnh vực bảo hiểm nhân thọ  
 > **Người viết:** Đặng Phạm Trung  
 > **Phiên bản:** 1.1 (Ngày tạo: 08/10/2026)  

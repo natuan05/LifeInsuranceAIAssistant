@@ -1,6 +1,6 @@
 import { coreRequest } from './auth-api';
 
-export type CustomerSummary = { id: string; accountCode: string; fullName: string; email: string; phone: string | null; status: 'ACTIVE' | 'LOCKED' };
+type CustomerSummary = { id: string; accountCode: string; fullName: string; email: string; phone: string | null; status: 'ACTIVE' | 'LOCKED' };
 export type Customer = CustomerSummary & { birth: string | null; address: string | null };
 export type OwnProfile = { customer: Customer; assignmentStatus: 'ASSIGNED' | 'UNASSIGNED' | 'STAFF_UNAVAILABLE';
   staff: { id: string; fullName: string; department: string | null; email: string; phone: string | null } | null };

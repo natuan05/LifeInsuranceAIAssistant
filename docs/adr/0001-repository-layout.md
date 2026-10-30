@@ -24,3 +24,8 @@ Dùng một Git repo với ba ứng dụng `web`, `core`, `agent`. Giữ `contra
 - Xem lại lựa chọn nếu các nhóm cần quyền repo khác nhau hoặc phát hành hoàn toàn độc lập.
 
 Căn cứ kỹ thuật: [NestJS Workspaces](https://docs.nestjs.com/cli/monorepo) phân biệt cách tổ chức workspace với tính năng ứng dụng; lựa chọn monorepo gọn ở đây là đánh giá cho dự án này.
+
+
+## Cập nhật baseline local 30/10/2026
+
+Các câu “chưa chọn” trong phần trên phản ánh thời điểm quyết định 24/10/2026. Theo yêu cầu triển khai tiếp, local đã dùng npm workspaces Web/Core và một lockfile root; không dùng Nx/Turborepo, Agent chưa có runtime/package. Baseline hiện hành ở [architecture](../architecture.md), chức năng UI/API ở [checklist tiến độ](../ui/implementation-status.md). Không thay trạng thái các ADR-AI/cloud đề xuất từ việc đã có UI hoặc WebSocket local.

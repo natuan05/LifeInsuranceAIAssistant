@@ -8,3 +8,5 @@ Nơi mô tả corpus và lưu manifest được rà soát; chưa có tài liệu
 - Chốt danh sách sản phẩm và quyền sử dụng/phân phối trước khi đưa corpus vào bộ dữ liệu.
 
 Corpus công khai không có nghĩa ứng dụng cho phép truy cập ẩn danh. Quyền truy xuất vẫn theo Core.
+
+Đối chiếu 30/10/2026: chưa có catalog/product/document/PDF APIs hoặc RAG pipeline; policy/product UI mới ở mức kế hoạch/khung. Xem [G03/G06 và checklist UI](../../docs/ui/implementation-status.md).

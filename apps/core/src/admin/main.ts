@@ -42,7 +42,7 @@ async function main() {
   const client = new PrismaClient({ adapter: new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user: 'admin_runtime', password: input.password, max: 5 }) });
   try {
     const rows = await client.$queryRaw<Array<{ migration_name: string }>>`SELECT migration_name FROM business._prisma_migrations WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL ORDER BY migration_name DESC LIMIT 1`;
-    if (rows[0]?.migration_name !== '202610250003_remove_admin_requests') throw new Error();
+    if (rows[0]?.migration_name !== '202610300001_rename_insurance_policies') throw new Error();
     const app = await createAdminApp(client, credential, 4100); app.enableShutdownHooks();
     await app.listen(4100, '127.0.0.1');
     console.log('Account admin ready: http://127.0.0.1:4100 — LOCAL PostgreSQL. Operator credential: .local/dev/operator-initial.txt (private; do not share).');

@@ -4,11 +4,11 @@ export type Actor = { id: string; accountCode: string; email: string; role: 'STA
 export type Session = { actor: Actor; csrfToken: string };
 export class AuthError extends Error {
   constructor(public readonly status: number) {
-    super(status === 401 ? 'Email hoặc mật khẩu không đúng, tài khoản không thuộc cổng đăng nhập này, bị khóa hoặc phiên đã hết hạn.'
-      : status === 400 ? 'Vui lòng nhập email và mật khẩu hợp lệ.'
-      : status === 429 ? 'Bạn đã thử quá nhiều lần. Vui lòng thử lại sau 15 phút.'
-        : status === 403 ? 'Không thể xác nhận yêu cầu. Hãy tải lại trang rồi thử lại.'
-          : 'Chưa kết nối được dịch vụ. Vui lòng thử lại.');
+    super(status === 401 ? 'Invalid email or password, incorrect portal, locked account, or expired session.'
+      : status === 400 ? 'Enter a valid email address and password.'
+      : status === 429 ? 'Too many attempts. Try again in 15 minutes.'
+        : status === 403 ? 'Unable to verify your request. Refresh the page and try again.'
+          : 'Unable to connect. Please try again.');
   }
 }
 function apiBase() {

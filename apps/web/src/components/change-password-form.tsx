@@ -4,8 +4,8 @@ import { useState, type FormEvent } from 'react';
 import { AuthError, changePassword, type Session } from '@/lib/auth-api';
 import { PasswordInput } from './password-input';
 
-export function ChangePasswordForm({ session, onChanged, onExpired }: {
-  session: Session; onChanged: (session: Session) => void; onExpired: () => void;
+export function ChangePasswordForm({ session, onChanged, onExpired, appearance }: {
+  appearance?: 'staff'; session: Session; onChanged: (session: Session) => void; onExpired: () => void;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -20,10 +20,10 @@ export function ChangePasswordForm({ session, onChanged, onExpired }: {
     const confirm = String(data.get('confirmPassword') ?? '');
     setError(''); setSuccess(false);
     if (Array.from(next).length < 6 || new TextEncoder().encode(next).length > 72) {
-      setError('Mật khẩu mới cần ít nhất 6 ký tự, tối đa 72 byte UTF-8. Chữ có dấu và emoji có thể chiếm nhiều byte.'); return;
+      setError('Use at least 6 characters and no more than 72 UTF-8 bytes. Accented characters and emoji may use multiple bytes.'); return;
     }
-    if (next !== confirm) { setError('Xác nhận mật khẩu mới chưa khớp.'); return; }
-    if (current === next) { setError('Mật khẩu mới cần khác mật khẩu hiện tại.'); return; }
+    if (next !== confirm) { setError('The new passwords do not match.'); return; }
+    if (current === next) { setError('Your new password must differ from your current password.'); return; }
     setPending(true);
     try {
       const updated = await changePassword(current, next, confirm, session.csrfToken);
@@ -31,23 +31,23 @@ export function ChangePasswordForm({ session, onChanged, onExpired }: {
     } catch (failure) {
       if (failure instanceof AuthError && failure.status === 401) { onExpired(); return; }
       setError(failure instanceof AuthError && failure.status === 400
-        ? 'Chưa đổi được mật khẩu. Kiểm tra mật khẩu hiện tại, mật khẩu mới và xác nhận; mật khẩu mới phải khác mật khẩu cũ.'
-        : failure instanceof AuthError ? failure.message : 'Chưa kết nối được dịch vụ. Vui lòng thử lại.');
+        ? 'Unable to change your password. Check your current password and confirm a different new password.'
+        : failure instanceof AuthError ? failure.message : 'Unable to connect. Please try again.');
     } finally { setPending(false); }
   }
-  return <section className="auth-card password-card" id="change-password" aria-labelledby="password-title">
-    <h2 id="password-title">Đổi mật khẩu</h2>
-    <p id="password-help">Mật khẩu mới ít nhất 6 ký tự, tối đa 72 byte UTF-8. Sau khi đổi, các thiết bị khác cần đăng nhập lại; bạn tiếp tục sử dụng trên thiết bị này.</p>
-    <form className="auth-form" onSubmit={submit} aria-describedby="password-help">
-      <label htmlFor="current-password">Mật khẩu hiện tại</label>
-      <PasswordInput id="current-password" label="Mật khẩu hiện tại" name="currentPassword" autoComplete="current-password" required maxLength={128} disabled={pending} />
-      <label htmlFor="new-password">Mật khẩu mới</label>
-      <PasswordInput id="new-password" label="Mật khẩu mới" name="newPassword" autoComplete="new-password" required maxLength={72} disabled={pending} />
-      <label htmlFor="confirm-password">Xác nhận mật khẩu mới</label>
-      <PasswordInput id="confirm-password" label="Xác nhận mật khẩu mới" name="confirmPassword" autoComplete="new-password" required maxLength={72} disabled={pending} />
-      {error && <p className="auth-error" role="alert">{error}</p>}
-      {success && <p className="success" role="status">Đã đổi mật khẩu. Các phiên cũ đã được đăng xuất.</p>}
-      <button className="auth-primary" disabled={pending}>{pending ? 'Đang đổi mật khẩu…' : 'Lưu mật khẩu mới'}</button>
+  return <section className={appearance === 'staff' ? 'personal-password-form' : 'auth-card password-card'} id="change-password" aria-labelledby="password-title">
+    <h2 id="password-title">Change password</h2>
+    <p id="password-help">Use at least 6 characters and no more than 72 UTF-8 bytes. Other devices will be signed out; you will stay signed in on this device.</p>
+    <form className={appearance === 'staff' ? 'personal-password-fields' : 'auth-form'} onSubmit={submit} aria-describedby="password-help">
+      <label htmlFor="current-password">Current password</label>
+      <PasswordInput appearance={appearance === 'staff' ? 'login' : undefined} id="current-password" label="Current password" name="currentPassword" autoComplete="current-password" required maxLength={128} disabled={pending} />
+      <label htmlFor="new-password">New password</label>
+      <PasswordInput appearance={appearance === 'staff' ? 'login' : undefined} id="new-password" label="New password" name="newPassword" autoComplete="new-password" required maxLength={72} disabled={pending} />
+      <label htmlFor="confirm-password">Confirm new password</label>
+      <PasswordInput appearance={appearance === 'staff' ? 'login' : undefined} id="confirm-password" label="Confirm new password" name="confirmPassword" autoComplete="new-password" required maxLength={72} disabled={pending} />
+      {error && <p className={appearance === 'staff' ? 'personal-form-error' : 'auth-error'} role="alert">{error}</p>}
+      {success && <p className="success" role="status">Password updated. Previous sessions have been signed out.</p>}
+      <button className={appearance === 'staff' ? 'personal-form-submit' : 'auth-primary'} disabled={pending}>{pending ? 'Updating password…' : 'Save new password'}</button>
     </form>
   </section>;
 }

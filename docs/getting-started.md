@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo về máy. Các lệnh dưới đây chạy tại thư mục gốc có `compose.yaml` và `package.json`. Ví dụ dùng PowerShell trên Windows; cổng trong tài liệu là giá trị mặc định.
 
-Ứng dụng hiện có: Next.js frontend, NestJS Core, PostgreSQL/pgvector, Nginx gateway, DbGate và tool quản trị tài khoản local. Đã có đăng nhập, đổi mật khẩu, hồ sơ Customer và danh sách Customer theo phân công cho Staff. Agent/AI, nghiệp vụ hợp đồng/Ticket và cloud chưa triển khai; RDS ngoài phạm vi hiện tại.
+Đối chiếu 30/10/2026: Next.js Web, NestJS Core, PostgreSQL/pgvector, Nginx, DbGate và operator local. Đã có auth/account/password/logout, hồ sơ theo quyền, Staff Customers list/detail/phân trang, UI Staff theo mẫu/routes và WebSocket invalidation local. Policy Lookup/Inbox/Ticket mới có khung; policy/PDF/chat/Ticket/Copilot/notification APIs, Agent và cloud chưa triển khai. Xem [checklist UI/gap](ui/implementation-status.md), [thứ tự đọc UI](ui/README.md); RDS ngoài phạm vi hiện tại.
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. File môi trường](#environment) · [3. Full Docker](#full-docker) · [4. Dev bằng npm](#npm-development) · [5. Tool admin](#admin-tool) · [6. Cổng và URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Database](#database) · [9. Kiểm tra và cập nhật](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -277,7 +277,9 @@ Các cổng publish Docker có thể đổi bằng .env root; cổng nội bộ 
 | --- | --- | --- |
 | Customer login | http://localhost:8080/login | http://localhost:3000/login |
 | Staff login | http://localhost:8080/staff/login | http://localhost:3000/staff/login |
-| Customer / Staff dashboard | /customer / /staff qua 8080 | /customer / /staff qua 3000 |
+| Customer profile / Staff Customers | /customer và /staff/customers qua 8080 | /customer và /staff/customers qua 3000 |
+| Staff Inbox / Policy Lookup / Tickets (khung UI) | /staff/inbox, /staff/policies, /staff/tickets qua 8080 | Các route tương tự qua 3000 |
+| WebSocket invalidation local | ws://localhost:8080/api/v1/realtime | ws://localhost:4000/api/v1/realtime |
 | Tài khoản / đổi password | /account qua 8080 | /account qua 3000 |
 | Swagger UI | http://localhost:8081 → /api/v1/docs | http://localhost:4000/api/v1/docs |
 | OpenAPI JSON | http://localhost:8081/api/v1/docs-json | http://localhost:4000/api/v1/docs-json |
@@ -335,9 +337,9 @@ Nếu chỉ dùng Docker, có thể xem kết quả bằng `docker compose logs 
 
 ### 7.3. Đăng nhập và đổi mật khẩu
 
-Đăng nhập xong đi thẳng dashboard đúng role; không OTP/kích hoạt hoặc ép đổi lần đầu. Banner nhắc đổi có nút Để sau. Tại Tài khoản → Đổi mật khẩu, nhập password hiện tại/mới/xác nhận; mới phải khác cũ, tối thiểu 6 ký tự và tối đa 72 byte UTF-8. Các ô có nút mắt hiện/ẩn riêng.
+Đăng nhập Customer tới `/customer` (hồ sơ); Staff tới `/staff/customers`, `/staff` redirect về đó. Mở deep link Staff khi chưa đăng nhập có `next` để quay lại route hợp lệ. Không OTP/kích hoạt hoặc ép đổi password lần đầu. Staff banner có nút đóng; Customer có Later, chỉ ẩn trong lần mount UI hiện tại. Menu avatar Staff chỉ có Personal information và Sign out; tại Personal information → Security → Change password mở form. Customer vẫn dùng Account. Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8, các ô có nút hiện/ẩn.
 
-Đổi thành công tắt lời nhắc và thu hồi mọi phiên cũ; thiết bị hiện tại tiếp tục dùng phiên mới, thiết bị khác cần login lại. Phiên website có hạn tuyệt đối 8 giờ. Customer xem hồ sơ mình và Staff phụ trách; Staff chỉ xem Customer được phân công. Các trường chưa có dữ liệu hiển thị Chưa có thông tin.
+Đổi thành công tắt lời nhắc và thu hồi mọi phiên cũ; thiết bị hiện tại tiếp tục dùng phiên mới, thiết bị khác cần login lại. Phiên website có hạn tuyệt đối 8 giờ. Customer xem hồ sơ mình và Staff phụ trách; Staff chỉ xem Customer được phân công. Các trường thiếu hiển thị Not provided. Web hiển thị tiếng Anh; tool operator là giao diện riêng. Staff Customers phân trang 10/trang bằng Previous/Next, detail có breadcrumb và khu vực policy chưa kết nối. Search khách chưa có API; không coi search disabled là lỗi kết nối.
 
 ### 7.4. Máy từng dùng bootstrap cũ
 
@@ -378,6 +380,8 @@ npm run db:validate --workspace @life-insurance/core
 npm run db:generate --workspace @life-insurance/core
 ~~~
 
+Model hiện dùng InsurancePolicy/PolicyStatus/insurance_policies, rename bằng migration `202610300001_rename_insurance_policies`; giữ dữ liệu/quan hệ và ba migration cũ. Bảng Policy có sẵn không đồng nghĩa có API/UI policy thật.
+
 Generate chỉ tạo Prisma Client, không tự sửa DB. Thay schema phải tạo migration mới và giữ CHECK/partial indexes; không sửa migration đã apply, không dùng db push/migrate reset trên DB cần giữ. Compose dùng role migration riêng.
 
 <a id="commands"></a>
@@ -415,6 +419,15 @@ npm run test:admin
 npm run test:http --workspace @life-insurance/core
 ~~~
 
+Kiểm tra Web riêng: `npm run lint --workspace @life-insurance/web`, `npm run typecheck --workspace @life-insurance/web`, `npm run build --workspace @life-insurance/web`. Chưa có bộ browser E2E được version trong repo; các smoke local trước đây và giới hạn ở [bảng tiến độ](ui/implementation-status.md).
+
+Realtime/HTTP foundation không cần DB thật; build Core trước rồi chạy:
+
+~~~powershell
+npm run build --workspace @life-insurance/core
+node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs
+~~~
+
 Test:admin cần cổng 4101 trống. Các helper test có DB tự chuẩn bị stack local; không chạy khi NODE_ENV=production. Test HTTP foundation dùng server tạm, không cần DB. Chỉ chạy check:connection khi FE/BE npm đang bật.
 
 ### 9.3. Dừng đúng cách
@@ -435,6 +448,9 @@ Dọn node_modules/.next/dist chỉ ảnh hưởng dependency/build host và s�
 | Port is already allocated / EADDRINUSE | Dừng process trùng hoặc đổi cổng Docker trong .env root; app npm/4100 kiểm tra process đang giữ cổng |
 | Có container Exited (0) | Bình thường với prepare/bootstrap/migrate/seed-dev; xem mục 3.3 |
 | Liveness 200 nhưng readiness 503 | Core còn sống nhưng DB/schema chưa sẵn sàng hoặc chưa có credential; npm mode dùng dev:db, Docker xem logs postgres/migrate/core |
+| Staff list/profile nháy khi quay lại tab | Bản hiện tại chỉ kiểm phiên khi focus, dữ liệu refresh nền qua socket. Kiểm tra đang dùng image mới; npm dev HMR khi sửa source vẫn bình thường |
+| Hồ sơ không tự cập nhật | Kiểm tra handshake `/api/v1/realtime` trong Network/WS, cookie cùng hostname và Origin. Docker gateway phải proxy Upgrade; local resync snapshot mỗi 2 giây, không phải chat events |
+| Gateway 502 sau khi thay container Web/Core | Kiểm tra service healthy rồi restart gateway để resolve lại upstream: docker compose restart gateway |
 | Sửa code nhưng website không đổi | Npm dev mở cổng 3000; gateway 8080 vẫn là bản container. Full Docker cần --build |
 | Login 401 | Dùng email đúng cổng Staff/Customer; password có thể đã đổi, account khóa hoặc phiên hết hạn. Password mẫu chỉ là ban đầu |
 | Login/API 403 | Dùng đúng Host/Origin, cookie/CSRF; tải lại trang. Không dùng wildcard CORS hoặc bỏ CSRF để xử lý |
@@ -469,6 +485,7 @@ Core tổ chức theo tính năng `auth/`, `customers/`, `accounts/`, `admin/`; 
 Tài liệu này là đầu mối duy nhất về setup/vận hành local cho thành viên mới. Những tài liệu còn lại phục vụ thiết kế và đối chiếu đặc tả:
 
 - [Kiến trúc và các quyết định local đang áp dụng](architecture.md).
+- [UI: thứ tự đọc](ui/README.md), [checklist triển khai/gap](ui/implementation-status.md) và [hướng phát triển](next-steps.md).
 - [Đặc tả Data Model](specifications/Data_Model.md) và các đặc tả khác trong [docs/specifications](specifications).
 - [Nguồn và các quyết định còn mở](source-review.md).
 - [Quy tắc cấu hình và dữ liệu](configuration-and-data.md).
