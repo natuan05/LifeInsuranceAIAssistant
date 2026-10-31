@@ -39,7 +39,22 @@ Composer: text, Send, Enter gửi/Shift+Enter xuống dòng, trạng thái gửi
 
 Core chặn Agent đang chạy ghi nghiệp vụ khi Staff takeover; Copilot nội bộ có thể tiếp tục theo quyền. Kết quả summary/AI không phải quyết định Claim. Không triển khai “trả lại AI”, Dismiss, đóng chat hoặc chuyển Staff từ nút mock khi chưa chốt workflow.
 
-## Trạng thái riêng / checklist
+## Luồng tiếp nhận và trả lời Customer yêu cầu hỗ trợ
+
+Bổ sung yêu cầu 31/10/2026, **chưa triển khai**: yêu cầu chờ có thể do Customer chủ động chọn Yêu cầu Staff hoặc do Agent đề xuất và Customer đồng ý/xác nhận gửi. Hai nhánh dùng cùng quy tắc [Customer chat](../customer/chat.md#6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026); Staff không tạo Ticket thay khách từ một gợi ý chưa được xác nhận.
+
+1. Staff nhận thông báo/hàng đợi Requests theo scope, mở đúng conversationId và Ticket liên kết, đọc lịch sử AI–Customer và nội dung khách đã duyệt.
+2. Mở xem hoặc đánh dấu notification đã đọc không tự nhận công việc. Staff chọn tiếp nhận qua A11; nếu có Ticket thì kết quả phải nhất quán với A23, không có tình trạng nhận Ticket nhưng không có quyền chat.
+3. Chỉ khi Core trả trạng thái/quyền điều khiển mới, mở composer cho Staff. Tin trả lời qua A12 được lưu thành Message STAFF, Customer nhận trong chính hội thoại đó; gửi lại sau timeout không tạo tin trùng.
+4. Core chặn câu trả lời Agent còn chạy dở và thao tác ghi sau khi Staff tiếp quản. Hai Staff cùng nhận hoặc assignment thay đổi phải kiểm phiên bản/quyền tại thời điểm ghi; client không tự bật quyền bằng state.
+
+- [ ] Kiểm thử cả nguồn Customer chủ động và Agent gợi ý được khách đồng ý.
+- [ ] Mở từ notification, Requests và lịch sử theo khách đều trỏ đúng cuộc, kiểm lại quyền.
+- [ ] Tiếp nhận rồi Staff trả lời, Customer thấy tin và nhãn Staff; lịch sử cũ giữ nguyên.
+- [ ] Khách từ chối gợi ý không tạo công việc; yêu cầu trùng không thêm Ticket/thông báo.
+- [ ] Không có câu trả lời Agent muộn sau tiếp quản; race giữa nhận Ticket/takeover/gửi tin được xử lý ở Core.
+
+## Checklist trạng thái hội thoại
 
 - [ ] AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE/CLOSED rõ; trạng thái pending thao tác tách khỏi trạng thái nghiệp vụ.
 - [ ] Hai Staff tranh chấp hoặc version stale: không gửi/nhận lạc quan; tải lại actor, trạng thái và quyền từ Core.

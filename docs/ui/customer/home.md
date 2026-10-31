@@ -22,4 +22,4 @@ Xem nhanh policy/kỳ phí từ Core, Staff phụ trách và lối tắt policy/
 - [ ] Loading/rỗng/lỗi; chưa có policy/Staff vẫn sử dụng các phần được phép.
 - [ ] Lối tắt policy/chat và menu Customer mới.
 
-Các phần dự kiến không phải contract đã duyệt; Core kiểm quyền, Agent không truy cập business DB. Thuật ngữ UI tiếng Anh dùng Policy, file contracts.md giữ để không gãy liên kết.
+Các phần dự kiến không phải contract đã duyệt; Core kiểm quyền, Agent không truy cập business DB. Thuật ngữ UI tiếng Anh dùng Policy.

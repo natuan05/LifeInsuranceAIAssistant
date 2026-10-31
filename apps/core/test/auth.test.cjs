@@ -10,6 +10,7 @@ const { PrismaClient } = require('../dist/generated/prisma/client');
 const { DatabaseService } = require('../dist/database/database.service');
 const { AuthService, tokenHash } = require('../dist/auth/services/auth.service');
 const { AuthController } = require('../dist/auth/controllers/auth.controller');
+const { StaffProfileController } = require('../dist/auth/controllers/staff-profile.controller');
 const { configureHttp } = require('../dist/http/http-foundation');
 const { AccountProvisioningService } = require('../dist/accounts/services/account-provisioning.service');
 const input = JSON.parse(readFileSync(0, 'utf8'));
@@ -17,9 +18,9 @@ const origin = 'http://localhost:3000';
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = origin;
 const adapter = (user, password) => new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 3 });
 const admin = new PrismaClient({ adapter: adapter('admin_runtime', input.password) });
-const core = new PrismaClient({ adapter: adapter('core_runtime', readFileSync('.local/dev/core-password', 'utf8').trim()) });
+const core = new PrismaClient({ adapter: adapter('core_runtime', input.corePassword) });
 class TestModule {}
-Module({ controllers: [AuthController], providers: [AuthService, { provide: DatabaseService, useValue: { prisma: core } }] })(TestModule);
+Module({ controllers: [AuthController, StaffProfileController], providers: [AuthService, { provide: DatabaseService, useValue: { prisma: core } }] })(TestModule);
 let app, base, staff, customer;
 const suffix = Date.now().toString();
 const password = 'Synthetic-Login-12345';
@@ -59,11 +60,53 @@ after(async () => {
     await tx.auditLog.deleteMany({ where: { targetId: { in: ids } } });
     await tx.customerProfile.deleteMany({ where: { userId: { in: ids } } });
     await tx.staffProfile.deleteMany({ where: { userId: { in: ids } } });
-    await tx.rateLimitBucket.deleteMany({ where: { clientToken: { in: ids.map(tokenHash) }, endpointGroup: 'AUTH_PASSWORD_CHANGE' } });
+    await tx.rateLimitBucket.deleteMany({ where: { clientToken: { in: ids.map(tokenHash) }, endpointGroup: { in: ['AUTH_PASSWORD_CHANGE', 'STAFF_PROFILE_UPDATE'] } } });
     await tx.user.deleteMany({ where: { id: { in: ids } } });
     await tx.rateLimitBucket.deleteMany({ where: { clientToken: { in: [staff, customer].filter(Boolean).flatMap(a => [tokenHash(a.email), tokenHash(a.accountCode.toLowerCase())]) }, endpointGroup: 'AUTH_LOGIN' } });
   });
   await core.$disconnect(); await admin.$disconnect();
+});
+
+test('Staff profile: own scope, strict input, CSRF, stale writes, atomic audit and session continuity', async () => {
+  const login = await signIn(staff.email);
+  const get = cookie => fetch(`${base}/api/v1/staff/me`, { headers: { Cookie: cookie } });
+  const update = (body, extra = {}, cookie = login.cookie) => fetch(`${base}/api/v1/staff/me`, {
+    method: 'PATCH', headers: { ...headers, Cookie: cookie, 'X-CSRF-Token': login.body.csrfToken, ...extra }, body: JSON.stringify(body),
+  });
+  assert.equal((await get('')).status, 401);
+  const customerLogin = await signIn(customer.email);
+  assert.equal((await get(customerLogin.cookie)).status, 403);
+  const before = (await (await get(login.cookie)).json()).staff;
+  const input = { fullName: '  Synthetic Updated Staff  ', phone: '+84900000001', expectedUpdatedAt: before.updatedAt };
+  assert.equal((await update(input, { 'X-CSRF-Token': '' })).status, 403);
+  assert.equal((await update(input, { Origin: 'https://untrusted.invalid' })).status, 403);
+  assert.equal((await update(input, { 'X-CSRF-Token': customerLogin.body.csrfToken }, customerLogin.cookie)).status, 403);
+  for (const invalid of [{ ...input, role: 'CUSTOMER' }, { ...input, email: customer.email }, { ...input, fullName: ' ' }, { ...input, phone: '' }, { ...input, fullName: null }, {}]) {
+    assert.equal((await update(invalid)).status, 400);
+  }
+  const result = await update(input);
+  assert.equal(result.status, 200);
+  assert.equal(result.headers.get('cache-control'), 'no-store');
+  const saved = (await result.json()).staff;
+  assert.equal(saved.fullName, 'Synthetic Updated Staff');
+  assert.equal(saved.phone, input.phone);
+  assert.equal(saved.email, staff.email);
+  assert.notEqual(saved.updatedAt, before.updatedAt);
+  assert.deepEqual(Object.keys(saved).sort(), ['id', 'accountCode', 'email', 'phone', 'role', 'updatedAt', 'fullName', 'department'].sort());
+  assert.equal((await update(input)).status, 409);
+  assert.equal((await (await me(login.cookie)).json()).actor.fullName, saved.fullName);
+  const audit = await admin.auditLog.findFirst({ where: { targetId: staff.id, action: 'STAFF_PROFILE_UPDATED' } });
+  assert.equal(audit.actorId, staff.id);
+  assert.equal(audit.metadata, null);
+  await admin.user.update({ where: { id: customer.id }, data: { phone: '+84900000002' } });
+  assert.equal((await update({ ...input, fullName: 'Synthetic Conflict', phone: '+84900000002', expectedUpdatedAt: saved.updatedAt })).status, 409);
+  assert.equal((await (await get(login.cookie)).json()).staff.fullName, saved.fullName);
+  const cleared = await update({ ...input, expectedUpdatedAt: saved.updatedAt, phone: null });
+  assert.equal(cleared.status, 200);
+  assert.equal((await cleared.json()).staff.phone, null);
+  await admin.authSession.updateMany({ where: { userId: staff.id }, data: { revokedAt: new Date() } });
+  assert.equal((await get(login.cookie)).status, 401);
+  assert.equal((await update(input)).status, 401);
 });
 
 test('email-only portal login, safe actor role, hashed sessions, session replacement and Core restart', async () => {

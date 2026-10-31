@@ -34,7 +34,7 @@ Hồ sơ và tài khoản
 | C01 | [Đăng nhập](customer/login.md) | Truy cập tài khoản Customer bằng email và mật khẩu. | Form đăng nhập, hiện/ẩn mật khẩu, thông báo lỗi. Tái sử dụng trang hiện có. |
 | C02 | [Trang chủ](customer/home.md) | Xem nhanh hợp đồng, kỳ phí sắp tới nếu có dữ liệu và Staff phụ trách. Có lối tắt đến các chức năng chính. | Vài thẻ thông tin và nút Xem hợp đồng, Hỏi trợ lý. |
 | C03 | [Sản phẩm](customer/products.md) | Xem danh sách, mô tả, quyền lợi chung và tài liệu giới thiệu sản phẩm. Giúp khách tìm hiểu mà không cần chat. | Danh sách đơn giản; bấm vào xem chi tiết và PDF. |
-| C04 | [Hợp đồng của tôi](customer/contracts.md) | Xem số hợp đồng, sản phẩm, trạng thái, thời hạn, quyền lợi, phí mỗi kỳ và ngày đến hạn từ dữ liệu Core. | Danh sách hợp đồng → trang chi tiết chia thành các mục; có nút Xem tài liệu và Hỏi về hợp đồng này. |
+| C04 | [Hợp đồng của tôi](customer/policies.md) | Xem số hợp đồng, sản phẩm, trạng thái, thời hạn, quyền lợi, phí mỗi kỳ và ngày đến hạn từ dữ liệu Core. | Danh sách hợp đồng → trang chi tiết chia thành các mục; có nút Xem tài liệu và Hỏi về hợp đồng này. |
 | C05 | [Xem tài liệu](customer/documents.md) | Đọc/tải hợp đồng và điều khoản được cấp quyền, đúng phiên bản áp dụng. | Danh sách tài liệu trong chi tiết hợp đồng; mở PDF bằng trình xem có sẵn. |
 | C06 | [Trợ lý và lịch sử chat](customer/chat.md) | Hỏi AI, xem nguồn/lịch sử; tạo Ticket từ tóm tắt AI hoặc yêu cầu Staff tiếp quản cuộc chat sau khi xác nhận. | Khung chat có nút Tạo yêu cầu hỗ trợ và Yêu cầu Staff; hiển thị AI đang hỗ trợ/Chờ Staff/Staff đang hỗ trợ. |
 | C07 | [Yêu cầu hỗ trợ](customer/tickets.md) | Tự điền Ticket hoặc xem lại bản AI tóm tắt rồi xác nhận gửi; theo dõi yêu cầu đã lưu. | Danh sách, nút Tạo yêu cầu mới, form đơn giản và chi tiết Ticket. |
@@ -90,17 +90,18 @@ Chuông thông báo là phần chưa triển khai. Panel Copilot đã có khung 
 | S01 | [Đăng nhập và tài khoản](staff/account.md) | Đăng nhập Staff, xem thông tin tài khoản, đổi mật khẩu và đăng xuất. | Tái sử dụng các trang hiện có; bổ sung menu Staff. |
 | S02 | [Tổng quan](staff/home.md) | Xem nhanh Ticket và hội thoại cần tiếp nhận trong phạm vi phân công. | Hai danh sách ngắn, bấm để mở công việc. |
 | S03 | [Khách hàng](staff/customers.md) | Xem danh sách, tìm khách được phân công và mở hồ sơ để nắm thông tin. | Bảng có phân trang/tìm kiếm; trang hoặc vùng chi tiết hồ sơ. |
-| S04 | [Hợp đồng và tài liệu của khách](staff/contracts.md) | Tra cứu hợp đồng, quyền lợi, kỳ phí và PDF để hỗ trợ Customer bằng thông tin có nguồn. | Các mục trong hồ sơ khách; danh sách → chi tiết; mở PDF như phía Customer. |
+| S04 | [Hợp đồng và tài liệu của khách](staff/policies.md) | Tra cứu hợp đồng, quyền lợi, kỳ phí và PDF để hỗ trợ Customer bằng thông tin có nguồn. | Các mục trong hồ sơ khách; danh sách → chi tiết; mở PDF như phía Customer. |
 | S05 | [Hội thoại và Copilot](staff/conversations.md) | Tiếp nhận yêu cầu chuyển giao hoặc chủ động tiếp quản theo quyền; chat trực tiếp, dùng Copilot tóm tắt/tìm nguồn. | Chat và Copilot bên cạnh; nút Tiếp nhận/Tiếp quản và Tóm tắt hội thoại. |
 | S06 | [Ticket hỗ trợ](staff/tickets.md) | Xem Ticket do khách tự nhập hoặc xác nhận từ AI; tiếp nhận theo quyền, mở chat nếu được liên kết. | Bảng → chi tiết; phân biệt nội dung khách xác nhận với tóm tắt AI. |
 | S07 | [Thông báo](staff/notifications.md) | Biết có Ticket mới, yêu cầu chuyển giao hoặc tin Customer chưa đọc thuộc phạm vi hỗ trợ. | Chuông có số chưa đọc, danh sách và liên kết mở công việc. |
 
 ### Checklist triển khai
 
-- [x] **S01:** Login/account/password/logout đã nối API; popover chỉ Personal information và Sign out, trang account cùng style Staff.
+- [x] **S01:** Login/account/password/logout và tự sửa họ tên/phone qua GET/PATCH /staff/me đã nối API; popover chỉ Personal information và Sign out. Form Tailwind có Edit/Save/Cancel, thông báo kết quả; đã bỏ footer Contact và cập nhật Docker (31/10).
 - [ ] **S02:** Làm danh sách việc cần tiếp nhận, chỉ lấy trong phạm vi được phép.
 - [x] **S03 cơ bản:** List/detail/profile theo assignment, phân trang URL 10/trang và bố cục ưu tiên policy.
-- [ ] **S03 còn thiếu:** Search toàn tập, retry lỗi list và policy thật.
+- [x] **S03 search/retry:** tìm toàn tập assignment theo tên/code/email/phone, giữ URL/page và Try again lỗi list/detail (31/10).
+- [ ] **S03 còn thiếu:** Policy/lịch sử/Ticket thật và browser regression cho search/retry/realtime.
 - [ ] **S04:** Bổ sung hợp đồng, quyền lợi, kỳ phí và tài liệu vào hồ sơ khách.
 - [ ] **S05:** Làm nút tiếp nhận/tiếp quản, chat trực tiếp, lịch sử và nút tóm tắt qua Copilot đúng ngữ cảnh Customer.
 - [ ] **S06:** Làm danh sách/chi tiết Ticket và tiếp nhận hội thoại; MVP dừng ở xem, theo dõi, tiếp nhận.

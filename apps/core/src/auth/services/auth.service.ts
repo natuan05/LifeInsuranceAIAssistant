@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, HttpException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, HttpException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 import { DatabaseService } from '../../database/database.service';
@@ -6,6 +6,7 @@ import { hashPassword, needsPasswordRehash, verifyPassword } from '../../account
 import { loadConfig } from '../../config';
 import type { LoginDto } from '../dto/login.dto';
 import type { ChangePasswordDto } from '../dto/change-password.dto';
+import type { UpdateStaffProfileDto } from '../dto/update-staff-profile.dto';
 import type { Prisma } from '../../generated/prisma/client';
 
 export const SESSION_SECONDS = 8 * 60 * 60;
@@ -121,6 +122,14 @@ export class AuthService {
     return { cookies, current };
   }
 
+  async authorizeWrite(request: Request, client: Pick<Prisma.TransactionClient, 'authSession'>) {
+    this.requireWrite(request);
+    const current = await this.me(request, client);
+    const supplied = request.headers['x-csrf-token'];
+    if (!tokenValid(supplied) || !timingSafeEqual(Buffer.from(tokenHash(supplied), 'hex'), Buffer.from(tokenHash(current.csrfToken), 'hex'))) throw new ForbiddenException();
+    return current;
+  }
+
   async changePassword(input: ChangePasswordDto, request: Request) {
     const { cookies, current } = await this.writeSession(request);
     await this.limit(current.actor.id, 'AUTH_PASSWORD_CHANGE', 10, 15 * 60);
@@ -160,5 +169,47 @@ export class AuthService {
       await tx.authSession.updateMany({ where: { tokenHash: tokenHash(cookies[sessionCookie]), revokedAt: null }, data: { revokedAt: new Date() } });
       await this.audit(tx, current.actor.id, 'LOGOUT', request.requestId, true);
     });
+  }
+
+  private async staffView(tx: Prisma.TransactionClient, userId: string) {
+    const profile = await tx.staffProfile.findUnique({ where: { userId }, select: {
+      fullName: true, department: true,
+      user: { select: { id: true, accountCode: true, email: true, phone: true, role: true, updatedAt: true } },
+    } });
+    if (!profile) throw new NotFoundException();
+    return { staff: { ...profile.user, fullName: profile.fullName, department: profile.department } };
+  }
+
+  staffProfile(request: IncomingMessage) {
+    return this.database.prisma.$transaction(async tx => {
+      const { actor } = await this.me(request, tx);
+      if (actor.role !== 'STAFF') throw new ForbiddenException();
+      return this.staffView(tx, actor.id);
+    }, { isolationLevel: 'RepeatableRead' });
+  }
+
+  async updateStaffProfile(input: UpdateStaffProfileDto, request: Request) {
+    const { current } = await this.writeSession(request);
+    if (current.actor.role !== 'STAFF') throw new ForbiddenException();
+    await this.limit(current.actor.id, 'STAFF_PROFILE_UPDATE', 30, 15 * 60);
+    try {
+      return await this.database.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM business.users WHERE id = ${current.actor.id}::uuid FOR UPDATE`;
+        const { actor } = await this.me(request, tx);
+        if (actor.role !== 'STAFF') throw new ForbiddenException();
+        const before = await this.staffView(tx, actor.id);
+        if (before.staff.updatedAt.getTime() !== new Date(input.expectedUpdatedAt).getTime()) throw new ConflictException();
+        await tx.staffProfile.update({ where: { userId: actor.id }, data: { fullName: input.fullName } });
+        await tx.user.update({ where: { id: actor.id }, data: {
+          ...(input.phone !== undefined ? { phone: input.phone } : {}),
+          updatedAt: new Date(Math.max(Date.now(), before.staff.updatedAt.getTime() + 1)),
+        } });
+        await this.audit(tx, actor.id, 'STAFF_PROFILE_UPDATED', request.requestId, true);
+        return this.staffView(tx, actor.id);
+      });
+    } catch (error) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') throw new ConflictException();
+      throw error;
+    }
   }
 }

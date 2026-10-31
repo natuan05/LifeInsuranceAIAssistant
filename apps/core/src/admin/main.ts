@@ -8,6 +8,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client';
 import { ApiExceptionFilter, createValidationPipe } from '../http/http-foundation';
 import { AdminModule } from './admin.module';
+import { operatorDirectory } from './operator-directory';
 
 export async function createAdminApp(client: PrismaClient, credential: { username: string; passwordHash: string }, port: number) {
   const origins = [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
@@ -33,8 +34,9 @@ export async function createAdminApp(client: PrismaClient, credential: { usernam
 
 async function main() {
   const input = JSON.parse(readFileSync(0, 'utf8')) as { port: number; password: string; directory: string };
-  if (process.env.NODE_ENV === 'production' || resolve(input.directory) !== resolve(process.cwd(), '.local/dev')
-    || !Number.isInteger(input.port) || input.port < 1 || input.port > 65535 || !/^[a-f0-9]{64}$/.test(input.password)) throw new Error();
+  if (process.env.NODE_ENV === 'production' || resolve(input.directory) !== operatorDirectory()
+    || !Number.isInteger(input.port) || input.port < 1 || input.port > 65535 || typeof input.password !== 'string'
+    || input.password.length < 16 || input.password.length > 128 || /[\r\n\0]/.test(input.password)) throw new Error();
   const file = resolve(input.directory, 'operator.json');
   if (!existsSync(file) || realpathSync(file) !== file) throw new Error();
   const credential = JSON.parse(readFileSync(file, 'utf8')) as { username: string; passwordHash: string };
@@ -45,7 +47,7 @@ async function main() {
     if (rows[0]?.migration_name !== '202610300001_rename_insurance_policies') throw new Error();
     const app = await createAdminApp(client, credential, 4100); app.enableShutdownHooks();
     await app.listen(4100, '127.0.0.1');
-    console.log('Account admin ready: http://127.0.0.1:4100 — LOCAL PostgreSQL. Operator credential: .local/dev/operator-initial.txt (private; do not share).');
+    console.log(`Account admin ready: http://127.0.0.1:4100 — LOCAL PostgreSQL. Operator credential: ${resolve(input.directory, 'operator-initial.txt')} (private; do not share).`);
     for (const event of ['SIGINT', 'SIGTERM'] as const) process.once(event, () => { void app.close().then(() => client.$disconnect()); });
   } catch { await client.$disconnect(); throw new Error(); }
 }

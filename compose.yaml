@@ -9,13 +9,76 @@ x-migrator: &migrator-image
     target: migrator
 
 services:
+  storage-prepare:
+    image: node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
+    command: ["node", "/storage/prepare.mjs"]
+    restart: "no"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
+      MINIO_READER_ACCESS_KEY: ${MINIO_READER_ACCESS_KEY:-}
+      MINIO_READER_SECRET_KEY: ${MINIO_READER_SECRET_KEY:-}
+      MINIO_WRITER_ACCESS_KEY: ${MINIO_WRITER_ACCESS_KEY:-}
+      MINIO_WRITER_SECRET_KEY: ${MINIO_WRITER_SECRET_KEY:-}
+    volumes:
+      - ./infra/local/storage/prepare.mjs:/storage/prepare.mjs:ro
+      - minio_data:/data
+      - credential_storage_root:/credentials/root
+      - credential_storage_reader:/credentials/reader
+      - credential_storage_writer:/credentials/writer
+
+  minio:
+    image: life-insurance-minio:local
+    build: { context: ./infra/local/storage, target: server }
+    environment:
+      MINIO_REGION_NAME: ${MINIO_REGION:-ap-southeast-1}
+      MINIO_BROWSER_REDIRECT_URL: ${MINIO_BROWSER_REDIRECT_URL:-http://localhost:${MINIO_CONSOLE_PORT:-9001}}
+      MINIO_API_CORS_ALLOW_ORIGIN: ${MINIO_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080}}
+      MINIO_BROWSER: "on"
+      MINIO_UPDATE: "off"
+    ports:
+      - "127.0.0.1:${MINIO_API_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+      - credential_storage_root:/credentials/root:ro
+    depends_on:
+      storage-prepare: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:9000/minio/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 3s
+      retries: 18
+      start_period: 15s
+    restart: unless-stopped
+    stop_grace_period: 30s
+
+  storage-init:
+    image: life-insurance-storage-client:local
+    build: { context: ./infra/local/storage, target: client }
+    environment:
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
+      STORAGE_CHECK_ORIGIN: ${MINIO_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080}}
+    volumes:
+      - credential_storage_root:/credentials/root:ro
+      - credential_storage_reader:/credentials/reader:ro
+      - credential_storage_writer:/credentials/writer:ro
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: "no"
+
   prepare:
     image: node:24.18.0-bookworm-slim@sha256:6f7b03f7c2c8e2e784dcf9295400527b9b1270fd37b7e9a7285cf83b6951452d
     command: ["node", "/prepare-local.mjs"]
     restart: "no"
+    environment:
+      DB_BOOTSTRAP_PASSWORD: ${DB_BOOTSTRAP_PASSWORD:-}
+      DB_MIGRATION_PASSWORD: ${DB_MIGRATION_PASSWORD:-}
+      DB_CORE_PASSWORD: ${DB_CORE_PASSWORD:-}
+      DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:-}
+      DB_VIEWER_PASSWORD: ${DB_VIEWER_PASSWORD:-}
     volumes:
       - ./scripts/prepare-local.mjs:/prepare-local.mjs:ro
-      - ./.local/postgres:/legacy/postgres:ro
       - postgres_data:/existing-db:ro
       - credential_bootstrap:/credentials/bootstrap
       - credential_migration:/credentials/migration
@@ -77,10 +140,14 @@ services:
       NODE_ENV: development
       LOCAL_DEV_SEED: "true"
       PGHOST: postgres
+      STORAGE_REGION: ${MINIO_REGION:-ap-southeast-1}
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
     volumes:
       - credential_admin:/credentials/admin:ro
+      - credential_storage_writer:/credentials/storage-writer:ro
     depends_on:
       migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
     restart: "no"
 
   core:
@@ -88,7 +155,7 @@ services:
     build: { context: ., dockerfile: apps/core/Dockerfile, target: runtime }
     environment:
       NODE_ENV: development
-      ENABLE_API_DOCS: "true"
+      ENABLE_API_DOCS: ${CORE_ENABLE_API_DOCS:-true}
       HOST: 0.0.0.0
       PORT: "4000"
       PGHOST: postgres
@@ -96,11 +163,20 @@ services:
       PGUSER: core_runtime
       PGDATABASE: life_insurance
       DATABASE_PASSWORD_FILE: /credentials/core/password
-      CORS_ORIGINS: http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081},http://localhost:3000,http://127.0.0.1:3000
+      STORAGE_INTERNAL_ENDPOINT: http://minio:9000
+      STORAGE_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:${MINIO_API_PORT:-9000}}
+      STORAGE_REGION: ${MINIO_REGION:-ap-southeast-1}
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
+      STORAGE_URL_TTL_SECONDS: ${STORAGE_URL_TTL_SECONDS:-900}
+      STORAGE_ACCESS_KEY_FILE: /credentials/storage-reader/access-key
+      STORAGE_SECRET_KEY_FILE: /credentials/storage-reader/secret-key
+      CORS_ORIGINS: ${CORE_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081}}
     volumes:
       - credential_core:/credentials/core:ro
+      - credential_storage_reader:/credentials/storage-reader:ro
     depends_on:
       seed-dev: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/api/v1/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -115,8 +191,8 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_CORE_API_URL: /api/v1
-        NEXT_PUBLIC_DATABASE_UI_URL: http://127.0.0.1:${DATABASE_UI_PORT:-5050}
+        NEXT_PUBLIC_CORE_API_URL: ${NEXT_PUBLIC_CORE_API_URL:-/api/v1}
+        NEXT_PUBLIC_DATABASE_UI_URL: ${NEXT_PUBLIC_DATABASE_UI_URL:-http://127.0.0.1:${DATABASE_UI_PORT:-5050}}
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 5s
@@ -135,7 +211,7 @@ services:
       core: { condition: service_healthy }
       web: { condition: service_healthy }
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gateway-health && wget -q -O /dev/null http://127.0.0.1:81/api/v1/docs-json"]
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/gateway-health && wget -q -O /dev/null http://127.0.0.1:81/api/v1/health/ready"]
       interval: 5s
       timeout: 3s
       retries: 12
@@ -172,6 +248,10 @@ services:
     restart: unless-stopped
 
 volumes:
+  minio_data: { name: life-insurance-local-minio-data }
+  credential_storage_root: { name: life-insurance-local-credential-storage-root }
+  credential_storage_reader: { name: life-insurance-local-credential-storage-reader }
+  credential_storage_writer: { name: life-insurance-local-credential-storage-writer }
   postgres_data: { name: life-insurance-local-postgres-data }
   credential_bootstrap: { name: life-insurance-local-credential-bootstrap }
   credential_migration: { name: life-insurance-local-credential-migration }

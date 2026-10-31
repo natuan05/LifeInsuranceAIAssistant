@@ -23,13 +23,14 @@ test('receive-only realtime authenticates, isolates scopes, invalidates and revo
   try {
     service.onApplicationBootstrap(); server.listen(0, '127.0.0.1'); await once(server, 'listening');
     const url = `ws://127.0.0.1:${server.address().port}/api/v1/realtime`;
-    const connect = async (cookie, origin = 'http://localhost:3000') => {
+    const connect = async (cookie, origin = 'http://localhost:8080') => {
       const ws = new WebSocket(url, { headers: { cookie, origin } }); sockets.push(ws);
       const events = []; ws.on('message', value => events.push(JSON.parse(String(value))));
       await once(ws, 'open');
       return { ws, events };
     };
     await assert.rejects(connect('a', 'https://untrusted.invalid'));
+    await assert.rejects(connect('a', 'http://localhost:3000'));
     await assert.rejects(connect('invalid'));
     const a = await connect('a'); const b = await connect('b');
     const until = async fn => { const end = Date.now() + 7000; while (!fn()) { assert(Date.now() < end, 'event timeout'); await new Promise(r => setTimeout(r, 30)); } };

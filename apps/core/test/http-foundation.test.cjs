@@ -56,8 +56,13 @@ test('Public module graph starts with auth/customer routes and excludes operator
     assert.equal((await fetch(url + '/api/v1/health/live')).status, 200);
     assert.equal((await fetch(url + '/api/v1/health/ready')).status, 503);
     const spec = await (await fetch(url + '/api/v1/docs-json')).json();
-    for (const route of ['/api/v1/auth/login', '/api/v1/auth/staff/login', '/api/v1/customers/me', '/api/v1/staff/customers']) {
+    for (const route of ['/api/v1/auth/login', '/api/v1/auth/staff/login', '/api/v1/customers/me', '/api/v1/staff/customers', '/api/v1/staff/me']) {
       assert.ok(spec.paths[route], route);
+    }
+    assert.ok(spec.paths['/api/v1/staff/me'].patch);
+    for (const route of ['/api/v1/staff/customers/{customerId}/policies', '/api/v1/staff/policies/{policyId}', '/api/v1/staff/policies/{policyId}/documents']) {
+      assert.ok(spec.paths[route]?.get, route);
+      assert.ok(spec.paths[route].get.responses['200'].content['application/json'].schema.$ref, 'Documented response DTO');
     }
     for (const route of ['/api/v1/auth/me', '/api/v1/customers/me', '/api/v1/staff/customers']) {
       assert.equal((await fetch(url + route)).status, 503, route);

@@ -24,6 +24,7 @@ Sidebar của mẫu + vùng danh sách bên trái chat là trang vào công vi�
 - Đổi All/Requests/Active, tìm kiếm, phân trang: A08 P; không đồng nhất New với trạng thái AI khi chưa duyệt.
 - Mở cuộc chat: A09–10 P → S05. Mở Ticket: A21–22 P → S06. Badge Tickets không hard-code.
 - Requests là handoff pending, không phải danh sách mọi Ticket. Mở xem không tự nhận công việc.
+- Bổ sung 31/10: Requests tiếp nhận cả Customer chủ động yêu cầu Staff và yêu cầu do Agent gợi ý được khách đồng ý/xác nhận gửi. Chỉ xuất hiện sau Core commit yêu cầu; Agent gợi ý nhưng khách chưa đồng ý không thêm item/count. Hai nhánh dùng cùng quy tắc chống trùng, không tạo hai công việc cho một lần chuyển giao. Luồng này chưa triển khai; xem [Customer chat](../customer/chat.md#6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026).
 
 ## Trạng thái riêng / checklist
 

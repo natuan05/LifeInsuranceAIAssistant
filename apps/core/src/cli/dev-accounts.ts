@@ -15,6 +15,7 @@ export const devAccounts: readonly DevAccountDefinition[] = [
   { accountCode: 'CUS-000002', email: 'customer.b@dev.example.invalid', role: 'CUSTOMER', fullName: 'Synthetic Customer B', staffCode: 'STF-000002' },
   { accountCode: 'CUS-000003', email: 'customer.unassigned@dev.example.invalid', role: 'CUSTOMER', fullName: 'Synthetic Customer Unassigned' },
 ] as const;
+
 export type DevManifest = { version: 1; accounts: Array<{ accountCode: string; email: string; password: string }> };
 export function newDevManifest(fixtures = devAccounts): DevManifest {
   return { version: 1, accounts: fixtures.map(account => ({ accountCode: account.accountCode, email: account.email, password: sharedDevPassword })) };

@@ -18,7 +18,7 @@
 | --- | --- | --- |
 | P0 | G01–G03: policy/context/PDF | Chỉ có khung lookup/vùng policy, chưa A14–20. Phân biệt policy đang xem và gắn chat; chốt version áp dụng/PDF access |
 | P0 | G04: queue/chat/takeover/Ticket | Route và panel có; chưa A07–13/A21–23, confirmation, idempotency, Agent fence hoặc worker. Không bật nút nghiệp vụ bằng state local |
-| P1 | G05: search/retry/copy | A05 chưa search; lỗi list Back to list có thể về cùng URL. Disabled lookup còn placeholder CCCD/phone; New còn tooltip từ mẫu, nghĩa chưa chốt |
+| P1 | G05: copy và browser regression | Search A05 và Try again đã nối 31/10; Core 7 test pass. Còn browser regression search/retry/realtime. Disabled lookup còn placeholder CCCD/phone; New còn tooltip từ mẫu, nghĩa chưa chốt |
 | P1 | G06: Copilot | Panel trống, chưa A24–26/checkpoint/retrieval/citations; không coi font/rail là triển khai Agent |
 | P1 | G07: notifications | Chưa chuông/list/read marker/A27–28/outbox delivery; model Customer recipient chưa có |
 | P1 | G08–G09: UI Customer/QA/vận hành | Customer auth/profile dùng được nhưng layout cũ; mobile Inbox có dữ liệu, keyboard và CI E2E còn thiếu. Chưa benchmark production |

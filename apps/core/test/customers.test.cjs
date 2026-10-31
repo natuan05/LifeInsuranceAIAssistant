@@ -19,7 +19,7 @@ const origin = 'http://localhost:3000';
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = origin;
 const adapter = (user, password) => new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 3 });
 const admin = new PrismaClient({ adapter: adapter('admin_runtime', input.password) });
-const core = new PrismaClient({ adapter: adapter('core_runtime', readFileSync('.local/dev/core-password', 'utf8').trim()) });
+const core = new PrismaClient({ adapter: adapter('core_runtime', input.corePassword) });
 class TestModule {}
 Module({ controllers: [AuthController, CustomerController], providers: [AuthService, CustomerService, { provide: DatabaseService, useValue: { prisma: core } }] })(TestModule);
 const accounts = [], sessions = {};
@@ -76,7 +76,8 @@ test('authentication, role checks and strict query/UUID validation prevent ident
   assert.equal((await get('customers/me', sessions[a.id])).status, 403);
   assert.equal((await get('staff/customers', sessions[ca.id])).status, 403);
   assert.equal((await get(`staff/customers/${ca.id}`, sessions[ca.id])).status, 403);
-  for (const query of ['page=0', 'page=abc', 'pageSize=51', 'pageSize=0', 'page=1&page=2', `staffId=${accounts[1].id}`, 'role=STAFF']) {
+  for (const query of ['page=0', 'page=abc', 'pageSize=51', 'pageSize=0', 'page=1&page=2', `staffId=${accounts[1].id}`, 'role=STAFF',
+    'query=unapproved', 'search=a&search=b', 'search=%00', 'search=' + 'a'.repeat(101)]) {
     assert.equal((await get('staff/customers?' + query, sessions[a.id])).status, 400);
   }
   assert.equal((await get(`customers/me?customerId=${accounts[4].id}`, sessions[ca.id])).status, 400);
@@ -107,6 +108,45 @@ test('Staff list/count/pagination and detail enforce active assignments; unknown
   assert.equal((await json('staff/customers', sessions[b.id])).total, 1);
 });
 
+test('Search filters the entire assigned set before pagination/count and cannot reveal foreign customers', async () => {
+  const [a, b, ca, ca2, cb, unassigned] = accounts;
+  const cookie = sessions[a.id];
+  const search = (value, extra = '') => json('staff/customers?search=' + encodeURIComponent(value) + extra, cookie);
+  const first = await json('staff/customers?pageSize=1', cookie);
+  const beyondFirstPage = first.items[0].id === ca.id ? ca2 : ca;
+  const found = await search(beyondFirstPage.accountCode.toLowerCase(), '&pageSize=1');
+  assert.equal(found.total, 1); assert.equal(found.items[0].id, beyondFirstPage.id);
+  const all = await search('  sYnThEtIc PrOfIlE  ', '&pageSize=1');
+  assert.equal(all.total, 2); assert.equal(all.items.length, 1);
+  const next = await search('Synthetic Profile', '&pageSize=1&page=2');
+  assert.equal(next.total, 2); assert.notEqual(next.items[0].id, all.items[0].id);
+  assert.equal((await search(ca.email.toUpperCase())).items[0].id, ca.id);
+  for (const foreign of [cb, unassigned, b]) {
+    const absent = await search(foreign.email);
+    assert.equal(absent.total, 0); assert.deepEqual(absent.items, []);
+  }
+  assert.equal((await search('   ')).total, 2);
+  assert.equal((await search('no-match-' + suffix)).total, 0);
+  assert.equal((await get('staff/customers?search=Synthetic', sessions[ca.id])).status, 403);
+});
+
+test('Phone search and LIKE wildcard characters are literal, not a way to broaden the assignment scope', async () => {
+  const [a, , ca] = accounts;
+  const original = await admin.customerProfile.findUniqueOrThrow({ where: { userId: ca.id } });
+  const phone = '+84' + suffix.slice(-10);
+  try {
+    await admin.user.update({ where: { id: ca.id }, data: { phone } });
+    await admin.customerProfile.update({ where: { userId: ca.id }, data: { fullName: 'Synthetic 100%_Literal\\Name' } });
+    for (const term of [phone, '%', '_', '\\', '100%_Literal\\']) {
+      const body = await json('staff/customers?search=' + encodeURIComponent(term), sessions[a.id]);
+      assert.equal(body.total, 1, term); assert.equal(body.items[0].id, ca.id);
+    }
+  } finally {
+    await admin.customerProfile.update({ where: { userId: ca.id }, data: { fullName: original.fullName } });
+    await admin.user.update({ where: { id: ca.id }, data: { phone: null } });
+  }
+});
+
 test('committed reassignment/unassignment takes effect on the next request without re-login', async () => {
   const [a, b, ca] = accounts;
   await admin.$transaction(async tx => {
@@ -116,6 +156,8 @@ test('committed reassignment/unassignment takes effect on the next request witho
   });
   assert.equal((await get(`staff/customers/${ca.id}`, sessions[a.id])).status, 404);
   assert.equal((await json('staff/customers', sessions[a.id])).total, 1);
+  assert.equal((await json('staff/customers?search=' + encodeURIComponent(ca.email), sessions[a.id])).total, 0);
+  assert.equal((await json('staff/customers?search=' + encodeURIComponent(ca.email), sessions[b.id])).total, 1);
   assert.equal((await json(`staff/customers/${ca.id}`, sessions[b.id])).customer.id, ca.id);
   assert.equal((await json('customers/me', sessions[ca.id])).staff.id, b.id);
   await admin.staffAssignment.updateMany({ where: { customerId: ca.id, isActive: true }, data: { isActive: false, endedAt: new Date() } });

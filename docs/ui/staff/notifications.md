@@ -30,7 +30,21 @@ Thêm chuông ở header chung, unreadCount và danh sách title/body/thời gia
 
 Kênh native WebSocket invalidation account/profile/assignment đã có. Transport/events/replay cho thông báo nghiệp vụ chưa chốt; không mặc định Socket.IO. Khi reconnect, tải bù REST bằng event/mốc ổn định và đồng bộ count; không dựa vào toast hoặc một event đã nhận để xác nhận trạng thái business.
 
-## Trạng thái riêng / checklist
+## Thông báo khi Customer yêu cầu Staff
+
+Bổ sung yêu cầu 31/10/2026, **chưa triển khai**: Customer chủ động yêu cầu hoặc đồng ý với gợi ý chuyển từ Agent đều tạo thông báo cho Staff sau khi khách xác nhận gửi và Core commit yêu cầu. Chưa đồng ý/từ chối gợi ý không phát thông báo tiếp nhận.
+
+- Core ghi Ticket + outbox cùng giao dịch theo UC-005, rồi xử lý delivery bất đồng bộ. Agent chỉ đề xuất/gọi Business API; không trực tiếp ghi Notification hoặc chọn recipient từ nội dung LLM.
+- Recipient được Core xác định theo phân công/quyền hiện hành. Payload chỉ có thông tin cần thiết và link conversationId/ticketId; không gửi transcript Private trong toast/event. Chưa có recipient hợp lệ phải thể hiện đang chờ định tuyến, không tự broadcast mọi Staff; chính sách dự phòng cần chốt.
+- Cùng một lần chuyển giao chỉ có một thông báo nghiệp vụ cho mỗi recipient; retry delivery, reconnect và đồng thời từ hai nhánh không nhân đôi công việc. Khi đổi assignment phải kiểm lại quyền gửi/đọc, và chốt quy tắc thu hồi/định tuyến lại trước triển khai.
+- Staff có thể mở đúng cuộc chat và bấm tiếp nhận; mở/đọc notification không mở quyền trả lời. Sau tiếp nhận thành công mới gửi tin qua A12 và Customer thấy Staff đang hỗ trợ.
+- Delivery lỗi không làm mất yêu cầu đã lưu; Staff vẫn tra từ Requests/Ticket theo scope. Không đồng nhất Staff offline với không có quyền nhận notification bền vững.
+
+- [ ] Hai nguồn yêu cầu cùng phát notification sau commit, không phát khi chưa có xác nhận.
+- [ ] Dedup theo lần chuyển giao/recipient; link đúng cuộc và dữ liệu đúng quyền.
+- [ ] Offline/reconnect/delivery lỗi vẫn khôi phục được list/unread và công việc.
+
+## Checklist trạng thái notification
 
 - [ ] Có/không thông báo, lỗi tải, đang đồng bộ, đã đọc/chưa đọc; timestamp không gán từ giờ client.
 - [ ] Link không còn quyền/tài nguyên không có trả thông điệp an toàn; sự kiện không rò dữ liệu khi chuyển phân công.

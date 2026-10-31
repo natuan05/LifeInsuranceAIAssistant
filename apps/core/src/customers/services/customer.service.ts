@@ -47,7 +47,17 @@ export class CustomerService {
 
   list(request: IncomingMessage, query: CustomerListQuery) {
     return this.read(request, 'STAFF', async (tx, actorId) => {
-      const where = { assignments: { some: { staffId: actorId, isActive: true } } };
+      // Escape LIKE metacharacters: user input is a literal substring, never a wildcard pattern.
+      const term = query.search?.replace(/[\\%_]/g, '\\$&');
+      const where: Prisma.CustomerProfileWhereInput = {
+        assignments: { some: { staffId: actorId, isActive: true } },
+        ...(term ? { OR: [
+          { fullName: { contains: term, mode: 'insensitive' } },
+          { user: { accountCode: { contains: term, mode: 'insensitive' } } },
+          { user: { email: { contains: term, mode: 'insensitive' } } },
+          { user: { phone: { contains: term, mode: 'insensitive' } } },
+        ] } : {}),
+      };
       const total = await tx.customerProfile.count({ where });
       const profiles = await tx.customerProfile.findMany({ where, select: {
         userId: true, fullName: true, user: { select: { accountCode: true, email: true, phone: true, status: true } },

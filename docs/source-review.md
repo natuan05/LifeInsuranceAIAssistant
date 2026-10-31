@@ -1,5 +1,9 @@
 # Đối chiếu nguồn và việc cần chốt
 
+Cập nhật vận hành 31/10/2026: theo yêu cầu người dùng, FE/BE local chỉ chạy full Docker qua gateway. Đã bỏ chế độ host npm cùng các file core.env/core-password riêng cho chế độ đó; npm chỉ còn phục vụ build/check và tool quản trị riêng. File operator được giữ/chuyển sang thư mục dữ liệu người dùng ngoài repo; không tự xóa dữ liệu người dùng hoặc Docker volumes. Xem [hướng dẫn hiện hành](getting-started.md).
+
+Cấu hình local tập trung ở `.env` root: Compose ánh xạ biến cho đúng service/build; `.env.example` không chứa secret thật. Có thể cung cấp credential khởi tạo qua `.env` riêng, prepare kiểm khớp volume hiện hữu và từ chối xung đột thay vì rotate/reset. Web chỉ nhận cấu hình công khai. Helper khởi động tạo mẫu nếu thiếu và thông báo đường dẫn sau thành công. Xem [cấu hình Docker](getting-started.md#environment).
+
 Đọc ngày **24/10/2026**. Không sửa Google Docs nguồn. Ngày 25/10/2026 đã bổ sung AuthSession vào bản Data Model trong repo theo yêu cầu người dùng; xem [bảng 17](specifications/Data_Model.md#bảng-17-auth_sessions). Các liên kết Google Docs trỏ đến từng tab đã đọc.
 
 > Trạng thái implementation đã đối chiếu lại **30/10/2026**: [checklist UI và gap](ui/implementation-status.md). Các mô tả nguồn bên dưới là lịch sử/thiết kế; baseline local trong repo được ghi riêng, không chỉnh Google Docs/PDF bên ngoài.
@@ -59,3 +63,19 @@ Theo yêu cầu tiếp theo, đã tạo toàn bộ model/bảng và Compose full
 - **Quyết định còn mở:** policy đang xem vs linkedPolicy conversation (chưa API đổi context); policy–terms/version; New/filter; send/takeover/Ticket concurrency/confirmation/idempotency; checkpoint/tool scope; notifications recipient/read/delivery; benchmark/production.
 
 Xem [G01–G10 và checklist từng màn hình](ui/implementation-status.md), [API E/P](ui/staff/api-map.md) và [hướng làm tiếp](next-steps.md). Những chỉnh sửa UI theo yêu cầu người dùng không tự sửa phạm vi hoặc trạng thái ADR-AI nguồn. Lần này đồng bộ tài liệu trong repo, không cập nhật tài liệu online hay thư mục tham chiếu bên ngoài repo.
+
+## Làm rõ yêu cầu chuyển từ Agent sang Staff — 31/10/2026
+
+Người dùng xác nhận thêm luồng UI: Customer có thể chủ động yêu cầu Staff trong lúc chat với Agent; hoặc Agent gợi ý khi không giải quyết được và khách đồng ý/xác nhận gửi. Core thực thi tạo Ticket + outbox, phát thông báo đúng Staff; Staff tiếp nhận rồi trả lời Customer trong cùng cuộc. Nền của hai nhánh đã có ở UC-005/FR-006/009/013; tài liệu UI được bổ sung để diễn đạt đầy đủ điểm bắt đầu, xác nhận, notification và thao tác trả lời. Cách nói Agent tạo thông báo được hiểu là Agent gọi Business API, không chuyển quyền ghi DB/chọn recipient sang LLM.
+
+Luồng chuyển sang Staff được ghi tại [Customer chat](ui/customer/chat.md), [Staff hội thoại](ui/staff/conversations.md), [notification](ui/staff/notifications.md), API map và checklist. [Customers](ui/staff/customers.md) là phạm vi quản lý khách hàng được người dùng chọn để triển khai tiếp, không phải nơi đặc tả luồng chuyển từ Agent sang Staff. Đây là cập nhật tài liệu theo lựa chọn của người dùng, chưa triển khai chat/handoff/Ticket/notification; endpoint/DTO, routing dự phòng, AI khi đang chờ và cơ chế concurrency/delivery còn cần chốt. Không sửa tài liệu nguồn bên ngoài hoặc duyệt mặc định queue/model/cloud mới.
+
+## Hướng hợp đồng và PDF được người dùng xác nhận — 31/10/2026
+
+Người dùng xác nhận cập nhật tài liệu để bắt đầu đợt triển khai hợp đồng: thông tin nghiệp vụ/metadata lưu trong DB, PDF gốc theo phiên bản lưu ở object storage private; Web hiển thị chi tiết từ DB cùng viewer và nút tải cho cả Customer/Staff. Không cần nhân đôi toàn bộ nội dung PDF thành HTML/DB text. Seed phải bao gồm policy và PDF hoàn toàn synthetic; không bổ sung upload trong app, RAG hoặc luồng chat vào đợt này.
+
+Đây là làm rõ hướng PDF/object storage đã có trong ADR-DATA-002/NFR-007 và mở rộng điểm vào UI hai role, **chưa phải implementation hay phê duyệt provider/library/endpoint cụ thể**. Local hướng S3-compatible Docker; MinIO Community cũ không còn là mặc định hợp lý vì [repository chính thức](https://github.com/minio/minio) đã archive/ngừng duy trì. Provider/edition/image/license còn cần đánh giá. [PDF.js](https://mozilla.github.io/pdf.js/getting_started/) là phương án viewer ưu tiên để đánh giá, chưa thêm dependency.
+
+Cần chốt URL ký ngắn hạn hay streaming, giới hạn thu hồi đã cấp URL/file tải, Range/headers/CORS/CSP, mapping policy–terms/version và loại tài liệu/schema trước code. Giữ Core sở hữu quyền và cấp access; Customer theo ownership, Staff theo active assignment. Chi tiết ở [C05](ui/customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026), [Staff policies](ui/staff/policies.md), [Customer policies](ui/customer/policies.md), [API map](ui/staff/api-map.md) và [thứ tự triển khai](next-steps.md). Chỉ sửa tài liệu hiện có trong repo; không tạo report, không sửa Google Docs/ADR nguồn bên ngoài và không dựng hạ tầng trong lượt này.
+
+Cơ chế local đã chốt (31/10): người dùng chọn MinIO **chỉ local** theo mô hình Compose/private bucket/volume/init job, SDK S3 và signed URL; Core kiểm session/quyền/phiên bản trước cấp, local TTL mặc định 15 phút có cấu hình. Quyết định này thay thế phần provider/access còn mở ở đoạn trên; SeaweedFS và stream qua Core không phải lựa chọn mặc định. Chọn/pin edition/image/digest/license khi triển khai, dùng credential riêng và tách quyền đọc/ghi. AWS S3 là bước sau: giữ contract, thay config/IAM, di chuyển object/kiểm checksum và chạy lại tests tương thích; chưa tạo hạ tầng AWS.

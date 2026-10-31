@@ -5,14 +5,14 @@ export type CoreHealth = {
 };
 
 export const coreApiUrl = (
-  process.env.NEXT_PUBLIC_CORE_API_URL ?? 'http://localhost:4000/api/v1'
+  process.env.NEXT_PUBLIC_CORE_API_URL ?? '/api/v1'
 ).replace(/\/$/, '');
 
 export async function checkCoreConnection(): Promise<CoreHealth> {
   const response = await fetch(`${coreApiUrl}/health/live`, {
     cache: 'no-store',
     credentials: 'include',
-    // This header intentionally triggers a browser CORS preflight.
+    // Diagnostic request uses the same-origin gateway as other business APIs.
     headers: { 'X-Connection-Check': 'web' },
     signal: AbortSignal.timeout(5000),
   });

@@ -25,7 +25,7 @@ Inbox giữ bố cục mẫu; Customer management và tài khoản là màn hìn
 | S01 | [Đăng nhập, tài khoản](account.md) | Trang riêng; staff card mở tài khoản và có đăng xuất thật | FR-001, baseline auth |
 | S02 | [Tổng quan/hàng đợi](home.md) | Sidebar + danh sách công việc; không cần dashboard số liệu mới | FR-006/010/013, menu MVP |
 | S03 | [Khách được phân công, hồ sơ](customers.md) | Customers list/detail riêng; Case Details chỉ ở Inbox | FR-002/003 |
-| S04 | [Tra cứu hợp đồng, sản phẩm, tài liệu](contracts.md) | Policy Lookup toàn màn hình và lookup nhanh; bổ sung sản phẩm/PDF | FR-008, UC-007, NFR-007 |
+| S04 | [Tra cứu hợp đồng, sản phẩm, tài liệu](policies.md) | Policy Lookup toàn màn hình và lookup nhanh; bổ sung sản phẩm/PDF | FR-008, UC-007, NFR-007 |
 | S05 | [Hội thoại, takeover, lịch sử và Copilot](conversations.md) | Cột chat + rail + sidebar nội bộ; mở từ khách/Ticket/thông báo | FR-006/007/011/012, UC-006 |
 | S06 | [Danh sách và chi tiết Ticket](tickets.md) | Tickets phải có dữ liệu Ticket riêng, kể cả Ticket không gắn chat | FR-009/010, UC-005, menu MVP |
 | S07 | [Thông báo](notifications.md) | Bổ sung chuông và danh sách đọc/chưa đọc | FR-013, NFR-005/006 |
@@ -46,26 +46,27 @@ Conversation status từ model: `AI_ACTIVE`, `PENDING_HANDOFF`, `STAFF_ACTIVE`, 
 
 ## Trạng thái triển khai
 
-- [x] S01: login/session/account/password/logout qua A01–04; menu hai hành động, trang Personal information theo style Staff.
+- [x] S01: login/session/account/password/logout qua A01–04; menu hai hành động, Personal information có Edit/Save/Cancel họ tên/phone qua GET/PATCH /staff/me. Đã kiểm chứng HTTP qua gateway, cập nhật Docker và bỏ footer Contact (31/10).
 - [x] S03 cơ bản: danh sách/chi tiết khách qua A05–06, pagination URL và read-only profile; tách khỏi Inbox.
 - [x] Shared layout/routes, fullscreen, English, Lexend tự host, rail active theo panel, đóng lời nhắc password; không có preview/iframe/fixture nghiệp vụ.
 - [x] WebSocket invalidation local cho account/profile/assignment; refresh nền không xóa nội dung khi quay lại tab. Vẫn kiểm phiên khi focus/visible.
 - [x] Dọn nhánh Staff cũ trong CustomerWorkspace, CSS login/font-picker/modal/toast/thẻ mẫu không còn dùng. Customer/account/connection đang hoạt động được giữ.
-- [ ] S03 search và retry lỗi; xem G05 trong bảng tiến độ.
+- [x] S03 search toàn tập assignment, URL/page/detail/back giữ từ khóa và Try again gọi lại request lỗi (31/10).
+- [ ] S03 browser regression cho search/retry/realtime; copy/tooltip Policy Lookup/New còn ở G05.
 - [ ] S04 policy/product/PDF thật và context nhiều policy: A14–20.
 - [ ] S02/S05 queue/transcript/takeover/send/history/Copilot: A07–13/A24–26.
 - [ ] S06 Ticket thật: A21–23. S07 notifications: A27–28.
 
 Customer detail ưu tiên Insurance policies ở vùng chính, Personal information ở cột phụ. Policy hiện ghi rõ chưa kết nối; không suy ra Customer không có hợp đồng. Sidebar Customers không có chat/composer/takeover. Cột giữa sidebar/chat trong Inbox sẽ là danh sách hội thoại theo conversationId; một Customer có thể có nhiều hội thoại.
 
-Staff workspace chuyển trực tiếp cấu trúc từ HTML/CSS người dùng gửi sang React; CSS scope `.staff-inbox` kết hợp Tailwind prefix `tw:`. Các nút gửi/takeover/search không có API được disabled; rail và route vẫn điều hướng được. Kết quả nghiệp vụ luôn lấy từ Core, không từ JS mẫu.
+Staff workspace giữ cấu trúc từ mẫu người dùng gửi, dùng React/Tailwind 4 prefix `tw:`. Toàn bộ CSS UI cũ đã chuyển sang utility; staff-workspace.css đã xóa. Class `.staff-inbox` còn là hook cấu trúc/state, không có stylesheet riêng. Các nút gửi/takeover/search không có API được disabled; rail và route vẫn điều hướng được. Kết quả nghiệp vụ luôn lấy từ Core, không từ JS mẫu.
 
 ## Policy và nhiều hợp đồng
 
-Nhãn UI giữ **Policy Lookup**, thuật ngữ tiếng Anh dùng Policy. Tài liệu tiếng Việt dùng “hợp đồng bảo hiểm”. Prisma `InsurancePolicy`, enum `PolicyStatus`, bảng `business.insurance_policies`, quan hệ `policies`; giữ `policyNumber/policyId/linkedPolicyId` và cột `policy_number/policy_id/linked_policy_id`. Migration `202610300001_rename_insurance_policies` đã chuẩn hóa tên; migration cũ giữ nguyên. Tên file `contracts.md` chỉ giữ tương thích liên kết tài liệu.
+Nhãn UI giữ **Policy Lookup**, thuật ngữ tiếng Anh dùng Policy. Tài liệu tiếng Việt dùng “hợp đồng bảo hiểm”. Prisma `InsurancePolicy`, enum `PolicyStatus`, bảng `business.insurance_policies`, quan hệ `policies`; giữ `policyNumber/policyId/linkedPolicyId` và cột `policy_number/policy_id/linked_policy_id`. Migration `202610300001_rename_insurance_policies` đã chuẩn hóa tên; migration cũ giữ nguyên. File tài liệu dùng `policies.md`; các liên kết đã cập nhật theo tên này.
 
 Một Customer có nhiều policy đã được model hỗ trợ; UI chọn policy/context/API chưa triển khai. Policy đang mở để xem không tự thay linkedPolicy của conversation. Cần contract thay context và quyền/phiên bản trước khi nối header/Copilot/Ticket; xem G01–G03.
 
 ## Hướng triển khai tiếp
 
-Theo [checklist và thứ tự ưu tiên](../implementation-status.md): hoàn thiện S03 search/retry; policy read/context/PDF; Inbox/Ticket business; Copilot và notifications. Đây là đề xuất kế hoạch, không phải duyệt endpoint/queue/model mới. Chỉ kênh invalidation local đã có, chưa có realtime chat/Ticket/notification hoặc outbox worker.
+Theo [checklist và thứ tự ưu tiên](../implementation-status.md): S03 search/retry đã nối, còn browser regression; tiếp theo policy read/context/PDF, Inbox/Ticket business, Copilot và notifications. Đây là đề xuất kế hoạch, không phải duyệt endpoint/queue/model mới. Chỉ kênh invalidation local đã có, chưa có realtime chat/Ticket/notification hoặc outbox worker.

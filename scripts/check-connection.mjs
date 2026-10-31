@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-const webOrigin = process.env.CHECK_WEB_ORIGIN ?? 'http://localhost:3000';
-const coreUrl = process.env.CHECK_CORE_URL ?? 'http://localhost:4000/api/v1';
+const root = fileURLToPath(new URL('../', import.meta.url));
+const binding = process.env.CHECK_WEB_ORIGIN ? undefined : spawnSync('docker', ['compose', 'port', 'gateway', '80'], { cwd: root, encoding: 'utf8', windowsHide: true });
+if (binding && (binding.status !== 0 || !/^127\.0\.0\.1:\d+$/.test(binding.stdout.trim()))) throw new Error('Start the local Docker gateway before checking its connection.');
+const webOrigin = process.env.CHECK_WEB_ORIGIN ?? `http://${binding.stdout.trim()}`;
+const coreUrl = process.env.CHECK_CORE_URL ?? `${webOrigin}/api/v1`;
 
 async function request(url, options = {}) {
   return fetch(url, { ...options, signal: AbortSignal.timeout(15000) });
@@ -10,8 +15,13 @@ async function request(url, options = {}) {
 async function main() {
   const page = await request(`${webOrigin}/connection`);
   assert.equal(page.status, 200, 'Next.js must respond with HTTP 200');
-  assert.match(await page.text(), /Kiểm tra kết nối backend/, 'The connection check page must be available');
-  console.log('PASS Next.js page');
+  const html = await page.text();
+  assert.match(html, /<html\b/, 'Next.js must return the application shell');
+  // The authenticated client shell may render before route content on the server.
+  const script = html.match(/<script[^>]+src="([^"]+)"/);
+  assert.ok(script, 'The application shell must include its client runtime');
+  assert.equal((await request(new URL(script[1], webOrigin))).status, 200);
+  console.log('PASS Next.js page and client runtime through gateway');
 
   const preflight = await request(`${coreUrl}/health/live`, {
     method: 'OPTIONS',
@@ -57,11 +67,11 @@ async function main() {
     }
   }
   console.log('PASS untrusted origins receive no CORS permission (GET and OPTIONS)');
-  console.log('HTTP checks passed. Also click the connection button in a browser to verify browser CORS enforcement.');
+  console.log('Gateway/HTTP checks passed.');
 }
 
 main().catch((error) => {
   console.error(`FAIL ${error.message}`);
-  console.error('Start both apps with npm run dev first. Check origins and ports if customized.');
+  console.error('Start the Docker stack with docker compose up -d --build --wait. Check gateway ports if customized.');
   process.exitCode = 1;
 });

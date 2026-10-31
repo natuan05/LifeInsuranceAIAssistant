@@ -9,7 +9,14 @@
 - Chỉ dùng dữ liệu khách hàng/hợp đồng sinh hoàn toàn giả lập; không dùng hồ sơ thật đã che tên.
 - Không đưa secrets, dữ liệu chạy local hoặc nội dung Private vào Git, prompt hay log không cần thiết.
 - Ngoại lệ được người dùng xác nhận: email/mã/mật khẩu cố định của 5 tài khoản synthetic dev local trong `docs/getting-started.md#dev-accounts` được công khai trong source/tài liệu/log seed cho team; không áp dụng với DB credentials, operator credentials hoặc dữ liệu thật.
+- Ngoại lệ bổ sung được người dùng xác nhận: bộ credential DB/MinIO synthetic local cố định trong `.env.example` và `docs/getting-started.md#local-infrastructure-accounts` được phép công khai cho team. Chỉ áp dụng đúng bộ giá trị mẫu này; không công khai credential ngẫu nhiên đang dùng trên máy, operator, cloud hoặc dữ liệu thật. Không tự rotate credential/volume cũ để ép khớp mẫu.
 - ADR có trạng thái đề xuất vẫn là đề xuất. Ghi lại điểm chưa chốt; không biến chúng thành mặc định trong code.
 - Chỉ thêm module, package dùng chung hoặc ứng dụng mới khi có nhu cầu cụ thể.
 - Không stage hoặc commit nếu người dùng chưa yêu cầu rõ ràng trong công việc hiện tại.
-- Không chụp screenshot để kiểm chứng trừ khi người dùng yêu cầu; ưu tiên kết quả lệnh và log ngắn.
+- Chỉ chụp screenshot khi assertion/kiểm tra bị fail và cần ảnh để chẩn đoán, hoặc người dùng yêu cầu rõ ràng; không chụp ở trạng thái pass hoặc chụp liên tục. Ưu tiên log, DOM và kết quả lệnh ngắn.
+- Không tự tạo file `.md` report/báo cáo, audit log, scratchpad hoặc bản tổng kết công việc. Trả kết quả kiểm tra ngắn trong chat; chỉ cập nhật tài liệu/checklist hiện có khi phù hợp. Chỉ tạo file báo cáo mới nếu người dùng yêu cầu rõ ràng.
+- Tài liệu chức năng hợp đồng bảo hiểm dùng tên `policies.md`, nhất quán với Policy/InsurancePolicy; khi đổi tên phải cập nhật liên kết liên quan.
+- FE/BE local chỉ chạy bằng Docker Compose qua gateway; không thêm lại chế độ chạy Web/Core trên host bằng npm. Credential runtime nằm trong Docker volumes, dữ liệu riêng của tool host đặt ngoài repo theo thư mục dữ liệu người dùng; không tạo `.local` trong repo để chạy ứng dụng.
+- Kết thúc mỗi công việc phải dọn script dùng một lần, file tạm, log/cache kiểm thử và artifact do mình tạo không còn cần thiết; không để lại để người dùng tự dọn. Ưu tiên chạy kiểm tra trực tiếp không tạo file. Chỉ giữ script được dùng lâu dài trong quy trình dự án. Trước khi dọn phải xác minh đúng đường dẫn và bảo toàn dữ liệu/credential đang dùng; không xóa Docker volumes hoặc file của người dùng chỉ vì chúng bị Git ignore.
+- Lệnh dựng/khởi động được hướng dẫn cho thành viên phải thông báo sau thành công: URL truy cập, đường dẫn tuyệt đối của file riêng ngoài repo, lệnh tạo/lấy tài khoản và file nào chưa được tạo. Không in secret; phân biệt rõ dữ liệu trong Docker volumes với file do tool xuất ra host.
+- Cấu hình local tập trung ở `.env` root và `.env.example`; Compose chỉ truyền các biến cần thiết cho từng service. Không tạo lại env riêng cho Web/Core. Credential đã có phải được giữ; thay env không được tự rotate hoặc reset dữ liệu. Tài liệu mô tả cơ chế của dự án, không ghi tên/đường dẫn repo tham khảo.

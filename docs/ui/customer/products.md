@@ -20,4 +20,4 @@ Danh sách/chi tiết sản phẩm và quyền lợi chung, tài liệu công kh
 - [ ] Danh sách/chi tiết/PDF, loading/rỗng/lỗi và xử lý tài liệu không khả dụng.
 - [ ] Phân biệt Public với Private, mở tài liệu đúng version.
 
-Các phần dự kiến không phải contract đã duyệt; Core kiểm quyền, Agent không truy cập business DB. Thuật ngữ UI tiếng Anh dùng Policy, file contracts.md giữ để không gãy liên kết.
+Các phần dự kiến không phải contract đã duyệt; Core kiểm quyền, Agent không truy cập business DB. Thuật ngữ UI tiếng Anh dùng Policy.

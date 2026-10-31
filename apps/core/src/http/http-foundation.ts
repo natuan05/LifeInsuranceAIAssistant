@@ -67,7 +67,7 @@ export function configureHttp(app: INestApplication, config: { origins: string[]
   app.useGlobalPipes(createValidationPipe());
   app.useGlobalFilters(new ApiExceptionFilter(app.get(HttpAdapterHost).httpAdapter));
   app.enableCors({ origin: config.origins, credentials: true,
-    methods: ['GET', 'HEAD', 'OPTIONS', 'POST'],
+    methods: ['GET', 'HEAD', 'OPTIONS', 'POST', 'PATCH'],
     allowedHeaders: ['Content-Type', 'X-Connection-Check', 'X-Request-ID', 'X-Auth-Request', 'X-CSRF-Token'],
     exposedHeaders: ['X-Request-ID'],
   });

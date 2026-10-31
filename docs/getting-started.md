@@ -1,130 +1,157 @@
 # Life Insurance AI Assistant — Hướng dẫn chạy dự án
 
-Hướng dẫn dùng chung cho thành viên clone repo về máy. Các lệnh dưới đây chạy tại thư mục gốc có `compose.yaml` và `package.json`. Ví dụ dùng PowerShell trên Windows; cổng trong tài liệu là giá trị mặc định.
+Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Đối chiếu 30/10/2026: Next.js Web, NestJS Core, PostgreSQL/pgvector, Nginx, DbGate và operator local. Đã có auth/account/password/logout, hồ sơ theo quyền, Staff Customers list/detail/phân trang, UI Staff theo mẫu/routes và WebSocket invalidation local. Policy Lookup/Inbox/Ticket mới có khung; policy/PDF/chat/Ticket/Copilot/notification APIs, Agent và cloud chưa triển khai. Xem [checklist UI/gap](ui/implementation-status.md), [thứ tự đọc UI](ui/README.md); RDS ngoài phạm vi hiện tại.
+Cập nhật 31/10/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có đăng nhập, hồ sơ/tài khoản/đổi mật khẩu, Staff Customers search/phân trang và WebSocket invalidation. Staff có policy/PDF read/view/download và bootstrap PDF synthetic; chat/Ticket/Copilot/notification APIs, Agent và cloud chưa triển khai. Xem [checklist](ui/implementation-status.md).
 
-Mục lục: [1. Chuẩn bị](#prerequisites) · [2. File môi trường](#environment) · [3. Full Docker](#full-docker) · [4. Dev bằng npm](#npm-development) · [5. Tool admin](#admin-tool) · [6. Cổng và URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Database](#database) · [9. Kiểm tra và cập nhật](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
+Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
 <a id="prerequisites"></a>
 ## 1. Chuẩn bị sau khi clone
 
-### 1.1. Phần mềm cần có
+| Phần mềm | Khi nào cần |
+| --- | --- |
+| Git | Clone/cập nhật source của team |
+| Docker Desktop, Linux containers và Compose v2 | Chạy toàn bộ ứng dụng |
+| Node.js 24.18.0, npm 11.16.0 | Tool admin, kiểm tra source và helper npm tùy chọn |
 
-| Phần mềm | Khi nào cần | Ghi chú |
-| --- | --- | --- |
-| Git | Clone/cập nhật source | Dùng repository của team |
-| Docker Desktop, Linux containers và Compose v2 | Database và chạy full Docker | Bật Docker Desktop trước khi chạy lệnh |
-| Node.js 24.18.0, npm 11.16.0 | FE/BE chạy npm, tool admin và các lệnh npm | Xem .node-version và package.json |
-| PostgreSQL/pgAdmin/DBeaver cài riêng | Không bắt buộc | PostgreSQL và DbGate đã có trong Docker |
-
-Full Docker cho website chỉ cần Docker Desktop. Nếu dùng tool admin thì cần thêm Node/npm vì tool chạy trên host.
-
-### 1.2. Mở terminal tại root repo
+Website chỉ cần Docker Desktop; không cần cài PostgreSQL, Go, Node/npm trên host để chạy stack. Lần build đầu cần Internet để tải image/source/dependency và lâu hơn do build Web/Core/MinIO. Các lần sau dùng cache.
 
 ~~~powershell
 cd LifeInsuranceAIAssistant
 docker --version
 docker compose version
-node --version
-npm --version
 ~~~
 
-Hai lệnh Node/npm chỉ cần cho chế độ npm/tool. Repo dùng npm workspaces, cài dependency tại root bằng `npm ci`; không tạo lockfile riêng trong từng app.
+Nếu dùng tool hoặc kiểm tra source, cài Node/npm theo `.node-version` và `package.json`, rồi chạy `npm ci` tại root. Repo dùng npm workspaces và một `package-lock.json`; không tạo lockfile riêng trong từng app. Các helper `storage:*` chỉ dùng thư viện Node có sẵn, không cần `npm ci`.
 
 <a id="environment"></a>
-## 2. Chuẩn bị các file môi trường
+## 2. Cấu hình Docker local
 
-### 2.1. Copy mẫu thành .env
-
-Lần đầu, copy file mẫu tương ứng rồi đặt tên `.env`. Có thể copy bằng Explorer/VS Code hoặc dùng đoạn PowerShell sau; đoạn này giữ nguyên file .env đã tồn tại:
+Tạo `.env` tại root repo từ `.env.example` trước khi dùng Compose. Đây là đầu mối cấu hình Docker, Core, Web và storage; lệnh sau giữ file đã tồn tại:
 
 ~~~powershell
 if (-not (Test-Path .env)) {
   Copy-Item .env.example .env
 }
-if (-not (Test-Path apps/core/.env)) {
-  Copy-Item apps/core/.env.example apps/core/.env
-}
-if (-not (Test-Path apps/web/.env)) {
-  Copy-Item apps/web/.env.example apps/web/.env
-}
 ~~~
 
-Linux/macOS có thể dùng `cp -n .env.example .env` và tương tự cho hai app. Kiểm tra file thực sự có tên .env, không phải .env.txt.
+Linux/macOS dùng `cp -n .env.example .env`. `start-local.ps1` và các helper npm tự copy mẫu nếu chưa có `.env`, không ghi đè file đã tồn tại, rồi thông báo đường dẫn. Compose đọc `.env` root và ánh xạ từng biến vào đúng service qua `environment`/build args; không nạp toàn bộ secret vào mọi container. Không cần env từng app. Web gọi Core cùng origin qua `/api/v1`.
 
-| File mẫu → file sử dụng | Phạm vi | Khi cần |
+| Biến trong .env root | Mặc định | Ý nghĩa |
 | --- | --- | --- |
-| [.env.example](../.env.example) → .env | Cổng publish của Docker Compose | Full Docker và database Docker |
-| [apps/core/.env.example](../apps/core/.env.example) → apps/core/.env | Host/port/CORS của Core chạy npm | Dev FE/BE trên host |
-| [apps/web/.env.example](../apps/web/.env.example) → apps/web/.env | URL Core mà frontend chạy npm gọi | Dev FE/BE trên host |
+| GATEWAY_PORT | 8080 | Website và Business API |
+| SWAGGER_PORT | 8081 | Swagger và Try it out |
+| DATABASE_UI_PORT | 5050 | DbGate |
+| POSTGRES_PORT | 5432 | PostgreSQL loopback cho tool local |
+| MINIO_API_PORT | 9000 | MinIO S3 API |
+| MINIO_CONSOLE_PORT | 9001 | MinIO Console |
+| CORE_ENABLE_API_DOCS | true | Bật/tắt Swagger; tắt docs không làm gateway unhealthy |
+| CORE_CORS_ORIGINS | Trống | Tự suy ra origin gateway/Swagger theo cổng; có thể đặt danh sách exact origin |
+| NEXT_PUBLIC_CORE_API_URL | /api/v1 | URL API công khai, được đưa vào Web lúc build |
+| NEXT_PUBLIC_DATABASE_UI_URL | Trống | Tự suy ra URL DbGate theo DATABASE_UI_PORT, hoặc đặt URL công khai |
+| MINIO_REGION | ap-southeast-1 | Region tương thích S3, thống nhất Singapore; MinIO vẫn lưu dữ liệu trên máy local |
+| MINIO_BUCKET | life-insurance-documents | Bucket private được init tạo |
+| MINIO_BROWSER_REDIRECT_URL | Trống | Tự suy ra URL console, hoặc đặt URL browser truy cập được |
+| MINIO_CORS_ORIGINS | Trống | Tự suy ra origin website theo GATEWAY_PORT |
 
-Các giá trị mặc định đã dùng được. Việc copy file giúp từng thành viên có cấu hình riêng; không bắt buộc sửa giá trị nếu không bị trùng cổng. Source có fallback mặc định nên chưa copy env vẫn có thể khởi động; quy trình chuẩn của team là tạo file theo bảng trên.
+`.env.example` chứa bộ credential synthetic local cố định được phép chia sẻ cho team; xem [tài khoản DB/MinIO local](#local-infrastructure-accounts). Máy mới copy mẫu sẽ dùng ngay các giá trị này. Trong `.env` riêng vẫn có thể đặt credential khác hoặc để trống để sinh một lần.
 
-### 2.2. Các biến cần biết
+Để trống thì prepare sinh một lần; nếu đã có credential volume thì giữ giá trị cũ. Nếu đặt giá trị thì prepare dùng nó để khởi tạo volume mới hoặc kiểm khớp volume cũ. DB password dài 16–128 ký tự, không newline/khoảng trắng đầu cuối; MinIO access key 3–20 chữ/số/`_`/`-`, secret 8–128 ký tự, không newline. Mỗi cặp MinIO phải điền đủ hai trường hoặc để trống cả hai. Đặt giá trị chứa `$`, `#` hoặc khoảng trắng trong nháy đơn của `.env`.
 
-| File | Biến mặc định | Ý nghĩa |
+Credential DB chỉ truyền vào job prepare; credential MinIO chỉ truyền vào storage-prepare. Job kiểm tra toàn bộ giá trị trước khi ghi; nếu `.env` khác credential đã có thì dừng và báo tên cấu hình xung đột, không log giá trị, không tự đổi password hoặc reset dữ liệu. Runtime vẫn chỉ mount volume credential của đúng role; Web không nhận secret. Tool admin lấy DB credential qua bộ nhớ/stdin; không tạo `core.env` hoặc file password Core trên host.
+
+Sửa `.env` rồi chạy `docker compose up -d --build --wait` để áp dụng. `NEXT_PUBLIC_*` là cấu hình công khai được đóng vào Web lúc build, tuyệt đối không đặt password/key vào đó. Không đổi tên bucket trên dữ liệu đã có nếu chưa thiết kế chuyển object/metadata. Đổi password trong `.env` không phải thao tác rotate DB/MinIO; cần quy trình rotate riêng. Không xóa volumes để giải quyết xung đột credential.
+
+File riêng tư của tool nằm ngoài repo: Windows tại `%LOCALAPPDATA%/LifeInsuranceAIAssistant`, macOS tại `~/Library/Application Support/LifeInsuranceAIAssistant`, Linux tại `$XDG_STATE_HOME/LifeInsuranceAIAssistant` (mặc định `~/.local/state/LifeInsuranceAIAssistant`). Các mục dưới dùng đường dẫn Windows; helper in đường dẫn thực tế trên máy. Chạy stack không tạo `.local` trong repo.
+
+Ví dụ Windows: `C:\Users\<tên-user>\AppData\Local\LifeInsuranceAIAssistant`. Đây là thư mục riêng của từng người chạy, không nằm trong thư mục clone repo. Docker chỉ giữ credential/data trong named volumes; các file dưới đây chỉ xuất hiện khi chạy đúng lệnh tool:
+
+| Đường dẫn con trong thư mục dữ liệu người dùng | Lệnh tạo/lấy file | Mục đích |
 | --- | --- | --- |
-| .env | GATEWAY_PORT=8080 | Cổng vào website/API Docker |
-| .env | SWAGGER_PORT=8081 | Cổng Swagger riêng của Docker, mở tại http://localhost:8081 |
-| .env | DATABASE_UI_PORT=5050 | Cổng DbGate |
-| .env | POSTGRES_PORT=5432 | Cổng PostgreSQL publish lên host |
-| apps/core/.env | HOST=127.0.0.1, PORT=4000 | Core chạy npm trên host |
-| apps/core/.env | CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000 | Cho phép frontend dev gửi cookie tới Core |
-| apps/core/.env | NODE_ENV, ENABLE_API_DOCS | Tùy chọn; development mặc định bật Swagger |
-| apps/web/.env | NEXT_PUBLIC_CORE_API_URL=http://localhost:4000/api/v1 | URL Core cho frontend npm |
+| `operator/operator-initial.txt` | `npm run admin:setup` hoặc `npm run admin`, khi chưa có operator | Username/password ban đầu để đăng nhập tool 4100 |
+| `operator/operator.json` | Cùng bước tạo operator | Hash xác thực; giữ file này, không dùng hash để đăng nhập |
+| `storage/console.json` | `npm run storage:credentials` | Xuất username/password MinIO hiện có để đăng nhập console |
 
-.env root được Docker Compose đọc. Hai file env trong app phục vụ chế độ npm; full Docker dùng cấu hình service/build args trong compose.yaml, không đọc trực tiếp hai file đó. FE Docker gọi API cùng origin qua đường dẫn /api/v1.
+Lệnh tạo/lấy tài khoản in đường dẫn tuyệt đối, không in mật khẩu. Nếu file `.txt` operator đã bị xóa sau khi lưu password, chạy lại setup không reset operator hoặc khôi phục password đã quên. Bản xuất MinIO có thể tạo lại từ credential volumes.
 
-Nếu đổi cổng Docker, sửa .env root rồi chạy lại lệnh full Docker có --build. Nếu tự đổi cổng FE/BE npm, cập nhật URL frontend và CORS origin tương ứng rồi restart app.
+Không chia sẻ env thật, credential volumes hoặc file riêng tư qua Git/chat/log. Ngoại lệ công khai chỉ dành cho 5 tài khoản synthetic tại mục 7 và bộ DB/MinIO synthetic local cố định bên dưới; không áp dụng cho credential ngẫu nhiên đang dùng trên máy, operator hoặc cloud.
 
-### 2.3. Database credential được sinh tự động
+`docker compose config` có thể hiện secret đã nội suy từ `.env`; dùng `docker compose config --quiet` để kiểm cú pháp khi không cần xem giá trị. File `.env` thật bị Git/Docker build ignore; chỉ chia sẻ `.env.example`.
 
-Không cần tự điền username/password database vào .env khi dùng quy trình mặc định:
+<a id="local-infrastructure-accounts"></a>
+### 2.1. Tài khoản DB và MinIO local dùng chung
 
-- Compose sinh credential riêng cho từng role trong Docker volumes; Web không nhận DB password.
-- `npm run dev:db` / `npm run dev:setup` tự lấy credential core_runtime cho host vào .local/dev/core-password và ghi cấu hình .local/dev/core.env; không in password.
-- Tool admin lấy admin_runtime qua bộ nhớ/stdin; không dùng tài khoản local_owner cho app.
-- Không tự bỏ comment/đặt PGHOST, PGUSER, DATABASE_PASSWORD_FILE trong apps/core/.env nếu dùng dev:db với cấu hình tự động. Nếu đã đặt, giá trị phải khớp cấu hình sinh ra; helper sẽ từ chối xung đột.
+Các giá trị sau dành cho **máy mới có volumes mới**, khi copy `.env.example` không sửa credential. Chỉ dùng cho dữ liệu synthetic local; không dùng trên cloud hoặc hồ sơ thật.
 
-.env thật, .local và credential volumes không đưa vào Git. Biến NEXT_PUBLIC_* là công khai, chỉ chứa URL/cấu hình giao diện. Ngoại lệ chia sẻ credential chỉ áp dụng đúng 5 tài khoản dev synthetic ở mục 7; DB/operator credential không thuộc ngoại lệ.
+PostgreSQL từ host: `127.0.0.1:5432`, database `life_insurance`; trong Docker dùng `postgres:5432`. Đổi cổng host qua `POSTGRES_PORT` trong `.env`.
+
+| Username DB | Password mẫu local | Biến .env | Mục đích |
+| --- | --- | --- | --- |
+| `db_viewer` | `LocalDbViewer-2026!` | `DB_VIEWER_PASSWORD` | Xem dữ liệu bằng DbGate/DBeaver/psql; chỉ đọc |
+| `core_runtime` | `LocalDbCore-2026!` | `DB_CORE_PASSWORD` | Runtime Core, không DDL/superuser/rag |
+| `admin_runtime` | `LocalDbAdmin-2026!` | `DB_ADMIN_PASSWORD` | Tool quản trị tài khoản local |
+| `app_migrator` | `LocalDbMigrate-2026!` | `DB_MIGRATION_PASSWORD` | Migration/schema |
+| `local_owner` | `LocalDbOwner-2026!` | `DB_BOOTSTRAP_PASSWORD` | Bootstrap local; không dùng cho ứng dụng hoặc xem DB thường ngày |
+
+Mở [DbGate](http://127.0.0.1:5050) để xem DB ngay, không cần nhập password vì service đã tự cấu hình `db_viewer`. Nếu dùng công cụ khác, dùng host/port/database và `db_viewer` trong bảng; không cấp quyền ghi để chỉ xem dữ liệu.
+
+| Tài khoản/access key MinIO | Secret/password mẫu local | Mục đích |
+| --- | --- | --- |
+| `local-storage-admin` | `LocalMinioAdmin-2026!` | Đăng nhập [MinIO Console](http://localhost:9001) |
+| `local-reader` | `LocalMinioReader-2026!` | Chỉ đọc object, không quản trị |
+| `local-writer` | `LocalMinioWriter-2026!` | Job chuẩn bị file: đọc/ghi, không xóa/quản trị |
+
+S3 endpoint từ host: `http://localhost:9000`; trong Docker: `http://minio:9000`, region `ap-southeast-1`, bucket `life-insurance-documents`, path-style. Các access key của reader/writer dành cho chương trình, không phải tài khoản quản trị console.
+
+**Máy đã có dữ liệu:** giữ `.env` và volumes hiện tại, không copy đè credential mẫu. Bảng này không tự đổi mật khẩu cũ. Nếu trước đây dùng password ngẫu nhiên, tra các biến `DB_*_PASSWORD` trong `.env` riêng; nếu biến trống, giá trị vẫn nằm trong credential volume tương ứng. Với MinIO, chạy `npm run storage:credentials` để lấy đúng tài khoản hiện dùng vào file riêng ngoài repo. Không chia sẻ các giá trị hiện dùng đó hoặc xóa volumes để chuyển sang mẫu.
 
 <a id="full-docker"></a>
-## 3. Cách 1 — Chạy toàn bộ website bằng Docker
+## 3. Chạy toàn bộ ứng dụng bằng Docker
 
-### 3.1. Khởi động
+### 3.1. Khởi động lần đầu
 
-Bật Docker Desktop, tại root chạy:
+Bản source có cấu hình hiện tại cho phép thành viên mới clone về, copy `.env.example` thành `.env`, rồi chạy Compose để khởi tạo toàn bộ stack và 5 tài khoản mẫu. Không cần lấy credential hoặc dữ liệu từ máy thành viên khác. Cần Docker Desktop đang chạy, Internet cho lần build đầu và các cổng cấu hình còn trống.
+
+Bật Docker Desktop. Trên PowerShell, dùng lệnh khởi động có thông báo sau khi dựng xong:
+
+~~~powershell
+.\scripts\start-local.ps1
+~~~
+
+Script lâu dài này chạy full Docker, chờ thành công rồi in URL website/Swagger/DbGate/MinIO, đường dẫn tuyệt đối và trạng thái có/chưa có của file tài khoản ngoài repo, cùng lệnh tạo/lấy tài khoản. Nó không tự tạo operator, không tự xuất secret và không in password. Script chỉ cần Docker/PowerShell; các lệnh tool lấy tài khoản vẫn cần Node/npm. Lần mở lại không cần build: `.\scripts\start-local.ps1 -NoBuild`.
+
+Nếu dùng lệnh Compose trực tiếp:
 
 ~~~powershell
 docker compose up -d --build --wait
 ~~~
 
-Không cần npm ci cho cách này; dependency Web/Core được cài trong quá trình build image.
+Compose trực tiếp chỉ in trạng thái container, không có thông báo đường dẫn host ở cuối. Nếu có Node/npm, `npm run local:up` cũng dựng full Docker và in thông báo URL/đường dẫn tương tự.
 
-Mở [Customer login](http://localhost:8080/login) hoặc [Staff login](http://localhost:8080/staff/login). Xem [database](http://127.0.0.1:5050) và [Swagger tại cổng riêng 8081](http://localhost:8081). Tool admin chạy riêng theo mục 5.
+Không cần `npm ci` để chạy stack. MinIO được dựng cùng các service khác, không cần chạy thêm `storage:up`. Core chờ cả seed DB và storage-init hoàn tất thành công; `--wait` chờ các service sẵn sàng.
+
+Mở [Customer login](http://localhost:8080/login), [Staff login](http://localhost:8080/staff/login), [Swagger](http://localhost:8081), [DbGate](http://127.0.0.1:5050) hoặc [MinIO Console](http://localhost:9001). Tool admin chạy riêng theo mục 5.
 
 ### 3.2. Các bước tự động
 
-Compose chuẩn bị credential → bật PostgreSQL → bootstrap role/schema → chạy migration → seed 2 Staff/3 Customer → cho Core và DbGate sẵn sàng. Web và gateway có healthcheck riêng.
+- Database: prepare credential → PostgreSQL healthy → bootstrap role/schema → migration + storage-init → seed 2 Staff/3 Customer, sản phẩm/hợp đồng/PDF → Core/DbGate sẵn sàng.
+- Storage: storage-prepare credential → MinIO healthy → storage-init tạo private bucket và user/policy đọc/ghi.
+- Web/gateway có healthcheck riêng. Mọi cổng publish chỉ bind loopback.
 
-Không cần mở tool admin để có tài khoản mẫu. Chạy lại không tạo trùng và không reset password, trạng thái hoặc phân công đã thay đổi.
+Mỗi máy có DB, storage và credential riêng. Khởi động lại giữ dữ liệu, mật khẩu, hồ sơ và phân công đã sửa; không cần tài khoản/credential từ máy thành viên khác.
 
-### 3.3. Container nào phải chạy liên tục?
+Đã kiểm tra 31/10 với `.env.example`, database/storage volumes mới: toàn bộ stack healthy, website/API sẵn sàng, đúng 5 tài khoản mẫu, MinIO region `ap-southeast-1` và signed URL hoạt động. Kiểm tra dùng image đã build, không thay dữ liệu của stack hiện có; container/network/volumes kiểm thử được dọn sau khi xong. Tool admin và bản xuất tài khoản console là các bước tùy chọn riêng ở mục 5 và 3.5, không cần để đăng nhập website.
 
-| Container/service | Vai trò | Trạng thái bình thường |
-| --- | --- | --- |
-| postgres | Database PostgreSQL/pgvector | Running, healthy |
-| core | Backend NestJS | Running, healthy |
-| web | Frontend Next.js | Running, healthy |
-| gateway | Nginx chuyển request tới Web/Core | Running, healthy |
-| database-ui | DbGate xem bảng | Running, healthy |
-| prepare | Chuẩn bị credential | Exited (0) sau khi xong |
-| bootstrap | Chuẩn bị role/schema/extension | Exited (0) sau khi xong |
-| migrate | Áp dụng migration | Exited (0) sau khi xong |
-| seed-dev | Tạo tài khoản dev còn thiếu | Exited (0) sau khi xong |
+### 3.3. Trạng thái container bình thường
 
-Bốn job cuối dừng sau khi hoàn thành là thành công. Có thể giữ nguyên hoặc bật “Only show running containers” trong Docker Desktop. Chúng sẽ được chạy lại khi Compose cần chuẩn bị stack.
+| Service | Trạng thái |
+| --- | --- |
+| postgres, core, web, gateway, database-ui, minio | Running, healthy |
+| prepare, bootstrap, migrate, seed-dev | Exited (0) sau khi hoàn thành |
+| storage-prepare, storage-init | Exited (0) sau khi hoàn thành |
+
+Các job dừng với mã 0 là thành công, có thể giữ nguyên trong Docker Desktop. Job có thể chạy lại để chuẩn bị stack; object và credential hiện có được giữ.
 
 ### 3.4. Kiểm tra và dừng
 
@@ -134,184 +161,123 @@ docker compose logs --tail 100 core gateway
 docker compose down
 ~~~
 
-`down` giữ dữ liệu/credential trong volumes. **Không thêm -v trong thao tác dừng thông thường** vì sẽ xóa volumes của stack. Tắt Docker không đồng nghĩa xóa tài khoản hay database.
+`down` giữ named volumes. Không thêm `-v` để dừng thông thường vì sẽ xóa dữ liệu/credential của stack.
 
-<a id="npm-development"></a>
-## 4. Cách 2 — FE/BE bằng npm, database bằng Docker
+### 3.5. Storage MinIO local
 
-### 4.1. Cài dependency một lần
+API S3 là `http://localhost:9000`, console tại [localhost:9001](http://localhost:9001). Bucket `life-insurance-documents` private, được tạo tự động. Credential root, reader, writer nằm trong ba volumes riêng; reader chỉ GetObject, writer đọc/ghi/multipart trong bucket, không xóa hoặc quản trị. Chưa cấp credential storage cho Core/Agent/Web ở bước này.
 
-Sau khi tạo env ở mục 2:
-
-~~~powershell
-npm ci
-~~~
-
-Chỉ cần chạy lại npm ci khi cài mới hoặc package-lock.json thay đổi.
-
-### 4.2. Chạy FE/BE cùng database
+Nếu cần đăng nhập console, chạy trên máy vừa dựng:
 
 ~~~powershell
-npm run dev:db
+npm run storage:credentials
 ~~~
 
-Lệnh tự bật PostgreSQL/DbGate và các job chuẩn bị bằng Docker, seed tài khoản, tạo cấu hình DB host, generate Prisma Client rồi chạy đồng thời FE và BE bằng npm watch.
+Mở `%LOCALAPPDATA%/LifeInsuranceAIAssistant/storage/console.json`, lấy `username` và `password` để đăng nhập. Helper in đường dẫn thực tế, không in credential. Lệnh chỉ xuất lại tài khoản đã sinh, không đổi mật khẩu. Mất file JSON thì xuất lại từ credential volume.
 
-- Frontend: [localhost:3000](http://localhost:3000/login).
-- Staff login: [localhost:3000/staff/login](http://localhost:3000/staff/login).
-- Core: [localhost:4000/api/v1](http://localhost:4000/api/v1/health/live).
-- Swagger: [localhost:4000/api/v1/docs](http://localhost:4000/api/v1/docs).
-- Database và DbGate vẫn dùng Docker, chia sẻ cùng dữ liệu với full Docker.
+Tài khoản MinIO riêng với Staff/Customer/operator. Máy mới dùng mẫu cố định ở mục 2.1 thì có thể đăng nhập console trực tiếp, không cần xuất file. Mỗi máy có volumes/dữ liệu độc lập, không tự đồng bộ bucket/PDF. Nếu `.env` đã dùng credential khác, lấy đúng giá trị từ file riêng hoặc lệnh xuất. Console chỉ truy cập từ máy chạy Docker.
 
-Giữ terminal chạy; Ctrl+C dừng FE/BE npm. Database/UI Docker vẫn chạy. Chỉnh source sẽ tự cập nhật qua cơ chế dev, không cần build lại image mỗi lần sửa code.
-
-Chế độ này không cần bật gateway: browser → FE 3000; frontend gọi Core 4000 trực tiếp, Core kiểm tra CORS. Nếu gateway 8080 đang chạy thì nó vẫn phục vụ bản container, không phải code npm đang sửa.
-
-### 4.3. Chạy FE và BE trong hai terminal riêng (tùy chọn)
-
-Chuẩn bị hạ tầng trước:
+Các helper tùy chọn:
 
 ~~~powershell
-npm run dev:setup
-npm run db:generate --workspace @life-insurance/core
+npm run storage:up
+npm run storage:check
 ~~~
 
-Để Core chạy riêng có DB, mở .local/dev/core.env và copy đúng 5 dòng PGHOST, PGPORT, PGDATABASE, PGUSER, DATABASE_PASSWORD_FILE vào apps/core/.env. File này chỉ chứa thông số kết nối và đường dẫn tới password file; không copy nội dung password vào env. Giữ nguyên dấu nháy quanh đường dẫn nếu có. Khi đổi máy/cổng DB cần cập nhật theo file mới sinh.
+`storage:up` chỉ dựng storage khi không cần bật stack còn lại. `storage:check` kiểm health/console login, init rerun, upload/read synthetic, private anonymous access, quyền đọc/ghi, signed URL/Range/CORS và chữ ký sai; restart riêng MinIO để xác minh persistence. Object kiểm tra được dọn sau khi thành công.
 
-Terminal 1 tại root:
+Image local build Community **AGPL-3.0** từ source [MinIO](https://github.com/minio/minio/tree/9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a) release `RELEASE.2025-10-15T17-29-55Z`, commit `9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`, và [mc](https://github.com/minio/mc/tree/7394ce0dd2a80935aded936b09fa12cbb3cb8096) release `RELEASE.2025-08-13T08-35-41Z`, commit `7394ce0dd2a80935aded936b09fa12cbb3cb8096`. Dockerfile pin source checksum/base digest, license kèm image. Chỉ dùng local; chưa tạo AWS S3/cloud.
+
+Endpoint nội bộ Docker là `http://minio:9000`, region `ap-southeast-1` (Singapore), path-style. MinIO vẫn lưu dữ liệu trên máy, region chỉ là cấu hình tương thích S3; khi triển khai AWS mới chọn tài nguyên thực tại Singapore. Khi nối API, Core phải ký URL bằng endpoint browser truy cập được (`http://localhost:9000` theo cổng cấu hình) và cùng region, sau khi kiểm session/ownership/assignment/document/version. Đã nối SDK Core/access API, viewer Staff và seed PDF synthetic. CORS không thay kiểm quyền.
+
+<a id="source-updates"></a>
+## 4. Cập nhật source khi dùng Docker
+
+Sau khi sửa source hoặc nhận code mới:
 
 ~~~powershell
-npm run dev:core
+docker compose up -d --build --wait
 ~~~
 
-Terminal 2 tại root:
-
-~~~powershell
-npm run dev:web
-~~~
-
-Cách gọn nhất vẫn là dev:db ở mục 4.2 vì tự truyền cấu hình DB cho cả hai process.
-
-### 4.4. Chạy không có database, chỉ thử kết nối FE–BE
-
-~~~powershell
-npm run db:generate --workspace @life-insurance/core
-npm run dev
-~~~
-
-Khi không cấu hình DATABASE_PASSWORD_FILE, Core vẫn có liveness nhưng readiness trả 503; chưa dùng được login/hồ sơ. Mở [trang connection](http://localhost:3000/connection) và chạy npm run check:connection khi hai app đã lên. Nếu trước đó đã cấu hình DB trong env/shell thì npm run dev sẽ dùng cấu hình đó.
+Compose dùng cache để build lại phần thay đổi, giữ dữ liệu/credential trong volumes. Chỉ khởi động lại khi source/image chưa đổi: `docker compose up -d --wait`. Image hiện tại không có hot reload. Nếu gateway báo 502 sau khi thay Web/Core, chạy `docker compose restart gateway` để resolve lại upstream.
 
 <a id="admin-tool"></a>
-## 5. Chạy tool quản trị local
+## 5. Tool quản trị local
 
 ### 5.1. Bật tool
 
-Sau npm ci, mở terminal khác tại root:
-
-~~~powershell
-npm run admin
-~~~
-
-Mở [127.0.0.1:4100](http://127.0.0.1:4100). Script tự chuẩn bị database local và build tool; không cần mở Web/Core public trước. Tool dùng cùng PostgreSQL với cả hai cách chạy ở trên. Chỉ chuẩn bị operator mà chưa bật server: npm run admin:setup.
-
-Tool hiện chỉ kết nối PostgreSQL local. Chưa có chế độ kết nối RDS và không expose qua gateway.
-
-### 5.2. Lấy tài khoản operator lần đầu
-
-**Vừa clone repo thì chưa có hai file operator.** Thư mục `.local/` bị Git ignore; mỗi thành viên sẽ tạo tài khoản operator riêng trên máy của mình, không cần nhận file hay mật khẩu từ người khác.
-
-Sau khi chuẩn bị env theo mục 2 và bật Docker Desktop, chạy tại root repo:
+Tool quản trị vẫn là entrypoint local riêng, không nằm trong public Core/gateway. Nó dùng cùng PostgreSQL Docker, chỉ phục vụ tại `127.0.0.1:4100`; chưa hỗ trợ RDS.
 
 ~~~powershell
 npm ci
 npm run admin
 ~~~
 
-Nếu đã cài dependency thì không cần chạy lại `npm ci`. Khi `npm run admin` chuẩn bị DB và build tool thành công, script kiểm tra operator: nếu chưa có `.local/dev/operator.json`, nó sinh mật khẩu ngẫu nhiên và tạo hai file sau, rồi bật server tool:
+Script chuẩn bị DB/seed và build tool, không khởi động FE/BE trên host. Mở [127.0.0.1:4100](http://127.0.0.1:4100). Chỉ chuẩn bị operator mà chưa bật server: `npm run admin:setup`. Giữ terminal; Ctrl+C dừng tool.
 
-| File trên máy của người chạy | Nội dung và mục đích |
+### 5.2. Tài khoản operator
+
+Mỗi máy tạo operator riêng khi chạy tool lần đầu, không cần file từ người khác:
+
+| File ngoài repo trên Windows | Nội dung |
 | --- | --- |
-| `.local/dev/operator-initial.txt` | Username `local-operator` và mật khẩu ban đầu dạng đọc được, để lấy thông tin đăng nhập lần đầu |
-| `.local/dev/operator.json` | Username và hash bcrypt của mật khẩu, để tool xác thực những lần đăng nhập sau |
+| `%LOCALAPPDATA%/LifeInsuranceAIAssistant/operator/operator-initial.txt` | Username `local-operator` và mật khẩu ban đầu để đăng nhập |
+| `%LOCALAPPDATA%/LifeInsuranceAIAssistant/operator/operator.json` | Username và hash bcrypt dùng xác thực |
 
-Đường dẫn tính từ root repo vừa clone. Mở file `.local/dev/operator-initial.txt` bằng VS Code/Notepad trên chính máy, lấy mật khẩu rồi đăng nhập tại [http://127.0.0.1:4100](http://127.0.0.1:4100) bằng username `local-operator`. Mỗi máy có mật khẩu ngẫu nhiên riêng, dù username giống nhau.
+Mở file `.txt` trên chính máy để lấy mật khẩu; không đưa file/nội dung vào Git/chat/log. Có thể xóa `.txt` sau khi lưu mật khẩu an toàn; giữ `.json`. Hash không dùng để xem lại mật khẩu đã quên. Chỉ clone repo hoặc chạy Compose không tạo operator; cần chạy `admin`/`admin:setup`.
 
-Nếu chỉ muốn chuẩn bị operator trước mà chưa bật server, chạy `npm run admin:setup`. Lệnh này cũng tạo hai file khi chưa có operator; sau đó dùng `npm run admin` để mở tool. **Chỉ clone repo, copy env, chạy `npm ci`, `docker compose up` hoặc `npm run dev:db` sẽ chưa tạo hai file operator.**
+Chạy lại giữ operator hiện có. Khi nâng từ bản cũ, helper sao chép hai file operator từ `.local/dev` sang thư mục mới nếu chưa có operator ở đích; không ghi đè đích hoặc xóa bản cũ. Các file `.local` cũ khác không được dùng để chạy FE/BE và không tự bị xóa.
 
-Chạy lại `npm run admin` hoặc `npm run admin:setup` sẽ giữ operator hiện có, không đổi mật khẩu và không tạo lại file `.txt` nếu file hash `.json` vẫn còn. Không cần tạo operator lại mỗi lần cập nhật code hoặc khởi động tool.
+Operator riêng với 5 tài khoản Staff/Customer. Phiên tool có hạn 30 phút; restart tool cần đăng nhập lại.
 
-Không đưa hai file này lên Git, tài liệu, chat hoặc log. Có thể xóa file `.txt` sau khi đã lưu mật khẩu an toàn; giữ file `.json` để tiếp tục dùng operator đó. Hash trong `.json` không dùng để xem lại mật khẩu đã quên.
+### 5.3. Thao tác quản trị
 
-Operator là tài khoản riêng của tool; 5 tài khoản Staff/Customer ở mục 7 dùng để đăng nhập website. Phiên tool có hạn 30 phút, restart tool yêu cầu đăng nhập lại. Giữ terminal chạy; Ctrl+C dừng tool.
+1. Cấp tài khoản Staff/Customer bằng email/tên synthetic; mật khẩu nhập hoặc tự sinh. Mã STF-/CUS- cấp tự động.
+2. Mật khẩu tạo/reset chỉ hiển thị tại dialog lần đó, cần lưu ngay; không xem lại được sau khi đóng.
+3. Phân công Customer cho Staff active hoặc gỡ phân công. Staff cũ mất quyền ở request tiếp theo sau commit; giữ lịch sử.
+4. Khóa/mở khóa/reset kiểm đúng đối tượng. Reset/khóa thu hồi phiên; mở khóa không làm phiên cũ dùng lại. Reset không tự mở khóa tài khoản.
+5. Audit xem actor/action/target/outcome/time, lọc và phân trang.
 
-### 5.3. Dùng tool
-
-1. **Cấp tài khoản:** chọn Staff/Customer, nhập tên và email synthetic. Để trống password để tự sinh hoặc nhập tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Mã STF-/CUS- được cấp tự động.
-2. **Lưu password:** dialog chỉ hiện password trong lần tạo/reset đó, có nút copy. Đóng rồi không xem lại; nếu mất thì dùng Reset riêng.
-3. **Phân công:** mở Chi tiết Customer, tìm Staff active theo tên/email/mã, chọn Staff hoặc Chưa phân công để gỡ và xác nhận. Customer bị khóa cần mở khóa trước khi gán mới; vẫn có thể gỡ phân công. Staff cũ mất quyền ở request tiếp theo sau commit.
-4. **Khóa/mở khóa/reset:** kiểm tra đúng mã/email trong dialog xác nhận. Các thao tác thu hồi phiên cũ; mở khóa không làm phiên cũ dùng lại được. Reset bật lại lời nhắc đổi password, giữ nguyên trạng thái ACTIVE/LOCKED.
-5. **Audit:** xem người thao tác, hành động, đối tượng, kết quả và thời gian; lọc theo hành động/phân trang.
-
-Tool từ chối thay đổi từ màn hình cũ bằng lỗi 409 rồi tải lại dữ liệu. Không tự gửi lại vô hạn sau timeout. Không có xóa user hoặc đổi role trong tool.
+Tool không xóa user hoặc đổi role. Lỗi 409 cần đọc lại dữ liệu rồi xác nhận nếu cần; không gửi lại vô hạn khi timeout. Account provisioning, assignment và audit được ghi atomic trong Core.
 
 <a id="ports"></a>
-## 6. Danh sách cổng và đường dẫn
+## 6. Cổng và URL
 
-### 6.1. Cổng mặc định
+| Thành phần | Cổng truy cập mặc định |
+| --- | --- |
+| Website/Business API | http://localhost:8080 |
+| Swagger | http://localhost:8081 |
+| PostgreSQL | 127.0.0.1:5432, không phải HTTP |
+| DbGate | http://127.0.0.1:5050 |
+| MinIO S3 API / Console | http://localhost:9000 / http://localhost:9001 |
+| Tool admin riêng | http://127.0.0.1:4100 khi chạy tool |
 
-| Thành phần | Full Docker: cổng trong container | Cổng truy cập từ máy khi full Docker | FE/BE chạy npm |
-| --- | --- | --- | --- |
-| Nginx gateway | 80 | 127.0.0.1:8080 | Không bắt buộc |
-| Swagger qua Nginx | 81 trong gateway | 127.0.0.1:8081 | Dùng Core 4000/api/v1/docs trực tiếp |
-| Frontend Next.js | 3000 | Qua gateway 8080; không publish 3000 | localhost:3000 |
-| Backend NestJS | 4000 | Qua gateway 8080; không publish 4000 | localhost:4000 |
-| PostgreSQL | 5432 | 127.0.0.1:5432 | Vẫn dùng DB Docker tại 5432 |
-| DbGate | 3000 trong database-ui | 127.0.0.1:5050 | Vẫn dùng UI Docker tại 5050 |
-| Tool admin | Chạy host, không nằm trong Compose | 127.0.0.1:4100 khi chạy npm run admin | Cùng cổng 4100 |
+Web/Core chỉ mở cổng nội bộ 3000/4000, không publish lên host. Browser → Nginx → Web hoặc Core; `/api/*` chuyển tới Core. Các job khởi tạo không mở cổng.
 
-Các cổng publish Docker có thể đổi bằng .env root; cổng nội bộ Web/Core vẫn giữ theo compose.yaml. Các job prepare/bootstrap/migrate/seed không mở cổng.
+| Đường dẫn | Mục đích |
+| --- | --- |
+| `/login`, `/staff/login` qua 8080 | Customer/Staff login |
+| `/customer`, `/staff/customers` qua 8080 | Customer profile / Staff Customers |
+| `/account` qua 8080 | Tài khoản và đổi mật khẩu |
+| `/staff/inbox`, `/staff/policies`, `/staff/tickets` | Khung UI chưa đủ business APIs |
+| `/api/v1/realtime` qua 8080 | WebSocket invalidation account/profile/assignment |
+| `/api/v1/health/live`, `/api/v1/health/ready` qua 8080 | Core liveness / DB readiness |
+| `/connection` qua 8080 | Kiểm tra kết nối FE–BE |
+| `/gateway-health` qua 8080 | Gateway health |
+| `/api/v1/docs`, `/api/v1/docs-json` qua 8081 | Swagger UI / OpenAPI JSON |
 
-### 6.2. URL thường dùng
+Swagger 8081 tự chuyển tới UI; assets, OpenAPI và Try it out cùng đi tới Core Docker, không phục vụ frontend/admin. Swagger cũ qua 8080/api/v1/docs vẫn dùng được. Đổi cổng bằng `.env` root rồi chạy lại Compose; allowlist Core tự theo cổng gateway/Swagger.
 
-| Mục đích | Full Docker | Npm FE/BE |
-| --- | --- | --- |
-| Customer login | http://localhost:8080/login | http://localhost:3000/login |
-| Staff login | http://localhost:8080/staff/login | http://localhost:3000/staff/login |
-| Customer profile / Staff Customers | /customer và /staff/customers qua 8080 | /customer và /staff/customers qua 3000 |
-| Staff Inbox / Policy Lookup / Tickets (khung UI) | /staff/inbox, /staff/policies, /staff/tickets qua 8080 | Các route tương tự qua 3000 |
-| WebSocket invalidation local | ws://localhost:8080/api/v1/realtime | ws://localhost:4000/api/v1/realtime |
-| Tài khoản / đổi password | /account qua 8080 | /account qua 3000 |
-| Swagger UI | http://localhost:8081 → /api/v1/docs | http://localhost:4000/api/v1/docs |
-| OpenAPI JSON | http://localhost:8081/api/v1/docs-json | http://localhost:4000/api/v1/docs-json |
-| Backend liveness | http://localhost:8080/api/v1/health/live | http://localhost:4000/api/v1/health/live |
-| Backend + DB readiness | http://localhost:8080/api/v1/health/ready | http://localhost:4000/api/v1/health/ready |
-| Gateway health | http://localhost:8080/gateway-health | Không bắt buộc |
-| Kiểm tra kết nối FE–BE | http://localhost:8080/connection | http://localhost:3000/connection |
-| Xem bảng | http://127.0.0.1:5050 | http://127.0.0.1:5050 |
-| Quản trị tài khoản | http://127.0.0.1:4100 | http://127.0.0.1:4100 |
-
-### 6.3. Chiều gọi request
-
-Full Docker: browser → Nginx 8080 → Web hoặc Core. Đường /api/* được chuyển tới Core, còn trang/assets tới Web. Npm dev: frontend gọi Core trực tiếp ở 4000. Core không gọi ngược frontend để xử lý đăng nhập; gateway không phải trang login riêng.
-
-### 6.4. Sử dụng Swagger
-
-Full Docker mở [http://localhost:8081](http://localhost:8081), tự chuyển tới Swagger UI. Đây là listener riêng trong container gateway, không thêm backend hoặc database mới. Swagger assets, OpenAPI JSON và request từ **Try it out** đều đi từ 8081 tới Core; cổng này không phục vụ frontend hay tool admin. Địa chỉ Swagger cũ qua gateway 8080/api/v1/docs vẫn dùng được.
-
-Có thể đổi cổng bằng `SWAGGER_PORT` trong .env root rồi chạy lại `docker compose up -d --build --wait`; nếu .env cũ chưa có biến này thì mặc định vẫn là 8081. Compose tự thêm origin của cổng đã chọn vào allowlist của Core.
-
-Trong Swagger, mở endpoint → Try it out → nhập tham số/body → Execute. Endpoint login cần header `X-Auth-Request: 1`, email/password ở mục 7 và đúng endpoint Customer/Staff. Browser tự giữ cookie phiên; các request ghi yêu cầu thêm `X-CSRF-Token` dùng giá trị `csrfToken` trả từ login hoặc me. Dùng thống nhất hostname localhost hoặc 127.0.0.1.
-
-Khi chạy FE/BE bằng npm, Swagger phục vụ code npm ở [http://localhost:4000/api/v1/docs](http://localhost:4000/api/v1/docs), không cần gateway. Để thử POST tại đó, thêm origin chính xác `http://localhost:4000` hoặc `http://127.0.0.1:4000` vào `CORS_ORIGINS` trong apps/core/.env và restart Core (giữ cả origin FE 3000). Cổng 8081 nếu đang bật vẫn gọi Core Docker, giống như cổng website 8080.
+Try it out login cần `X-Auth-Request: 1`, email/password mục 7 và đúng endpoint Staff/Customer. Browser giữ cookie phiên; request ghi sau login cần `X-CSRF-Token` lấy từ login hoặc me. Dùng thống nhất localhost/127.0.0.1 trong một luồng đăng nhập. Không wildcard CORS hoặc bỏ CSRF để xử lý lỗi.
 
 <a id="dev-accounts"></a>
 ## 7. Tài khoản đã seed sẵn
 
-### 7.1. Danh sách đầy đủ
+### 7.1. Năm tài khoản đăng nhập mẫu
 
 **Mật khẩu ban đầu chung: `DevLocal-2026!`**.
 
-| Vai trò | Email đăng nhập | Mã định danh | Phân công ban đầu |
+| Vai trò | Email | Mã | Phân công ban đầu |
 | --- | --- | --- | --- |
 | Staff A | staff.a@dev.example.invalid | STF-000001 | Phụ trách Customer A |
 | Staff B | staff.b@dev.example.invalid | STF-000002 | Phụ trách Customer B |
@@ -319,176 +285,147 @@ Khi chạy FE/BE bằng npm, Swagger phục vụ code npm ở [http://localhost:
 | Customer B | customer.b@dev.example.invalid | CUS-000002 | Staff B |
 | Customer chưa phân công | customer.unassigned@dev.example.invalid | CUS-000003 | Chưa có Staff |
 
-Cả Staff và Customer đều được cấp tài khoản; không có tự đăng ký công khai. **Chỉ đăng nhập bằng email**, mã định danh không dùng để login. Staff vào /staff/login; Customer vào /login. Không có /customer/login.
-
-Đây là đúng 5 fixture synthetic được phép công khai credential cho dev local. Không dùng dữ liệu khách hàng/hợp đồng thật, kể cả đã che tên.
+Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; không public tự đăng ký. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
 
 ### 7.2. Khi nào seed chạy?
 
-- Full Docker up tự seed sau migration, trước khi Core/DbGate sẵn sàng.
-- dev:db, dev:setup và admin cũng chuẩn bị DB kèm seed.
-- Chạy seed tường minh khi cần:
+Full Docker tự seed sau migration, trước khi Core/DbGate sẵn sàng. Seed dùng chung tạo 5 tài khoản trên cùng sản phẩm, hợp đồng và PDF synthetic ở mục 7.4; dữ liệu kiểm thử riêng trước đó của từng máy được giữ nguyên. Chạy lại giữ password, trạng thái khóa, hồ sơ và phân công đã sửa; không xóa tài khoản đã có.
+
+Nếu cần chạy riêng hoặc xem kết quả:
 
 ~~~powershell
-npm run bootstrap:dev
+docker compose run --rm --build seed-dev
+docker compose logs seed-dev
 ~~~
 
-Nếu chỉ dùng Docker, có thể xem kết quả bằng `docker compose logs seed-dev`. Seed chạy lại chỉ tạo tài khoản mẫu còn thiếu, không reset password đã đổi, trạng thái khóa, hồ sơ hoặc phân công. Nếu password ban đầu không đăng nhập được sau khi đã dùng dự án, thử password hiện tại hoặc reset bằng tool; không xóa database để xử lý.
+Helper tùy chọn `npm run bootstrap:dev` cũng chạy seed trong Docker. Password mẫu không còn khớp thì dùng password hiện tại hoặc reset bằng tool; không xóa DB để khắc phục.
 
 ### 7.3. Đăng nhập và đổi mật khẩu
 
-Đăng nhập Customer tới `/customer` (hồ sơ); Staff tới `/staff/customers`, `/staff` redirect về đó. Mở deep link Staff khi chưa đăng nhập có `next` để quay lại route hợp lệ. Không OTP/kích hoạt hoặc ép đổi password lần đầu. Staff banner có nút đóng; Customer có Later, chỉ ẩn trong lần mount UI hiện tại. Menu avatar Staff chỉ có Personal information và Sign out; tại Personal information → Security → Change password mở form. Customer vẫn dùng Account. Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8, các ô có nút hiện/ẩn.
+Customer tới `/customer`, Staff tới `/staff/customers`; `/staff` redirect về Customers. Deep link giữ `next` hợp lệ. Không OTP/kích hoạt hoặc ép đổi password lần đầu. Staff menu có Personal information và Sign out; Security có Change password. Customer dùng Account.
 
-Đổi thành công tắt lời nhắc và thu hồi mọi phiên cũ; thiết bị hiện tại tiếp tục dùng phiên mới, thiết bị khác cần login lại. Phiên website có hạn tuyệt đối 8 giờ. Customer xem hồ sơ mình và Staff phụ trách; Staff chỉ xem Customer được phân công. Các trường thiếu hiển thị Not provided. Web hiển thị tiếng Anh; tool operator là giao diện riêng. Staff Customers phân trang 10/trang bằng Previous/Next, detail có breadcrumb và khu vực policy chưa kết nối. Search khách chưa có API; không coi search disabled là lỗi kết nối.
+Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Đổi thành công tắt lời nhắc, thu hồi mọi phiên cũ và cấp phiên mới cho thiết bị hiện tại. Phiên website có hạn tuyệt đối 8 giờ.
 
-### 7.4. Máy từng dùng bootstrap cũ
+Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Customers search theo tên/mã/email/phone trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
 
-Máy clone mới không cần file legacy. Nếu đã dùng bản sinh password ngẫu nhiên cũ, bootstrap:dev có thể kiểm .local/dev/dev-accounts.json để nâng fixture còn dùng đúng password ban đầu sang password chung. Password người dùng đã tự đổi được giữ nguyên; không tự xóa file legacy/credential hoặc DB volumes để khắc phục login.
+### 7.4. Sản phẩm, hợp đồng và PDF mô phỏng
+
+Bootstrap chung tự tạo **2 sản phẩm, 14 hợp đồng, 17 tài liệu và 20 phiên bản PDF**. Không cần sinh file trên host hoặc chạy script riêng. `seed-dev` chờ cả migration và storage-init, dùng DB admin_runtime và credential storage-writer readonly từ volumes; Core vẫn chỉ nhận storage-reader.
+
+| Khách mẫu | Bộ hợp đồng mới | Số lượng |
+| --- | --- | --- |
+| customer.a@dev.example.invalid | DEV-POL-A-001 đến DEV-POL-A-012 | 12, đủ 2 trang 10/2 |
+| customer.b@dev.example.invalid | DEV-POL-B-001 đến DEV-POL-B-002 | 2 |
+| customer.unassigned@dev.example.invalid | Không tạo hợp đồng | 0 |
+
+Sản phẩm DEV-LIFE-01 và DEV-CARE-01 đều có nhãn mô phỏng. Có trạng thái ACTIVE/LAPSED/MATURED/PENDING; A-012 chưa có PDF chính để thử trạng thái thiếu file. A-001 có bản PDF 1.0/1.1, mở bản 1.1. Điều khoản mỗi sản phẩm có 1.0/2.0, một số hợp đồng ghim 1.0 dù currentVersion là 2.0; A-001 và A-002 có phụ lục riêng. Không seed tài liệu giới thiệu sản phẩm, chat, Ticket hoặc thêm Customer.
+
+PDF tiếng Việt có font nhúng, 5 trang/hợp đồng chính, 3 trang/điều khoản và 2 trang/phụ lục. Tất cả đều ghi dữ liệu giả lập/không có giá trị pháp lý; không dùng mẫu thật đã che tên. Metadata/checksum ở PostgreSQL, PDF trong bucket private theo MINIO_BUCKET, prefix `dev-fixtures/policies-v1/dev/` trên MinIO volume. Không commit PDF, không tạo `.local`, không xuất credential hoặc PDF ra host.
+
+Chạy lại chỉ thêm bản ghi còn thiếu, giữ password/khóa/hồ sơ/phân công và các trường hợp đồng/snapshot đã sửa; không bật lại version bị vô hiệu hóa hoặc đổi currentVersion đã chỉnh. File còn nguyên được kiểm SHA-256, không upload đè. File fixture thiếu được phục hồi bằng đúng nội dung ổn định. Nếu trùng mã/ID với dữ liệu không thuộc bootstrap hoặc object/version đã khác checksum thì seed báo lỗi, không chiếm hay ghi đè. DB rollback khi seed thất bại; object đã upload ở prefix riêng được giữ để lần chạy lại tiếp tục, không xóa bucket/volumes.
+
+Máy từng có bộ mẫu riêng sẽ có thêm bộ DEV-... bên cạnh các hợp đồng SIM-...; không xóa hoặc sửa bộ cũ. Con số phân trang ở trên tính riêng seed chung, không tính dữ liệu đã có. Phân công Staff đã thay đổi vẫn được giữ, nên ai nhìn thấy khách/hợp đồng phụ thuộc phân công hiện hành.
+
+Kiểm chứng seed: `npm run test:policy-seed` chạy fixture riêng với DB rollback, kiểm tính ổn định PDF, chạy lại, giữ chỉnh sửa, lỗi storage/retry và xung đột. Chạy ứng dụng bằng Docker; test không khởi động Core/Web trên host.
 
 <a id="database"></a>
-## 8. Xem database và quản lý dữ liệu
+## 8. Dữ liệu và migration
 
-### 8.1. DbGate
-
-Mở http://127.0.0.1:5050, kết nối Life Insurance Local đã được cấu hình sẵn với database life_insurance. Chọn schema business hoặc rag và bấm bảng để xem cột/dữ liệu dạng lưới. Có thể bỏ qua hỏi analytics nếu xuất hiện. Không cần nhập password DB; role db_viewer chỉ SELECT.
-
-Có 17 bảng ứng dụng. DbGate có thể hiển thị thêm _prisma_migrations, thành 18 bảng; đây là metadata migration, viewer không đọc/sửa được nội dung. Nhiều bảng nghiệp vụ chưa có seed nên vẫn trống. **5432 là giao thức PostgreSQL, không mở bằng trình duyệt.** Thêm/sửa tài khoản và phân công thực hiện trong tool admin.
-
-~~~powershell
-npm run db:ui
-~~~
-
-Lệnh tiện ích trên bật full stack và mở DbGate; nếu chỉ muốn chuẩn bị DB/UI cho dev npm thì dùng dev:setup.
-
-### 8.2. Dữ liệu nằm ở đâu?
+DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Có 17 bảng ứng dụng trong business/rag; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
 
 | Nơi lưu | Nội dung |
 | --- | --- |
-| Named volume life-insurance-local-postgres-data | Database, tài khoản, hồ sơ, phân công, audit/session |
-| Các volume life-insurance-local-credential-* | Credential DB từng role, giữ lại để dùng đúng DB cũ |
-| Volume life-insurance-local-database-ui-data | Cấu hình/dữ liệu làm việc của DbGate |
-| .local/dev | Cấu hình host DB, operator và file local riêng tư |
+| life-insurance-local-postgres-data | DB, tài khoản, hồ sơ, phân công, audit/session |
+| life-insurance-local-credential-bootstrap/migration/core/admin/viewer | Credential DB tách role |
+| life-insurance-local-minio-data | Object MinIO |
+| life-insurance-local-credential-storage-root/reader/writer | Credential storage tách quyền |
+| life-insurance-local-database-ui-data | Cấu hình DbGate |
+| Thư mục dữ liệu người dùng ngoài repo, `operator/` | Credential operator |
+| Thư mục dữ liệu người dùng ngoài repo, `storage/console.json` | Bản xuất credential console, có thể xuất lại |
 
-Giữ các volume và file riêng tư khi cần tiếp tục dùng dữ liệu cũ. Không chia sẻ .local qua Git. Down/up hoặc thay container giữ dữ liệu; down -v hay xóa volume trong Docker Desktop có thể làm mất dữ liệu và credential tương ứng.
+Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-### 8.3. Schema/migration cho người sửa backend
+Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Model tồn tại không đồng nghĩa đã có API policy.
 
-Source model ở [schema.prisma](../apps/core/prisma/schema.prisma), SQL migrations trong [apps/core/prisma/migrations](../apps/core/prisma/migrations). Schema gồm business/rag; tạo bảng không đồng nghĩa đã có API nghiệp vụ.
-
-~~~powershell
-npm run db:validate --workspace @life-insurance/core
-npm run db:generate --workspace @life-insurance/core
-~~~
-
-Model hiện dùng InsurancePolicy/PolicyStatus/insurance_policies, rename bằng migration `202610300001_rename_insurance_policies`; giữ dữ liệu/quan hệ và ba migration cũ. Bảng Policy có sẵn không đồng nghĩa có API/UI policy thật.
-
-Generate chỉ tạo Prisma Client, không tự sửa DB. Thay schema phải tạo migration mới và giữ CHECK/partial indexes; không sửa migration đã apply, không dùng db push/migrate reset trên DB cần giữ. Compose dùng role migration riêng.
+Người sửa backend có thể chạy `npm run db:validate --workspace @life-insurance/core` và `npm run db:generate --workspace @life-insurance/core`. Generate không sửa DB. Thay schema cần migration mới và giữ CHECK/partial indexes; không sửa migration đã apply hoặc dùng db push/migrate reset trên DB cần giữ.
 
 <a id="commands"></a>
-## 9. Cập nhật source, kiểm tra và dừng dự án
+## 9. Kiểm tra và dừng dự án
 
-### 9.1. Khi nhận code mới
-
-Chỉ pull khi các thay đổi local đã được xử lý theo quy trình Git của nhóm.
-
-| Cách chạy | Việc cần làm |
-| --- | --- |
-| Full Docker | Chạy lại docker compose up -d --build --wait |
-| Npm dev | npm ci nếu lockfile đổi; npm run dev:db; watch tự cập nhật các lần sửa source tiếp theo |
-| Tool admin | Dừng terminal tool rồi chạy npm run admin để build phiên bản mới |
-
-Dự án dùng một package-lock.json root. Giữ lockfile trong repo; không sửa dependencies/lockfile riêng từng app hoặc xóa để xử lý lỗi thông thường.
-
-### 9.2. Lệnh kiểm tra
+Tool/test source cần Node/npm và `npm ci`; FE/BE vẫn chạy bằng Docker:
 
 ~~~powershell
 npm run local:check
+npm run check:connection
+npm run storage:check
 npm run lint
 npm run typecheck
 npm run build
 npm run build:admin --workspace @life-insurance/core
 ~~~
 
-Các test có database dùng fixtures synthetic riêng và dọn sau test:
+`check:connection` tự lấy cổng gateway đang publish từ Compose, theo cấu hình `.env`. `CHECK_WEB_ORIGIN`/`CHECK_CORE_URL` chỉ dùng khi chủ động kiểm origin/endpoint khác. Test DB dùng fixtures synthetic riêng, rollback/dọn sau test:
 
 ~~~powershell
 npm run test:accounts
 npm run test:auth
 npm run test:customers
+npm run test:policies
 npm run test:admin
 npm run test:http --workspace @life-insurance/core
 ~~~
 
-Kiểm tra Web riêng: `npm run lint --workspace @life-insurance/web`, `npm run typecheck --workspace @life-insurance/web`, `npm run build --workspace @life-insurance/web`. Chưa có bộ browser E2E được version trong repo; các smoke local trước đây và giới hạn ở [bảng tiến độ](ui/implementation-status.md).
+Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Chưa có bộ browser E2E version trong repo; xem giới hạn tại checklist UI.
 
-Realtime/HTTP foundation không cần DB thật; build Core trước rồi chạy:
-
-~~~powershell
-npm run build --workspace @life-insurance/core
-node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs
-~~~
-
-Test:admin cần cổng 4101 trống. Các helper test có DB tự chuẩn bị stack local; không chạy khi NODE_ENV=production. Test HTTP foundation dùng server tạm, không cần DB. Chỉ chạy check:connection khi FE/BE npm đang bật.
-
-### 9.3. Dừng đúng cách
-
-- FE/BE npm và tool admin: Ctrl+C tại terminal tương ứng.
-- Dừng Web/Core/gateway Docker nhưng vẫn giữ DB/UI: `docker compose stop gateway web core`.
-- Dừng toàn bộ container, giữ volumes: `docker compose down` hoặc `npm run local:down`.
+- Tool admin: Ctrl+C tại terminal của tool.
+- Dừng riêng Web/Core/gateway: `docker compose stop gateway web core`.
+- Dừng stack, giữ dữ liệu: `docker compose down` hoặc `npm run local:down`.
 - Xem trạng thái: `docker compose ps --all` hoặc `npm run db:status`.
-
-Dọn node_modules/.next/dist chỉ ảnh hưởng dependency/build host và sẽ cần cài/build lại; không coi .local/DB volumes là cache để xóa.
 
 <a id="troubleshooting"></a>
 ## 10. Xử lý lỗi thường gặp
 
-| Hiện tượng | Cách kiểm tra/xử lý |
+| Hiện tượng | Cách xử lý |
 | --- | --- |
-| Docker command failed / daemon chưa chạy | Bật Docker Desktop Linux containers; docker info; helper yêu cầu Docker context local |
-| Port is already allocated / EADDRINUSE | Dừng process trùng hoặc đổi cổng Docker trong .env root; app npm/4100 kiểm tra process đang giữ cổng |
-| Có container Exited (0) | Bình thường với prepare/bootstrap/migrate/seed-dev; xem mục 3.3 |
-| Liveness 200 nhưng readiness 503 | Core còn sống nhưng DB/schema chưa sẵn sàng hoặc chưa có credential; npm mode dùng dev:db, Docker xem logs postgres/migrate/core |
-| Staff list/profile nháy khi quay lại tab | Bản hiện tại chỉ kiểm phiên khi focus, dữ liệu refresh nền qua socket. Kiểm tra đang dùng image mới; npm dev HMR khi sửa source vẫn bình thường |
-| Hồ sơ không tự cập nhật | Kiểm tra handshake `/api/v1/realtime` trong Network/WS, cookie cùng hostname và Origin. Docker gateway phải proxy Upgrade; local resync snapshot mỗi 2 giây, không phải chat events |
-| Gateway 502 sau khi thay container Web/Core | Kiểm tra service healthy rồi restart gateway để resolve lại upstream: docker compose restart gateway |
-| Sửa code nhưng website không đổi | Npm dev mở cổng 3000; gateway 8080 vẫn là bản container. Full Docker cần --build |
-| Login 401 | Dùng email đúng cổng Staff/Customer; password có thể đã đổi, account khóa hoặc phiên hết hạn. Password mẫu chỉ là ban đầu |
-| Login/API 403 | Dùng đúng Host/Origin, cookie/CSRF; tải lại trang. Không dùng wildcard CORS hoặc bỏ CSRF để xử lý |
-| Swagger host 4000 gọi POST bị 403 | Thêm origin Swagger host vào CORS_ORIGINS của Core npm rồi restart, giữ origin FE 3000. Full Docker đã cho phép origin Swagger 8081; xem mục 6.4 |
-| Không mở được Swagger 8081 | Chạy docker compose up -d --build --wait; kiểm tra gateway/core và SWAGGER_PORT trong .env root. Swagger 8081 phục vụ backend Docker, Swagger 4000 phục vụ backend npm |
-| API 429 | Đợi giới hạn tạm hết; app login 10 request/15 phút/email, 5 password sai tạm khóa 15 phút; operator login 10/15 phút, mutation 60/phút/session |
-| Tool 409 | Dữ liệu/version đã đổi, email trùng hoặc request đã thực hiện. Xem dữ liệu vừa tải lại rồi xác nhận lại nếu cần; password cũ không được phát lại |
-| Conflicting PGHOST/PGUSER/DATABASE_PASSWORD_FILE | Không ghi đè mù quáng; bỏ override tự đặt hoặc đồng bộ theo .local/dev/core.env rồi chạy dev:db |
-| Prisma Client chưa có | npm run db:generate --workspace @life-insurance/core; không sửa generated code |
-| Mở 5432 trên browser không thấy gì | Dùng DbGate 5050; 5432 không phải HTTP |
-| DbGate bảng trống hoặc hiện 18 bảng | Chưa có dữ liệu nghiệp vụ hoặc đang tính cả metadata; xem mục 8.1 |
-| Không vào được tool 4100 | npm ci rồi npm run admin; kiểm tra terminal và port; operator dùng credential riêng trong file private |
+| Docker daemon chưa chạy | Bật Docker Desktop Linux containers, kiểm docker info; helper chỉ dùng context local |
+| Port already allocated / EADDRINUSE | Dừng process trùng hoặc đổi cổng trong .env root; tool cần 4100 trống |
+| Container Exited (0) | Bình thường với job khởi tạo; xem mục 3.3 |
+| Core readiness 503 | Kiểm logs postgres/migrate/core và credential/schema |
+| Sửa source nhưng website không đổi | Chạy Compose với --build; truy cập gateway 8080 |
+| Gateway 502 sau thay Web/Core | Chờ service healthy, restart gateway để resolve upstream |
+| Login 401 | Đúng email/cổng role; password có thể đã đổi, account khóa hoặc phiên hết hạn |
+| API 403 | Kiểm Host/Origin/cookie/CSRF; không bỏ kiểm quyền để xử lý |
+| API 429 | Đợi giới hạn tạm hết; không gửi lại liên tục |
+| Hồ sơ không tự cập nhật | Kiểm WS /api/v1/realtime, cookie/Origin và gateway Upgrade; đây là invalidation, chưa chat realtime |
+| Tool 409 | Đọc lại version/dữ liệu rồi xác nhận lại nếu cần |
+| Không vào Swagger | Kiểm gateway/core, SWAGGER_PORT; dùng cổng gateway Swagger |
+| Không vào MinIO | Kiểm minio healthy/storage-init Exited (0), MINIO_API_PORT/MINIO_CONSOLE_PORT; xem mục 3.5 |
+| Không vào tool admin | npm ci, npm run admin; đọc operator-initial.txt ở thư mục dữ liệu người dùng |
+| DB/MinIO có dữ liệu nhưng thiếu credential | Khôi phục credential volumes gốc, không xóa dữ liệu hoặc tạo password mới |
 
-Khi chia sẻ lỗi, ưu tiên request ID, mã HTTP và log ngắn đã kiểm tra; không gửi password/token/cookie, DB URL có credential hoặc file .local. Dùng thống nhất localhost/127.0.0.1 trong một luồng đăng nhập để cookie đúng host.
+Khi chia sẻ lỗi, dùng request ID, mã HTTP và log ngắn đã kiểm tra; không gửi password/token/cookie, URL ký, connection string có secret hoặc file riêng tư.
 
 <a id="project-layout"></a>
 ## 11. Cấu trúc và tài liệu kỹ thuật
 
 ~~~text
 apps/web/       Next.js Customer/Staff UI
-apps/core/      NestJS, Prisma, business services và admin entrypoint/UI riêng
-apps/agent/     Placeholder cho Agent; chưa triển khai
-scripts/        Lệnh điều phối local/kiểm tra
-infra/local/    Cấu hình Nginx
+apps/core/      NestJS, Prisma, business và admin entrypoint/UI riêng
+apps/agent/     Placeholder; chưa triển khai
+scripts/        Docker helpers, tool admin và kiểm tra
+infra/local/    Nginx và cấu hình/build storage
 compose.yaml    Stack Docker local
-.local/         Dữ liệu/credential local, bị Git ignore
-docs/           Hướng dẫn sử dụng, kiến trúc và nguồn đặc tả
+docs/           Hướng dẫn, thiết kế và đặc tả
 ~~~
 
-Core tổ chức theo tính năng `auth/`, `customers/`, `accounts/`, `admin/`; controller, DTO và service được đặt trong thư mục con riêng. Các file `*.module.ts` ghép dependency bằng NestJS; public `AppModule` tách khỏi `AdminModule` của tool local. Model ORM định nghĩa ở `apps/core/prisma/schema.prisma`; fixtures dev ở `apps/core/src/cli/`. Xem [cấu trúc Core](../apps/core/README.md).
+Core chia theo tính năng auth/customers/accounts/admin; model ORM ở Prisma schema, không tạo model TypeScript trùng lặp. Public AppModule tách khỏi AdminModule. Chỉ dùng dữ liệu hoàn toàn synthetic. Core sở hữu danh tính/phân quyền/nghiệp vụ; Agent tương lai gọi Business API, không truy cập trực tiếp business DB.
 
-Tài liệu này là đầu mối duy nhất về setup/vận hành local cho thành viên mới. Những tài liệu còn lại phục vụ thiết kế và đối chiếu đặc tả:
+Đọc thêm: [kiến trúc](architecture.md), [quy tắc cấu hình/dữ liệu](configuration-and-data.md), [UI và checklist](ui/README.md), [hướng tiếp theo](next-steps.md), [đối chiếu nguồn](source-review.md), [đặc tả](specifications), [cấu trúc repo](adr/0001-repository-layout.md). Model/embedding/checkpoint/queue/cloud vẫn cần chốt riêng khi triển khai.
 
-- [Kiến trúc và các quyết định local đang áp dụng](architecture.md).
-- [UI: thứ tự đọc](ui/README.md), [checklist triển khai/gap](ui/implementation-status.md) và [hướng phát triển](next-steps.md).
-- [Đặc tả Data Model](specifications/Data_Model.md) và các đặc tả khác trong [docs/specifications](specifications).
-- [Nguồn và các quyết định còn mở](source-review.md).
-- [Quy tắc cấu hình và dữ liệu](configuration-and-data.md).
-- [Quyết định tổ chức repo ban đầu](adr/0001-repository-layout.md).
+### PDF trong Staff workspace
 
-Chỉ dùng hồ sơ/hợp đồng sinh hoàn toàn giả lập. Core sở hữu danh tính, phân quyền và nghiệp vụ; Agent tương lai gọi Business API, không truy cập trực tiếp business DB. Model/embedding/checkpoint/queue/hosting cloud còn phải được chốt riêng khi triển khai.
+Customers → chọn khách → chọn hợp đồng để đọc PDF chính và Download PDF. Policy information nằm dưới viewer, mặc định thu gọn, là dữ liệu DB chứ không trích xuất PDF. Supporting documents tách riêng điều khoản/phụ lục; View PDF mở cùng viewer và Back to main policy quay lại hợp đồng chính. Trình duyệt cần hỗ trợ nhúng PDF; có Open PDF in a new tab để đọc riêng. Compose tự tạo bộ hợp đồng/PDF chung ở mục 7.4; fixture cá nhân trước đó được giữ nguyên, không đưa vào seed chung.
+
+Core mount readonly credential storage-reader từ Docker volume, không dùng root/writer. `.env` root có tùy chọn MINIO_PUBLIC_ENDPOINT (mặc định http://localhost:<MINIO_API_PORT>) để browser đọc file, STORAGE_URL_TTL_SECONDS mặc định 900, cho phép 60–3600. Endpoint nội bộ Core dùng http://minio:9000; region/bucket dùng MINIO_REGION/MINIO_BUCKET hiện tại. File .env cũ không cần thêm biến nếu dùng mặc định. Không cần xuất credential ra host hoặc tạo file riêng mới.
+
+Không chia sẻ signed URL; link có thể còn hiệu lực đến hết TTL sau đổi quyền. Lần xin link mới kiểm lại session/Staff assignment và phiên bản áp dụng. Audit ghi ý định cấp xem/tải, không chứa URL ký hoặc nội dung PDF.
