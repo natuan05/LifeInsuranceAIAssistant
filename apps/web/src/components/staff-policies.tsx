@@ -13,7 +13,7 @@ const box = 'tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-w
 const labels: Record<Policy['status'], string> = { ACTIVE: 'Active', LAPSED: 'Lapsed', MATURED: 'Matured', PENDING: 'Pending' };
 const kinds = { POLICY: 'Policy', POLICY_DRAFT: 'Draft policy', TERMS: 'Terms and conditions', PRODUCT_GUIDE: 'Product guide', ENDORSEMENT: 'Endorsement' };
 
-function usePolicyRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>): { data?: T; error?: string; loading: boolean; retry: () => void } {
+export function usePolicyRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>): { data?: T; error?: string; loading: boolean; retry: () => void } {
   const router = useRouter();
   const [revision, setRevision] = useState(0);
   const requestKey = JSON.stringify([key, revision]);
@@ -44,7 +44,7 @@ function ReadState({ loading, error, retry }: { loading: boolean; error?: string
   if (error) return <div role="alert" className="tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:p-5 tw:text-sm tw:text-red-700"><p>{error}</p><button type="button" className={button} onClick={retry}>Try again</button></div>;
   return null;
 }
-function Status({ status }: { status: Policy['status'] }) {
+export function PolicyStatus({ status }: { status: Policy['status'] }) {
   return <span className={`tw:inline-block tw:rounded-md tw:px-2 tw:py-1 tw:text-xs ${status === 'ACTIVE' ? 'tw:bg-emerald-50 tw:text-emerald-800' : status === 'PENDING' ? 'tw:bg-amber-50 tw:text-amber-800' : 'tw:bg-slate-100 tw:text-slate-700'}`}>{labels[status]}</span>;
 }
 
@@ -67,7 +67,7 @@ export function StaffCustomerPolicies({ customerId }: { customerId: string }) {
   return <section className={`${box} tw:min-w-0`} aria-label="Insurance policies">
     <div className="tw:mb-5 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2"><h2 className="tw:text-base tw:font-semibold">Insurance policies</h2>{state.data && <span className="tw:text-xs tw:text-slate-600">{state.data.total} policies</span>}</div>
     <ReadState {...state} />
-    {state.data && <><div className="tw:overflow-x-auto"><table className="tw:w-full tw:border-collapse tw:text-left tw:text-xs tw:[&_th]:bg-slate-50 tw:[&_th]:p-3 tw:[&_th]:font-medium tw:[&_th]:text-slate-600 tw:[&_td]:border-0 tw:[&_td]:border-t tw:[&_td]:border-solid tw:[&_td]:border-slate-200 tw:[&_td]:p-3"><caption className="tw:sr-only">Policies assigned to this customer</caption><thead><tr><th scope="col">Policy / Plan</th><th scope="col">Status</th><th scope="col">Premium</th><th scope="col">Next due date</th></tr></thead><tbody>{state.data.items.map(policy => <tr key={policy.id}><td><Link className="tw:font-medium tw:text-blue-700 tw:hover:underline" href={`/staff/policies/${policy.id}`} onClick={() => rememberCustomer(policy.id)}>{policy.policyNumber}</Link><p className="tw:mt-1 tw:min-w-36 tw:text-slate-600">{policy.product.name}</p></td><td><Status status={policy.status} /></td><td className="tw:tabular-nums">{policyMoney(policy.premiumAmount, policy.currency)}<p className="tw:mt-1 tw:text-slate-600">{policy.paymentFrequency?.toLowerCase().replaceAll('_', ' ') ?? 'Frequency not provided'}</p></td><td className="tw:whitespace-nowrap">{policyDate(policy.nextDueDate)}</td></tr>)}</tbody></table></div>
+    {state.data && <><div className="tw:overflow-x-auto"><table className="tw:w-full tw:border-collapse tw:text-left tw:text-xs tw:[&_th]:bg-slate-50 tw:[&_th]:p-3 tw:[&_th]:font-medium tw:[&_th]:text-slate-600 tw:[&_td]:border-0 tw:[&_td]:border-t tw:[&_td]:border-solid tw:[&_td]:border-slate-200 tw:[&_td]:p-3"><caption className="tw:sr-only">Policies assigned to this customer</caption><thead><tr><th scope="col">Policy / Plan</th><th scope="col">Status</th><th scope="col">Premium</th><th scope="col">Next due date</th></tr></thead><tbody>{state.data.items.map(policy => <tr key={policy.id}><td><Link className="tw:font-medium tw:text-blue-700 tw:hover:underline" href={`/staff/policies/${policy.id}`} onClick={() => rememberCustomer(policy.id)}>{policy.policyNumber}</Link><p className="tw:mt-1 tw:min-w-36 tw:text-slate-600">{policy.product.name}</p></td><td><PolicyStatus status={policy.status} /></td><td className="tw:tabular-nums">{policyMoney(policy.premiumAmount, policy.currency)}<p className="tw:mt-1 tw:text-slate-600">{policy.paymentFrequency?.toLowerCase().replaceAll('_', ' ') ?? 'Frequency not provided'}</p></td><td className="tw:whitespace-nowrap">{policyDate(policy.nextDueDate)}</td></tr>)}</tbody></table></div>
       {!state.data.items.length && <p className="tw:py-8 tw:text-center tw:text-sm tw:text-slate-600">{state.data.total ? 'No policies on this page.' : 'This customer has no insurance policies.'}</p>}
       <nav aria-label="Policy pagination" className="tw:mt-5 tw:flex tw:flex-wrap tw:items-center tw:justify-end tw:gap-3 tw:text-xs tw:text-slate-600"><button type="button" className={button} disabled={page <= 1} onClick={() => changePage(page - 1)}>Previous</button><span>Page {page} of {Math.max(1, Math.ceil(state.data.total / state.data.pageSize))}</span><button type="button" className={button} disabled={page * state.data.pageSize >= state.data.total} onClick={() => changePage(page + 1)}>Next</button></nav></>}
   </section>;
@@ -104,7 +104,7 @@ function PolicyInformation({ policy }: { policy: PolicyDetail }) {
   </details>;
 }
 
-function PdfPreview({ policyId, document, main = false, policyNumber }: { policyId: string; document: PolicyDocument; main?: boolean; policyNumber: string }) {
+function PdfPreview({ policyId, document, main = false, policyNumber, compact = false }: { policyId: string; document: PolicyDocument; main?: boolean; policyNumber: string; compact?: boolean }) {
   const state = usePolicyRead(`${policyId}:${document.versionId}`, signal => documentAccess(policyId, document, 'view', signal));
   const [expired, setExpired] = useState(false);
   const [downloadState, setDownloadState] = useState({ pending: false, error: '' });
@@ -149,14 +149,14 @@ function PdfPreview({ policyId, document, main = false, policyNumber }: { policy
     {downloadState.error && <p role="alert" className="tw:px-5 tw:py-3 tw:text-sm tw:text-red-700">{downloadState.error}</p>}
     <ReadState {...state} />
     {state.data && (expired ? <div className="tw:px-5 tw:py-16 tw:text-center tw:text-sm tw:text-slate-600"><p className="tw:mb-4">The preview link has expired.</p><button type="button" className={button} onClick={reloadPreview}>Reload preview</button></div> : <>
-      <iframe title={`PDF preview: ${document.title}, version ${document.versionNumber}`} src={state.data.url} referrerPolicy="no-referrer" className="tw:block tw:h-[76dvh] tw:min-h-[480px] tw:w-full tw:border-0 tw:bg-slate-100" />
+      <iframe title={`PDF preview: ${document.title}, version ${document.versionNumber}`} src={`${state.data.url}#view=FitH&zoom=page-width`} referrerPolicy="no-referrer" className={`tw:block tw:w-full tw:border-0 tw:bg-slate-100 ${compact ? 'tw:h-[calc(100dvh-280px)] tw:min-h-[420px]' : 'tw:h-[76dvh] tw:min-h-[480px]'}`} />
       <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3 tw:border-0 tw:border-t tw:border-solid tw:border-slate-200 tw:bg-white tw:px-5 tw:py-3 tw:text-xs"><a href={state.data.url} target="_blank" rel="noopener noreferrer" className="tw:text-blue-700 tw:no-underline tw:hover:underline">Open PDF in a new tab</a><button type="button" className="tw:cursor-pointer tw:text-slate-600 tw:hover:text-blue-700 tw:hover:underline" onClick={reloadPreview}>Reload preview</button></div>
     </>)}
   </div>;
 }
 
 
-function Documents({ policy }: { policy: PolicyDetail }) {
+function Documents({ policy, compact = false }: { policy: PolicyDetail; compact?: boolean }) {
   const state = usePolicyRead<PolicyDocuments>(policy.id, signal => policyDocuments(policy.id, signal));
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const viewer = useRef<HTMLElement>(null);
@@ -174,7 +174,7 @@ function Documents({ policy }: { policy: PolicyDetail }) {
       <ReadState {...state} />
       {state.data && <>
         {selectedAttachment && <div className="tw:border-0 tw:border-b tw:border-solid tw:border-slate-200 tw:bg-slate-50 tw:px-5 tw:py-3"><button type="button" className="tw:cursor-pointer tw:text-xs tw:text-blue-700 tw:hover:underline" onClick={() => showDocument(null)}>{main ? 'Back to main policy' : 'Back to policy document'}</button></div>}
-        {selected ? <PdfPreview key={`${policy.id}:${selected.versionId}`} policyId={policy.id} policyNumber={policy.policyNumber} document={selected} main={!selectedAttachment} /> : <div className="tw:px-5 tw:py-16 tw:text-center"><h2 className="tw:mb-2 tw:text-base tw:font-semibold">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'Policy PDF unavailable' : 'Policy PDF not provided'}</h2><p className="tw:mx-auto tw:max-w-md tw:text-sm tw:leading-6 tw:text-slate-600">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'The main policy document cannot be accessed right now.' : 'The main contract PDF has not been provided for this policy.'}</p></div>}
+        {selected ? <PdfPreview key={`${policy.id}:${selected.versionId}`} policyId={policy.id} policyNumber={policy.policyNumber} document={selected} main={!selectedAttachment} compact={compact} /> : <div className="tw:px-5 tw:py-16 tw:text-center"><h2 className="tw:mb-2 tw:text-base tw:font-semibold">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'Policy PDF unavailable' : 'Policy PDF not provided'}</h2><p className="tw:mx-auto tw:max-w-md tw:text-sm tw:leading-6 tw:text-slate-600">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'The main policy document cannot be accessed right now.' : 'The main contract PDF has not been provided for this policy.'}</p></div>}
       </>}
     </section>
     <PolicyInformation policy={policy} />
@@ -185,7 +185,7 @@ function Documents({ policy }: { policy: PolicyDetail }) {
   </>;
 }
 
-export function StaffPolicyDetail({ policyId }: { policyId: string }) {
+export function StaffPolicyDetail({ policyId, lookup = false }: { policyId: string; lookup?: boolean }) {
   const search = useSearchParams();
   const router = useRouter();
   const state = usePolicyRead<PolicyDetail>(policyId, async signal => (await policyDetail(policyId, signal)).policy);
@@ -212,11 +212,11 @@ export function StaffPolicyDetail({ policyId }: { policyId: string }) {
     router.push(target);
   }
   return <section className="tw:min-w-0 tw:flex-1 tw:overflow-auto tw:bg-slate-50" aria-label="Policy details">
-    <div className="tw:mx-auto tw:w-full tw:max-w-[1240px] tw:px-5 tw:py-6 tw:sm:px-8">
-      <Link href={back} onClick={returnToCustomer} className="tw:inline-flex tw:items-center tw:gap-2 tw:text-xs tw:leading-5 tw:text-slate-600 tw:no-underline tw:hover:text-blue-700"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m14 6-6 6 6 6" /></svg>Back to customer</Link>
-      <header className="tw:mb-6 tw:mt-5 tw:flex tw:flex-wrap tw:items-start tw:justify-between tw:gap-3"><div className="tw:min-w-0"><h1 className="tw:wrap-anywhere tw:text-xl tw:font-semibold tw:leading-8 tw:sm:text-2xl">{policy?.policyNumber ?? 'Policy details'}</h1>{policy && <p className="tw:mt-1 tw:wrap-anywhere tw:text-sm tw:leading-6 tw:text-slate-600">{policy.product.name}</p>}</div>{policy && <Status status={policy.status} />}</header>
+    <div className={`tw:mx-auto tw:w-full tw:max-w-[1240px] ${lookup ? 'tw:px-4 tw:py-4 tw:sm:px-5' : 'tw:px-5 tw:py-6 tw:sm:px-8'}`}>
+      {!lookup && <Link href={back} onClick={returnToCustomer} className="tw:inline-flex tw:items-center tw:gap-2 tw:text-xs tw:leading-5 tw:text-slate-600 tw:no-underline tw:hover:text-blue-700"><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m14 6-6 6 6 6" /></svg>Back to customer</Link>}
+      <header className={`tw:flex tw:flex-wrap tw:items-start tw:justify-between tw:gap-3 ${lookup ? 'tw:mb-4' : 'tw:mb-6 tw:mt-5'}`}><div className="tw:min-w-0"><h1 className={`tw:wrap-anywhere tw:font-semibold ${lookup ? 'tw:text-lg tw:leading-6' : 'tw:text-xl tw:leading-8 tw:sm:text-2xl'}`}>{policy?.policyNumber ?? 'Policy details'}</h1>{policy && <p className={`tw:mt-1 tw:wrap-anywhere tw:text-slate-600 ${lookup ? 'tw:text-xs tw:leading-5' : 'tw:text-sm tw:leading-6'}`}>{policy.product.name}</p>}</div>{policy && <PolicyStatus status={policy.status} />}</header>
       <ReadState {...state} />
-      {policy && <div className="tw:grid tw:min-w-0 tw:gap-6"><Documents key={policy.id} policy={policy} /></div>}
+      {policy && <div className="tw:grid tw:min-w-0 tw:gap-6"><Documents key={policy.id} policy={policy} compact={lookup} /></div>}
     </div>
   </section>;
 }

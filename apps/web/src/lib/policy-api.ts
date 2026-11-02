@@ -8,6 +8,13 @@ export type Policy = {
   paymentFrequency: string | null; nextDueDate: string | null; effectiveDate: string | null; expiryDate: string | null;
 };
 export type PolicyList = { items: Policy[]; total: number; page: number; pageSize: number };
+export type PolicyLookupList = Omit<PolicyList, 'items'> & { items: (Policy & { customer: { id: string; fullName: string; accountCode: string } })[] };
+export function lookupPolicies(page: number, search: string, status: string, signal: AbortSignal) {
+  const query = new URLSearchParams({ page: String(page), pageSize: '10' });
+  if (search) query.set('search', search);
+  if (status) query.set('status', status);
+  return coreRequest<PolicyLookupList>(`staff/policies?${query}`, { signal });
+}
 export type PolicyDetail = Policy & {
   customer: { id: string; fullName: string; accountCode: string };
   benefitsSnapshotStatus: 'AVAILABLE' | 'INVALID' | 'NOT_PROVIDED';

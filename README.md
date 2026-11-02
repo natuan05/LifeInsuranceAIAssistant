@@ -19,3 +19,5 @@ FE/BE local chỉ chạy Docker: `docker compose up -d --build --wait`. Core ch�
 Cấu hình dùng một `.env` root, tạo từ `.env.example`: Compose đọc rồi truyền đúng biến cho từng service/build Web. Có thể đặt credential khởi tạo trong `.env` riêng; giá trị phải khớp volumes đã có, không tự đổi mật khẩu. PowerShell `scripts/start-local.ps1` tự tạo file mẫu nếu thiếu và in URL/đường dẫn sau khi dựng xong.
 
 Staff đã có API list hợp đồng của khách, detail hợp đồng và catalog metadata tài liệu đúng phiên bản, kiểm session/assignment mỗi request. [Contract và kiểm thử](docs/ui/staff/policies.md). FE Staff đã nối cả signed URL xem/tải PDF; bootstrap chung đã có 2 sản phẩm, 14 hợp đồng và 20 PDF/version synthetic; fixture riêng có sẵn được giữ nguyên.
+
+02/11/2026: Staff Policy Lookup đã nối GET /staff/policies (search/status/phân trang trong active assignment), danh sách và dossier/PDF hai cột, giữ query/Back–Forward và không reload document.

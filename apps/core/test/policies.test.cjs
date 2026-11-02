@@ -205,6 +205,22 @@ test('PDF access enforces CSRF, policy assignment and exact applied active docum
   try { assert.equal((await post(path + '/view')).status, 404); } finally { await admin.documentVersion.update({ where: { id: versionIds['0:1.0'] }, data: { isActive: true } }); }
 });
 
+test('lookup searches and filters the full assigned scope before pagination and keeps customer response minimal', async () => {
+  const cookie = cookies.get(accounts[0].id);
+  assert.equal((await get('staff/policies')).status, 401);
+  assert.equal((await get('staff/policies', cookies.get(accounts[2].id))).status, 403);
+  for (const query of ['status=Review','status=ACTIVE&status=PENDING','search=a&search=b','search='+ 'a'.repeat(101),'search=a%00b','staffId='+accounts[1].id,'page=0','pageSize=51','citizenId=123']) assert.equal((await get('staff/policies?'+query,cookie)).status,400,query);
+  const list = await ok('staff/policies?pageSize=1',cookie); assert.equal(list.total,2); assert.equal(list.items.length,1);
+  const second = await ok('staff/policies?page=2&pageSize=1',cookie); assert.equal(second.total,2); assert.notEqual(list.items[0].id,second.items[0].id);
+  assert.deepEqual(Object.keys(list.items[0].customer).sort(),['accountCode','fullName','id']);
+  for (const term of ['Synthetic Policy API 2',accounts[2].accountCode,'Synthetic Policy Product 0',`TEST-POLICY-${suffix}-0`]) assert.equal((await ok('staff/policies?search='+encodeURIComponent(term),cookie)).total,2);
+  const active=await ok('staff/policies?status=ACTIVE&pageSize=1',cookie); assert.equal(active.total,1); assert.equal(active.items[0].id,policyIds[0]);
+  const pending=await ok('staff/policies?status=PENDING&search='+suffix,cookie); assert.equal(pending.total,1); assert.equal(pending.items[0].id,policyIds[1]);
+  for(const term of ['FOREIGN','Synthetic Policy API 4',accounts[4].accountCode,'%','_','\\']) assert.equal((await ok('staff/policies?search='+encodeURIComponent(term),cookie)).total,0,term);
+  assert.equal((await ok('staff/policies?status=LAPSED',cookie)).total,0);
+  assert.equal((await ok('staff/policies?page=100',cookie)).items.length,0);
+});
+
 test('all endpoints observe committed reassignment/unassignment on the next request without re-login', async () => {
   const [a, b, ca] = accounts;
   await admin.$transaction(async tx => {
@@ -212,12 +228,14 @@ test('all endpoints observe committed reassignment/unassignment on the next requ
     await tx.staffAssignment.create({ data: { customerId: ca.id, staffId: b.id, operatorId: 'synthetic-policy-api-test' } });
   });
   for (const path of paths(ca.id, policyIds[0])) { assert.equal((await get(path, cookies.get(a.id))).status, 404); await ok(path, cookies.get(b.id)); }
+  assert.equal((await ok('staff/policies',cookies.get(a.id))).total,0);
+  assert.equal((await ok('staff/policies',cookies.get(b.id))).total,3);
   await admin.staffAssignment.updateMany({ where: { customerId: ca.id, isActive: true }, data: { isActive: false, endedAt: new Date() } });
   for (const path of paths(ca.id, policyIds[0])) assert.equal((await get(path, cookies.get(b.id))).status, 404);
 });
 
 test('locked/revoked/expired Staff cannot read; assigned Staff may still service a locked Customer', async () => {
-  const [a, b, , , cb] = accounts, targets = paths(cb.id, policyIds[2]);
+  const [a, b, , , cb] = accounts, targets = [...paths(cb.id, policyIds[2]), 'staff/policies'];
   await admin.user.update({ where: { id: cb.id }, data: { status: 'LOCKED' } });
   for (const path of targets) await ok(path, cookies.get(b.id));
   await admin.user.update({ where: { id: b.id }, data: { status: 'LOCKED' } });

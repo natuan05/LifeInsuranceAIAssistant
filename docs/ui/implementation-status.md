@@ -1,6 +1,6 @@
 # Tiến độ triển khai UI, checklist và gap
 
-Đối chiếu **31/10/2026** với source hiện tại và kiểm tra qua gateway Docker local. Phạm vi là Web Customer/Staff và các API Core đang được Web sử dụng; operator local là công cụ riêng. Đây là snapshot implementation, không thay yêu cầu nguồn hoặc duyệt API mới.
+Đối chiếu **02/11/2026** với source hiện tại và kiểm tra qua gateway Docker local. Phạm vi là Web Customer/Staff và các API Core đang được Web sử dụng; operator local là công cụ riêng. Đây là snapshot implementation, không thay yêu cầu nguồn hoặc duyệt API mới.
 
 [Thứ tự đọc](README.md) · [Menu](menu.md) · [Routes Staff](staff/routes.md) · [API](staff/api-map.md) · [Quyết định mở](staff/gap-review.md)
 
@@ -24,7 +24,7 @@
 | S01 | Đã nối API local | `/staff/login`, `/account`, menu hai hành động, session/logout/password; sửa họ tên/phone qua GET/PATCH /staff/me, Edit/Save/Cancel và thông báo kết quả; đã bỏ footer Contact | API lưu/đọc lại, quyền và phiên bản đã kiểm chứng qua gateway; còn regression trình duyệt tự động/keyboard/mobile cho form mới |
 | S02 | Khung UI | Sidebar Inbox và All/Requests/Active/New, URL filter | A07–10; badge/count/search/phân trang công việc và nghĩa của New |
 | S03 | Một phần | Customers list/detail riêng, phân trang 10/trang, search toàn tập assignment theo tên/code/email/phone, URL giữ bộ lọc, Try again cho lỗi list/detail; hồ sơ read-only | Policy list/detail/catalog đã nối; lịch sử/Ticket chưa nối; browser regression search/retry/realtime còn thiếu |
-| S04 | Một phần | Customer policy list/detail/benefits/catalog đã nối A14/A16/A18; phân trang, retry và giữ URL | A15/A17/A19/A20, sản phẩm/PDF và ngữ cảnh |
+| S04 | Một phần | A14/A15/A16/A18/A20: list/search/status/phân trang đúng assignment, dossier/PDF chính, tải, thông tin thu gọn, điều khoản/phụ lục; icon thu gọn cột kết quả, URL/Back–Forward không F5 | Product API A17/A19, quick lookup trong Inbox, linkedPolicy/context và bộ browser E2E tự động |
 | S05 | Khung UI | Inbox/detail route, rail chọn panel có active state, Case Details/Copilot/lookup | A08–13/A24–26; transcript/gửi/takeover/AI đều chưa có, composer disabled |
 | S06 | Khung UI | Route list/detail Ticket riêng, trạng thái chưa kết nối | A21–23, bảng/chi tiết thật, tiếp nhận và liên kết chat |
 | S07 | Chưa làm | Chưa có chuông/list/read marker | A27–28 và pipeline outbox/recipient/reconnect |
@@ -58,19 +58,20 @@ Cấu hình 31/10: `.env` root dùng chung cho Compose/Core/Web/MinIO, credentia
 
 Vận hành local cập nhật 31/10: FE/BE chỉ chạy Docker Compose qua gateway; đã bỏ helper npm host/Core password export và bind mount `.local`. File operator/MinIO console nằm ngoài repo trong thư mục dữ liệu người dùng, operator cũ được giữ nguyên. Stack Docker, gateway/Swagger, storage, lint/typecheck, 5 test admin và 6 test HTTP/realtime đã pass; dữ liệu hiện có được giữ.
 
-Đợt policy/PDF đã thống nhất phạm vi chức năng (31/10): DB lưu nghiệp vụ/metadata, MinIO private local lưu PDF theo version; Core cấp signed URL sau kiểm quyền, Web có trang thông tin DB và Xem/Tải PDF cho Customer/Staff. **Đã dựng nền storage Docker và Staff API A14/A16/A18**. Đã nối FE Staff; chưa có Customer API, cấp URL PDF hoặc viewer; fixture cá nhân không thuộc seed chung. Xem [đặc tả dùng chung](customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026).
+Đợt policy/PDF đã thống nhất phạm vi chức năng (31/10): DB lưu nghiệp vụ/metadata, MinIO private local lưu PDF theo version; Core cấp signed URL sau kiểm quyền, Web có trang thông tin DB và Xem/Tải PDF cho Customer/Staff. **Đã dựng nền storage Docker và Staff API A14/A16/A18**. Đã nối FE Staff, cấp URL và viewer; bootstrap chung đã có hợp đồng/PDF synthetic, giữ nguyên fixture cá nhân. Customer API còn thiếu. Xem [đặc tả dùng chung](customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026).
 
 - [x] **Storage Docker local (31/10):** MinIO Community AGPL-3.0/mc build source pin commit/checksum/base digest, durable volume, bucket private, root/reader/writer tách quyền. `storage:check` pass init rerun, quyền đọc/ghi, anonymous denied, signed URL Range/CORS/tampered signature và restart persistence. Chỉ local.
-- [ ] **Policy/PDF foundation tiếp theo:** nối S3 SDK/Core cấp signed URL sau kiểm session/quyền/version, contract viewer/download, loại tài liệu và policy–version áp dụng. Chưa dựng S3/cloud.
+- [x] **Staff Policy/PDF foundation:** Core nối S3 SDK, kiểm session/CSRF/assignment/version rồi cấp signed URL xem/tải; Web nhúng PDF gốc, có expiry/retry và audit cấp link. Customer ownership API và cloud còn thiếu.
 - [x] **Seed policy + PDF:** khách 0/1/nhiều hợp đồng, PDF synthetic có nhãn mô phỏng, điều khoản/phụ lục/version, checksum/metadata nhất quán và chạy lại an toàn; không đưa PDF vào Git/Next public.
 - [ ] **Policy/PDF cho cả hai role:** list/detail từ DB, catalog, Xem PDF trong app và Tải PDF đúng phiên bản; Customer ownership/Staff assignment, không reload document, audit riêng xem/tải.
 
-- [ ] **Ưu tiên tiếp: Policy Lookup A15:** API search số hợp đồng/tên-mã khách/mã-tên sản phẩm trên toàn tập active assignment, status và phân trang; FE danh sách trái → dossier/PDF phải tái sử dụng, dọn filter/placeholder/Back to Inbox mẫu, giữ URL/Back–Forward, không reload. Xem [kế hoạch](../next-steps.md#ưu-tiên-tiếp-theo-đã-chốt-staff-policy-lookup). Chưa triển khai.
+- [x] **Policy Lookup A15 (02/11/2026):** API search số hợp đồng/tên-mã khách/mã-tên sản phẩm trên toàn tập active assignment, status và phân trang; FE danh sách trái → dossier/PDF phải tái sử dụng, dọn filter/placeholder/Back to Inbox mẫu, giữ URL/Back–Forward, không reload. Xem [kế hoạch](../next-steps.md#staff-policy-lookup--đã-triển-khai-02112026). Đã nối Core/Web, browser regression riêng còn trong QA.
 - [ ] **S03 browser regression**: kiểm tra search/clear/URL/pagination/detail/back, keyboard/mobile, retry lỗi mạng và realtime trên bộ lọc; API và handler UI đã triển khai, chưa có bộ browser E2E tự động.
 - [x] **Staff policy read/catalog API**: A14/A16/A18, phân trang theo assignment, allowlist và đúng phiên bản áp dụng; test:policies có fixture tự dọn.
-- [ ] **Policy read Web/Customer**: nối S03/S04, A15 search toàn tập và Customer ownership API.
+- [x] **Staff Policy read Web:** S03/S04 đã nối A14/A15/A16/A18/A20, kể cả search toàn tập và PDF.
+- [ ] **Customer Policy read:** list/detail/catalog/access theo ownership và UI My policies.
 - [ ] **Nhiều policy/ngữ cảnh**: policy đang xem khác policy gắn conversation; chọn xem không tự đổi chat. Header/Copilot hiển thị context, đổi context kiểm scope và tách kết quả cũ. Chưa có UI chọn/context persistence/API cập nhật liên kết.
-- [ ] **Product/document**: A17–20, mapping policy–version áp dụng, PDF đúng quyền/hết hạn/thu hồi, citations có document/version/page.
+- [ ] **Product/citations:** A17/A19, nguồn theo document/version/page; Staff catalog/access A18/A20 đã có, Customer API còn thiếu.
 - [ ] **Inbox**: A07–10/A13, danh sách theo conversationId, counts/filters/search/phân trang/lịch sử/read marker; chốt New trước khi nối dữ liệu.
 - [ ] **Chat/handoff**: A11–12, quyền điều khiển/version, send idempotency/reconcile timeout và chặn Agent ghi khi takeover.
 - [ ] **Yêu cầu Staff từ Customer/Agent (31/10, đã ghi yêu cầu, chưa code):** Customer có thể chủ động yêu cầu ngay trong chat; Agent cũng có thể gợi ý khi chưa giải quyết được. Khách xem lại/xác nhận gửi, Core lưu Ticket + outbox rồi thông báo đúng Staff; Staff tiếp nhận và trả lời trong cùng conversationId. Không gửi khi chưa đồng ý, không tạo trùng, không để Agent trả lời muộn sau tiếp quản. Xem [luồng đầy đủ](customer/chat.md#6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026).
@@ -78,18 +79,30 @@ Vận hành local cập nhật 31/10: FE/BE chỉ chạy Docker Compose qua gate
 - [ ] **Copilot**: A24–26, Agent contract/checkpoint, lịch sử nội bộ, nguồn/mốc transcript/giới hạn; chèn nháp không tự gửi Customer.
 - [ ] **Notifications/realtime nghiệp vụ**: A27–28, Customer recipient, dedup/read/replay, chat/Ticket/notification events và outbox worker. Socket local hiện có chưa cung cấp các phần này.
 - [ ] **Customer MVP UI**: menu/dashboard/products/policies/documents/chat/Ticket/notifications; đồng nhất hồ sơ/account với hệ giao diện mới.
-- [ ] **UX còn giữ từ mẫu**: bỏ/chỉnh placeholder CCCD/phone trong Policy Lookup và tooltip New; chưa có API cho các tiêu chí đó. Global search/templates/attachment đang disabled; chốt nhu cầu trước triển khai.
+- [ ] **UX còn giữ từ mẫu**: tooltip New và tiện ích chưa có contract; Policy Lookup đã bỏ CCCD/phone, filter cũ và Back to Inbox. Global search/templates/attachment đang disabled.
 - [ ] **QA tiếp theo**: regression có thể chạy lại từ repo/CI, keyboard/focus đầy đủ và mobile Inbox có dữ liệu thật. Hiện chưa có bộ E2E Web được version trong repo.
 - [ ] **QA policy/PDF:** cả Customer/Staff và thu hồi assignment, đúng phiên bản/file nguồn, null/thiếu PDF/storage lỗi, expiry và giới hạn thu hồi signed URL, Range/download/CORS/CSP, retry và keyboard/mobile; không coi schema/viewer rỗng là hoàn thành.
 - [ ] **Vận hành**: event-driven invalidation/multi-instance, sizing/benchmark và quan sát retry/disconnect; không tính poll snapshot local là realtime production hoàn chỉnh.
+
+## Checklist Policy Lookup — cập nhật 02/11/2026
+
+- [x] A15 search số hợp đồng, tên/mã khách, mã/tên sản phẩm; lọc All/Active/Lapsed/Matured/Pending, đếm và phân trang trên toàn tập đúng active assignment.
+- [x] Danh sách trái, dossier/PDF phải; tái sử dụng PDF chính, thông tin đóng mặc định và điều khoản/phụ lục riêng; xem/tải đúng phiên bản.
+- [x] Search/Clear/filter/phân trang/chọn hợp đồng giữ URL, Back/Forward và trạng thái workspace; không reload toàn trang.
+- [x] Bỏ CCCD/phone, filter mẫu, Back to Inbox và Customer profile khỏi Lookup; thu gọn header và mở PDF vừa chiều ngang.
+- [x] Icon thu gọn nằm trong đầu ô tìm kiếm, không có chữ Hide results; khi đóng còn icon mở lại ở mép cột. Giữ nội dung nhập, bộ lọc, trang và hợp đồng đang xem.
+- [x] Loading/empty/error/retry đã có; 10 Policy integration + 6 HTTP/realtime tests, lint/typecheck và Docker build đã pass.
+- [x] Browser smoke đã kiểm search/phân trang, status/Clear/Enter/focus, chọn PDF, Back/Forward và mobile không tràn ngang; kiểm thu gọn/mở lại tăng vùng PDF và giữ nội dung đang nhập.
+- [ ] Bộ browser E2E tự động trong repo/CI, kiểm lỗi mạng/storage/expiry và thu hồi quyền đầy đủ trên UI.
+- [ ] Quick lookup trong Inbox, đổi linkedPolicy/context chat, Product API A17/A19 và Customer policy/PDF ownership.
 
 ## Gap và thứ tự xử lý đề xuất
 
 | ID | Ưu tiên | Gap / tác động | Bên xử lý và điều kiện đóng |
 | --- | --- | --- | --- |
-| G01 | P0 | Policy UI có khung nhưng chưa đọc được hợp đồng | Core/Web: duyệt A14–16, synthetic seed, test nhiều policy/ngoài assignment/null; UI list/detail dùng response thật |
+| G01 | P0 | Staff policy read/lookup/PDF đã nối; còn QA tự động và Customer ownership | Giữ A14/A15/A16/A18/A20 đã hoàn thành; bổ sung Customer API/UI và browser E2E |
 | G02 | P0 | Chưa có contract chọn/ngữ cảnh policy | Product/Core/Web: chốt xem vs liên kết, quyền đổi/version/persistence; API và test đổi context không dùng kết quả cũ |
-| G03 | P0 | PDF và version áp dụng chưa xác định | Core/Agent/Web: duyệt A18–20, policy–terms mapping, access/revoke/expiry và test đúng document/version |
+| G03 | P0 | Staff PDF/version đã có; còn Customer/product/citations | Tái sử dụng mapping/version/access hiện có, thêm Customer ownership, A17/A19 và citations đúng nguồn |
 | G04 | P0 | Inbox, takeover, send và Ticket chưa có nghiệp vụ | Product/Core/Web: chốt filter/New, state/version/idempotency; cả Customer chủ động và Agent gợi ý được khách xác nhận phải tạo yêu cầu nhất quán, Ticket+outbox, Staff nhận/trả lời và chặn Agent muộn; triển khai A07–13/A21–23 cùng contract tạo/xác nhận phía Customer/Agent |
 | G05 | P1 | Search/retry đã nối; còn copy/tooltip mẫu và browser regression | Core/Web: search A05 và retry cùng URL đã triển khai 31/10; còn bỏ/chỉnh tiêu chí CCCD/phone ở Policy Lookup, tooltip New và regression trình duyệt |
 | G06 | P1 | Copilot/AI chưa triển khai | Core/Agent/Web: actor context, retrieval scope/version, checkpoint, citations và fail-safe trước A24–26 |
@@ -143,3 +156,7 @@ Kiểm chứng đợt PDF: Core/Web typecheck và lint, Docker build, 9 Policy i
 31/10: đã đưa seed 2 sản phẩm/14 policy/17 document/20 version PDF vào bootstrap chung. Compose chờ storage-init rồi seed; phân quyền reader/writer tách, không xuất file host; fixtures cá nhân giữ nguyên. Có test:policy-seed với rollback và mock storage để kiểm rerun/preservation/collision/retry.
 
 Kiểm chứng bootstrap policy: 4 test seed pass (PDF byte-stable, idempotency/preservation, storage failure/rollback/retry/restore, reserved collision); chạy seed Docker hai lượt xác nhận lượt sau 0 tạo/0 upload và giữ 14 hợp đồng. Đọc PDF qua gateway/MinIO đã kiểm 10 trang đại diện main/terms/endorsement, font tiếng Việt nhúng, bounds và render không lỗi; đã dọn ảnh QA tạm.
+
+02/11/2026: đã nối A15 Policy Lookup search literal số hợp đồng/tên-mã khách/tên-mã sản phẩm, status và count/phân trang đúng active assignment; Web hai cột tái sử dụng PDF/detail hiện có, responsive và giữ URL/query khi chọn/quay lại. Không thêm nghiệp vụ linkedPolicy/chat, search CCCD/phone hoặc cloud.
+
+Kiểm chứng 02/11: Core/Web typecheck và lint, Docker build/up đều pass; 10 Policy integration + 6 HTTP/realtime tests pass. Browser qua gateway kiểm search 12 kết quả/2 trang, lọc Pending và Clear, keyboard Enter/focus, chọn PDF chính và thông tin đóng mặc định, URL/Back–Forward, sidebar không remount; mobile 390×844 chuyển list/detail/Back to results và không tràn ngang (scrollWidth = clientWidth). Không screenshot/file tạm; đã logout phiên synthetic, đóng tab kiểm thử và reset viewport. Browser E2E suite tự động trong repo vẫn chưa có.

@@ -5,7 +5,7 @@ import type { IncomingMessage } from 'node:http';
 import { AuthService } from '../../auth/services/auth.service';
 import { DatabaseService } from '../../database/database.service';
 import { Prisma } from '../../generated/prisma/client';
-import type { PolicyListQuery } from '../dto/policy-query.dto';
+import type { PolicyListQuery, PolicyLookupQuery } from '../dto/policy-query.dto';
 import type { DocumentKind, PolicyDocumentDto, PolicyDocumentIssueDto, PolicyDocumentsResponseDto } from '../dto/policy-response.dto';
 import { benefitsSnapshot, currency, object } from './policy-snapshot';
 
@@ -38,6 +38,24 @@ export class PolicyService {
   }
   private assigned(staffId: string): Prisma.CustomerProfileWhereInput {
     return { assignments: { some: { staffId, isActive: true } } };
+  }
+  lookup(request: IncomingMessage, query: PolicyLookupQuery) {
+    return this.read(request, async (tx, actorId) => {
+      // Prisma contains maps to LIKE: escape its pattern characters for literal search.
+      const term = query.search?.replace(/[\\%_]/g, '\\$&');
+      const contains = { contains: term, mode: 'insensitive' as const };
+      const where: Prisma.InsurancePolicyWhereInput = {
+        customer: this.assigned(actorId), ...(query.status ? { status: query.status } : {}),
+        ...(term ? { OR: [{ policyNumber: contains }, { customer: { fullName: contains } },
+          { customer: { user: { accountCode: contains } } }, { product: { name: contains } }, { product: { productCode: contains } }] } : {}),
+      };
+      const total = await tx.insurancePolicy.count({ where });
+      const rows = await tx.insurancePolicy.findMany({ where, select: { ...policySelect,
+        customer: { select: { userId: true, fullName: true, user: { select: { accountCode: true } } } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'asc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize });
+      return { items: rows.map(row => ({ ...policyView(row), customer: { id: row.customer.userId,
+        fullName: row.customer.fullName, accountCode: row.customer.user.accountCode } })), total, page: query.page, pageSize: query.pageSize };
+    });
   }
   list(request: IncomingMessage, customerId: string, query: PolicyListQuery) {
     return this.read(request, async (tx, actorId) => {

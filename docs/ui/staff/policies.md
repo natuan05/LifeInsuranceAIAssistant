@@ -2,23 +2,25 @@
 
 [Chỉ mục Staff](README.md) · [Tiến độ](../implementation-status.md) · [Bản đồ API](api-map.md) · [Khoảng trống](gap-review.md)
 
-Đối chiếu 31/10/2026. Căn cứ: FR-008, UC-007, NFR-003/007; Data Model bảng 7–10. Đã có API A14/A16/A18 đọc theo assignment; FE đã nối A14/A16/A18; A20 xem/tải PDF đã nối; A15/A17/A19 vẫn là phần tiếp theo.
+Đối chiếu 02/11/2026. Căn cứ: FR-008, UC-007, NFR-003/007; Data Model bảng 7–10. Đã có API A14/A16/A18 đọc theo assignment; FE đã nối A14/A16/A18; A15 Policy Lookup và A20 xem/tải PDF đã nối; A17/A19 vẫn là phần tiếp theo.
 
 Bổ sung hướng triển khai được xác nhận 31/10: DB lưu thông tin nghiệp vụ/metadata, object storage private lưu PDF theo version; Web có trang chi tiết từ DB và Xem PDF/Tải PDF cho cả Customer/Staff. Đặc tả dùng chung, storage local, quyền, seed và checklist ở [Policy/PDF hai vai trò](../customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026). Đây là yêu cầu triển khai tiếp, chưa phải chức năng đã có.
 
 
-## Hiện trạng 31/10/2026 — API và FE A14/A16/A18 đã nối
+## Hiện trạng 02/11/2026 — Staff API và FE A14/A15/A16/A18/A20 đã nối
 
 - [x] Policy Lookup/detail route, quick lookup panel và vùng policy trong hồ sơ.
 - [x] Model InsurancePolicy/PolicyStatus/insurance_policies, quan hệ nhiều policy/Customer.
 - [x] API danh sách hợp đồng trong Customer và chi tiết hợp đồng A14/A16, số tiền chính xác và kiểm assignment.
 - [x] API danh mục tài liệu A18 đọc đúng phiên bản áp dụng, không tự lấy currentVersion.
 - [x] FE Insurance policies trong Customer: phân trang, trạng thái/phí/kỳ tiếp theo; mở chi tiết hợp đồng/quyền lợi/catalog, retry/empty/error và quay lại giữ URL, không reload document.
-- [ ] Search/filter Policy Lookup toàn tập A15.
+- [x] Search/filter Policy Lookup toàn tập A15, status, phân trang và giữ URL/Back–Forward.
+- [x] Cột kết quả có icon thu gọn ngay trong ô tìm kiếm, icon mở lại ở mép cột; không có nhãn Hide results, không mất nội dung nhập/bộ lọc/trang/hợp đồng.
+- [x] Dossier thu gọn header, bỏ Customer profile trong Lookup; PDF mặc định vừa chiều ngang.
 - [ ] Policy đang xem khác linkedPolicy của chat; UI chọn và contract đổi context chưa có.
 - [x] A20 cấp URL xem/tải PDF theo policy/document/version, CSRF và assignment; Web mở PDF gốc bằng viewer trình duyệt, chọn tài liệu và tải không reload.
 - [ ] Product API A17/A19 và mở citation theo trang.
-- [ ] Chỉnh placeholder CCCD/phone và filter trạng thái từ mẫu sau khi chốt contract; hiện disabled.
+- [x] Đã thay placeholder CCCD/phone và filter mẫu; bỏ Back to Inbox ở Lookup độc lập.
 
 Các phần yêu cầu bên dưới mô tả đích triển khai; chỉ các dòng `[x]` là đã làm.
 
@@ -104,12 +106,22 @@ Bootstrap chung đã có policy/PDF synthetic, gồm phân trang 12 hợp đồn
 
 ## Kế hoạch tiếp theo: Policy Lookup A15
 
-Đã chốt đưa vào đợt tiếp theo, **chưa triển khai**. Trang độc lập tra cứu hợp đồng trên toàn bộ active assignment của Staff; Customers vẫn là điểm xem hợp đồng theo một khách.
+Kế hoạch này đã triển khai ngày 02/11/2026; contract và kiểm chứng cập nhật bên dưới. Trang độc lập tra cứu hợp đồng trên toàn bộ active assignment của Staff; Customers vẫn là điểm xem hợp đồng theo một khách.
 
-- [ ] `GET /api/v1/staff/policies`: search số hợp đồng, tên/mã khách, mã/tên sản phẩm; All/ACTIVE/LAPSED/MATURED/PENDING; phân trang sau khi lọc đúng quyền và toàn tập, không tìm CCCD/phone.
-- [ ] Danh sách bên trái có số hợp đồng/khách/sản phẩm/trạng thái, chọn để xem lại dossier/PDF hiện có bên phải; responsive danh sách → chi tiết, không nhân bản viewer hoặc nghiệp vụ cấp access.
-- [ ] Bỏ Back to Inbox, đổi tiêu đề Policy Lookup, thay filter/placeholder mẫu; Clear search có vị trí cố định.
-- [ ] Giữ search/status/page và hợp đồng đang xem qua Back/Forward/deep link; không F5, không remount workspace, không đưa returnTo dài/signed URL vào URL app.
+- [x] `GET /api/v1/staff/policies`: search số hợp đồng, tên/mã khách, mã/tên sản phẩm; All/ACTIVE/LAPSED/MATURED/PENDING; phân trang sau khi lọc đúng quyền và toàn tập, không tìm CCCD/phone.
+- [x] Danh sách bên trái có số hợp đồng/khách/sản phẩm/trạng thái, chọn để xem lại dossier/PDF hiện có bên phải; responsive danh sách → chi tiết, không nhân bản viewer hoặc nghiệp vụ cấp access.
+- [x] Bỏ Back to Inbox, đổi tiêu đề Policy Lookup, thay filter/placeholder mẫu; Clear search có vị trí cố định.
+- [x] Giữ search/status/page và hợp đồng đang xem qua Back/Forward/deep link; không F5, không remount workspace, không đưa returnTo dài/signed URL vào URL app.
 - [ ] Loading/empty/error/retry, session/quyền thay đổi, exact version/missing PDF và kiểm keyboard/mobile. Chọn xem không đổi linkedPolicy của hội thoại.
 
-Thứ tự: chốt DTO/query A15 → Core/test phân quyền/search toàn tập/phân trang → FE/tái sử dụng dossier → kiểm qua gateway và cập nhật checklist. Quick lookup trong chat và đổi context là bước sau; chưa triển khai trong đợt ghi kế hoạch này. Xem [kế hoạch chung](../../next-steps.md).
+Thứ tự: chốt DTO/query A15 → Core/test phân quyền/search toàn tập/phân trang → FE/tái sử dụng dossier → kiểm qua gateway và cập nhật checklist. Quick lookup trong chat và đổi context là bước sau; đã nối luồng tra cứu độc lập; quick lookup/context vẫn là phần sau. Xem [kế hoạch chung](../../next-steps.md).
+
+## Policy Lookup đã triển khai — 02/11/2026
+
+A15 `GET /api/v1/staff/policies?search=&status=&page=&pageSize=`: search literal không phân biệt hoa thường theo policyNumber, Customer fullName/accountCode và Product name/productCode. Trim tối đa 100 ký tự, không ký tự điều khiển; chuỗi rỗng bỏ search. Status chỉ ACTIVE/LAPSED/MATURED/PENDING, bỏ status nghĩa là tất cả. page 1–100000 mặc định 1, pageSize 1–50 mặc định 10; query lạ/lặp/sai kiểu trả 400. Core kiểm session/STAFF và active assignment trước search/status/count/phân trang trong RepeatableRead; thứ tự createdAt DESC, id ASC. Response `{items,total,page,pageSize}`, item là policy summary + customer `{id,fullName,accountCode}`, không có CCCD/contact/metadata private.
+
+Web Policy Lookup có danh sách bên trái và dùng lại StaffPolicyDetail/PDF chính bên phải. Search, Clear search cố định, lọc All/Active/Lapsed/Matured/Pending và phân trang dùng History API; chọn hợp đồng bằng Next Link, giữ query và deep link `/staff/policies/:policyId`. Search/filter về trang 1; giữ dossier đang đọc nếu nó còn đúng quyền, kể cả không nằm ở trang kết quả mới. Mobile xem danh sách → chi tiết và Back to results; Policy Lookup không có nút Customer profile. Header dossier thu gọn, PDF mở theo chiều ngang trang để dành vùng đọc rộng hơn. Không có Back to Inbox, CCCD/phone hoặc filter mẫu trong giao diện lookup mới.
+
+Loading/empty/no match/out-of-range/error/retry nằm trong vùng kết quả; detail/PDF có trạng thái riêng. Invalidation kiểm lại scope; 401 chuyển Staff login, 403/404 xóa dữ liệu không còn quyền. Chọn xem không đổi linkedPolicy của chat. Quick lookup trong Inbox vẫn chưa nối.
+
+Policy Lookup desktop có nút icon thu gọn trong đầu cột tìm kiếm (không có chữ); khi đóng còn nút icon mở lại ở mép cột để thu gọn hoặc mở lại cột search/danh sách. Ẩn bằng CSS, không unmount form/viewer, không đổi URL hoặc mất search đang nhập, bộ lọc, trang và hợp đồng đang xem. PDF mở rộng theo vùng trống; mobile giữ Back to results.

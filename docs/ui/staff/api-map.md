@@ -37,7 +37,7 @@ Các trường dưới là dữ liệu UI cần, không phải DTO đã duyệt.
 | A12 P | POST /staff/conversations/:id/messages | S05 gửi tin Staff | content + clientMessageId/idempotency dự kiến; chỉ người có quyền điều khiển; trả messageId/thời điểm lưu/trạng thái chính thức. Không tự gửi Copilot |
 | A13 P | POST /staff/conversations/:id/read | S05/S07 mốc đã đọc | lastReadMessageId, chống lùi mốc/đếm trùng; đánh dấu transcript khác đánh dấu notification |
 | A14 E | GET /staff/customers/:customerId/policies | S03/S04 hồ sơ → nhiều hợp đồng | Đã có page/pageSize, items/total, exact decimal string/null và assignment check; đã nối FE. Contract tại Staff policies |
-| A15 P | GET /staff/policies | S04 Policy Lookup toàn màn hình/nhanh | Kế hoạch tiếp theo: search số hợp đồng, tên/mã khách, mã/tên sản phẩm trong active assignment; lọc ACTIVE/LAPSED/MATURED/PENDING và phân trang sau scope/search. Không tìm CCCD/phone; DTO/query cần chốt trước code |
+| A15 E | GET /staff/policies | S04 Policy Lookup toàn màn hình/nhanh | Đã triển khai 02/11: search số hợp đồng, tên/mã khách, mã/tên sản phẩm trong active assignment; status ACTIVE/LAPSED/MATURED/PENDING, page/pageSize; scope/search/status trước count/phân trang. Trả summary + customer {id,fullName,accountCode}. Không tìm CCCD/phone. |
 | A16 E | GET /staff/policies/:policyId | S04 chi tiết | Đã có detail/allowlisted benefits snapshot, sản phẩm/customer summary và assignment check; đã nối FE |
 | A17 P | GET /products; GET /products/:id | S04 sản phẩm/điều khoản công khai | Danh mục/name/code/summary và tài liệu; tái dùng cho Customer nếu contract được duyệt. Nội dung công khai không suy ra quyền lợi cá nhân |
 | A18 E | GET /staff/policies/:policyId/documents | S04 danh mục tài liệu hợp đồng | Đã có documentId/title/kind/accessScope + versionId/versionNumber áp dụng, availability/issues; không tự dùng currentVersion, không trả storage key/URL |
@@ -111,7 +111,8 @@ Contract realtime cho tin chat, Ticket và thông báo A08–A28 vẫn cần thi
 - [ ] A07–13: queue/conversation/messages/takeover/read.
 - [ ] Customer chủ động yêu cầu Staff hoặc đồng ý gợi ý Agent: contract tạo/xác nhận và tra trạng thái yêu cầu; Ticket/outbox/notification đúng quyền, chống trùng; Staff tiếp nhận rồi trả lời trong cùng hội thoại.
 - [x] A14/A16/A18: Staff policy list/detail và catalog metadata đúng phiên bản; chưa nối FE.
-- [ ] A15/A17/A19: lookup toàn tập và product API.
+- [x] A15: Policy Lookup toàn tập assignment và FE hai cột.
+- [ ] A17/A19: product API.
 - [ ] Policy/PDF hai role: Customer ownership API + Staff assignment API, seed DB/file/version/checksum, trang chi tiết DB, viewer trong app và download; chốt storage/access trước code, không reload toàn workspace.
 - [ ] A21–23: Ticket list/detail/accept; API tạo Ticket Customer chưa được mô tả trong bảng Staff này.
 - [ ] A24–26: Copilot/history/summary; async job contract còn mở.

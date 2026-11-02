@@ -60,7 +60,7 @@ test('Public module graph starts with auth/customer routes and excludes operator
       assert.ok(spec.paths[route], route);
     }
     assert.ok(spec.paths['/api/v1/staff/me'].patch);
-    for (const route of ['/api/v1/staff/customers/{customerId}/policies', '/api/v1/staff/policies/{policyId}', '/api/v1/staff/policies/{policyId}/documents']) {
+    for (const route of ['/api/v1/staff/policies', '/api/v1/staff/customers/{customerId}/policies', '/api/v1/staff/policies/{policyId}', '/api/v1/staff/policies/{policyId}/documents']) {
       assert.ok(spec.paths[route]?.get, route);
       assert.ok(spec.paths[route].get.responses['200'].content['application/json'].schema.$ref, 'Documented response DTO');
     }

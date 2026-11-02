@@ -1,8 +1,8 @@
 import { BadRequestException, Body, Controller, Get, Header, HttpCode, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { IncomingMessage } from 'node:http';
-import { PolicyListQuery } from '../dto/policy-query.dto';
-import { PolicyDetailResponseDto, PolicyDocumentsResponseDto, PolicyListResponseDto } from '../dto/policy-response.dto';
+import { PolicyListQuery, PolicyLookupQuery } from '../dto/policy-query.dto';
+import { PolicyDetailResponseDto, PolicyDocumentsResponseDto, PolicyListResponseDto, PolicyLookupResponseDto } from '../dto/policy-response.dto';
 import { PolicyService } from '../services/policy.service';
 import { DocumentAccessDto, DocumentAccessResponseDto } from '../dto/document-access.dto';
 
@@ -11,6 +11,13 @@ import { DocumentAccessDto, DocumentAccessResponseDto } from '../dto/document-ac
 @Controller('staff')
 export class StaffPolicyController {
   constructor(private readonly policies: PolicyService) {}
+
+  @Get('policies') @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Search all policies in current Staff assignments; filter before count/pagination.' })
+  @ApiOkResponse({ type: PolicyLookupResponseDto })
+  lookup(@Req() request: IncomingMessage, @Query() query: PolicyLookupQuery) {
+    return this.policies.lookup(request, query);
+  }
 
   @Post('documents/:documentId/versions/:versionId/view') @HttpCode(200) @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Issue short-lived inline PDF access for an exact policy-bound version; session and CSRF required.' })

@@ -36,6 +36,15 @@ export class PolicyCustomerDto {
   @ApiProperty() fullName!: string;
   @ApiProperty() accountCode!: string;
 }
+export class PolicyLookupItemDto extends PolicySummaryDto {
+  @ApiProperty({ type: PolicyCustomerDto }) customer!: PolicyCustomerDto;
+}
+export class PolicyLookupResponseDto {
+  @ApiProperty({ type: [PolicyLookupItemDto] }) items!: PolicyLookupItemDto[];
+  @ApiProperty() total!: number;
+  @ApiProperty() page!: number;
+  @ApiProperty() pageSize!: number;
+}
 export class PolicyBenefitDto {
   @ApiProperty({ type: String, nullable: true }) code!: string | null;
   @ApiProperty() name!: string;
