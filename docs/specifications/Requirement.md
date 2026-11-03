@@ -37,6 +37,8 @@ Hệ thống cung cấp AI Agent hỗ trợ **Customer** và **Staff** trong vi�
 
 *Dữ liệu nguồn:* PDF gốc, metadata và RAG index (chunks/embeddings) được coi là dữ liệu công ty đã có sẵn; trong PoC, nhóm phát triển dựng sẵn bộ dữ liệu tương ứng trước khi chạy ứng dụng. Ứng dụng truy xuất các nguồn này theo quyền được cấp.
 
+*Phạm vi sản phẩm MVP — cập nhật repo ngày 28/10/2026:* **7 sản phẩm Manulife, gồm 4 chính và 3 bổ trợ**, theo [danh sách chuẩn](Agent_Design.md#mvp-products). Hai lựa chọn điều khoản Xanh Ước Mơ tính là một sản phẩm và phải được phân biệt khi truy xuất. Dữ liệu khách hàng/hợp đồng chỉ được sinh hoàn toàn giả lập. Cập nhật này áp dụng trong repo, không sửa SRS trên Google Docs.
+
 ---
 
 ## II. Phạm vi và Yêu cầu
@@ -201,6 +203,8 @@ flowchart LR
 ---
 
 ### 4. UC-007: Tra cứu hợp đồng và quyền lợi
+
+**Làm rõ MVP đã chốt ngày 30/10/2026:** Core giữ mã hợp đồng, chủ sở hữu, sản phẩm chính và danh sách bổ trợ tối thiểu theo [quyết định dữ liệu](Contract_Data_Design.md). Chi tiết khác tra qua RAG đúng hợp đồng/phiên bản sau kiểm tra quyền. Chỉ kết luận không tham gia bổ trợ khi danh sách đã xác minh đầy đủ; nếu chưa đầy đủ thì tìm thêm bằng RAG hoặc trả chưa xác định. PDF/bảng minh họa không thay nguồn cập nhật về phí thực thu, số dư hay trạng thái hiện tại. Cập nhật này áp dụng cho tài liệu repo; không sửa SRS Google Docs.
 
 | Trường | Chi tiết |
 | :--- | :--- |

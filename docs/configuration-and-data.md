@@ -22,13 +22,21 @@
 | Loại | Nơi quản lý | Có đưa vào Git? |
 | --- | --- | --- |
 | Nguồn/manifest tài liệu công khai | `data/public/` | Manifest nhỏ đã rà soát |
+| Bản trích Markdown công khai của bộ Manulife | `data/public/manulife/text/` | Được người dùng cho phép ngày 27/10/2026; kèm nguồn, trang, checksum và trạng thái kiểm tra |
 | Fixture sinh hoàn toàn giả lập | `data/synthetic/` | Chỉ mẫu nhỏ đã rà soát, có nhãn synthetic |
 | PDF, chunks, embeddings, bộ dữ liệu lớn | `.local/` hoặc kho dữ liệu ngoài Git | Không |
 | DB volume/dump, checkpoint, log, bản xuất hội thoại | `.local/` hoặc kho vận hành ngoài Git | Không |
 | Tài liệu trao đổi gốc | Thư mục trao đổi bên ngoài repo | Không tự sao chép vào repo |
 
 - Không dùng khách hàng/hợp đồng thật, kể cả bản che tên. Gửi LLM phần dữ liệu tối thiểu cần thiết.
+- Ngoại lệ chuyển đổi được người dùng xác nhận ngày 28/10/2026: được tạo Markdown đã loại danh tính/số liệu từ một hợp đồng thật để tham khảo cấu trúc, chỉ lưu `.local/private/manulife/`. Bản này vẫn có nguồn gốc thật, không là fixture synthetic, không đưa vào Git/corpus MVP/embedding. Giá trị cá nhân dùng nhãn đã loại; không tự dựng số liệu nghiệp vụ mới. Chỉ chuyển phần ảnh đã khử định danh hoặc nội dung chung cần thiết cho lượt đọc ảnh; không phát định danh vào log/báo cáo.
 - Manifest phải truy vết nguồn, phiên bản và checksum. Chunks phải khớp PDF, hợp đồng và phiên bản được Core cấp.
 - Lưu định danh model, phiên bản và số chiều cho mỗi index khi chọn embedding. Đổi model cần đánh giá và dựng lại index; cùng số chiều chưa đủ bảo đảm tương thích.
 - Checkpoint, vector và log có thể mang nội dung Private; bảo vệ như dữ liệu nguồn. Không chia sẻ cache Private giữa khách hàng.
 - Audit phải đủ truy vết actor, hành động, tài liệu và kết quả nhưng giảm/che dữ liệu nhạy cảm. Nội dung và thời hạn lưu/xóa cần chốt trước khi ghi log/checkpoint.
+
+- Ngoại lệ người dùng xác nhận ngày 02/11/2026: được dùng trực tiếp bản hợp đồng đã khử định danh 65 trang, bổ sung dữ liệu demo để chuẩn bị corpus Private local. Nguồn này vẫn `synthetic=false`, không gọi là sinh hoàn toàn giả lập; lưu trong `.local/private/manulife/`, chưa tự đưa Git, seed, chunk hoặc embedding. Không khôi phục định danh thật; ô bị loại chưa điền phải được coi là thiếu dữ liệu. Việc chuẩn bị bản demo không tự đồng nghĩa đã duyệt chất lượng nguồn.
+
+- Ngoại lệ bổ sung ngày 03/11/2026: người dùng yêu cầu commit cả bản Private demo đầy đủ. Chỉ cho phép `data/private/manulife-demo-full-v1/{contract.md,README.md,manifest.json}` và README thư mục cha vào Git. Bản nguồn thật đã khử định danh vẫn `synthetic=false`, chưa human/RAG approval; không kèm PDF, ảnh, bản thô hoặc định danh thật. Ngoại lệ này thay hạn chế Git của bản demo ngày 02/11, không tự cho phép seed/chunk/embedding.
+
+Xem [bộ Private được phép lưu Git](../data/private/manulife-demo-full-v1/README.md); các dữ liệu Private khác vẫn theo quy tắc mặc định.

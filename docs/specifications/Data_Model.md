@@ -2,6 +2,8 @@
 
 > Cập nhật local 25/10/2026 theo thống nhất: giữ 16 bảng nguồn và bổ sung bảng 17 `AUTH_SESSIONS` để quản lý phiên đăng nhập. Không dùng bảng `ADMIN_REQUESTS`. Các khác biệt triển khai còn lại được ghi trong [baseline data model](../architecture.md#local-data-model); bản nguồn bên ngoài repo không tự thay đổi.
 
+> **Đã chốt 30/10/2026:** [dữ liệu hợp đồng tối thiểu](Contract_Data_Design.md) giữ `product_id` cho sản phẩm chính, dùng `benefits_snapshot` cho danh sách mã bổ trợ và mức đầy đủ. Chi tiết khác tra qua RAG đúng quyền/phiên bản. Không bổ sung bảng/cột; validation và seed chưa triển khai.
+
 > **Tài liệu chuyển đổi từ:** `Data Model.pdf`  
 > **Hệ thống:** Enterprise Customer Service AI Agent — Bảo hiểm Nhân thọ (SRS-BHNT)  
 > **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector (Tách 2 schema: `business` và `rag`)
@@ -113,7 +115,7 @@ erDiagram
         uuid id PK
         varchar policy_number UK "Số hợp đồng (HD-2026-08912)"
         uuid customer_id FK "REFERENCES customer_profiles(user_id)"
-        uuid product_id FK "REFERENCES insurance_products(id)"
+        uuid product_id FK "Sản phẩm chính: insurance_products(id)"
         varchar status "ACTIVE | LAPSED | MATURED | PENDING"
         numeric premium_amount "Số tiền đóng mỗi kỳ (vd 15tr)"
         varchar payment_frequency "ANNUAL | SEMI_ANNUAL | QUARTERLY | MONTHLY"
@@ -121,7 +123,7 @@ erDiagram
         date effective_date "Ngày bắt đầu có hiệu lực"
         date expiry_date "Ngày đáo hạn hợp đồng"
         numeric sum_assured "Mệnh giá bảo vệ"
-        jsonb benefits_snapshot "Đóng băng quyền lợi khi ký"
+        jsonb benefits_snapshot "Mã bổ trợ và mức đầy đủ; JSON có schema version"
         timestamptz created_at
     }
     DOCUMENTS {
@@ -331,7 +333,7 @@ erDiagram
 | **id** | UUID | PK | Mã định danh duy nhất của hợp đồng. |
 | **policy_number** | VARCHAR(100) | UK, NOT NULL | Số hợp đồng chính thức để tra cứu (vd: `'HD-2026-08912'`). |
 | **customer_id** | UUID | FK, NOT NULL | Tham chiếu `customer_profiles(user_id)`: Khách hàng đứng tên chủ sở hữu hợp đồng. |
-| **product_id** | UUID | FK, NOT NULL | Tham chiếu `insurance_products(id)`: Gói bảo hiểm đã tham gia. |
+| **product_id** | UUID | FK, NOT NULL | Tham chiếu `insurance_products(id)`: Sản phẩm chính của hợp đồng. |
 | **status** | VARCHAR(50) | CHECK | Trạng thái: `'ACTIVE'` (hiệu lực), `'LAPSED'` (mất hiệu lực vì trễ phí), `'MATURED'` (đáo hạn), `'PENDING'` (chờ duyệt). |
 | **premium_amount** | NUMERIC(15,2) | NULLable | Số tiền đóng phí định kỳ mỗi đợt (vd: 15.000.000 VNĐ). |
 | **payment_frequency** | VARCHAR(50) | NULLable | Chu kỳ đóng phí: `'ANNUAL'` (năm), `'SEMI_ANNUAL'` (nửa năm), `'QUARTERLY'` (quý), `'MONTHLY'` (tháng). |
@@ -339,7 +341,7 @@ erDiagram
 | **effective_date** | DATE | NULLable | Ngày hợp đồng chính thức bắt đầu có hiệu lực bảo vệ. |
 | **expiry_date** | DATE | NULLable | Ngày kết thúc hợp đồng / ngày đáo hạn nhận tiền tích lũy. |
 | **sum_assured** | NUMERIC(15,2) | NULLable | Số tiền bảo hiểm (mệnh giá bảo vệ tối đa khi có sự kiện bảo hiểm xảy ra, vd: 1 tỷ VNĐ). |
-| **benefits_snapshot** | JSONB | NULLable | Đóng băng bảng quyền lợi tại thời điểm ký kết, bảo đảm giá trị pháp lý không bị thay đổi. |
+| **benefits_snapshot** | JSONB | NULLable | Theo quyết định 30/10/2026: `schemaVersion`, `riders` là danh sách `product_code` bổ trợ không trùng, `ridersComplete` xác nhận danh sách đầy đủ. JSON thiếu/cũ không đồng nghĩa không có bổ trợ; Core kiểm tra mã danh mục khi nhập. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm khởi tạo hợp đồng. |
 
 ---

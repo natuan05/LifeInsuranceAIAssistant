@@ -3,6 +3,8 @@
 > **Tài liệu tổng hợp từ:** `Application Architecture.pdf` và `Component Responsible.pdf`  
 > **Hệ thống:** Life Insurance Customer Service Application
 
+> **Đã chốt 30/10/2026 — tra cứu hợp đồng:** Core giữ sản phẩm chính và danh sách bổ trợ tối thiểu theo [thiết kế dữ liệu hợp đồng](Contract_Data_Design.md), tận dụng JSONB hiện có. Người được bảo hiểm, gói, hạn mức và điều khoản tra qua Private RAG theo hợp đồng/tài liệu/phiên bản do Core cấp quyền. Agent không truy cập business DB; không thêm module hoặc bảng trong quyết định này. API và validation chưa triển khai.
+
 ---
 
 ## 1. Sơ đồ Kiến trúc Tổng thể (Architecture Diagram)
@@ -101,7 +103,7 @@ flowchart TB
 | Thành phần (Component) | Trách nhiệm (Responsibilities) |
 | :--- | :--- |
 | **Agent Runtime and Answer Safety** | Điều phối hoạt động AI Agent: phân tích yêu cầu, lựa chọn công cụ hoặc nguồn dữ liệu, phối hợp retrieval và business tools, kiểm tra kết quả và tạo câu trả lời dựa trên bằng chứng. |
-| **Scoped Public and Private Retrieval** | Tìm kiếm tài liệu bằng RAG trong phạm vi Public hoặc Private phù hợp; áp dụng bộ lọc truy xuất và kiểm tra quyền tài liệu trước khi đưa kết quả vào ngữ cảnh AI. |
+| **Scoped Public and Private Retrieval** | Cung cấp hai tool truy xuất Public/Private, áp dụng scope Core và trả bằng chứng/trạng thái. Code dựng context; LLM trong node Agent tổng hợp câu trả lời của toàn luồng Agentic RAG. Xem [phân biệt thuật ngữ](Agent_Design.md#rag-terminology). |
 | **Allowlisted Business Tool Adapter** | Cung cấp lớp thực thi các business tools trong danh sách cho phép; xác thực đầu vào, chuyển tiếp ngữ cảnh đã được ủy quyền và yêu cầu Core API kiểm tra lại quyền ở mỗi lần gọi. |
 
 ---

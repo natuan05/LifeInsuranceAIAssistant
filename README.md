@@ -4,9 +4,12 @@
 
 Đã có đăng nhập Customer/Staff bằng email, đổi mật khẩu, hồ sơ và phân công khách hàng. Agent/AI, nghiệp vụ hợp đồng/Ticket và triển khai cloud chưa hoàn tất.
 
+MVP dùng **7 sản phẩm Manulife: 4 chính và 3 bổ trợ**; xem [danh sách và phạm vi dữ liệu](docs/specifications/Agent_Design.md#mvp-products).
+
 - [Hướng dẫn thiết lập và sử dụng dự án](docs/getting-started.md) — env, Docker/npm, admin, cổng, Swagger và tài khoản seed.
 - [Kiến trúc và baseline local](docs/architecture.md).
+- [Bản tổng thể Agent/RAG](docs/specifications/Agent_Design.md#design-overview) — các quyết định đã thống nhất; phân biệt đặc tả thực thi và lựa chọn còn mở.
 - [Đặc tả nguồn](docs/specifications) và [đối chiếu nguồn](docs/source-review.md).
 - [Quy tắc cấu hình và dữ liệu](docs/configuration-and-data.md).
 
-Chỉ dùng dữ liệu sinh hoàn toàn giả lập. Core sở hữu danh tính, phân quyền và nghiệp vụ; Agent gọi Business API của Core.
+Mặc định chỉ dùng dữ liệu sinh hoàn toàn giả lập; ngoại lệ được phép lưu Git là [hợp đồng đã khử định danh có dữ liệu demo](data/private/manulife-demo-full-v1/README.md), chưa được duyệt cho RAG. Core sở hữu danh tính, phân quyền và nghiệp vụ; Agent gọi Business API của Core.

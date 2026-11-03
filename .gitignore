@@ -13,10 +13,16 @@ service-account*.json
 # Local data, credentials, databases, PDFs, indexes and checkpoints live here.
 /.local/
 
-# Public corpus stays local; explicitly allow reviewed manifests later.
+# Original PDFs/indexes stay local. Public Markdown extraction is explicitly allowed.
 /data/public/**
 !/data/public/README.md
 !/data/public/manifest*.json
+!/data/public/manulife/
+!/data/public/manulife/README.md
+!/data/public/manulife/processing-review.md
+!/data/public/manulife/text/
+!/data/public/manulife/text/*/
+!/data/public/manulife/text/*/*.md
 
 # JavaScript / TypeScript outputs
 node_modules/

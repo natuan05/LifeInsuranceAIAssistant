@@ -1,0 +1,4788 @@
+{
+  "extraction_date": "2026-10-27",
+  "review_date": "2026-10-28",
+  "scope_updated_date": "2026-10-28",
+  "source_root_local": "C:/Users/Admin/Documents/TaiLieuManulife",
+  "source_count": 13,
+  "output_markdown_count": 13,
+  "page_count": 243,
+  "review_summary": {
+    "sources": 13,
+    "pages": 243,
+    "markdown_tables": 71,
+    "html_tables": 4,
+    "edited_pages": 84,
+    "native_pages_preserved_alphanumeric_sequence": 159,
+    "original_flagged_pages_covered": 42,
+    "matrix_numeric_cells_checked": 387,
+    "pdf_link_annotations": 107,
+    "unexplained_significant_content_changes": 0,
+    "verified_layout_differences": 4,
+    "known_source_defects": 1,
+    "image_transcribed_addition_pages": 25
+  },
+  "human_approved": false,
+  "sources": [
+    {
+      "source_relative_path": "DuPhongXanh/MC-2025-Full-TnC-BW.pdf",
+      "source_sha256": "5138b9b752c5546f75ab4e44f5f8f08dff134f78209ce1428678434a7e38f2df",
+      "source_page_count": 13,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Trợ cấp y tế - Tái tục hàng năm (Phiên bản 1)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/DuPhongXanh/MC-2025-Full-TnC-BW.md",
+      "output_sha256": "39941544e8914fecf6d7655f29579df7802c7c171db4b6feffc383f1fa1a2e02",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "4f4918bc96a7a93933beaf38a4cac7ccd3db0f05d49513549ef3e175f87c084f",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 416,
+          "source_text_layer_char_count": 414,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "native text + geometry + Luna visual layout review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 1233,
+          "source_text_layer_char_count": 636,
+          "table_count": 0,
+          "notes": [
+            "PDF trang 2 được sắp theo hai vùng bố cục: tiêu đề và tên sản phẩm bên trái, bốn mục bên phải; nội dung mục giữ nguyên và thứ tự theo đánh số trên ảnh render."
+          ],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 797,
+          "source_text_layer_char_count": 857,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2639,
+          "source_text_layer_char_count": 2412,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2495,
+          "source_text_layer_char_count": 2533,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2855,
+          "source_text_layer_char_count": 2925,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2003,
+          "source_text_layer_char_count": 2030,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2399,
+          "source_text_layer_char_count": 2426,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2820,
+          "source_text_layer_char_count": 2853,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2266,
+          "source_text_layer_char_count": 2298,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2277,
+          "source_text_layer_char_count": 2330,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2534,
+          "source_text_layer_char_count": 2605,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 563,
+          "source_text_layer_char_count": 635,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 1,
+        "structured_tables": 1
+      }
+    },
+    {
+      "source_relative_path": "DuPhongXanh/MC25-ImportantNote.pdf",
+      "source_sha256": "00ad0afdc8750e006f96d4bfed3430b2e7ab0b7e667bf31f98a399aedf069dbd",
+      "source_page_count": 2,
+      "document_title": "Những lưu ý quan trọng khi tham gia sản phẩm bảo hiểm — Trợ cấp y tế – Tái tục hàng năm (Phiên bản 1)",
+      "document_kind": "important_note",
+      "output_markdown": "data/public/manulife/text/DuPhongXanh/MC25-ImportantNote.md",
+      "output_sha256": "f68d16977c40180867e89133ff83076bf0531daf829538bf38e5572df5cc276a",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": null,
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna visual transcription/review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "visual_transcription_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2852,
+          "source_text_layer_char_count": 54,
+          "table_count": 1,
+          "notes": [
+            "Parent high-resolution source-image check: corrected Vietnamese accents in cố ý / chi trả; no substantive paraphrase"
+          ],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna visual transcription/review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "visual_transcription_ai_checked"
+          ],
+          "char_count": 4233,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "visual_transcription_ai_checked": 2,
+        "structured_tables": 1
+      }
+    },
+    {
+      "source_relative_path": "HoVeXanh/ADD2025-ImportantNote.pdf",
+      "source_sha256": "f330000a0fefea00f91138aaa880fbb04183bbb5c5d35bd15de958e8220d37dd",
+      "source_page_count": 2,
+      "document_title": "Những lưu ý quan trọng khi tham gia sản phẩm bảo hiểm Tử vong và thương tật do Tai Nạn – Tái tục hàng năm (Phiên bản 1)",
+      "document_kind": "important_note",
+      "output_markdown": "data/public/manulife/text/HoVeXanh/ADD2025-ImportantNote.md",
+      "output_sha256": "c20fd607f9e6264f85fd0e442beb61b9d14a17f03c9594a47f7fb54e6c0660a3",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "9875e051634f01710b02c615d3f72642fc494601e7217ea1d34b69b5b6b9e6df",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 2,
+          "rect": [
+            366.2,
+            173.82,
+            532.63,
+            193.3
+          ],
+          "uri": "http://www.manulife.com.vn/vi/dich-vu/giai-quyet-quyen-",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 3503,
+          "source_text_layer_char_count": 3635,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 4281,
+          "source_text_layer_char_count": 4504,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {}
+    },
+    {
+      "source_relative_path": "HoVeXanh/Quy-tac-dieu-kien-va-dieu-khoan-HoVeXanh.pdf",
+      "source_sha256": "416c3424a77924823fa31120e32c38145f9adb8b201bc72c5d68c7a93fa5697d",
+      "source_page_count": 14,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Tử vong và thương tật do Tai Nạn – Tái tục hàng năm",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/HoVeXanh/Quy-tac-dieu-kien-va-dieu-khoan-HoVeXanh.md",
+      "output_sha256": "07accf41a42396bf4ee71f7a74b0a61f23173036e4588b45321f440d6b8c5d3d",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "0e3be89df117924a8133c9e155360840cc389b2253014bace470c9dd37886fc6",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 437,
+          "source_text_layer_char_count": 502,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "native text + geometry + Luna visual layout review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 1273,
+          "source_text_layer_char_count": 1401,
+          "table_count": 0,
+          "notes": [
+            "PDF trang 2 được sắp theo hai vùng bố cục: tiêu đề và tên sản phẩm bên trái, bốn mục bên phải; nội dung mục giữ nguyên và thứ tự theo đánh số trên ảnh render."
+          ],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1209,
+          "source_text_layer_char_count": 1377,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3407,
+          "source_text_layer_char_count": 3360,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3145,
+          "source_text_layer_char_count": 2966,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3063,
+          "source_text_layer_char_count": 2506,
+          "table_count": 2,
+          "notes": [
+            "Các nhãn bộ phận xương/nội tạng là ô dọc gộp; Markdown lặp nhãn cho từng hàng trong cùng nhóm theo ranh giới và vị trí ô trên PDF.",
+            "Independent QA: source merged group for STT3 starts Bụng, corrected from Ngực"
+          ],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2562,
+          "source_text_layer_char_count": 1943,
+          "table_count": 1,
+          "notes": [
+            "Ô gộp cột “Bộ phận”: hàng 5 “Gãy xương mũi” không lặp nhãn trong PDF trang 7 vì ô “Xương mặt” bắt đầu ở trang 6 và tiếp tục qua ngắt trang; Markdown lặp nhãn Xương mặt theo ranh giới ô. Các nhãn khác được lặp theo các ô dọc gộp nhìn thấy trên PDF."
+          ],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2656,
+          "source_text_layer_char_count": 2530,
+          "table_count": 1,
+          "notes": [
+            "Ô “Bỏng độ ba” gộp ba hàng mức diện tích; Markdown lặp nhãn theo ba hàng dựa trên PDF."
+          ],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4456,
+          "source_text_layer_char_count": 4595,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3664,
+          "source_text_layer_char_count": 3761,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3072,
+          "source_text_layer_char_count": 3180,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3346,
+          "source_text_layer_char_count": 3443,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3358,
+          "source_text_layer_char_count": 3444,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1829,
+          "source_text_layer_char_count": 1954,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 5,
+        "structured_tables": 5
+      }
+    },
+    {
+      "source_relative_path": "LaChanXanh/CI25-ImportantNote.pdf",
+      "source_sha256": "cc41614248226b080876606ceb2b0a71987769db96f4af421f2ef5740c66398b",
+      "source_page_count": 3,
+      "document_title": "Những lưu ý quan trọng khi tham gia sản phẩm bảo hiểm — Bệnh Lý Nghiêm Trọng – Tái tục hàng năm (Phiên bản 1)",
+      "document_kind": "important_note",
+      "output_markdown": "data/public/manulife/text/LaChanXanh/CI25-ImportantNote.md",
+      "output_sha256": "aea520f56911ae63575a8b85197859e75b09e7562d7e9612ed49722db9219f95",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": null,
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna visual transcription/review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "visual_transcription_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3224,
+          "source_text_layer_char_count": 54,
+          "table_count": 1,
+          "notes": [
+            "Parent high-resolution source-image check: corrected Vietnamese accents in cố ý / chi trả; no substantive paraphrase"
+          ],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna visual transcription/review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "visual_transcription_ai_checked"
+          ],
+          "char_count": 3254,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [
+            "Parent high-resolution source-image check: corrected Vietnamese accents in cố ý / chi trả; no substantive paraphrase"
+          ],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "Luna visual transcription/review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "visual_transcription_ai_checked"
+          ],
+          "char_count": 2918,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [
+            "Parent high-resolution source-image check: corrected Vietnamese accents in cố ý / chi trả; no substantive paraphrase"
+          ],
+          "previous_pdf_page": 2,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "visual_transcription_ai_checked": 3,
+        "structured_tables": 1
+      }
+    },
+    {
+      "source_relative_path": "LaChanXanh/Dieu_kien_va_dieu_khoan_san_pham_la_chan_xanh.pdf",
+      "source_sha256": "06fe37c8c5ec9d4dfaadd0e0e60c5ee2daf7d04b531564babfb444788dad8323",
+      "source_page_count": 48,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Bệnh Lý Nghiêm Trọng - Tái tục hàng năm (Phiên bản 1)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/LaChanXanh/Dieu_kien_va_dieu_khoan_san_pham_la_chan_xanh.md",
+      "output_sha256": "b4fb2590063fbeebc37f88056958f156f59779f9bf6ef158e6e763cc1a11cf27",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "2e6814285f9489d06f80874079ca61a0ed4820071f726414b8a7372ad0beb7e7",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 418,
+          "source_text_layer_char_count": 416,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 1367,
+          "source_text_layer_char_count": 1445,
+          "table_count": 0,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1160,
+          "source_text_layer_char_count": 1255,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3276,
+          "source_text_layer_char_count": 3329,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3125,
+          "source_text_layer_char_count": 3176,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2147,
+          "source_text_layer_char_count": 2142,
+          "table_count": 1,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3261,
+          "source_text_layer_char_count": 3317,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2777,
+          "source_text_layer_char_count": 2813,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2292,
+          "source_text_layer_char_count": 2309,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2670,
+          "source_text_layer_char_count": 2714,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2302,
+          "source_text_layer_char_count": 2340,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1994,
+          "source_text_layer_char_count": 2052,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3834,
+          "source_text_layer_char_count": 1620,
+          "table_count": 1,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3815,
+          "source_text_layer_char_count": 1881,
+          "table_count": 1,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3819,
+          "source_text_layer_char_count": 2042,
+          "table_count": 2,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3722,
+          "source_text_layer_char_count": 1922,
+          "table_count": 2,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "native text + coordinate grouping + parent visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 2721,
+          "source_text_layer_char_count": 2752,
+          "table_count": 0,
+          "notes": [
+            "Source image inspected; table labels/merged groups normalized without changing substantive terms"
+          ],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2292,
+          "source_text_layer_char_count": 2362,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3126,
+          "source_text_layer_char_count": 3214,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1837,
+          "source_text_layer_char_count": 1886,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1949,
+          "source_text_layer_char_count": 1991,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2234,
+          "source_text_layer_char_count": 2303,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1846,
+          "source_text_layer_char_count": 1917,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2136,
+          "source_text_layer_char_count": 2193,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1851,
+          "source_text_layer_char_count": 1909,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": 26
+        },
+        {
+          "page": 26,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2389,
+          "source_text_layer_char_count": 2480,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 25,
+          "next_pdf_page": 27
+        },
+        {
+          "page": 27,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2303,
+          "source_text_layer_char_count": 2360,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 26,
+          "next_pdf_page": 28
+        },
+        {
+          "page": 28,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2276,
+          "source_text_layer_char_count": 2337,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 27,
+          "next_pdf_page": 29
+        },
+        {
+          "page": 29,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2070,
+          "source_text_layer_char_count": 2159,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 28,
+          "next_pdf_page": 30
+        },
+        {
+          "page": 30,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1995,
+          "source_text_layer_char_count": 2064,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 29,
+          "next_pdf_page": 31
+        },
+        {
+          "page": 31,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3209,
+          "source_text_layer_char_count": 3272,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 30,
+          "next_pdf_page": 32
+        },
+        {
+          "page": 32,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3044,
+          "source_text_layer_char_count": 3111,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 31,
+          "next_pdf_page": 33
+        },
+        {
+          "page": 33,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2575,
+          "source_text_layer_char_count": 2638,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 32,
+          "next_pdf_page": 34
+        },
+        {
+          "page": 34,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2413,
+          "source_text_layer_char_count": 2458,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 33,
+          "next_pdf_page": 35
+        },
+        {
+          "page": 35,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2575,
+          "source_text_layer_char_count": 2632,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 34,
+          "next_pdf_page": 36
+        },
+        {
+          "page": 36,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3011,
+          "source_text_layer_char_count": 3084,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 35,
+          "next_pdf_page": 37
+        },
+        {
+          "page": 37,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3020,
+          "source_text_layer_char_count": 3110,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 36,
+          "next_pdf_page": 38
+        },
+        {
+          "page": 38,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3137,
+          "source_text_layer_char_count": 3211,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 37,
+          "next_pdf_page": 39
+        },
+        {
+          "page": 39,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2960,
+          "source_text_layer_char_count": 3025,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 38,
+          "next_pdf_page": 40
+        },
+        {
+          "page": 40,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2972,
+          "source_text_layer_char_count": 3046,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 39,
+          "next_pdf_page": 41
+        },
+        {
+          "page": 41,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2770,
+          "source_text_layer_char_count": 2836,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 40,
+          "next_pdf_page": 42
+        },
+        {
+          "page": 42,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2468,
+          "source_text_layer_char_count": 2541,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 41,
+          "next_pdf_page": 43
+        },
+        {
+          "page": 43,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3183,
+          "source_text_layer_char_count": 3265,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 42,
+          "next_pdf_page": 44
+        },
+        {
+          "page": 44,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2920,
+          "source_text_layer_char_count": 2985,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 43,
+          "next_pdf_page": 45
+        },
+        {
+          "page": 45,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2265,
+          "source_text_layer_char_count": 2338,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 44,
+          "next_pdf_page": 46
+        },
+        {
+          "page": 46,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2636,
+          "source_text_layer_char_count": 2682,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 45,
+          "next_pdf_page": 47
+        },
+        {
+          "page": 47,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2267,
+          "source_text_layer_char_count": 2319,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 46,
+          "next_pdf_page": 48
+        },
+        {
+          "page": 48,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1974,
+          "source_text_layer_char_count": 2046,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 47,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 5,
+        "structured_tables": 5
+      }
+    },
+    {
+      "source_relative_path": "XanhPhuQuy/XanhPhuQuy_ImportantNote.pdf",
+      "source_sha256": "6e23353e73ae434c1f2a3623d333a89aa0bacf3562ae3b2e797b88f5c1be15ff",
+      "source_page_count": 6,
+      "document_title": "Những lưu ý quan trọng Sản phẩm Bảo hiểm Liên kết đơn vị Xanh Phú Quý 1. Giới thiệu về Sản phẩm Bảo hiểm Liên kết đơn vị Xanh Phú Quý: Sản phẩm Bảo hiểm Liên kết đơn vị Xanh Phú Quý là sản phẩm bảo hiểm nhân thọ thuộc dòng bảo hiểm liên kết",
+      "document_kind": "important_note",
+      "output_markdown": "data/public/manulife/text/XanhPhuQuy/XanhPhuQuy_ImportantNote.md",
+      "output_sha256": "8205d657a3e3bb769695591f4a3060998266a98b18a4c0f4bcc68f3f4ae3c5ff",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "18698551988800cfb89d098a76694a624abe28ffeb1942510eae0003ee9d270e",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 1,
+          "rect": [
+            332.46,
+            482.65,
+            505.21,
+            498.71
+          ],
+          "uri": "https://www.manulife.com.vn/content/dam/insurance/vn/documents/service-docs/san-pham/xanh-phu-quy/XanhPhuQuy_TnC.pdf",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 2,
+          "rect": [
+            317.36,
+            144.26,
+            481.2,
+            166.32
+          ],
+          "uri": "https://www.manulife.com.vn/content/dam/insurance/vn/documents/service-docs/san-pham/xanh-phu-quy/XanhPhuQuy_TnC.pdf",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 4,
+          "rect": [
+            439.2,
+            150.15,
+            580.91,
+            166.2
+          ],
+          "uri": "https://www.manulife.com.vn/content/dam/insurance/vn/documents/service-docs/san-pham/xanh-phu-quy/XanhPhuQuy_TnC.pdf",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 4,
+          "rect": [
+            33.75,
+            128.09,
+            69.785,
+            150.15
+          ],
+          "uri": "https://www.manulife.com.vn/content/dam/insurance/vn/documents/service-docs/san-pham/xanh-phu-quy/XanhPhuQuy_TnC.pdf",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 6,
+          "rect": [
+            132.75,
+            586.85,
+            390.25,
+            608.9
+          ],
+          "uri": "https://www.manulife.com.vn/vi/lien-he.html",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 2153,
+          "source_text_layer_char_count": 2175,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2839,
+          "source_text_layer_char_count": 2834,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2054,
+          "source_text_layer_char_count": 2076,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2540,
+          "source_text_layer_char_count": 2557,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 2385,
+          "source_text_layer_char_count": 2413,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 405,
+          "source_text_layer_char_count": 421,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 3,
+        "structured_tables": 3
+      }
+    },
+    {
+      "source_relative_path": "XanhPhuQuy/XanhPhuQuy_TnC.pdf",
+      "source_sha256": "784b39551b16874f2cd4a647dd2847bf9879a5a0d9a69d1286c8d80d0c4380f5",
+      "source_page_count": 31,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Liên kết đơn vị - Đóng phí định kỳ Phiên bản 7",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/XanhPhuQuy/XanhPhuQuy_TnC.md",
+      "output_sha256": "9423e5b11129e53f3d9a89f25d875b9b4b4465fc7c6455a92fb3e1c2dfd8e226",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "4c7ad01ddbc80134639e434b80e9adf226a586b3a7403287f50424011ecc3c5b",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 416,
+          "source_text_layer_char_count": 477,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2251,
+          "source_text_layer_char_count": 2409,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1934,
+          "source_text_layer_char_count": 2092,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3685,
+          "source_text_layer_char_count": 3773,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4241,
+          "source_text_layer_char_count": 4356,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4348,
+          "source_text_layer_char_count": 4447,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 3745,
+          "source_text_layer_char_count": 3822,
+          "table_count": 0,
+          "notes": [
+            "Manifest không gắn cờ; pdfplumber tìm một khung ghi chú một hàng. Render xác nhận đó là callout deprecation text, không phải bảng; giữ nguyên văn trong phần nội dung."
+          ],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4278,
+          "source_text_layer_char_count": 4364,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3779,
+          "source_text_layer_char_count": 3674,
+          "table_count": 2,
+          "notes": [
+            "Independent QA: removed duplicated final Điều12 sentence; source has one copy"
+          ],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 4092,
+          "source_text_layer_char_count": 4005,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 1211,
+          "source_text_layer_char_count": 1200,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4536,
+          "source_text_layer_char_count": 4625,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3465,
+          "source_text_layer_char_count": 3565,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3748,
+          "source_text_layer_char_count": 3823,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2948,
+          "source_text_layer_char_count": 2712,
+          "table_count": 1,
+          "notes": [
+            "Ô 1,5% ở cột Phí Bảo Hiểm Đóng Thêm gộp cho các hàng Năm Phí Bảo Hiểm 01, 02 và 03 đến 05; bản Markdown lặp giá trị theo ba hàng, căn cứ đường viền và kích thước ô trên ảnh render PDF p15."
+          ],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 1723,
+          "source_text_layer_char_count": 1718,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4194,
+          "source_text_layer_char_count": 4264,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1148,
+          "source_text_layer_char_count": 1224,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3973,
+          "source_text_layer_char_count": 4047,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3796,
+          "source_text_layer_char_count": 3855,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3116,
+          "source_text_layer_char_count": 3237,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2884,
+          "source_text_layer_char_count": 2920,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1418,
+          "source_text_layer_char_count": 1497,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4547,
+          "source_text_layer_char_count": 4668,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4904,
+          "source_text_layer_char_count": 5026,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": 26
+        },
+        {
+          "page": 26,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3336,
+          "source_text_layer_char_count": 3429,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 25,
+          "next_pdf_page": 27
+        },
+        {
+          "page": 27,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3826,
+          "source_text_layer_char_count": 3932,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 26,
+          "next_pdf_page": 28
+        },
+        {
+          "page": 28,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 4193,
+          "source_text_layer_char_count": 4174,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 27,
+          "next_pdf_page": 29
+        },
+        {
+          "page": 29,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4390,
+          "source_text_layer_char_count": 4537,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 28,
+          "next_pdf_page": 30
+        },
+        {
+          "page": 30,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3131,
+          "source_text_layer_char_count": 3218,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 29,
+          "next_pdf_page": 31
+        },
+        {
+          "page": 31,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2423,
+          "source_text_layer_char_count": 1937,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 30,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 8,
+        "structured_tables": 8
+      }
+    },
+    {
+      "source_relative_path": "XanhTuongLai/Full-TnC-2025-ILP.pdf",
+      "source_sha256": "781d369251ca4942d6aea4afbdf2e997794953cc00430084ec2b5a1a4c4c84c4",
+      "source_page_count": 34,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Liên Kết Đơn Vị Đóng Phí Định Kỳ (Phiên Bản 6)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/XanhTuongLai/Full-TnC-2025-ILP.md",
+      "output_sha256": "a92fbf11bc01adf3e70186235ae53802ccef2a85b9e5f0d24dc776fa7005a55c",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "ed35aa1b1554b5893ed4c4c5ebacd65db9cb30bba05cc095b46839ac10d9b83d",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 2,
+          "rect": [
+            84.0,
+            343.67,
+            557.45,
+            356.37
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758195108752), '/XYZ', 80, 796, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            84.0,
+            320.42,
+            556.35,
+            343.67
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758195108752), '/XYZ', 40, 725, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            140.25,
+            283.02,
+            556.3,
+            300.37
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758195108752), '/XYZ', 33, 676, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            145.25,
+            175.73,
+            557.25,
+            192.08
+          ],
+          "uri": null,
+          "target_pdf_page": 11,
+          "destination": "[IndirectObject(60, 0, 1758195108752), '/XYZ', 33, 514, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            145.25,
+            163.58,
+            557.25,
+            175.73
+          ],
+          "uri": null,
+          "target_pdf_page": 11,
+          "destination": "[IndirectObject(60, 0, 1758195108752), '/XYZ', 33, 442, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            145.25,
+            99.682,
+            555.95,
+            115.13
+          ],
+          "uri": null,
+          "target_pdf_page": 12,
+          "destination": "[IndirectObject(63, 0, 1758195108752), '/XYZ', 33, 402, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            145.25,
+            87.533,
+            555.95,
+            99.682
+          ],
+          "uri": null,
+          "target_pdf_page": 13,
+          "destination": "[IndirectObject(65, 0, 1758195108752), '/XYZ', 33, 801, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            803.64,
+            557.85,
+            815.14
+          ],
+          "uri": null,
+          "target_pdf_page": 13,
+          "destination": "[IndirectObject(65, 0, 1758195108752), '/XYZ', 33, 525, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            735.34,
+            557.85,
+            759.99
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(73, 0, 1758195108752), '/XYZ', 33, 304, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            704.25,
+            557.85,
+            718.35
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(73, 0, 1758195108752), '/XYZ', 33, 258, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            693.1,
+            557.85,
+            704.25
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(76, 0, 1758195108752), '/XYZ', 33, 802, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.45,
+            661.85,
+            557.85,
+            676.6
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(76, 0, 1758195108752), '/XYZ', 33, 534, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.45,
+            651.05,
+            557.85,
+            661.85
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(76, 0, 1758195108752), '/XYZ', 33, 495, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            640.3,
+            557.85,
+            651.05
+          ],
+          "uri": null,
+          "target_pdf_page": 16,
+          "destination": "[IndirectObject(80, 0, 1758195108752), '/XYZ', 33, 803, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            629.5,
+            557.85,
+            640.3
+          ],
+          "uri": null,
+          "target_pdf_page": 16,
+          "destination": "[IndirectObject(80, 0, 1758195108752), '/XYZ', 33, 729, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            599.05,
+            557.85,
+            613.3
+          ],
+          "uri": null,
+          "target_pdf_page": 16,
+          "destination": "[IndirectObject(80, 0, 1758195108752), '/XYZ', 90, 517, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            588.25,
+            557.85,
+            599.05
+          ],
+          "uri": null,
+          "target_pdf_page": 16,
+          "destination": "[IndirectObject(80, 0, 1758195108752), '/XYZ', 90, 344, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            485.06,
+            557.85,
+            504.36
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(86, 0, 1758195108752), '/XYZ', 40, 346, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.45,
+            452.51,
+            557.85,
+            467.71
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(86, 0, 1758195108752), '/XYZ', 33, 302, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            441.71,
+            557.85,
+            452.51
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(86, 0, 1758195108752), '/XYZ', 33, 154, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            430.92,
+            557.85,
+            441.71
+          ],
+          "uri": null,
+          "target_pdf_page": 19,
+          "destination": "[IndirectObject(90, 0, 1758195108752), '/XYZ', 33, 502, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            420.17,
+            557.85,
+            430.92
+          ],
+          "uri": null,
+          "target_pdf_page": 19,
+          "destination": "[IndirectObject(90, 0, 1758195108752), '/XYZ', 33, 303, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            408.92,
+            557.85,
+            420.17
+          ],
+          "uri": null,
+          "target_pdf_page": 20,
+          "destination": "[IndirectObject(93, 0, 1758195108752), '/XYZ', 33, 793, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            398.12,
+            557.85,
+            408.92
+          ],
+          "uri": null,
+          "target_pdf_page": 20,
+          "destination": "[IndirectObject(93, 0, 1758195108752), '/XYZ', 33, 744, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            381.42,
+            557.85,
+            398.12
+          ],
+          "uri": null,
+          "target_pdf_page": 20,
+          "destination": "[IndirectObject(93, 0, 1758195108752), '/XYZ', 33, 610, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            251.73,
+            557.85,
+            275.58
+          ],
+          "uri": null,
+          "target_pdf_page": 23,
+          "destination": "[IndirectObject(99, 0, 1758195108752), '/XYZ', 33, 256, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            210.53,
+            557.85,
+            221.33
+          ],
+          "uri": null,
+          "target_pdf_page": 24,
+          "destination": "[IndirectObject(101, 0, 1758195108752), '/XYZ', 33, 528, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            199.73,
+            557.85,
+            210.53
+          ],
+          "uri": null,
+          "target_pdf_page": 24,
+          "destination": "[IndirectObject(101, 0, 1758195108752), '/XYZ', 33, 434, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            165.88,
+            557.85,
+            181.18
+          ],
+          "uri": null,
+          "target_pdf_page": 24,
+          "destination": "[IndirectObject(101, 0, 1758195108752), '/XYZ', 33, 310, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            143.6,
+            155.13,
+            557.85,
+            165.88
+          ],
+          "uri": null,
+          "target_pdf_page": 25,
+          "destination": "[IndirectObject(105, 0, 1758195108752), '/XYZ', 33, 690, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            133.79,
+            557.85,
+            155.13
+          ],
+          "uri": null,
+          "target_pdf_page": 26,
+          "destination": "[IndirectObject(107, 0, 1758195108752), '/XYZ', 80, 794, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            88.688,
+            557.85,
+            108.04
+          ],
+          "uri": null,
+          "target_pdf_page": 29,
+          "destination": "[IndirectObject(111, 0, 1758195108752), '/XYZ', 89, 801, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            81.85,
+            69.339,
+            557.85,
+            88.688
+          ],
+          "uri": null,
+          "target_pdf_page": 33,
+          "destination": "[IndirectObject(116, 0, 1758195108752), '/XYZ', 82, 806, 0]"
+        },
+        {
+          "page": 7,
+          "rect": [
+            443.68,
+            652.23,
+            536.99,
+            664.41
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 7,
+          "rect": [
+            289.53,
+            470.01,
+            388.55,
+            480.74
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 416,
+          "source_text_layer_char_count": 492,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2007,
+          "source_text_layer_char_count": 2148,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2189,
+          "source_text_layer_char_count": 2314,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2776,
+          "source_text_layer_char_count": 2877,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3851,
+          "source_text_layer_char_count": 3970,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4096,
+          "source_text_layer_char_count": 4228,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3523,
+          "source_text_layer_char_count": 3618,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1546,
+          "source_text_layer_char_count": 1649,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3410,
+          "source_text_layer_char_count": 3530,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2259,
+          "source_text_layer_char_count": 2388,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3253,
+          "source_text_layer_char_count": 3396,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2698,
+          "source_text_layer_char_count": 2731,
+          "table_count": 2,
+          "notes": [
+            "Khôi phục đầy đủ nội dung hộp chú giải dưới bảng Điều 13; bảng tuổi/tỷ lệ giữ nguyên."
+          ],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3040,
+          "source_text_layer_char_count": 3136,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3074,
+          "source_text_layer_char_count": 3213,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3236,
+          "source_text_layer_char_count": 3371,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2976,
+          "source_text_layer_char_count": 3121,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2904,
+          "source_text_layer_char_count": 2954,
+          "table_count": 1,
+          "notes": [
+            "Khôi phục đầy đủ Điều 23.2: thứ tự khấu trừ, mức năm 2025 45.000 đồng/tháng, mức tăng 2.000 đồng/năm và mức tối đa 70.000 đồng/tháng. Ô Phí Bảo Hiểm Đóng Thêm 1,5% vẫn được lặp theo ô gộp năm 01–10."
+          ],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2665,
+          "source_text_layer_char_count": 2708,
+          "table_count": 1,
+          "notes": [
+            "Khôi phục phần dẫn Điều 23.5 bị thiếu và nhãn điều; 4 điều kiện/mức phí cùng thông báo 03 tháng vẫn ở vị trí ngay sau."
+          ],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3443,
+          "source_text_layer_char_count": 3578,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2972,
+          "source_text_layer_char_count": 3050,
+          "table_count": 2,
+          "notes": [
+            "Khôi phục liên từ “hoặc” và đầy đủ mệnh đề áp dụng ngưỡng cho trường hợp rút một phần."
+          ],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2774,
+          "source_text_layer_char_count": 2812,
+          "table_count": 1,
+          "notes": [
+            "Điều 28.2: bảng 3 cột, điều kiện tăng/giảm; dấu ✓ giữ trong cột tăng như trang PDF."
+          ],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2470,
+          "source_text_layer_char_count": 2623,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2802,
+          "source_text_layer_char_count": 2859,
+          "table_count": 1,
+          "notes": [
+            "Điều 32.1: chuyển sơ đồ công thức thành dòng quan hệ; ba thành phần theo thứ tự trái sang phải, phép trừ được bảo toàn."
+          ],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2617,
+          "source_text_layer_char_count": 2162,
+          "table_count": 4,
+          "notes": [
+            "Bảng thứ tự quyền lợi tử vong: các ô ưu tiên được tách thành 3 cột; nội dung ô người thụ hưởng lặp ở hai loại Bên Mua theo bản PDF; cần đối chiếu tương quan tổ chức trong ảnh.",
+            "Điều 34–35: đã chuẩn hóa cả 3 bảng thứ tự quyền lợi và bảng hồ sơ a–f. Ô tử vong ưu tiên 1 lặp cho cột tổ chức vì ô gộp ngang; ô tổ chức ưu tiên 3 để trống theo hình ảnh PDF."
+          ],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1800,
+          "source_text_layer_char_count": 1907,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": 26
+        },
+        {
+          "page": 26,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4369,
+          "source_text_layer_char_count": 4480,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 25,
+          "next_pdf_page": 27
+        },
+        {
+          "page": 27,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4715,
+          "source_text_layer_char_count": 4829,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 26,
+          "next_pdf_page": 28
+        },
+        {
+          "page": 28,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3336,
+          "source_text_layer_char_count": 3420,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 27,
+          "next_pdf_page": 29
+        },
+        {
+          "page": 29,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3629,
+          "source_text_layer_char_count": 3799,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 28,
+          "next_pdf_page": 30
+        },
+        {
+          "page": 30,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2977,
+          "source_text_layer_char_count": 3147,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 29,
+          "next_pdf_page": 31
+        },
+        {
+          "page": 31,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3468,
+          "source_text_layer_char_count": 3653,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 30,
+          "next_pdf_page": 32
+        },
+        {
+          "page": 32,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1897,
+          "source_text_layer_char_count": 2013,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 31,
+          "next_pdf_page": 33
+        },
+        {
+          "page": 33,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3067,
+          "source_text_layer_char_count": 3206,
+          "table_count": 1,
+          "notes": [
+            "Khôi phục 5 từ “sẽ” trong các ô chính sách tài sản theo PDF; hàng Quỹ Tích Luỹ giữ đúng cụm “được đầu tư”."
+          ],
+          "previous_pdf_page": 32,
+          "next_pdf_page": 34
+        },
+        {
+          "page": 34,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2396,
+          "source_text_layer_char_count": 1938,
+          "table_count": 1,
+          "notes": [
+            "Bổ sung “Quỹ” trong ba nhãn nhóm cột như tiêu đề PDF; giữ nguyên đủ 22 năm (2025–2046+) và 9 tỷ lệ mỗi hàng."
+          ],
+          "previous_pdf_page": 33,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 9,
+        "structured_tables": 9
+      }
+    },
+    {
+      "source_relative_path": "XanhUocMo/Full-TnC-UL049.pdf",
+      "source_sha256": "e293987e788ed8f04ebc6d8d5f77dc75bddb28ec2202abd43e07dc35a79e319c",
+      "source_page_count": 30,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Liên Kết Chung Đóng Phí Định Kỳ (Phiên Bản 3)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/XanhUocMo/Full-TnC-UL049.md",
+      "output_sha256": "995335311ed0950813302eb05c5db9e81cc25232049a289310f21cf307eb32d0",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_source_review",
+      "human_approved": false,
+      "original_output_sha256": "7ef12de31b5edba0b0c28a022c0e608858e2a4f0c7f4d556dafc5911b6d069b4",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 2,
+          "rect": [
+            82.05,
+            361.49,
+            554.25,
+            374.19
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758196842416), '/XYZ', 81, 809, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            82.05,
+            336.99,
+            554.7,
+            361.49
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758196842416), '/XYZ', 38, 739, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            139.05,
+            303.04,
+            554.25,
+            318.59
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758196842416), '/XYZ', 33, 687, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            139.05,
+            292.35,
+            554.25,
+            303.04
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(55, 0, 1758196842416), '/XYZ', 33, 332, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            248.3,
+            554.25,
+            259.0
+          ],
+          "uri": null,
+          "target_pdf_page": 10,
+          "destination": "[IndirectObject(60, 0, 1758196842416), '/XYZ', 33, 482, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            131.65,
+            553.6,
+            146.8
+          ],
+          "uri": null,
+          "target_pdf_page": 12,
+          "destination": "[IndirectObject(63, 0, 1758196842416), '/XYZ', 33, 333, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            119.95,
+            553.6,
+            131.65
+          ],
+          "uri": null,
+          "target_pdf_page": 12,
+          "destination": "[IndirectObject(63, 0, 1758196842416), '/XYZ', 33, 283, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            778.09,
+            552.3,
+            793.04
+          ],
+          "uri": null,
+          "target_pdf_page": 13,
+          "destination": "[IndirectObject(75, 0, 1758196842416), '/XYZ', 33, 767, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            711.69,
+            552.3,
+            735.34
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(77, 0, 1758196842416), '/XYZ', 33, 670, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            676.9,
+            552.3,
+            691.7
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(77, 0, 1758196842416), '/XYZ', 33, 624, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            665.2,
+            552.3,
+            676.9
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(77, 0, 1758196842416), '/XYZ', 33, 454, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.5,
+            634.4,
+            552.3,
+            649.2
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(77, 0, 1758196842416), '/XYZ', 33, 322, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            611.25,
+            552.3,
+            622.55
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(82, 0, 1758196842416), '/XYZ', 33, 628, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            599.95,
+            552.3,
+            611.25
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(82, 0, 1758196842416), '/XYZ', 33, 555, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            567.7,
+            552.3,
+            582.5
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(82, 0, 1758196842416), '/XYZ', 33, 344, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            461.26,
+            552.3,
+            480.26
+          ],
+          "uri": null,
+          "target_pdf_page": 17,
+          "destination": "[IndirectObject(87, 0, 1758196842416), '/XYZ', 33, 389, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            427.11,
+            552.3,
+            442.51
+          ],
+          "uri": null,
+          "target_pdf_page": 17,
+          "destination": "[IndirectObject(87, 0, 1758196842416), '/XYZ', 33, 335, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            402.96,
+            552.3,
+            415.26
+          ],
+          "uri": null,
+          "target_pdf_page": 17,
+          "destination": "[IndirectObject(87, 0, 1758196842416), '/XYZ', 92, 249, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            383.92,
+            552.3,
+            402.96
+          ],
+          "uri": null,
+          "target_pdf_page": 17,
+          "destination": "[IndirectObject(87, 0, 1758196842416), '/XYZ', 33, 166, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            270.62,
+            552.3,
+            289.62
+          ],
+          "uri": null,
+          "target_pdf_page": 21,
+          "destination": "[IndirectObject(95, 0, 1758196842416), '/XYZ', 33, 801, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            236.88,
+            552.3,
+            252.37
+          ],
+          "uri": null,
+          "target_pdf_page": 21,
+          "destination": "[IndirectObject(95, 0, 1758196842416), '/XYZ', 86, 684, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            225.03,
+            552.3,
+            236.88
+          ],
+          "uri": null,
+          "target_pdf_page": 21,
+          "destination": "[IndirectObject(95, 0, 1758196842416), '/XYZ', 33, 531, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            212.78,
+            552.3,
+            225.03
+          ],
+          "uri": null,
+          "target_pdf_page": 21,
+          "destination": "[IndirectObject(95, 0, 1758196842416), '/XYZ', 33, 420, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            180.38,
+            552.3,
+            196.43
+          ],
+          "uri": null,
+          "target_pdf_page": 21,
+          "destination": "[IndirectObject(95, 0, 1758196842416), '/XYZ', 33, 308, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            168.53,
+            552.3,
+            180.38
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(101, 0, 1758196842416), '/XYZ', 33, 698, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            142.38,
+            552.3,
+            168.53
+          ],
+          "uri": null,
+          "target_pdf_page": 23,
+          "destination": "[IndirectObject(103, 0, 1758196842416), '/XYZ', 81, 803, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            88.133,
+            552.3,
+            110.68
+          ],
+          "uri": null,
+          "target_pdf_page": 27,
+          "destination": "[IndirectObject(108, 0, 1758196842416), '/XYZ', 82, 806, 0]"
+        },
+        {
+          "page": 7,
+          "rect": [
+            441.1,
+            653.43,
+            536.32,
+            666.22
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 7,
+          "rect": [
+            244.76,
+            469.02,
+            343.77,
+            479.76
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 11,
+          "rect": [
+            433.24,
+            83.853,
+            528.46,
+            97.49
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 17,
+          "rect": [
+            400.95,
+            249.11,
+            496.17,
+            259.85
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [
+        {
+          "page": 29,
+          "type": "source_text_truncated",
+          "text": "Sản Phẩm Chính tiếp tục có hiệu lực nếu Giá Trị Tài Khoản Hợp Đồng",
+          "resolution": "Phần điều kiện bị cắt ngay trong PDF nguồn; trang 30 không nối câu. Giữ phần nhìn thấy và ghi chú; không suy đoán hoặc dùng câu này làm bằng chứng đầy đủ."
+        }
+      ],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 466,
+          "source_text_layer_char_count": 532,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1876,
+          "source_text_layer_char_count": 2071,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1937,
+          "source_text_layer_char_count": 2102,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2735,
+          "source_text_layer_char_count": 2890,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3825,
+          "source_text_layer_char_count": 4002,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4103,
+          "source_text_layer_char_count": 4284,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3532,
+          "source_text_layer_char_count": 3678,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1558,
+          "source_text_layer_char_count": 1694,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3312,
+          "source_text_layer_char_count": 3479,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2556,
+          "source_text_layer_char_count": 2707,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2989,
+          "source_text_layer_char_count": 3193,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2629,
+          "source_text_layer_char_count": 2789,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3749,
+          "source_text_layer_char_count": 3936,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3270,
+          "source_text_layer_char_count": 3441,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3112,
+          "source_text_layer_char_count": 3290,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2542,
+          "source_text_layer_char_count": 2758,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2658,
+          "source_text_layer_char_count": 2858,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2993,
+          "source_text_layer_char_count": 3076,
+          "table_count": 1,
+          "notes": [
+            "Xóa mảnh văn bản thô bị lặp trước bảng; khôi phục nguyên văn điều kiện rút toàn bộ hoặc một phần và tên riêng mỗi tài khoản tại ngưỡng số dư."
+          ],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2669,
+          "source_text_layer_char_count": 2865,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2382,
+          "source_text_layer_char_count": 2537,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2621,
+          "source_text_layer_char_count": 2064,
+          "table_count": 4,
+          "notes": [
+            "Đã dựng đủ 3 bảng thứ tự nhận quyền lợi (tử vong, TTTBVV, đáo hạn), bảng hồ sơ yêu cầu tử vong; giữ điều kiện không có/đã tử vong ở đoạn dẫn. So khớp trực quan PDF; sửa nhãn thứ tự đáo hạn thành 32.3 theo nguồn. Ô gộp tử vong lặp nội dung cho hai loại bên mua; ô tổ chức trống ở ưu tiên 3 giữ trống.",
+            "Đã dựng đủ 3 bảng thứ tự nhận quyền lợi (tử vong, TTTBVV, đáo hạn) và bảng hồ sơ tử vong. Điều kiện “Không có; hoặc Đã tử vong...” được giữ ở đoạn dẫn. Ô người thụ hưởng được lặp cho hai cột bên mua vì ô gộp; tổ chức ưu tiên 3 trống như PDF."
+          ],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1799,
+          "source_text_layer_char_count": 1959,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2992,
+          "source_text_layer_char_count": 3118,
+          "table_count": 1,
+          "notes": [
+            "Phụ lục 1, mục A: toàn bộ 13 thuật ngữ và định nghĩa trên trang được dựng thành bảng 2 cột; mục a–c về trường hợp Bác Sĩ không được đồng thời là bên liên quan giữ nguyên thứ tự và nội dung. Đối chiếu trực quan PDF."
+          ],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3945,
+          "source_text_layer_char_count": 4141,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2292,
+          "source_text_layer_char_count": 2536,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": 26
+        },
+        {
+          "page": 26,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1664,
+          "source_text_layer_char_count": 1851,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 25,
+          "next_pdf_page": 27
+        },
+        {
+          "page": 27,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3740,
+          "source_text_layer_char_count": 3939,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 26,
+          "next_pdf_page": 28
+        },
+        {
+          "page": 28,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2856,
+          "source_text_layer_char_count": 3061,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 27,
+          "next_pdf_page": 29
+        },
+        {
+          "page": 29,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "source_text_truncated"
+          ],
+          "char_count": 3640,
+          "source_text_layer_char_count": 3342,
+          "table_count": 0,
+          "notes": [
+            "Giữ câu đúng tới điểm dừng nhìn thấy trên PDF và bỏ dấu chấm do người chuyển bản thêm; không tự hoàn thiện câu."
+          ],
+          "previous_pdf_page": 28,
+          "next_pdf_page": 30
+        },
+        {
+          "page": 30,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1882,
+          "source_text_layer_char_count": 2045,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 29,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 4,
+        "structured_tables": 3,
+        "source_text_truncated": 1
+      }
+    },
+    {
+      "source_relative_path": "XanhUocMo/Full-TnC-ULP50.pdf",
+      "source_sha256": "8dda3ec64a3065170df1917bef2661e7d8904a40167b6099e5ff818288839c90",
+      "source_page_count": 31,
+      "document_title": "Quy Tắc, Điều Kiện và Điều Khoản sản phẩm bảo hiểm Liên Kết Chung Đóng Phí Định Kỳ (Phiên Bản 3)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/XanhUocMo/Full-TnC-ULP50.md",
+      "output_sha256": "fc191935d3564c1930bbca90bb27da34df3812dd30bb22ae75b892e8659a3c0c",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "bcde97d89771c22c4a341961bac7bc61510f6bc76bf29eae01bb98947282fdbc",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 2,
+          "rect": [
+            82.05,
+            361.49,
+            554.25,
+            374.19
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(57, 0, 1758196929776), '/XYZ', 81, 809, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            82.05,
+            336.99,
+            554.7,
+            361.49
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(57, 0, 1758196929776), '/XYZ', 38, 739, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            139.05,
+            303.04,
+            554.25,
+            318.59
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(57, 0, 1758196929776), '/XYZ', 33, 687, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            139.05,
+            292.35,
+            554.25,
+            303.04
+          ],
+          "uri": null,
+          "target_pdf_page": 9,
+          "destination": "[IndirectObject(57, 0, 1758196929776), '/XYZ', 33, 343, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            248.3,
+            554.25,
+            259.0
+          ],
+          "uri": null,
+          "target_pdf_page": 10,
+          "destination": "[IndirectObject(62, 0, 1758196929776), '/XYZ', 33, 482, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            190.25,
+            554.25,
+            201.95
+          ],
+          "uri": null,
+          "target_pdf_page": 11,
+          "destination": "[IndirectObject(64, 0, 1758196929776), '/XYZ', 33, 575, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            104.66,
+            552.95,
+            119.8
+          ],
+          "uri": null,
+          "target_pdf_page": 12,
+          "destination": "[IndirectObject(66, 0, 1758196929776), '/XYZ', 33, 230, 0]"
+        },
+        {
+          "page": 2,
+          "rect": [
+            144.05,
+            92.956,
+            552.95,
+            104.66
+          ],
+          "uri": null,
+          "target_pdf_page": 12,
+          "destination": "[IndirectObject(66, 0, 1758196929776), '/XYZ', 33, 181, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            778.09,
+            552.3,
+            793.04
+          ],
+          "uri": null,
+          "target_pdf_page": 13,
+          "destination": "[IndirectObject(76, 0, 1758196929776), '/XYZ', 33, 650, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            711.69,
+            552.3,
+            735.34
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(78, 0, 1758196929776), '/XYZ', 33, 519, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            676.9,
+            552.3,
+            691.7
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(78, 0, 1758196929776), '/XYZ', 33, 459, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            665.2,
+            552.3,
+            676.9
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(78, 0, 1758196929776), '/XYZ', 33, 289, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.5,
+            634.4,
+            552.3,
+            649.2
+          ],
+          "uri": null,
+          "target_pdf_page": 14,
+          "destination": "[IndirectObject(78, 0, 1758196929776), '/XYZ', 33, 153, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            611.25,
+            552.3,
+            622.55
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(83, 0, 1758196929776), '/XYZ', 33, 451, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            599.95,
+            552.3,
+            611.25
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(83, 0, 1758196929776), '/XYZ', 33, 364, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            567.7,
+            552.3,
+            582.5
+          ],
+          "uri": null,
+          "target_pdf_page": 15,
+          "destination": "[IndirectObject(83, 0, 1758196929776), '/XYZ', 33, 159, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            461.26,
+            552.3,
+            480.26
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(89, 0, 1758196929776), '/XYZ', 33, 809, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            427.11,
+            552.3,
+            442.51
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(89, 0, 1758196929776), '/XYZ', 33, 761, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            402.96,
+            552.3,
+            415.26
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(89, 0, 1758196929776), '/XYZ', 93, 674, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            383.92,
+            552.3,
+            402.96
+          ],
+          "uri": null,
+          "target_pdf_page": 18,
+          "destination": "[IndirectObject(89, 0, 1758196929776), '/XYZ', 33, 591, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            270.62,
+            552.3,
+            289.62
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(97, 0, 1758196929776), '/XYZ', 33, 809, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            236.88,
+            552.3,
+            252.37
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(97, 0, 1758196929776), '/XYZ', 89, 709, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            225.03,
+            552.3,
+            236.88
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(97, 0, 1758196929776), '/XYZ', 33, 552, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            212.78,
+            552.3,
+            225.03
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(97, 0, 1758196929776), '/XYZ', 33, 451, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            180.38,
+            552.3,
+            196.43
+          ],
+          "uri": null,
+          "target_pdf_page": 22,
+          "destination": "[IndirectObject(97, 0, 1758196929776), '/XYZ', 33, 336, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            142.7,
+            168.53,
+            552.3,
+            180.38
+          ],
+          "uri": null,
+          "target_pdf_page": 23,
+          "destination": "[IndirectObject(103, 0, 1758196929776), '/XYZ', 33, 779, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            142.38,
+            552.3,
+            168.53
+          ],
+          "uri": null,
+          "target_pdf_page": 24,
+          "destination": "[IndirectObject(105, 0, 1758196929776), '/XYZ', 81, 793, 0]"
+        },
+        {
+          "page": 3,
+          "rect": [
+            80.8,
+            88.133,
+            552.3,
+            110.68
+          ],
+          "uri": null,
+          "target_pdf_page": 28,
+          "destination": "[IndirectObject(110, 0, 1758196929776), '/XYZ', 82, 806, 0]"
+        },
+        {
+          "page": 7,
+          "rect": [
+            441.1,
+            653.43,
+            536.32,
+            666.22
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 7,
+          "rect": [
+            244.76,
+            469.04,
+            343.77,
+            479.78
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 12,
+          "rect": [
+            432.59,
+            719.55,
+            527.81,
+            733.19
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 18,
+          "rect": [
+            401.5,
+            674.71,
+            496.72,
+            685.44
+          ],
+          "uri": "http://www.manulife.com.vn/",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 461,
+          "source_text_layer_char_count": 528,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2011,
+          "source_text_layer_char_count": 2200,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1937,
+          "source_text_layer_char_count": 2096,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2735,
+          "source_text_layer_char_count": 2884,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3824,
+          "source_text_layer_char_count": 3997,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 4104,
+          "source_text_layer_char_count": 4282,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3532,
+          "source_text_layer_char_count": 3673,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1558,
+          "source_text_layer_char_count": 1688,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3310,
+          "source_text_layer_char_count": 3471,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2556,
+          "source_text_layer_char_count": 2701,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3539,
+          "source_text_layer_char_count": 3289,
+          "table_count": 3,
+          "notes": [
+            "Khôi phục “; và” sau điều kiện tuổi trong hàng đầu bảng 12.2; điều kiện còn sống/Sức Khỏe Tiêu Chuẩn nằm ở ô kế bên."
+          ],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2715,
+          "source_text_layer_char_count": 2866,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3328,
+          "source_text_layer_char_count": 3484,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3174,
+          "source_text_layer_char_count": 3332,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3400,
+          "source_text_layer_char_count": 3581,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2355,
+          "source_text_layer_char_count": 2527,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1944,
+          "source_text_layer_char_count": 2185,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "independent source-PDF visual QA and repair",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3511,
+          "source_text_layer_char_count": 3574,
+          "table_count": 1,
+          "notes": [
+            "Khôi phục “hoặc” và điều kiện đầy đủ về rút một phần; phục hồi tên riêng của Tài Khoản Cơ Bản/Đóng Thêm trong hai ngưỡng số dư còn lại."
+          ],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "Luna native text and coordinate review with visual transcription/review of the source PDF page",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2698,
+          "source_text_layer_char_count": 2541,
+          "table_count": 2,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "Luna native text and coordinate review with visual transcription/review of the source PDF page",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked"
+          ],
+          "char_count": 3201,
+          "source_text_layer_char_count": 3742,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 739,
+          "source_text_layer_char_count": 907,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "native text + geometry + Luna visual table review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 3018,
+          "source_text_layer_char_count": 2446,
+          "table_count": 4,
+          "notes": [
+            "Đã dựng đủ 3 bảng thứ tự nhận quyền lợi (tử vong, TTTBVV, đáo hạn), bảng hồ sơ yêu cầu tử vong; giữ điều kiện không có/đã tử vong ở đoạn dẫn. So khớp trực quan PDF; sửa nhãn thứ tự đáo hạn thành 32.3 theo nguồn. Ô gộp tử vong lặp nội dung cho hai loại bên mua; ô tổ chức trống ở ưu tiên 3 giữ trống.",
+            "Đã dựng đủ 3 bảng thứ tự nhận quyền lợi (tử vong, TTTBVV, đáo hạn) và bảng hồ sơ tử vong, gồm các chứng từ Tai Nạn mục g. Điều kiện dẫn giữ nguyên; ô gộp và ô trống theo PDF."
+          ],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1419,
+          "source_text_layer_char_count": 1566,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2729,
+          "source_text_layer_char_count": 2931,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3689,
+          "source_text_layer_char_count": 3878,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": 26
+        },
+        {
+          "page": 26,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2479,
+          "source_text_layer_char_count": 2716,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 25,
+          "next_pdf_page": 27
+        },
+        {
+          "page": 27,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1809,
+          "source_text_layer_char_count": 1996,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 26,
+          "next_pdf_page": 28
+        },
+        {
+          "page": 28,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3703,
+          "source_text_layer_char_count": 3921,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 27,
+          "next_pdf_page": 29
+        },
+        {
+          "page": 29,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 2856,
+          "source_text_layer_char_count": 3056,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 28,
+          "next_pdf_page": 30
+        },
+        {
+          "page": 30,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 3121,
+          "source_text_layer_char_count": 3335,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 29,
+          "next_pdf_page": 31
+        },
+        {
+          "page": 31,
+          "method": "baseline native text; structural normalization",
+          "review_status": "native_text_normalized_and_preservation_checked",
+          "flags": [],
+          "char_count": 1898,
+          "source_text_layer_char_count": 2064,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 30,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 5,
+        "structured_tables": 4
+      }
+    },
+    {
+      "source_relative_path": "XanhUocMo/VIE_ULP25-ImportantNote.pdf",
+      "source_sha256": "b744cc9b2635593889b4cfe64d5c1b487b677d519e42c7cfea1900368bfaaf75",
+      "source_page_count": 4,
+      "document_title": "Những lưu ý quan trọng Sản phẩm Bảo hiểm Liên kết chung Xanh Ước Mơ 1. Giới thiệu về Sản phẩm Bảo hiểm Liên kết chung Xanh Ước Mơ: Sản phẩm Bảo hiểm Liên kết chung Xanh Ước Mơ là sản phẩm bảo hiểm nhân thọ thuộc dòng bảo hiểm liên",
+      "document_kind": "important_note",
+      "output_markdown": "data/public/manulife/text/XanhUocMo/VIE_ULP25-ImportantNote.md",
+      "output_sha256": "3a2a97e7042c0c6928204a44f3feef7aaa1181eeb9a57648ca075f26758e8158",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "original_output_sha256": "cd6b5f1bfe13f468b34f39eb0f0276d62adf73deb49c567a150152fbb70cfdc3",
+      "method": "Native text normalization + coordinate-aware table reconstruction; source-image transcription and independent Luna reviews where noted. No automatic OCR engine run.",
+      "pdf_links": [
+        {
+          "page": 1,
+          "rect": [
+            295.2,
+            454.59,
+            448.84,
+            476.65
+          ],
+          "uri": "https://www.manulife.com.vn/vi/san-pham-bao-hiem/bao-hiem-lien-ket-dau-tu/bao-hiem-lien-ket-chung/xanh-uoc-mo.html",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 2,
+          "rect": [
+            317.36,
+            144.26,
+            481.2,
+            166.32
+          ],
+          "uri": "https://www.manulife.com.vn/vi/san-pham-bao-hiem/bao-hiem-lien-ket-dau-tu/bao-hiem-lien-ket-chung/xanh-uoc-mo.html",
+          "target_pdf_page": null,
+          "destination": ""
+        },
+        {
+          "page": 4,
+          "rect": [
+            132.75,
+            31.74,
+            390.25,
+            53.796
+          ],
+          "uri": "https://www.manulife.com.vn/vi/lien-he.html",
+          "target_pdf_page": null,
+          "destination": ""
+        }
+      ],
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [],
+          "char_count": 2189,
+          "source_text_layer_char_count": 2201,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2776,
+          "source_text_layer_char_count": 2768,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "table_structure_ai_checked",
+            "structured_tables"
+          ],
+          "char_count": 2454,
+          "source_text_layer_char_count": 2426,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "Luna visual review against existing pdfplumber text extraction",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "structured_tables"
+          ],
+          "char_count": 2138,
+          "source_text_layer_char_count": 2081,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": null
+        }
+      ],
+      "page_flag_counts": {
+        "table_structure_ai_checked": 2,
+        "structured_tables": 3
+      }
+    },
+    {
+      "source_relative_path": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+      "source_sha256": "5e32faee131ee99b5adb84d762757e7e327ed685c02911b85a8f1e4e779a17e4",
+      "source_page_count": 25,
+      "pdf_links": [],
+      "document_title": "Quy tắc, điều khoản — Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (Phiên bản 2)",
+      "document_kind": "terms_and_conditions",
+      "output_markdown": "data/public/manulife/text/HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.md",
+      "output_sha256": "12d6c1eed305bdb5adc42a1de2e882e8df128fb4c84fbc0284f11ad35fae213d",
+      "review_date": "2026-10-28",
+      "status": "ai_checked/needs_human_review",
+      "human_approved": false,
+      "method": "image transcription by Luna; cross-review and parent checks; no OCR engine",
+      "unresolved": [],
+      "pages": [
+        {
+          "page": 1,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1870,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": null,
+          "next_pdf_page": 2
+        },
+        {
+          "page": 2,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1814,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 1,
+          "next_pdf_page": 3
+        },
+        {
+          "page": 3,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 277,
+          "source_text_layer_char_count": 0,
+          "table_count": 2,
+          "notes": [],
+          "previous_pdf_page": 2,
+          "next_pdf_page": 4
+        },
+        {
+          "page": 4,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1930,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 3,
+          "next_pdf_page": 5
+        },
+        {
+          "page": 5,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 2312,
+          "source_text_layer_char_count": 0,
+          "table_count": 2,
+          "notes": [],
+          "previous_pdf_page": 4,
+          "next_pdf_page": 6
+        },
+        {
+          "page": 6,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 2701,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 5,
+          "next_pdf_page": 7
+        },
+        {
+          "page": 7,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3590,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 6,
+          "next_pdf_page": 8
+        },
+        {
+          "page": 8,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1910,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 7,
+          "next_pdf_page": 9
+        },
+        {
+          "page": 9,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3030,
+          "source_text_layer_char_count": 0,
+          "table_count": 2,
+          "notes": [
+            "Điều 8.1 in 03% trong nguồn; đã đối chiếu ảnh phóng to, không chuyển thành 0,3%."
+          ],
+          "previous_pdf_page": 8,
+          "next_pdf_page": 10
+        },
+        {
+          "page": 10,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3203,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [
+            "Tiêu đề bảng tiếp trang được lặp từ PDF trang 9 để giữ quan hệ hàng/cột."
+          ],
+          "previous_pdf_page": 9,
+          "next_pdf_page": 11
+        },
+        {
+          "page": 11,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3347,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 10,
+          "next_pdf_page": 12
+        },
+        {
+          "page": 12,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3355,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 11,
+          "next_pdf_page": 13
+        },
+        {
+          "page": 13,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3063,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 12,
+          "next_pdf_page": 14
+        },
+        {
+          "page": 14,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 2304,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 13,
+          "next_pdf_page": 15
+        },
+        {
+          "page": 15,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3010,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [
+            "Bảng Phí Ban Đầu có ô gộp 2% ở cột Phí Bảo Hiểm Đóng Thêm cho các hàng năm hiển thị."
+          ],
+          "previous_pdf_page": 14,
+          "next_pdf_page": 16
+        },
+        {
+          "page": 16,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1921,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 15,
+          "next_pdf_page": 17
+        },
+        {
+          "page": 17,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3410,
+          "source_text_layer_char_count": 0,
+          "table_count": 1,
+          "notes": [],
+          "previous_pdf_page": 16,
+          "next_pdf_page": 18
+        },
+        {
+          "page": 18,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3792,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 17,
+          "next_pdf_page": 19
+        },
+        {
+          "page": 19,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 576,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 18,
+          "next_pdf_page": 20
+        },
+        {
+          "page": 20,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3531,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 19,
+          "next_pdf_page": 21
+        },
+        {
+          "page": 21,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 4464,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 20,
+          "next_pdf_page": 22
+        },
+        {
+          "page": 22,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 4565,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 21,
+          "next_pdf_page": 23
+        },
+        {
+          "page": 23,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 1444,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 22,
+          "next_pdf_page": 24
+        },
+        {
+          "page": 24,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 3737,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 23,
+          "next_pdf_page": 25
+        },
+        {
+          "page": 25,
+          "method": "Luna source-image transcription; visual review",
+          "review_status": "ai_visual_reviewed",
+          "flags": [
+            "source_has_no_text_layer"
+          ],
+          "char_count": 2258,
+          "source_text_layer_char_count": 0,
+          "table_count": 0,
+          "notes": [],
+          "previous_pdf_page": 24,
+          "next_pdf_page": null
+        }
+      ]
+    }
+  ]
+}

@@ -11,12 +11,24 @@
 | Agent | Điều phối LangGraph, retrieval, gọi tool và tổng hợp bằng chứng | Không truy cập business DB; không tự mở rộng quyền |
 | Retrieval trong Agent | Tìm Public/Private trong phạm vi được cấp | Không tự xác định ownership hoặc trả chunk ngoài quyền |
 
-Frontend → Core → Agent là đường điều phối dự kiến. Agent → Business API của Core là đường truy cập nghiệp vụ. Giao thức cụ thể chưa chốt.
+Frontend → Core → Agent là đường điều phối dự kiến. Agent → Business API của Core là đường truy cập nghiệp vụ. Ngày 29/10/2026 đã chọn [HTTP + callback JSON cho Core–Agent](specifications/Agent_Design.md#core-agent-callback), [tạm chọn HMAC + Core tra quyền theo lượt](specifications/Agent_Design.md#provisional-hmac-auth) bằng code/cấu hình local, chưa cần dịch vụ cloud bổ sung. Endpoint/schema, profile xác thực và giao thức Web–Core còn mở.
+
+Quyết định ngày 27/10/2026: Agent dùng Python + custom LangGraph; loại AgentCore Harness khỏi phương án triển khai. Nhóm tự thiết kế graph, state, checkpoint, retry và fallback. AgentCore Runtime vẫn là hướng hosting cho custom Agent. Web framework và chi tiết contract/xác thực Core–Agent còn mở; FastAPI có thể kết hợp với LangGraph nếu được chọn làm lớp HTTP API.
+
+Chi tiết chức năng, luồng điều phối và RAG dùng [bản tổng thể Agent/RAG ngày 31/10/2026](specifications/Agent_Design.md#design-overview) làm điểm bắt đầu trong tài liệu chuẩn thay thế ba bản Agent trên Google Docs; architecture chỉ giữ baseline chung của hệ thống. [Phần việc còn lại](specifications/Agent_Design.md#remaining-work) tách quyết định cần chọn, đặc tả thực thi và tham số cần đo; không mở lại lựa chọn đã chốt.
+
+Khung graph đã chốt ngày 30/10/2026 gồm [Prepare, Agent, Execute tools và Finalize](specifications/Agent_Design.md#initial-agent-graph), có vòng đánh giá lại sau kết quả tool. Đây là bốn node logic, không phải bốn dịch vụ hoặc số lần gọi model cố định; chưa triển khai.
+
+Thống nhất thuật ngữ ngày 31/10/2026: [Agentic RAG](specifications/Agent_Design.md#rag-terminology) là toàn bộ luồng truy xuất–tạo context–sinh câu trả lời. Hai tool truy xuất Public/Private chỉ trả bằng chứng; code dựng context và LLM trong node Agent tổng hợp câu trả lời. Không đóng gói thêm một Agent sinh câu trả lời riêng trong mỗi tool.
+
+**Đã chốt ngày 30/10/2026:** [dữ liệu hợp đồng tối thiểu](specifications/Contract_Data_Design.md) giữ sản phẩm chính hiện có, lưu danh sách mã bổ trợ và cờ đầy đủ trong `benefitsSnapshot` JSONB; chi tiết còn lại dùng RAG đúng quyền/phiên bản. Không thêm bảng/cột; validation/API/seed chưa triển khai, schema local giữ nguyên.
+
+Phạm vi MVP ngày 28/10/2026 gồm **7 sản phẩm: 4 chính và 3 bổ trợ**, theo [danh sách chuẩn](specifications/Agent_Design.md#mvp-products). Corpus Public có 13 PDF Public/243 trang; hai lựa chọn điều khoản Xanh Ước Mơ được giữ riêng nhưng tính là một sản phẩm. Sản phẩm chính và bổ trợ đã tham gia được xác định theo từng hợp đồng Private, qua dữ liệu và tài liệu do Core cấp quyền; không suy từ danh mục Public. Ánh xạ hợp đồng giả lập tới lựa chọn/phiên bản cần được thiết kế cùng Agent và RAG.
 
 ## Quyền và bằng chứng
 
 - Danh tính lấy từ phiên đã xác thực. Core kiểm tra quyền ở từng API/tool call; Customer theo ownership, Staff theo phân công hiện hành.
-- Core cấp phạm vi tài liệu và phiên bản. Retrieval áp dụng phạm vi trước khi trả bằng chứng, kể cả khi mở rộng ngữ cảnh hoặc thử lại.
+- Core cấp phạm vi tài liệu và phiên bản. Được [tra toàn bộ hồ sơ thuộc hợp đồng đã cấp quyền](specifications/Agent_Design.md#whole-contract-retrieval), gồm phụ lục/tài liệu kèm theo; retrieval chọn đoạn liên quan và áp dụng phạm vi cả khi mở rộng hoặc thử lại.
 - Thiếu quyền hoặc không xác minh được thì không truy xuất Private. Cách phân biệt lỗi quyền, scope rỗng và không đủ bằng chứng cần chuẩn hóa trong contract.
 - Khi mở PDF, Core kiểm tra lại quyền và cấp quyền xem có hạn cho đúng phiên bản. Không lưu URL đã ký vào tin nhắn.
 - Bằng chứng sản phẩm công khai giải thích quy tắc chung. Thông tin cá nhân phải dựa trên hợp đồng đúng phiên bản và dữ liệu Core đã xác thực.
@@ -25,8 +37,8 @@ Frontend → Core → Agent là đường điều phối dự kiến. Agent → 
 ## Trạng thái và thao tác ghi
 
 - Core giữ lịch sử hội thoại và trạng thái tiếp quản. Agent giữ trạng thái graph bền vững để có thể tiếp tục sau gián đoạn.
-- Quyền đọc RAG và quyền ghi checkpoint phải tách khỏi quyền business. Backend lưu checkpoint, schema, role và quy tắc lưu/xóa chưa chốt.
-- Phiên Runtime không thay thế checkpoint bền vững. Cần chốt ánh xạ actor/hội thoại/thread và hành vi resume khi quyền hoặc người tiếp quản thay đổi.
+- Quyền đọc RAG và quyền ghi checkpoint phải tách khỏi quyền business. Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, có đường tách sang database riêng; xem [thiết kế checkpoint](specifications/Agent_Design.md#checkpoint-postgres). Tên schema/role, thư viện, quy tắc lưu/xóa và chi tiết chuyển còn mở; chưa triển khai checkpoint.
+- Phiên Runtime không thay thế checkpoint bền vững. Đã chốt [mỗi hội thoại Core một thread LangGraph](specifications/Agent_Design.md#conversation-thread-mapping) và [attempt hết hiệu lực không được ghi đè checkpoint hiện hành](specifications/Agent_Design.md#checkpoint-write-ownership). Còn định dạng ID, ngữ cảnh actor/quyền khi resume và cơ chế thực thi quyền ghi khi nhiều tiến trình hoặc người tiếp quản thay đổi.
 - Agent chỉ đề xuất Ticket. Core phải xác minh xác nhận hợp lệ gắn với nội dung được duyệt, kiểm tra quyền và chống trùng trước khi ghi.
 - Theo SRS UC-005, Ticket và outbox được ghi cùng giao dịch; chỉ báo thành công sau commit. Thông báo lỗi không làm mất Ticket đã lưu. Queue và cách phát lại còn cần thiết kế.
 - Staff tiếp quản phải ngăn thao tác ghi từ Agent đang chạy dở. Cơ chế xử lý đồng thời còn mở; không dựa riêng vào việc hủy giao diện chat.
@@ -35,7 +47,9 @@ Frontend → Core → Agent là đường điều phối dự kiến. Agent → 
 
 PostgreSQL + pgvector dùng local trước. Cập nhật 25/10/2026: đã có Compose Core/Web/Nginx/PostgreSQL/DbGate và migration cho business/rag theo yêu cầu tạo toàn bộ model nguồn; Core runtime không có quyền rag. Đã có API đọc hồ sơ Customer và danh sách/chi tiết theo assignment cho Staff; xem [phạm vi quyền đọc](architecture.md#local-api). Các bảng còn lại không đồng nghĩa đã có API nghiệp vụ hoặc retrieval. Xem [data models](architecture.md#local-data-model) và [ADR local stack](architecture.md#local-data-model). PDF/index vẫn chuẩn bị ngoài ứng dụng với dữ liệu riêng giả lập; chưa chọn chiều embedding.
 
-AWS đã chọn. RDS, ECS + EC2 và AgentCore Runtime là hướng triển khai, chưa phải tài nguyên đã dựng. Redis/BullMQ đang được cân nhắc. Model, embedding và tự host chưa chốt.
+AWS đã chọn. RDS, ECS + EC2 và AgentCore Runtime là hướng triển khai, chưa phải tài nguyên đã dựng. Redis/BullMQ đang được cân nhắc. Ngày 01/11/2026 đã chốt [Managed Model API cho model sinh và embedding trong MVP](specifications/Agent_Design.md#managed-model-api); provider/model/phiên bản/số chiều còn mở, không tự vận hành model trong phạm vi này.
+
+Ngày 31/10/2026 đã chốt [baseline hybrid retrieval](specifications/Agent_Design.md#hybrid-retrieval): PostgreSQL full-text search cho keyword, pgvector cho vector và RRF hợp nhất. Chưa thêm BM25/dịch vụ tìm kiếm mới hoặc triển khai index/retrieval; cấu hình tiếng Việt, model và tham số còn mở.
 
 Roadmap mở rộng là kịch bản thiết kế, không phải kết quả benchmark hoặc cam kết SLO. Đợt này không dựng topology production.
 
@@ -127,3 +141,7 @@ Credential ở volumes riêng; không tự rotate role password đã tồn tại
 - Khóa/mở khóa/reset dùng expectedUpdatedAt + user row lock; stale 409. Khóa/mở khóa đều revoke sessions; reset đổi bcrypt, bật nhắc, giữ ACTIVE/LOCKED và không ép đổi lần đầu.
 - Gán/chuyển/gỡ khóa user liên quan theo thứ tự ID; expectedVersion và partial index giữ một active. Staff/Customer phải active khi gán mới, Staff không tạm khóa; gỡ vẫn được khi Customer khóa. History + version + audit cùng transaction; Staff cũ mất quyền sau commit.
 - Tool chỉ target local, credential admin_runtime qua stdin, kiểm schema compatibility; không tự mở RDS hoặc thêm public admin API. RDS/cloud cần yêu cầu riêng sau.
+
+## Ngoại lệ dữ liệu Private
+
+Ngày 03/11/2026 người dùng cho phép lưu Git [bản hợp đồng đầy đủ đã khử định danh, có dữ liệu demo](../data/private/manulife-demo-full-v1/README.md). Đây không phải dữ liệu sinh hoàn toàn giả lập; corpus chưa được duyệt và chưa nạp retrieval. Ranh giới quyền/phiên bản Core vẫn áp dụng.
