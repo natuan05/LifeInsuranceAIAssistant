@@ -1,5 +1,7 @@
 # Kiến trúc và Quyết định Thiết kế (ADRs)
 
+> **Đối chiếu implementation 30/10/2026:** Bảng công nghệ và ADR nguồn bên dưới không phải danh sách thành phần đã chạy. Local dùng npm/Next/React/Tailwind/Nest/Prisma/PostgreSQL/Nginx và native ws receive-only invalidation hồ sơ; không dùng Socket.IO/IdP/queue/AgentCore trong implementation hiện tại. Các ADR-AI/cloud đề xuất vẫn mở. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+
 > **Tài liệu chuyển đổi từ:** `ADRs.pdf`  
 > **Chủ đề:** Kiến trúc hệ thống, Phân chia trách nhiệm, Quyết định kỹ thuật & Đánh giá công nghệ (Application, Cloud, Data & AI Agent Views).
 

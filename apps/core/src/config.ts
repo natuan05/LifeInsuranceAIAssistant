@@ -31,7 +31,7 @@ export function loadConfig() {
     throw new ConfigurationError('PORT must be an integer between 1 and 65535.');
   }
 
-  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000,http://127.0.0.1:3000')
+  const origins = (process.env.CORS_ORIGINS ?? 'http://localhost:8080,http://127.0.0.1:8080')
     .split(',')
     .map((origin) => origin.trim());
 

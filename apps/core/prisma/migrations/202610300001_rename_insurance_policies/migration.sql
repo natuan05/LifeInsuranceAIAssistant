@@ -1,0 +1,11 @@
+BEGIN;
+ALTER TYPE business."ContractStatus" RENAME TO "PolicyStatus";
+ALTER TABLE business.insurance_contracts RENAME TO insurance_policies;
+ALTER TABLE business.insurance_policies RENAME CONSTRAINT insurance_contracts_pkey TO insurance_policies_pkey;
+ALTER INDEX business.insurance_contracts_policy_number_key RENAME TO insurance_policies_policy_number_key;
+ALTER INDEX business.insurance_contracts_customer_id_idx RENAME TO insurance_policies_customer_id_idx;
+ALTER INDEX business.insurance_contracts_id_customer_id_key RENAME TO insurance_policies_id_customer_id_key;
+ALTER TABLE business.insurance_policies RENAME CONSTRAINT insurance_contracts_customer_id_fkey TO insurance_policies_customer_id_fkey;
+ALTER TABLE business.insurance_policies RENAME CONSTRAINT insurance_contracts_product_id_fkey TO insurance_policies_product_id_fkey;
+ALTER TABLE business.insurance_policies RENAME CONSTRAINT contract_amounts TO policy_amounts;
+COMMIT;

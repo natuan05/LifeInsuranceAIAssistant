@@ -34,7 +34,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     try {
       const rows = await this.client.$queryRaw<Array<{ ready: boolean }>>`
         SELECT EXISTS(SELECT 1 FROM business._prisma_migrations
-          WHERE migration_name = '202610250003_remove_admin_requests'
+          WHERE migration_name = '202610300001_rename_insurance_policies'
           AND finished_at IS NOT NULL AND rolled_back_at IS NULL) AS ready`;
       return rows[0]?.ready === true;
     } catch { return false; }

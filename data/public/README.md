@@ -20,3 +20,5 @@ Corpus công khai không có nghĩa ứng dụng cho phép truy cập ẩn danh.
 - [Kết quả hiệu đính 12 tài liệu và vấn đề nguồn còn mở](manulife/processing-review.md).
 - Ưu tiên lớp chữ; 5 trang ảnh của hai ImportantNote đã được Luna chép và đối chiếu ngày 28/10/2026. Không tự suy đoán phần nguồn thiếu, không coi kiểm tra bằng AI là xác nhận nghiệp vụ.
 - Mỗi bản trích giữ số trang PDF để đối chiếu. Bảng nhiều cột/ô gộp phải giữ cấu trúc hoặc ghi rõ cần kiểm tra; không ghép dữ liệu theo phỏng đoán.
+
+Đối chiếu 04/11/2026 sau đồng bộ app: Staff đã có API policy/catalog và xem/tải PDF local. Chưa có Product API, truy cập PDF cho Customer hoặc RAG pipeline. Xem [checklist UI](../../docs/ui/implementation-status.md).

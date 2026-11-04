@@ -30,7 +30,7 @@ enum AccessScope {
   @@schema("business")
 }
 
-enum ContractStatus {
+enum PolicyStatus {
   ACTIVE
   LAPSED
   MATURED
@@ -127,7 +127,7 @@ model CustomerProfile {
   assignmentVersion Int                 @default(0) @map("assignment_version")
   user              User                @relation(fields: [userId, role], references: [id, role], onDelete: Restrict)
   assignments       StaffAssignment[]
-  contracts         InsuranceContract[]
+  policies         InsurancePolicy[]
   documents         Document[]
   conversations     Conversation[]
   tickets           SupportTicket[]
@@ -226,19 +226,19 @@ model InsuranceProduct {
   summary     String?
   isActive    Boolean             @default(true) @map("is_active")
   createdAt   DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
-  contracts   InsuranceContract[]
+  policies   InsurancePolicy[]
   documents   Document[]
 
   @@map("insurance_products")
   @@schema("business")
 }
 
-model InsuranceContract {
+model InsurancePolicy {
   id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   policyNumber     String            @unique @map("policy_number") @db.VarChar(100)
   customerId       String            @map("customer_id") @db.Uuid
   productId        String            @map("product_id") @db.Uuid
-  status           ContractStatus
+  status           PolicyStatus
   premiumAmount    Decimal?          @map("premium_amount") @db.Decimal(15, 2)
   paymentFrequency PaymentFrequency? @map("payment_frequency")
   nextDueDate      DateTime?         @map("next_due_date") @db.Date
@@ -255,7 +255,7 @@ model InsuranceContract {
 
   @@unique([id, customerId])
   @@index([customerId])
-  @@map("insurance_contracts")
+  @@map("insurance_policies")
   @@schema("business")
 }
 
@@ -269,7 +269,7 @@ model Document {
   currentVersion  String?            @map("current_version") @db.VarChar(20)
   createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   product         InsuranceProduct?  @relation(fields: [productId], references: [id], onDelete: Restrict)
-  policy          InsuranceContract? @relation(fields: [policyId, ownerCustomerId], references: [id, customerId], onDelete: Restrict)
+  policy          InsurancePolicy? @relation(fields: [policyId, ownerCustomerId], references: [id, customerId], onDelete: Restrict)
   owner           CustomerProfile?   @relation(fields: [ownerCustomerId], references: [userId], onDelete: Restrict)
   versions        DocumentVersion[]  @relation("DocumentVersions")
   current         DocumentVersion?   @relation("CurrentVersion", fields: [id, currentVersion], references: [documentId, versionNumber], onDelete: NoAction, onUpdate: NoAction)
@@ -310,7 +310,7 @@ model Conversation {
   updatedAt            DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
   customer             CustomerProfile     @relation(fields: [customerId], references: [userId], onDelete: Restrict)
   staff                StaffProfile?       @relation(fields: [assignedStaffId], references: [userId], onDelete: Restrict)
-  policy               InsuranceContract?  @relation(fields: [linkedPolicyId, customerId], references: [id, customerId], onDelete: Restrict)
+  policy               InsurancePolicy?  @relation(fields: [linkedPolicyId, customerId], references: [id, customerId], onDelete: Restrict)
   context              Conversation?       @relation("CopilotContext", fields: [linkedContextConvId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   copilotConversations Conversation[]      @relation("CopilotContext")
   messages             Message[]
@@ -356,7 +356,7 @@ model SupportTicket {
   conversation     Conversation?      @relation(fields: [conversationId], references: [id], onDelete: Restrict)
   customer         CustomerProfile    @relation(fields: [customerId], references: [userId], onDelete: Restrict)
   staff            StaffProfile?      @relation(fields: [assignedStaffId], references: [userId], onDelete: Restrict)
-  policy           InsuranceContract? @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
+  policy           InsurancePolicy? @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
   notifications    Notification[]
 
   @@index([customerId, createdAt])

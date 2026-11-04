@@ -19,7 +19,7 @@ const input = JSON.parse(readFileSync(0, 'utf8'));
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = 'http://localhost:3000';
 const adapter = (user,password) => new PrismaPg({host:'127.0.0.1',port:input.port,database:'life_insurance',user,password,max:5});
 const db = new PrismaClient({adapter:adapter('admin_runtime',input.password)});
-const core = new PrismaClient({adapter:adapter('core_runtime',readFileSync('.local/dev/core-password','utf8').trim())});
+const core = new PrismaClient({adapter:adapter('core_runtime',input.corePassword)});
 const suffix = randomUUID().replaceAll('-','');
 const credential = { username:'synthetic-operator-'+suffix, password:randomUUID() };
 const digest = v=>createHash('sha256').update(v).digest('hex');

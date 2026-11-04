@@ -7,20 +7,20 @@
     "node": ">=24.18.0 <25",
     "npm": ">=11.16.0 <12"
   },
-  "workspaces": ["apps/core", "apps/web"],
+  "workspaces": [
+    "apps/core",
+    "apps/web"
+  ],
   "scripts": {
-    "dev": "concurrently --kill-others --names core,web npm:dev:core npm:dev:web",
-    "dev:core": "npm run dev --workspace @life-insurance/core",
-    "dev:web": "npm run dev --workspace @life-insurance/web",
-    "dev:setup": "node scripts/dev-local.mjs setup",
-    "dev:db": "node scripts/dev-local.mjs start",
-    "bootstrap:dev": "node scripts/dev-local.mjs bootstrap",
-    "test:accounts": "node scripts/dev-local.mjs test-accounts",
-    "test:auth": "node scripts/dev-local.mjs test-auth",
-    "test:customers": "node scripts/dev-local.mjs test-customers",
-    "admin:setup": "node scripts/dev-local.mjs admin-setup",
-    "admin": "node scripts/dev-local.mjs admin",
-    "test:admin": "node scripts/dev-local.mjs test-admin",
+    "bootstrap:dev": "node scripts/local-tools.mjs bootstrap",
+    "test:accounts": "node scripts/local-tools.mjs test-accounts",
+    "test:auth": "node scripts/local-tools.mjs test-auth",
+    "test:customers": "node scripts/local-tools.mjs test-customers",
+    "test:policies": "node scripts/local-tools.mjs test-policies",
+    "test:policy-seed": "node scripts/local-tools.mjs test-policy-seed",
+    "admin:setup": "node scripts/local-tools.mjs admin-setup",
+    "admin": "node scripts/local-tools.mjs admin",
+    "test:admin": "node scripts/local-tools.mjs test-admin",
     "lint": "npm run lint --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "build": "npm run build --workspaces --if-present",
@@ -34,10 +34,13 @@
     "db:psql": "docker compose exec postgres psql -X -U local_owner -d life_insurance",
     "local:up": "node scripts/postgres.mjs up",
     "local:check": "node scripts/postgres.mjs check",
-    "local:down": "node scripts/postgres.mjs down"
+    "local:down": "node scripts/postgres.mjs down",
+    "storage:up": "node scripts/storage.mjs up",
+    "storage:check": "node scripts/storage.mjs check",
+    "storage:credentials": "node scripts/storage.mjs credentials"
   },
-  "devDependencies": {
-    "concurrently": "10.0.6"
-  },
-  "overrides": { "multer": "2.5.0" }
+  "devDependencies": {},
+  "overrides": {
+    "multer": "2.5.0"
+  }
 }

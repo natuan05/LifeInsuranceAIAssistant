@@ -25,6 +25,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/apps/core/node_modules ./apps/core/node_modules
 COPY --from=build --chown=node:node /app/apps/core/dist ./apps/core/dist
 COPY --from=build --chown=node:node /app/apps/core/package.json ./apps/core/package.json
+COPY --chown=node:node apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf apps/web/public/fonts/OFL-Lexend.txt ./apps/core/dist/cli/assets/
 USER node
 WORKDIR /app/apps/core
 EXPOSE 4000
