@@ -5,6 +5,7 @@
 **/dist
 **/dist-admin
 **/coverage
+**/test-results
 **/.env
 **/.env.*
 **/src/generated

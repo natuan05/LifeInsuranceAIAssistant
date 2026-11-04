@@ -37,7 +37,10 @@
     "local:down": "node scripts/postgres.mjs down",
     "storage:up": "node scripts/storage.mjs up",
     "storage:check": "node scripts/storage.mjs check",
-    "storage:credentials": "node scripts/storage.mjs credentials"
+    "storage:credentials": "node scripts/storage.mjs credentials",
+    "test:browser:policies": "npm run test:browser --workspace apps/web -- staff-policies.spec.mjs",
+    "test:browser:account": "npm run test:browser --workspace apps/web -- staff-account.spec.mjs staff-session.spec.mjs",
+    "test:browser:customers": "npm run test:browser --workspace apps/web -- staff-customers.spec.mjs"
   },
   "devDependencies": {},
   "overrides": {

@@ -1,6 +1,8 @@
 # Tài liệu Đặc tả Yêu cầu Phần mềm (SRS - BHNT)
 
-> **Đối chiếu implementation 30/10/2026:** FR-001 local mới login/session/account, chưa public registration; FR-002 read-only profile; FR-003 list/detail/pagination, thiếu search. Chat/AI/policy/PDF/Ticket/history/summary/notification chưa có nghiệp vụ. Staff route/panel và bảng DB không đánh dấu các FR/NFR đó hoàn tất. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+> **Quyết định local03/11, đối chiếu app04/11/2026:** Inbox All/Requests/Active không counts; assignment không cho Staff duyệt chat AI riêng. Direct hợp lệ hoặc Customer consent + Staff Accept mới cho Staff đọc toàn bộ lịch sử Customer-facing của chính cuộc; pending chỉ metadata. Handoff/Accept không tự tạo Ticket. ConversationStatus bỏ CLOSED, TicketStatus.CLOSED giữ riêng. I01–I06 model/API/UI/send/realtime/handoff notifications/SYSTEM đã triển khai; Ticket nghiệp vụ còn TK01–TK05/I07. Ghi chú làm rõ nguồn cũ, không sửa SRS online. [Quyết định](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026), [plans](../ui/staff/plans/README.md).
+
+> **Hiện trạng ứng dụng04/11/2026:** Login/session/account và Staff GET/PATCH profile đã có; registration/Customer PATCH còn kế hoạch. Staff Customers có search/list/detail/page, Policies/PDF và Products/PDF đã nối. Chat hai đầu/handoff notifications local đã có; Customer UI mới và Ticket APIs chưa triển khai. Không đánh dấu toàn FR/NFR hoặc Agent từ bảng/route/mock. FR/UC bên dưới giữ nội dung nguồn; runtime theo [checklist](../ui/implementation-status.md) và [plans](../ui/staff/plans/README.md).
 
 > **Tên tài liệu:** SRS-BHNT — Enterprise Customer Service AI Agent cho lĩnh vực bảo hiểm nhân thọ  
 > **Người viết:** Đặng Phạm Trung  

@@ -7,6 +7,8 @@ import { AuthService } from '../auth/services/auth.service';
 import { DatabaseService } from '../database/database.service';
 import { loadConfig } from '../config';
 import { Prisma } from '../generated/prisma/client';
+import { ConversationAccessService } from '../conversations/services/conversation-access.service';
+import type { ChatEvent, ChatRecipient } from '../conversations/services/conversation-event.service';
 
 type Peer = { request: IncomingMessage; fingerprint: string; actorId: string; busy: boolean; alive: boolean };
 
@@ -17,7 +19,37 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly attempts = new Map<string, { start: number; count: number }>();
   private timer?: NodeJS.Timeout;
   private heartbeat?: NodeJS.Timeout;
-  constructor(private readonly adapter: HttpAdapterHost, private readonly auth: AuthService, private readonly database: DatabaseService) {}
+  constructor(private readonly adapter: HttpAdapterHost, private readonly auth: AuthService, private readonly database: DatabaseService,
+    private readonly access: ConversationAccessService) {}
+
+  async publishChat(event: ChatEvent, recipients: ChatRecipient[]) {
+    for (const [ws, peer] of this.peers) {
+      if (ws.readyState !== WebSocket.OPEN) continue;
+      const recipient = recipients.find(r => r.actorId === peer.actorId);
+      if (!recipient) continue;
+      try {
+        const frames = await this.database.prisma.$transaction(async tx => {
+          const { actor } = await this.auth.me(peer.request, tx);
+          if (actor.id !== peer.actorId || actor.role !== recipient.role) throw new UnauthorizedException();
+          if (recipient.scope) return [{ type: 'chat-scope-invalidated', eventId: event.id }];
+          if (actor.role === 'STAFF') {
+            if (recipient.transcript) await this.access.requireTranscript(tx, actor.id, event.aggregateId);
+            else await this.access.requireMetadata(tx, actor.id, event.aggregateId);
+          } else await this.access.requireCustomer(tx, actor.id, event.aggregateId);
+          return [{ type: 'chat-invalidated', eventId: event.id, conversationId: event.aggregateId },
+            ...(recipient.notification ? [{ type: 'notifications-invalidated', eventId: event.id }] : [])];
+        });
+        for (const frame of frames) {
+          if (ws.readyState !== WebSocket.OPEN) break;
+          if (ws.bufferedAmount > 65536) { ws.close(1013, 'Slow consumer'); break; }
+          ws.send(JSON.stringify(frame));
+        }
+      } catch (failure) {
+        if (failure instanceof UnauthorizedException) ws.close(4001, 'Session expired');
+        else if (!(failure instanceof Error && 'getStatus' in failure && typeof failure.getStatus === 'function' && failure.getStatus() === 404)) throw failure;
+      }
+    }
+  }
 
   private snapshot(request: IncomingMessage) {
     return this.database.prisma.$transaction(async tx => {

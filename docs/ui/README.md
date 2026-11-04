@@ -1,23 +1,34 @@
-# Tài liệu giao diện và tiến độ
+# UI — chỉ mục triển khai
 
-Đối chiếu code ngày **30/10/2026**. Tài liệu viết tiếng Việt để team triển khai; nội dung giao diện Web dùng tiếng Anh.
+04/11/2026. Tài liệu tiếng Việt; giao diện ứng dụng dùng tiếng Anh. Bộ file màn hình cũ đã được hợp nhất vào contracts/phases của từng vai trò, không duy trì hai bản đặc tả song song.
 
 ## Thứ tự đọc
 
-1. [Tiến độ, checklist và gap](implementation-status.md): phần chạy thật, phần mới có khung và thứ tự xử lý.
-2. [Menu MVP](menu.md): phạm vi Customer/Staff dự kiến, không phải tất cả menu đã có.
-3. [Chỉ mục Staff](staff/README.md), [routes](staff/routes.md): cấu trúc giao diện hiện tại.
-4. Tài liệu màn hình S01–S07 hoặc C01–C09 được liên kết trong menu.
-5. [Bản đồ API Staff](staff/api-map.md): A01–06 đã có; A07–28 còn đề xuất.
-6. [Gap Staff và quyết định mở](staff/gap-review.md): chốt trước khi xây API phụ thuộc.
-7. [Đặc tả nguồn](../specifications), [baseline kiến trúc](../architecture.md), [đối chiếu nguồn](../source-review.md): truy vết yêu cầu và khác biệt local.
+1. [Tiến độ](implementation-status.md): runtime E, phần P và mức chứng cứ.
+2. [Menu/phạm vi](menu.md): các màn đích, không biến placeholder thành yêu cầu.
+3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Mốc tiếp là Staff Tickets và nghiệm thu không Agent.
+4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): để đợt Customer sau, chưa triển khai UI mới.
+5. [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng), [routes](staff/plans/00-staff-contract.md#điều-hướng), [gap](staff/plans/README.md#phần-còn-lại-theo-chức-năng): tham chiếu dùng chung, không lặp contract chức năng.
+6. [Requirement](../specifications/Requirement.md), [Data Model](../specifications/Data_Model.md), [architecture](../architecture.md), [source review](../source-review.md): nguồn và quyết định local.
 
-## Cách cập nhật
+## Cấu trúc và ownership
 
-- `[x]` chỉ đánh dấu phạm vi đã triển khai có bằng chứng code; không đồng nghĩa đã đạt toàn bộ FR/NFR hoặc production.
-- `[ ]` là phần còn thiếu. Khung route, nút disabled và trạng thái chưa kết nối không tính là nghiệp vụ hoàn thành.
-- Bảng tiến độ là đầu mối trạng thái. Màn hình giữ chi tiết UX/API; `getting-started.md` giữ lệnh chạy; `architecture.md` giữ quyết định local.
-- Khi thay đổi: cập nhật checklist → màn hình/API/routes liên quan → gap → tài liệu bên ngoài UI bị ảnh hưởng. Giữ nguyên ID Cxx/Sxx/Axx và lịch sử migration.
-- File mô tả hợp đồng trong hai thư mục màn hình dùng tên `policies.md`, nhất quán với **Policy / InsurancePolicy / insurance_policies**.
+| Vị trí | Trách nhiệm |
+| --- | --- |
+| docs/ui/README.md, menu.md, implementation-status.md | Chỉ mục, phạm vi và snapshot tiến độ hai role |
+| staff/README.md và staff/plans/README.md | Chỉ mục chức năng và phần còn lại theo owner |
+| staff/plans/00 và 01–10 contracts | Ranh giới/model/quyết định, liên kết phase chức năng |
+| customer/README.md, customer/plans/00 và 01–09 | Baseline Customer và kế hoạch tiếp theo |
+| plans/<function>/*.md | Phase cụ thể: vị trí code, API spec, flow, tests, gate và trạng thái E/P |
 
-Các tài liệu nguồn trong repo có ghi chú đối chiếu implementation. Không chỉnh Google Docs, PDF hoặc thư mục mẫu UI bên ngoài repo trong đợt đồng bộ này.
+Policy docs dùng tên policies, nhất quán InsurancePolicy; không đưa contracts.md cũ trở lại. Các màn đã làm vẫn có phase baseline để bảo trì, không coi việc bổ sung tài liệu là implement lại.
+
+## Quy tắc cập nhật
+
+Viết tài liệu cho cả team: mô tả chức năng, contract và cách triển khai từ repo. Ví dụ dùng dữ liệu synthetic chung; không phụ thuộc tài khoản, đường dẫn tuyệt đối hoặc bộ dữ liệu riêng của một thành viên. Hướng dẫn dựng môi trường phát triển nằm tại Getting Started; kết quả kiểm thử có ngày chỉ là bằng chứng cho phạm vi đã kiểm, không phải điều kiện máy cá nhân để triển khai chức năng.
+
+- Sửa contract/phase sở hữu trước rồi đồng bộ API/routes/tiến độ/gap nếu ảnh hưởng. Không copy một API spec sang nhiều file thành nhiều nguồn khác nhau.
+- E phải có controller/service/UI đúng phạm vi; P chưa phải code/migration. Khung route không là feature, mock không chứng minh Core quyền/Agent.
+- Checkbox đánh dấu từng phạm vi cụ thể. Các kết quả có ngày là lịch sử; không tuyên bố test vừa chạy lại sau sửa Markdown.
+- Không report/scratchpad mới, không screenshot/render ảnh; kiểm DOM/network/PDF extraction/hash. Chỉ app runtime Docker qua gateway.
+- Không tự stage/commit; Customer/Agent hoãn vẫn giữ plan, không xóa requirement.

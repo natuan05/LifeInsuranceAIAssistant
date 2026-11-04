@@ -132,6 +132,34 @@ services:
       bootstrap: { condition: service_completed_successfully }
     restart: "no"
 
+  core-tests:
+    profiles: [tests]
+    image: life-insurance-core-tests:local
+    user: node
+    build: { context: ., dockerfile: apps/core/Dockerfile, target: test }
+    environment:
+      PGHOST: postgres
+      I01_TEST_DATABASE: life_insurance
+    volumes:
+      - credential_admin:/credentials/admin:ro
+      - credential_core:/credentials/core:ro
+      - ./apps/core/test:/app/apps/core/test:ro
+    restart: "no"
+
+  product-document-tests:
+    profiles: [tests]
+    extends: { service: core-tests }
+    command: ["node", "--test", "test/product-documents.test.cjs"]
+    environment:
+      STORAGE_REGION: ${MINIO_REGION:-ap-southeast-1}
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
+    volumes:
+      - credential_storage_reader:/credentials/storage-reader:ro
+      - credential_storage_writer:/credentials/storage-writer:ro
+      # Only this explicit fixture harness receives cleanup authority. Core runtime
+      # remains reader-only; tests delete only their own UUID-prefixed object keys.
+      - credential_storage_root:/credentials/storage-test-cleanup:ro
+
   seed-dev:
     image: life-insurance-seed:local
     build: { context: ., dockerfile: apps/core/Dockerfile, target: seed }

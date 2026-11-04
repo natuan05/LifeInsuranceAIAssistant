@@ -1,6 +1,6 @@
 # Kiến trúc nền
 
-Ranh giới ban đầu ngày 24/10/2026; đối chiếu implementation local **30/10/2026**. Đây là nền để phát triển tiếp, chưa phải hệ thống nghiệp vụ/AI hoàn chỉnh. Xem [nguồn và trạng thái quyết định](source-review.md).
+Ranh giới ban đầu ngày 24/10/2026; đối chiếu implementation ứng dụng local **04/11/2026**. Đây là nền để phát triển tiếp, chưa phải hệ thống nghiệp vụ/AI hoàn chỉnh. Xem [nguồn và trạng thái quyết định](source-review.md).
 
 ## Phân chia trách nhiệm
 
@@ -34,6 +34,12 @@ Phạm vi MVP ngày 28/10/2026 gồm **7 sản phẩm: 4 chính và 3 bổ trợ
 - Bằng chứng sản phẩm công khai giải thích quy tắc chung. Thông tin cá nhân phải dựa trên hợp đồng đúng phiên bản và dữ liệu Core đã xác thực.
 - Thiếu căn cứ thì hỏi lại hoặc chuyển Staff. AI không phê duyệt Claim, cam kết chi trả hoặc tự tính số liệu nghiệp vụ.
 
+### Quyền chat đã chốt 03/11/2026 — runtime I01–I06 local
+
+StaffAssignment chỉ xác định phạm vi khách; riêng chat AI, Staff không đọc được khi chưa có Customer xác nhận chuyển và Staff Accept. Pending chỉ metadata yêu cầu đã chia sẻ; sau Accept được toàn bộ transcript Customer-facing trước/sau chuyển giao trong cùng cuộc. Direct Customer gửi Staff hợp lệ là luồng riêng, không đổi cờ AI cũ để bypass gate. Áp cùng quyền ở list/detail/messages/search/cursor/events; Ticket/notification link không tự tạo chat grant.
+
+Inbox đích All/Requests/Active, không counts hoặc Closed. Migration 202611030001_remove_conversation_closed đã bỏ ConversationStatus.CLOSED; chat còn AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE, TicketStatus.CLOSED giữ nguyên. Hội thoại Customer Support CLOSED cũ chuyển AI_ACTIVE, bỏ controller, giữ lịch sử/liên kết/thời gian và lưu trạng thái/controller cũ trong audit; không tạo consent/Accept/grant. Copilot CLOSED chưa được review sẽ chặn migration và rollback. Handoff request + sự kiện bền vững không tự tạo Ticket; Ticket+outbox atomic chỉ khi Customer xác nhận tạo Ticket riêng. Xem [quyết định nguồn](source-review.md#quyết-định-inbox-và-quyền-chat--03112026) và [spec](ui/staff/plans/inbox/00-inbox-spec.md). 04/11 đã có I01: model provenance/consent/acceptance, policy dùng chung, receipt/sequence, internal append/fence và assignment revoke atomic. I02 đã có public GET groups/lazy/request metadata cùng search/cursor không counts; I03 đã có entry/consent/request/Accept/transcript/lookup, atomic receipt/audit/outbox và citation catalog exact version. I04 đã nối UI Staff Inbox/accordion/search/Accept/transcript cuộn qua gateway. I05 đã nối REST hai chiều và UI Customer chat. I06 đã có realtime chat và outbox worker local một Core process; notification handoff A27/A28 và SYSTEM sau Accept. Chưa Agent writer endpoint/Copilot/Ticket workflow.
+
 ## Trạng thái và thao tác ghi
 
 - Core giữ lịch sử hội thoại và trạng thái tiếp quản. Agent giữ trạng thái graph bền vững để có thể tiếp tục sau gián đoạn.
@@ -57,11 +63,11 @@ Roadmap mở rộng là kịch bản thiết kế, không phải kết quả ben
 
 Người dùng xác nhận triển khai thông tin hợp đồng và bản PDF cho cả Customer/Staff theo ba lớp: PostgreSQL lưu nghiệp vụ cùng metadata/ownership/version/checksum; object storage private lưu PDF gốc; Web hiển thị trang thông tin từ DB, viewer trong app và hai thao tác Xem PDF/Tải PDF. Không bắt buộc sao chép toàn bộ văn bản PDF vào DB hoặc một trang HTML khác. PDF hợp đồng cá nhân, điều khoản chung và phụ lục phải được phân biệt, gắn đúng phiên bản áp dụng.
 
-Core kiểm quyền Customer theo ownership, Staff theo active assignment khi list/detail/catalog và cấp quyền xem/tải; browser không nhận storage credentials, Agent không tự cấp quyền. Đã dựng MinIO local bằng Compose: volume bền vững, bucket private, root/reader/writer tách credential và quyền. Community AGPL-3.0 build source release 2025-10-15 tại commit `9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`, mc release 2025-08-13 tại commit `7394ce0dd2a80935aded936b09fa12cbb3cb8096`; pin source checksum/base digest. Service chạy non-root, cổng 9000/9001 chỉ publish loopback. Job prepare/init chạy lại giữ credential/object. `storage:check` đã pass quyền/private/signed Range/CORS và restart persistence. Chưa nối SDK S3 vào Core, chưa policy/PDF API, fixture hay viewer; chỉ local, chưa tạo cloud. Xem [hướng dẫn storage](getting-started.md#35-storage-minio-local).
+Thiết kế quyền: Customer theo ownership, Staff theo active assignment khi list/detail/catalog và cấp quyền xem/tải; browser không nhận storage credentials, Agent không tự cấp quyền. MinIO local dùng Compose/private bucket/volume bền vững, root/reader/writer tách quyền. Community AGPL-3.0 build source release 2025-10-15 tại commit `9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`, mc release 2025-08-13 tại commit `7394ce0dd2a80935aded936b09fa12cbb3cb8096`; pin checksum/base digest và license. Service non-root, cổng 9000/9001 loopback; job rerun giữ credential/object. `storage:check` đã có kiểm private/signed Range/CORS/persistence. Cập nhật04/11: Core đã nối SDK S3 bằng reader, Staff Policy/PDF và Products PUBLIC catalog/access/viewer đã có, bootstrap có PDF synthetic; Customer owner API/UI còn kế hoạch. Chỉ local, chưa tạo cloud. Xem [Getting Started](getting-started.md#35-storage-minio-local).
 
 Luồng local đã chọn: Core kiểm quyền rồi cấp signed URL, browser đọc trực tiếp từ MinIO; inline để xem, attachment để tải, TTL local mặc định 15 phút có cấu hình. Range/headers/CORS/CSP và audit phải kiểm chứng. Signed URL đã cấp không tự mất hiệu lực ngay khi logout/đổi assignment; không hứa thu hồi file đã tải. DocumentVersion gắn nội dung ổn định, không ghi đè object/version cũ hoặc tự lấy currentVersion thay phiên bản hợp đồng. Mapping loại tài liệu và policy–terms/version cần rà schema/migration trước triển khai. Khi chuyển sang AWS S3 giữ contract/nghiệp vụ, thay cấu hình/IAM, copy object và kiểm checksum, chạy lại compatibility tests; không triển khai AWS ở đợt local.
 
-Seed phải sinh hoàn toàn synthetic cả policy lẫn PDF; job chuẩn bị file tách luồng người dùng và quyền runtime, kiểm checksum/mapping, retry/reconcile an toàn giữa DB và object storage. Không thêm upload/ingestion UI, Agent/RAG hay workflow chat trong đợt policy read/PDF. Đặc tả và checklist dùng chung tại [Customer/Staff Policy/PDF](ui/customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026); UI dùng Tailwind và không reload document khi xem/chọn/tải tài liệu.
+Seed phải sinh hoàn toàn synthetic cả policy lẫn PDF; job chuẩn bị file tách luồng người dùng và quyền runtime, kiểm checksum/mapping, retry/reconcile an toàn giữa DB và object storage. Không thêm upload/ingestion UI, Agent/RAG hay workflow chat trong đợt policy read/PDF. Đặc tả và checklist dùng chung tại [Customer/Staff Policy/PDF](ui/customer/plans/05-documents-contract.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026); UI dùng Tailwind và không reload document khi xem/chọn/tải tài liệu.
 
 Nguồn kỹ thuật đã đọc: [LangGraph persistence](https://docs.langchain.com/oss/python/langgraph/persistence) phân biệt checkpoint theo thread với bộ nhớ dùng qua nhiều thread; [AgentCore sessions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/runtime-sessions.html) mô tả vòng đời môi trường phiên. Các nguồn này không tự quyết định backend checkpoint cho dự án.
 
@@ -79,12 +85,12 @@ Cập nhật 25/10/2026. Các ADR local 0002–0007 đã được hợp nhất v
 - DbGate thay pgAdmin, kết nối tự động bằng role chỉ đọc. Prepare/bootstrap/migrate/seed tách job; credential volumes tách role, consumer mount readonly. Prepare không bind mount hoặc tạo .local trong repo; DB đã có nhưng mất credential thì dừng để khôi phục, không tự sinh password mới.
 - Docker seed image riêng; Core public runtime không có seed CLI, admin entrypoint hoặc UI tool. Tool admin chạy host, không được gateway proxy.
 - File operator và bản xuất tài khoản MinIO của tool host nằm ngoài repo theo thư mục dữ liệu người dùng (`%LOCALAPPDATA%/LifeInsuranceAIAssistant` trên Windows). Helper nâng cấp sao chép operator cũ khi cần, giữ credential hiện có và không tự xóa `.local` cũ. Core chờ seed DB và storage-init thành công để `compose up --wait` chờ đủ các bước khởi tạo.
-- Core chia theo tính năng: auth/customers/accounts/admin có controllers/dto/services theo nhu cầu và module riêng. AppModule import DatabaseModule, AuthModule, CustomersModule và PoliciesModule, đăng ký RealtimeService; AuthModule export AuthService để CustomersModule kiểm quyền. AdminModule.register ghép AccountsModule.register với client admin_runtime chỉ tại entrypoint local; không import hai module này vào public AppModule. Fixtures ở cli/dev-accounts.ts; Prisma schema là nguồn model, không thêm model TypeScript trùng lặp.
+- Core chia theo tính năng với controllers/dto/services/module theo nhu cầu. AppModule hiện import Database/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications; AuthModule export AuthService cho các module kiểm quyền. AdminModule.register ghép AccountsModule.register với client admin_runtime chỉ tại entrypoint local, không public AppModule. Fixtures ở cli/ và test/support; Prisma schema là nguồn model, không thêm model TypeScript trùng lặp.
 
 <a id="local-data-model"></a>
 ### Data model và bất biến
 
-ORM Prisma 7.10.1 + adapter-pg, schema source ở apps/core/prisma/schema.prisma, SQL migrations trong apps/core/prisma/migrations. Client sinh vào src/generated/prisma, bị ignore; không sửa generated code hoặc migration đã apply. Có 17 bảng ứng dụng (16 nguồn + AuthSession). AdminRequest đã bị loại bằng migration thứ ba, không xóa/sửa hai migration cũ; chống trùng quản trị dùng advisory lock + audit SUCCESS và unique constraints.
+ORM Prisma 7.10.1 + adapter-pg, schema source ở apps/core/prisma/schema.prisma, SQL migrations trong apps/core/prisma/migrations. Client sinh vào src/generated/prisma, bị ignore; không sửa generated code hoặc migration đã apply. Có 19 bảng ứng dụng (16 nguồn + AuthSession + ConversationHandoff + ConversationCommandReceipt), 7 migrations; migration mới nhất 202611040002_inbox_realtime. AdminRequest đã bị loại bằng migration thứ ba, không xóa/sửa hai migration cũ; chống trùng quản trị dùng advisory lock + audit SUCCESS và unique constraints.
 
 | Schema/bảng | Prisma model | Mục đích |
 | --- | --- | --- |
@@ -100,14 +106,16 @@ ORM Prisma 7.10.1 + adapter-pg, schema source ở apps/core/prisma/schema.prisma
 | business.documents | Document | Metadata và ownership tài liệu |
 | business.document_versions | DocumentVersion | Phiên bản PDF, object key và checksum |
 | business.conversations | Conversation | Hội thoại Customer/Staff Copilot theo Customer |
-| business.messages | Message | Nội dung và metadata bằng chứng/tool |
+| business.messages | Message | Nội dung và metadata bằng chứng/tool, audience/sequence/command keys |
+| business.conversation_handoffs | ConversationHandoff | Consent toàn bộ Customer-facing, assignment recipient và acceptance/revocation bất biến |
+| business.conversation_command_receipts | ConversationCommandReceipt | Idempotency actor/operation/key, hash và resource reference; không Private response cache |
 | business.support_tickets | SupportTicket | Ticket đã xác nhận, idempotency key |
 | business.outbox_events | OutboxEvent | Sự kiện bền vững chờ xử lý |
 | business.notifications | Notification | Thông báo in-app, trạng thái đọc/phát |
 | rag.rag_knowledge_chunks | RagKnowledgeChunk | Chunks và vector không cố định số chiều |
 
 
-Metadata business._prisma_migrations không tính trong 17 bảng; viewer có thể thấy tên qua catalog nhưng không đọc/sửa nội dung.
+Metadata business._prisma_migrations không tính trong 19 bảng; viewer có thể thấy tên qua catalog nhưng không đọc/sửa nội dung.
 
 Các khác biệt/ràng buộc quan trọng so với nguồn:
 
@@ -129,13 +137,15 @@ Các khác biệt/ràng buộc quan trọng so với nguồn:
 | app_migrator | Chủ schema business/rag, chạy migration; không phải superuser/CREATEROLE |
 | core_runtime | DML business, đọc trạng thái migration; không DDL, không ghi migration history, không truy cập rag |
 | admin_runtime | DML business cho tool local, SELECT metadata migration để kiểm compatibility; không DDL/superuser/rag hoặc ghi migration history |
-| db_viewer | SELECT 17 bảng ứng dụng, không sửa/xóa dữ liệu |
+| db_viewer | SELECT 19 bảng ứng dụng, không sửa/xóa dữ liệu |
 
 
 Credential ở volumes riêng; không tự rotate role password đã tồn tại hoặc dùng local_owner cho Core/tool. Không DDL/superuser cho runtime. Migration runner cập nhật quyền metadata để Core/tool kiểm compatibility.
 
 <a id="local-api"></a>
 ### Auth và Business API local
+
+04/11/2026 — Product catalog P01/A17 và document/access P02/A19 đã có, dùng chung Staff/Customer đã đăng nhập, không phụ thuộc assignment. P01 active/search tên-mã/page/snapshot; P02 PUBLIC/current active version/keyset và POST view/download `{}`. PRODUCT_READ120/phút/actor, PRODUCT_DOCUMENT_ACCESS30/phút/actor; access kiểm session/CSRF/publication trước và sau HEAD/sign, ghi audit rồi trả link. Storage nằm ngoài DB transaction, Core vẫn reader-only. Inactive product không ẩn hợp đồng lịch sử; policy giữ applied version. Staff Products UI đã triển khai; [P01](ui/staff/plans/products/01-catalog-read-api.md)/[P02 contract/test](ui/staff/plans/products/02-document-access.md). Không đổi schema/dependency; AccessScope thực chỉ PUBLIC/PRIVATE_POLICY.
 
 - Bổ sung 31/10/2026: GET/PATCH /staff/me cho Staff tự đọc/sửa fullName và phone; trường định danh/quyền/phòng ban không được sửa. PATCH kiểm Origin/JSON/custom header/CSRF, giới hạn 30/15 phút/user, khóa user và kiểm lại phiên sau khóa; expectedUpdatedAt chống ghi đè, hồ sơ + audit atomic, phone trùng trả 409. Contract tại docs/ui/staff/account.md; Web đã nối form sửa.
 
@@ -159,7 +169,7 @@ Credential ở volumes riêng; không tự rotate role password đã tồn tại
 
 ### Chuẩn hóa Policy ngày 30/10/2026
 
-Theo yêu cầu người dùng, model InsurancePolicy và enum PolicyStatus thay tên Contract; bảng business.insurance_policies được đổi tên bằng migration 202610300001_rename_insurance_policies. Quan hệ Prisma ở CustomerProfile/InsuranceProduct là policies. Giữ policy_number/policy_id/linked_policy_id và các FK hiện hữu; rename giữ dữ liệu và quyền trên bảng. Ba migration trước giữ nguyên, kiểm compatibility Core/operator yêu cầu migration thứ tư. Staff Policy API đã triển khai theo các cập nhật bên dưới; đường dẫn dùng /policies. Customer Policy API còn thiếu.
+Theo yêu cầu người dùng, model InsurancePolicy và enum PolicyStatus thay tên Contract; bảng business.insurance_policies được đổi tên bằng migration thứ tư 202610300001_rename_insurance_policies. Quan hệ Prisma ở CustomerProfile/InsuranceProduct là policies. Giữ policy_number/policy_id/linked_policy_id và các FK hiện hữu; rename giữ dữ liệu và quyền trên bảng. Ba migration trước giữ nguyên; hiện runtime dùng tới migration thứ bảy 202611040002_inbox_realtime và kiểm compatibility theo baseline hiện tại. Staff Policy/PDF đã có API/FE; Customer ownership API còn kế hoạch, đường dẫn UI dùng /policies.
 
 ### Realtime dữ liệu local
 
@@ -172,13 +182,13 @@ Theo yêu cầu người dùng, model InsurancePolicy và enum PolicyStatus thay
 
 Web dùng Next App Router/React/Tailwind 4 prefix `tw:`. Ngày 31/10/2026 đã chuyển toàn bộ style Web sang Tailwind theo yêu cầu người dùng, bỏ staff-workspace.css và các UI rules legacy trong globals.css; globals chỉ giữ import/font/theme. Quy ước duy trì ở apps/web/AGENTS.md. Login hai role và Staff workspace theo UI người dùng cung cấp, font Lexend tự host. Staff fullscreen, UI tiếng Anh; Customers list/detail riêng với policy làm vùng chính, account menu hai hành động và Personal information/Security cùng style. Customer profile/account vẫn giữ bố cục hiện có (style đã chuyển Tailwind); chưa có menu Customer MVP.
 
-`/staff` redirect `/staff/customers`; group `/staff/(workspace)` giữ layout cho customers/inbox/policies/tickets và detail IDs. Page markers đăng ký route, nội dung lấy pathname/params/query trong workspace. Shared layout giữ socket khi chuyển route trong group; `/account` là entry riêng cho cả role. URL không cấp quyền, Core xác minh mỗi request. [Routes](ui/staff/routes.md) và [checklist tiến độ/gap](ui/implementation-status.md) là tham chiếu trạng thái.
+`/staff` redirect `/staff/customers`; group `/staff/(workspace)` giữ layout cho customers/inbox/policies/tickets và detail IDs. Page markers đăng ký route, nội dung lấy pathname/params/query trong workspace. Shared layout giữ socket khi chuyển route trong group; `/account` là entry riêng cho cả role. URL không cấp quyền, Core xác minh mỗi request. [Routes](ui/staff/plans/00-staff-contract.md#điều-hướng) và [checklist tiến độ/gap](ui/implementation-status.md) là tham chiếu trạng thái.
 
-API đã nối: auth/session/password/logout, `GET /customers/me`, `GET /staff/customers` với page/pageSize/search và detail theo assignment. Bổ sung 31/10: search literal fullName/accountCode/email/phone, trim/tối đa 100 ký tự, không phân biệt hoa thường; lọc/count cùng snapshot trước phân trang, Web giữ bộ lọc trong URL và có Try again tại lỗi list/detail. Staff policy/document APIs đã bổ sung ở mục cập nhật 31/10 bên dưới; Customer policy, product, chat/Ticket/Copilot/notification APIs còn thiếu. Khung UI cho các phần đó không được coi là hoàn thành nghiệp vụ. Không còn preview hoặc fixture thành công Ticket/Claim; thao tác chưa có Core giữ disabled.
+API đã nối: auth/session/password/logout, `GET /customers/me`, `GET /staff/customers` với page/pageSize/search và detail theo assignment. Bổ sung 31/10: search literal fullName/accountCode/email/phone, trim/tối đa 100 ký tự, không phân biệt hoa thường; lọc/count cùng snapshot trước phân trang, Web giữ bộ lọc trong URL và có Try again tại lỗi list/detail. Staff policy/document APIs đã bổ sung ở mục cập nhật 31/10 bên dưới; Customer owner policy/PDF, Ticket nghiệp vụ và Copilot còn kế hoạch; Product API/UI, chat I01–I06 và handoff notifications đã có. Khung UI cho các phần đó không được coi là hoàn thành nghiệp vụ. Không còn preview hoặc fixture thành công Ticket/Claim; thao tác chưa có Core giữ disabled.
 
-WebSocket invalidation local đã nêu ở trên chỉ phục vụ dữ liệu hiện có. Profile/list không refetch theo focus, dùng ready/invalidate và refresh nền để giữ nội dung; AuthScreen vẫn kiểm phiên khi focus/visible. Quyền bị thu hồi được kiểm lại qua REST và xóa dữ liệu trên 401/403/404. Không coi snapshot 2 giây là cam kết độ trễ hay kiến trúc production đã duyệt.
+WebSocket invalidation local đã nêu ở trên chỉ phục vụ dữ liệu hiện có. Profile/list không refetch theo focus, dùng ready/invalidate và refresh nền để giữ nội dung; AuthScreen kiểm phiên nền khi focus/visible và lần kiểm gần nhất đã quá cửa sổ 30 giây (tối ưu 03/11); sự kiện được gộp khi request đang chạy. Initial/manual retry/invalidate/session-expired bỏ qua cửa sổ, ready chỉ áp freshness; expiry trong lúc pending có một lần kiểm tiếp để không bỏ sót. Đây không phải cache HTTP/auth phía Core và không có polling auth định kỳ. Xem Account trong tài liệu Staff. Quyền bị thu hồi được kiểm lại qua REST và xóa dữ liệu trên 401/403/404. Không coi snapshot 2 giây là cam kết độ trễ hay kiến trúc production đã duyệt.
 
-Bổ sung 31/10/2026: Staff có API list/detail hợp đồng và catalog tài liệu theo active assignment; catalog dùng phiên bản ghim trong benefitsSnapshot.documents. Không trả storage key hoặc URL. Xem [contract](ui/staff/policies.md).
+Bổ sung 31/10/2026: Staff có API list/detail hợp đồng và catalog tài liệu theo active assignment; catalog dùng phiên bản ghim trong benefitsSnapshot.documents. Không trả storage key hoặc URL. Xem [contract](ui/staff/plans/05-policies-contract.md).
 
 31/10: Core PoliciesModule đã nối AWS SDK S3 với MinIO local để kiểm metadata và cấp signed GET URL view/download, readonly reader volume; ownership/assignment/phiên bản áp dụng và CSRF do Core kiểm. Staff Web nhúng PDF gốc, thông tin DB ở phần riêng; không trích xuất/OCR. Chưa triển khai Customer access hoặc cloud.
 

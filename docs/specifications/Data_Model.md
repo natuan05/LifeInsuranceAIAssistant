@@ -1,6 +1,11 @@
 # Mô hình Dữ liệu & Từ điển Dữ liệu (Data Model & Data Dictionary)
 
-> **Đối chiếu implementation 30/10/2026:** Schema local đã có 17 bảng ứng dụng và 4 migrations; InsurancePolicy/PolicyStatus/insurance_policies đã đổi tên. Auth/profile/assigned customers là API đang hoạt động; phần model policy/document/conversation/Ticket/outbox/notification/RAG chưa có business API/pipeline tương ứng. Không xem bảng tồn tại là UI/nghiệp vụ đã hoàn thành. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+> **Đối chiếu model app04/11/2026:** Có19 model ứng dụng,7 migrations đến 202611040002_inbox_realtime. I01 thêm ConversationHandoff/ConversationCommandReceipt và provenance/control/audience/sequence/keys; I06 thêm outbox lease/notification kind. I01–I06 API/UI/send/realtime đã có. Legacy không tự grant Staff, giữ nội dung/time/link. SupportTicket chưa version/updatedAt/confirmedContent/sourceDraftId; TK01/I07 vẫn là đề xuất. [I01](../ui/staff/plans/inbox/01-model-permissions.md), [I06](../ui/staff/plans/inbox/06-realtime-routing.md), [bảng18](#bảng-18-conversation_handoffs), [bảng19](#bảng-19-conversation_command_receipts).
+
+
+> **Cập nhật local 03/11/2026 — đã migration enum:** ConversationStatus chỉ còn AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus.CLOSED giữ nguyên. Migration 202611030001_remove_conversation_closed chuyển Customer Support CLOSED cũ về AI_ACTIVE/controller NULL, bảo toàn lịch sử/liên kết/thời gian và audit trạng thái/controller cũ; không tạo consent/Accept/grant. Copilot CLOSED chưa review sẽ chặn migration và rollback. Assignment/assignedStaffId đơn lẻ không đủ quyền xem lịch sử AI: pending chỉ metadata, sau Accept mới toàn bộ transcript Customer-facing trong cuộc đó. Inbox không counts/conversationCode; handoff khác SupportTicket. [Spec](../ui/staff/plans/inbox/00-inbox-spec.md#2-data-model-hiện-có-và-đích-thay-đổi), [quyết định nguồn](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026).
+
+> **Mốc lịch sử30/10/2026:** Có17 bảng/4 migrations; sau enum03/11 là5, I01 là6, I06 hiện là7. Staff policy/product/chat/notification APIs đã triển khai thêm sau mốc này; không dùng snapshot cũ đưa chúng về backlog. Dictionary/schema và [tiến độ](../ui/implementation-status.md) phân biệt bảng đã có với API/nghiệp vụ còn P. Nguồn bên dưới giữ truy vết, không sửa tài liệu online.
 
 > Cập nhật local 25/10/2026 theo thống nhất: giữ 16 bảng nguồn và bổ sung bảng 17 `AUTH_SESSIONS` để quản lý phiên đăng nhập. Không dùng bảng `ADMIN_REQUESTS`. Các khác biệt triển khai còn lại được ghi trong [baseline data model](../architecture.md#local-data-model); bản nguồn bên ngoài repo không tự thay đổi.
 
@@ -9,6 +14,8 @@
 > **Tài liệu chuyển đổi từ:** `Data Model.pdf`  
 > **Hệ thống:** Enterprise Customer Service AI Agent — Bảo hiểm Nhân thọ (SRS-BHNT)  
 > **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector (Tách 2 schema: `business` và `rag`)
+
+> Bổ sung local 03/11/2026: ERD và từ điển CONVERSATIONS dưới đây đã bỏ CLOSED theo Prisma/migration mới; nguồn online cũ từng có giá trị này, không sửa nguồn online.
 
 > Cập nhật local 30/10/2026 theo yêu cầu người dùng: chuẩn hóa InsurancePolicy / INSURANCE_POLICIES / business.insurance_policies, enum PolicyStatus; giữ policy_number, policy_id, linked_policy_id. Áp dụng bằng migration mới 202610300001_rename_insurance_policies, không sửa lịch sử migration hoặc Google Docs nguồn.
 
@@ -150,6 +157,10 @@ erDiagram
         boolean is_active
         timestamptz created_at
     }
+    CONVERSATIONS ||--o{ CONVERSATION_HANDOFFS : has_requests
+    STAFF_ASSIGNMENTS ||--o{ CONVERSATION_HANDOFFS : routes
+    USERS ||--o{ CONVERSATION_COMMAND_RECEIPTS : issues
+    STAFF_ASSIGNMENTS ||--o{ CONVERSATIONS : direct_provenance
     CONVERSATIONS {
         uuid id PK
         varchar channel_type "CUSTOMER_SUPPORT | STAFF_COPILOT"
@@ -157,7 +168,14 @@ erDiagram
         uuid assigned_staff_id FK "Staff được phân công (nullable)"
         uuid linked_context_conv_id FK "Self-FK cho Staff Copilot Sidebar"
         uuid linked_policy_id FK "NULL"
-        varchar status "AI_ACTIVE | PENDING_HANDOFF | STAFF_ACTIVE | CLOSED"
+        varchar status "AI_ACTIVE | PENDING_HANDOFF | STAFF_ACTIVE"
+        varchar support_origin "AI | DIRECT | LEGACY_UNKNOWN; Copilot NULL"
+        uuid created_by_customer_id "NULL cho legacy/Copilot"
+        varchar subject
+        uuid direct_assignment_id FK
+        int control_version
+        bigint next_message_sequence
+        timestamptz last_customer_facing_activity_at
         text ai_summary
         jsonb draft_ticket_payload "Lưu nháp trước khi confirm UC-005"
         timestamptz created_at
@@ -168,9 +186,41 @@ erDiagram
         uuid conversation_id FK "REFERENCES conversations(id)"
         varchar sender_type "CUSTOMER | STAFF | AI_AGENT | SYSTEM"
         uuid sender_id FK "REFERENCES users(id) NULL"
+        bigint sequence "Unique trong conversation"
+        varchar audience "CUSTOMER_VISIBLE | INTERNAL | LEGACY_REVIEW"
+        uuid client_message_id "Nullable, chống trùng user intent"
+        uuid internal_message_id "Nullable, trusted AI/SYSTEM intent"
         text content
         jsonb citations
         jsonb tool_calls_metadata
+        timestamptz created_at
+    }
+    CONVERSATION_HANDOFFS {
+        uuid id PK
+        uuid conversation_id FK
+        uuid customer_id FK
+        uuid assignment_id FK
+        uuid recipient_staff_id FK
+        varchar state "PENDING | ACCEPTED | REVOKED"
+        varchar shared_subject
+        varchar shared_reason
+        varchar consent_scope
+        varchar consent_text_version
+        uuid confirmed_by_customer_id
+        timestamptz confirmed_at
+        uuid accepted_by_staff_id
+        timestamptz accepted_at
+        timestamptz revoked_at
+        varchar revoke_reason
+    }
+    CONVERSATION_COMMAND_RECEIPTS {
+        uuid id PK
+        uuid actor_id FK
+        varchar operation
+        uuid client_request_id
+        varchar request_hash
+        uuid resource_id
+        int result_version
         timestamptz created_at
     }
     SUPPORT_TICKETS {
@@ -198,6 +248,8 @@ erDiagram
         int retry_count
         timestamptz next_attempt_at
         text last_error
+        varchar lease_owner "NULL; I06 claim owner"
+        timestamptz lease_expires_at "NULL; I06 recovery"
         timestamptz created_at
     }
     NOTIFICATIONS {
@@ -206,10 +258,12 @@ erDiagram
         uuid ticket_id FK "NULL"
         uuid conversation_id FK "NULL"
         varchar title
+        varchar kind "NULL legacy | HANDOFF_REQUESTED"
         text body
         boolean is_read
         varchar dedup_key UK "Chống gửi trùng ADR-CLOUD-003"
         timestamptz delivered_at
+        timestamptz created_at
     }
     RAG_KNOWLEDGE_CHUNKS {
         uuid id PK
@@ -393,7 +447,7 @@ erDiagram
 | **assigned_staff_id** | UUID | FK, NULLable | Staff tiếp quản phiên chat (Staff tiếp nhận phiên chat của Customer). |
 | **linked_context_conv_id** | UUID | Self-FK, NULLable | Neo hội thoại Staff Copilot Sidebar vào ID cuộc chat chính để AI nắm bối cảnh hỗ trợ nhân viên (FR-007). |
 | **linked_policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_policies(id)` nếu cuộc chat xoay quanh hợp đồng cụ thể. |
-| **status** | VARCHAR(50) | CHECK | Trạng thái: `'AI_ACTIVE'` (chat bot), `'PENDING_HANDOFF'` (chờ người nhận), `'STAFF_ACTIVE'` (nhân viên đang chat), `'CLOSED'` (đóng chat). |
+| **status** | VARCHAR(50) | CHECK | Trạng thái: `'AI_ACTIVE'` (chat bot), `'PENDING_HANDOFF'` (chờ người nhận), `'STAFF_ACTIVE'` (nhân viên đang chat). Local đã bỏ CLOSED khỏi enum chat ngày 03/11/2026; không thay trạng thái Ticket. |
 | **ai_summary** | TEXT | NULLable | Đoạn văn tóm tắt toàn bộ cuộc trao đổi do AI tự động tổng hợp sau khi hoàn tất. |
 | **draft_ticket_payload** | JSONB | NULLable | Bản nháp thông tin Ticket do AI soạn trước, lưu tạm trong phiên trước khi khách xác nhận tạo Ticket (UC-005). |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm mở phiên chat. |
@@ -447,11 +501,13 @@ erDiagram
 | **aggregate_type** | VARCHAR(50) | NOT NULL | Loại đối tượng phát sinh sự kiện: `'TICKET'` hoặc `'CONVERSATION'`. |
 | **aggregate_id** | UUID | NOT NULL | Mã ID của đối tượng phát sinh sự kiện (`ticket_id` hoặc `conversation_id`). |
 | **event_type** | VARCHAR(100) | NOT NULL | Tên sự kiện: `'TICKET_COMMITTED'` (tạo ticket xong) hoặc `'HANDOFF_REQUESTED'` (customer cần tư vấn). |
-| **payload** | JSONB | NOT NULL | Toàn bộ thông tin sự kiện đóng gói thành JSON (`ticket_code`, tên khách, tóm tắt...) để Worker xử lý. |
+| **payload** | JSONB | NOT NULL | Metadata allowlist để Worker recheck DB/quyền; chat I06 chỉ schemaVersion/controlVersion/requestId nếu cần. Không chép content, tên khách, summary Private hoặc signed URL. |
 | **status** | VARCHAR(50) | CHECK | Trạng thái gửi: `'PENDING'` (chờ worker), `'PROCESSING'` (đang gửi), `'PUBLISHED'` (thành công), `'FAILED_DLQ'` (lỗi vào hàng đợi chết). |
 | **retry_count** | INT | DEFAULT 0 | Số lần thử gửi lại khi gặp lỗi mạng kết nối. |
 | **next_attempt_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm cho phép Worker thử gửi lại lần tiếp theo. |
-| **last_error** | TEXT | NULLable | Chi tiết lỗi của lần thử gửi thất bại gần nhất. |
+| **last_error** | TEXT | NULLable | Mã lỗi an toàn; I06 chỉ DISPATCH_FAILED, không raw SQL/content/secret. |
+| **lease_owner** | VARCHAR(100) | NULLable | I06: worker sở hữu claim; chỉ owner còn hợp lệ được renew/mark. |
+| **lease_expires_at** | TIMESTAMPTZ | NULLable | I06: lease30s, renew10s; reclaim khi hết hạn để phục hồi sau crash. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm ghi sự kiện vào Outbox. |
 
 ---
@@ -466,10 +522,12 @@ erDiagram
 | **ticket_id** | UUID | FK, NULLable | Tham chiếu `support_tickets(id)` nếu thông báo liên quan đến Ticket (click mở ticket). |
 | **conversation_id** | UUID | FK, NULLable | Tham chiếu `conversations(id)` nếu thông báo liên quan đến cuộc chat cần tiếp nhận. |
 | **title** | VARCHAR(255) | NOT NULL | Tiêu đề thông báo ngắn gọn (vd: `'Yêu cầu hỗ trợ mới: #TK-0042'`). |
-| **body** | TEXT | NULLable | Nội dung tóm tắt hiển thị trên pop-up để nhân viên nắm việc nhanh. |
+| **kind** | VARCHAR(50) | NULLable, CHECK | I06 HANDOFF_REQUESTED; legacy null giữ nguyên. A27 chỉ trả loại hỗ trợ và target scope còn hợp lệ. |
+| **body** | TEXT | NULLable | Handoff I06 để null; title generic, không preview AI/private chat. |
 | **is_read** | BOOLEAN | DEFAULT `FALSE` | Trạng thái đọc: `false` (chưa đọc, hiện chấm đỏ), `true` (đã click xem). |
 | **dedup_key** | VARCHAR(255) | UK, NOT NULL | Khóa chống trùng (Idempotent Consumer) bảo đảm dù Worker retry thì nhân viên chỉ nhận 1 thông báo duy nhất. |
-| **delivered_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm gửi thành công thông báo tới client của Staff. |
+| **delivered_at** | TIMESTAMPTZ | NULLable | Chưa ghi delivery ACK ở I06; PUBLISHED của outbox không chứng minh client đã nhận/đọc. |
+| **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Mốc keyset notification cùng id, không lấy delivered_at làm thời gian sắp xếp. |
 
 ---
 
@@ -510,3 +568,59 @@ erDiagram
 Index: UNIQUE `token_hash`, index `(user_id, revoked_at)` và index `expires_at`.
 
 Phiên chỉ hợp lệ khi chưa hết hạn, chưa bị thu hồi và tài khoản còn được phép đăng nhập. Kiểm tra này và việc thu hồi phiên thuộc Core API; hiện đã có cấu trúc bảng, chưa triển khai luồng auth. Thời hạn phiên/cookie sẽ chốt khi làm auth. Không ghi token gốc vào log hoặc tài liệu.
+
+
+### Bổ sung local I01 cho bảng 11 và 12 — 04/11/2026
+
+| Bảng/cột | Kiểu/ràng buộc thực tế | Ý nghĩa |
+| --- | --- | --- |
+| conversations.support_origin | SupportOrigin nullable chỉ cho Copilot | AI/DIRECT/LEGACY_UNKNOWN; provenance bất biến |
+| conversations.created_by_customer_id | UUID nullable | AI/Direct bằng customer_id; legacy/Copilot null, không giả chứng cứ |
+| conversations.subject | varchar(180) nullable | AI subject riêng không xuất cho Staff pending |
+| conversations.direct_assignment_id | Composite FK với customer_id | Đúng lần phân công lúc tạo Direct, không tự sống lại khi gán lại cùng Staff |
+| conversations.control_version | integer >=0, default0 | Fence cho request/Accept/reassignment; không tăng theo message |
+| conversations.next_message_sequence | bigint >=0, default0 | Counter cấp sequence trong cùng lock/transaction append |
+| conversations.last_customer_facing_activity_at | timestamptz(3) nullable | Chỉ activity CUSTOMER_VISIBLE, không tool/Copilot |
+| messages.sequence | bigint >0, unique(conversation_id,sequence) | Legacy backfill ổn định created_at/id, không sửa nội dung |
+| messages.audience | MessageAudience NOT NULL | CUSTOMER_VISIBLE/INTERNAL/LEGACY_REVIEW; Copilot bắt buộc INTERNAL |
+| messages.client_message_id | UUID nullable, unique với conversation_id/sender_id | Chỉ user sender CUSTOMER/STAFF; không body tự chọn actor |
+| messages.internal_message_id | UUID nullable, unique với conversation_id | Trusted AI/SYSTEM chống trùng không giả Customer actor |
+
+Một message không có cả hai command key. Audience/sequence không có default suy đoán cho writer cũ; writer mới phải ghi rõ. Legacy chưa review không hiện transcript, phân loại lại cần migration/tool có audit riêng. Callback auth bắt buộc cho service append/receipt replay; chưa có public API cho browser gọi các service này trực tiếp.
+
+### Bảng 18: `CONVERSATION_HANDOFFS`
+
+Local I01, không là SupportTicket. Prisma `ConversationHandoff`, bảng `business.conversation_handoffs`.
+
+| Cột | Type/ràng buộc | Ý nghĩa |
+| --- | --- | --- |
+| id | UUID PK, gen_random_uuid | ID request |
+| conversation_id, customer_id | UUID NOT NULL, composite FK conversations(id,customer_id) | Yêu cầu đúng Customer/cuộc |
+| assignment_id, recipient_staff_id | UUID NOT NULL; composite FK cùng customer_id sang staff_assignments(id,customer_id,staff_id) | Recipient thuộc đúng assignment |
+| state | HandoffState NOT NULL, default PENDING | PENDING/ACCEPTED/REVOKED, không status chat |
+| shared_subject, shared_reason | varchar(180) NOT NULL/nonblank; varchar(1000) nullable | Metadata Customer đồng ý chia sẻ |
+| consent_scope, consent_text_version | varchar(64/50) NOT NULL | ENTIRE_CUSTOMER_VISIBLE_CONVERSATION, handoff-v1 |
+| confirmed_by_customer_id, confirmed_at | UUID bằng customer_id; timestamptz(3) default now | Bằng chứng actor/thời điểm server |
+| accepted_by_staff_id, accepted_at | Cùng null hoặc đúng recipient/time >=confirmed_at | ACCEPTED bắt buộc có, PENDING không có |
+| revoked_at, revoke_reason | Có khi và chỉ khi REVOKED, time không trước confirmation/acceptance | Giữ chứng cứ sau revoke |
+
+Partial unique một state PENDING/ACCEPTED cho mỗi conversation. Consent fields/provenance bất biến; acceptance đã ghi không được sửa/xóa khi revoke, record REVOKED không mở lại. Index recipient/assignment/state/time/id và conversation/state. Grant chỉ khi state/assignment/user/control đúng policy; ghi được record DB không thay việc Customer xác nhận/Staff Accept qua workflow I03.
+
+### Bảng 19: `CONVERSATION_COMMAND_RECEIPTS`
+
+Local I01, Prisma `ConversationCommandReceipt`, bảng `business.conversation_command_receipts`.
+
+| Cột | Type/ràng buộc | Ý nghĩa |
+| --- | --- | --- |
+| id | UUID PK, gen_random_uuid | Receipt internal |
+| actor_id | UUID FK users(id), NOT NULL | Actor session |
+| operation | varchar(50), allowlist | CREATE_AI/CREATE_DIRECT/REQUEST_HANDOFF/ACCEPT_HANDOFF/SEND_MESSAGE |
+| client_request_id | UUID NOT NULL | Intent key, unique cùng actor_id/operation |
+| request_hash | char(64), lowercase hex | Canonical DTO hash, gồm expectedVersion gốc |
+| resource_id | UUID NOT NULL | Resource reference được service xác minh theo operation, không FK đa loại giả |
+| result_version | integer >=0 | Version lúc command commit |
+| created_at | timestamptz(3), default now | Thời điểm server |
+
+Không lưu response Private nguyên khối. Cùng key/hash replay sau reauthorize; khác payload409. Receipt không cấp quyền, không phát lại dữ liệu sau revoke. Chưa TTL/xóa tự động. Message/receipt/audit/outbox commit cùng transaction; không thêm Ticket/read marker hoặc counts.
+
+Bổ sung I06 04/11/2026: migration `202611040002_inbox_realtime` chỉ thêm lease/index và Notification.kind; không thêm bảng. SYSTEM sau Accept dùng Message hiện có, internalMessageId gắn handoffId, audience CUSTOMER_VISIBLE và sequence atomic. Inbox không có counts, notification.isRead không là transcript read receipt hoặc Accept.

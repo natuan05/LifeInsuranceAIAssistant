@@ -3,45 +3,21 @@
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { AuthError } from '@/lib/auth-api';
 import { customerPolicies, policyDetail, policyDocuments, policyMoney, policyDate, type PolicyList, type PolicyDetail, type PolicyDocuments, type Policy } from '@/lib/policy-api';
-import { realtimeEvent } from '@/lib/realtime';
 import { documentAccess, type PolicyDocument } from '@/lib/policy-api';
+import { SignedPdfPreview } from './signed-pdf-preview';
+import { useAuthorizedRead as usePolicyRead } from './use-authorized-read';
+export { useAuthorizedRead as usePolicyRead } from './use-authorized-read';
 
 const button = 'tw:inline-flex tw:items-center tw:rounded-lg tw:border tw:border-solid tw:border-slate-300 tw:bg-white tw:px-3 tw:py-2 tw:text-xs tw:text-blue-700 tw:hover:bg-blue-50 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600 tw:disabled:opacity-50 tw:disabled:cursor-default';
 const box = 'tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-white tw:p-5';
 const labels: Record<Policy['status'], string> = { ACTIVE: 'Active', LAPSED: 'Lapsed', MATURED: 'Matured', PENDING: 'Pending' };
 const kinds = { POLICY: 'Policy', POLICY_DRAFT: 'Draft policy', TERMS: 'Terms and conditions', PRODUCT_GUIDE: 'Product guide', ENDORSEMENT: 'Endorsement' };
 
-export function usePolicyRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>): { data?: T; error?: string; loading: boolean; retry: () => void } {
-  const router = useRouter();
-  const [revision, setRevision] = useState(0);
-  const requestKey = JSON.stringify([key, revision]);
-  const [state, setState] = useState<{ key: string; data?: T; error?: string; loading: boolean }>({ key: '', loading: true });
-  useEffect(() => {
-    const refresh = () => setRevision(value => value + 1);
-    window.addEventListener(realtimeEvent, refresh);
-    return () => window.removeEventListener(realtimeEvent, refresh);
-  }, []);
-  useEffect(() => {
-    const controller = new AbortController();
-    void read(AbortSignal.any([controller.signal, AbortSignal.timeout(15000)])).then(data => {
-      if (!controller.signal.aborted) setState({ key: requestKey, data, loading: false });
-    }).catch(error => {
-      if (controller.signal.aborted) return;
-      if (error instanceof AuthError && error.status === 401) router.replace('/staff/login');
-      setState({ key: requestKey, loading: false, error: error instanceof AuthError && [403, 404].includes(error.status)
-        ? 'This information is unavailable or is no longer assigned to you.' : 'Unable to load this information. Please try again.' });
-    });
-    return () => controller.abort();
-    // Callers describe every request input with key; avoid restarting requests on render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [requestKey, router]);
-  return { ...(state.key === requestKey ? state : { loading: true }), retry: () => setRevision(value => value + 1) };
-}
-function ReadState({ loading, error, retry }: { loading: boolean; error?: string; retry: () => void }) {
+function ReadState({ loading, refreshing, error, retry }: { loading: boolean; refreshing?: boolean; error?: string; retry: () => void }) {
   if (loading) return <p role="status" className="tw:p-5 tw:text-sm tw:text-slate-600">Loading…</p>;
   if (error) return <div role="alert" className="tw:flex tw:flex-wrap tw:items-center tw:gap-3 tw:p-5 tw:text-sm tw:text-red-700"><p>{error}</p><button type="button" className={button} onClick={retry}>Try again</button></div>;
+  if (refreshing) return <span role="status" className="tw:sr-only">Updating information…</span>;
   return null;
 }
 export function PolicyStatus({ status }: { status: Policy['status'] }) {
@@ -105,56 +81,12 @@ function PolicyInformation({ policy }: { policy: PolicyDetail }) {
 }
 
 function PdfPreview({ policyId, document, main = false, policyNumber, compact = false }: { policyId: string; document: PolicyDocument; main?: boolean; policyNumber: string; compact?: boolean }) {
-  const state = usePolicyRead(`${policyId}:${document.versionId}`, signal => documentAccess(policyId, document, 'view', signal));
-  const [expired, setExpired] = useState(false);
-  const [downloadState, setDownloadState] = useState({ pending: false, error: '' });
-  const downloadAbort = useRef<AbortController | null>(null);
-  const downloadUrl = useRef<string | null>(null);
-  useEffect(() => () => {
-    downloadAbort.current?.abort();
-    if (downloadUrl.current) URL.revokeObjectURL(downloadUrl.current);
-  }, []);
-  useEffect(() => {
-    if (!state.data) return;
-    const timer = setTimeout(() => setExpired(true), Math.max(0, new Date(state.data.expiresAt).getTime() - Date.now()));
-    return () => clearTimeout(timer);
-  }, [state.data]);
-  async function download() {
-    downloadAbort.current?.abort();
-    const controller = new AbortController(); downloadAbort.current = controller;
-    setDownloadState({ pending: true, error: '' });
-    try {
-      const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(60000)]);
-      const access = await documentAccess(policyId, document, 'download', signal);
-      const response = await fetch(access.url, { signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' });
-      if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== 'application/pdf') throw new Error('PDF unavailable');
-      const blob = await response.blob();
-      if (controller.signal.aborted) return;
-      if (downloadUrl.current) URL.revokeObjectURL(downloadUrl.current);
-      downloadUrl.current = URL.createObjectURL(blob);
-      const link = window.document.createElement('a');
-      link.href = downloadUrl.current; link.download = `${policyNumber.replace(/[^a-zA-Z0-9._-]/g, '_')}-${document.kind.toLowerCase()}-v${document.versionNumber}.pdf`;
-      link.click();
-      setDownloadState({ pending: false, error: '' });
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      if (error instanceof AuthError && [401, 403, 404].includes(error.status)) window.dispatchEvent(new Event(realtimeEvent));
-      setDownloadState({ pending: false, error: error instanceof AuthError && [401, 403, 404].includes(error.status)
-        ? 'This document is unavailable or access has changed.' : 'Unable to download the PDF. Please try again.' });
-    }
-  }
-  function reloadPreview() { setExpired(false); state.retry(); }
-  return <div className="tw:min-w-0">
-    <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3 tw:border-0 tw:border-b tw:border-solid tw:border-slate-200 tw:bg-white tw:px-4 tw:py-3 tw:sm:px-5"><div className="tw:min-w-0"><h2 className="tw:text-sm tw:font-semibold tw:leading-6">{main ? document.kind === 'POLICY_DRAFT' ? 'Draft policy document' : 'Policy document' : document.title}</h2><p className="tw:text-xs tw:leading-5 tw:text-slate-600">{main ? 'Original PDF' : kinds[document.kind]} · Version {document.versionNumber}</p></div><button type="button" className={`${button} tw:shrink-0 tw:gap-2! tw:border-blue-600! tw:bg-blue-600! tw:text-white! tw:hover:bg-blue-700!`} disabled={downloadState.pending} onClick={() => void download()}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M12 3v12m-5-5 5 5 5-5M5 16v5h14v-5" /></svg>{downloadState.pending ? 'Downloading…' : 'Download PDF'}</button></div>
-    {downloadState.error && <p role="alert" className="tw:px-5 tw:py-3 tw:text-sm tw:text-red-700">{downloadState.error}</p>}
-    <ReadState {...state} />
-    {state.data && (expired ? <div className="tw:px-5 tw:py-16 tw:text-center tw:text-sm tw:text-slate-600"><p className="tw:mb-4">The preview link has expired.</p><button type="button" className={button} onClick={reloadPreview}>Reload preview</button></div> : <>
-      <iframe title={`PDF preview: ${document.title}, version ${document.versionNumber}`} src={`${state.data.url}#view=FitH&zoom=page-width`} referrerPolicy="no-referrer" className={`tw:block tw:w-full tw:border-0 tw:bg-slate-100 ${compact ? 'tw:h-[calc(100dvh-280px)] tw:min-h-[420px]' : 'tw:h-[76dvh] tw:min-h-[480px]'}`} />
-      <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3 tw:border-0 tw:border-t tw:border-solid tw:border-slate-200 tw:bg-white tw:px-5 tw:py-3 tw:text-xs"><a href={state.data.url} target="_blank" rel="noopener noreferrer" className="tw:text-blue-700 tw:no-underline tw:hover:underline">Open PDF in a new tab</a><button type="button" className="tw:cursor-pointer tw:text-slate-600 tw:hover:text-blue-700 tw:hover:underline" onClick={reloadPreview}>Reload preview</button></div>
-    </>)}
-  </div>;
+  return <SignedPdfPreview resourceKey={`${policyId}:${document.documentId}:${document.versionId}`} document={document}
+    title={main ? document.kind === 'POLICY_DRAFT' ? 'Draft policy document' : 'Policy document' : document.title}
+    description={main ? 'Original PDF' : kinds[document.kind]} compact={compact}
+    filename={`${policyNumber.replace(/[^a-zA-Z0-9._-]/g, '_')}-${document.kind.toLowerCase()}-v${document.versionNumber}.pdf`}
+    access={(intent, signal) => documentAccess(policyId, document, intent, signal)} />;
 }
-
 
 function Documents({ policy, compact = false }: { policy: PolicyDetail; compact?: boolean }) {
   const state = usePolicyRead<PolicyDocuments>(policy.id, signal => policyDocuments(policy.id, signal));
@@ -170,11 +102,12 @@ function Documents({ policy, compact = false }: { policy: PolicyDetail; compact?
     viewer.current?.focus({ preventScroll: true });
   }
   return <>
-    <section ref={viewer} tabIndex={-1} aria-label="Policy PDF" className="tw:min-w-0 tw:scroll-mt-5 tw:overflow-hidden tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-white tw:focus:outline-none">
+    <section ref={viewer} tabIndex={-1} aria-label="Policy PDF" aria-busy={state.loading || state.refreshing} className="tw:min-w-0 tw:scroll-mt-5 tw:overflow-hidden tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-white tw:focus:outline-none">
       <ReadState {...state} />
       {state.data && <>
         {selectedAttachment && <div className="tw:border-0 tw:border-b tw:border-solid tw:border-slate-200 tw:bg-slate-50 tw:px-5 tw:py-3"><button type="button" className="tw:cursor-pointer tw:text-xs tw:text-blue-700 tw:hover:underline" onClick={() => showDocument(null)}>{main ? 'Back to main policy' : 'Back to policy document'}</button></div>}
-        {selected ? <PdfPreview key={`${policy.id}:${selected.versionId}`} policyId={policy.id} policyNumber={policy.policyNumber} document={selected} main={!selectedAttachment} compact={compact} /> : <div className="tw:px-5 tw:py-16 tw:text-center"><h2 className="tw:mb-2 tw:text-base tw:font-semibold">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'Policy PDF unavailable' : 'Policy PDF not provided'}</h2><p className="tw:mx-auto tw:max-w-md tw:text-sm tw:leading-6 tw:text-slate-600">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'The main policy document cannot be accessed right now.' : 'The main contract PDF has not been provided for this policy.'}</p></div>}
+        {selectedId && !selectedAttachment && <p role="status" className="tw:px-5 tw:py-3 tw:text-xs tw:text-amber-800">The selected document has changed or is no longer available. Showing the current policy document when available.</p>}
+        {selected ? <PdfPreview key={`${policy.id}:${selected.documentId}:${selected.versionId}`} policyId={policy.id} policyNumber={policy.policyNumber} document={selected} main={!selectedAttachment} compact={compact} /> : <div className="tw:px-5 tw:py-16 tw:text-center"><h2 className="tw:mb-2 tw:text-base tw:font-semibold">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'Policy PDF unavailable' : 'Policy PDF not provided'}</h2><p className="tw:mx-auto tw:max-w-md tw:text-sm tw:leading-6 tw:text-slate-600">{state.data.mainDocumentStatus === 'UNAVAILABLE' ? 'The main policy document cannot be accessed right now.' : 'The main contract PDF has not been provided for this policy.'}</p></div>}
       </>}
     </section>
     <PolicyInformation policy={policy} />

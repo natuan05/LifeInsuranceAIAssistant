@@ -1,6 +1,15 @@
 # Phạm vi hiện tại và hướng phát triển
 
-Đối chiếu **02/11/2026**. Chi tiết duy nhất về trạng thái màn hình và gap nằm ở [checklist UI](ui/implementation-status.md); đọc [chỉ mục UI](ui/README.md) theo thứ tự. Setup/vận hành ở [getting-started](getting-started.md), quyết định còn mở ở [source-review](source-review.md).
+Đối chiếu **04/11/2026**. Trạng thái màn hình ở [checklist UI](ui/implementation-status.md), gap G01–G10 ở [Staff gap-review](ui/staff/plans/README.md#phần-còn-lại-theo-chức-năng); đọc [chỉ mục UI](ui/README.md) theo thứ tự. Setup/vận hành ở [getting-started](getting-started.md), quyết định còn mở ở [source-review](source-review.md).
+
+## Thứ tự tiếp theo — 04/11/2026
+
+1. **Staff không Agent:** Auth/Customers/Policies/Products/Inbox I01–I06/handoff notifications đã E. Làm [TK01–TK05](ui/staff/plans/07-tickets-contract.md): scope/model Ticket → read → accept → UI → notification, triển khai tests ngay trong từng phase. Tất cả phase mới còn P; version/legacy/scope phải review trước code.
+2. **Đợt Customer sau:** [H01 rồi từng chức năng](ui/customer/plans/README.md), giữ auth/chat/shared APIs đang chạy; chưa triển khai đợt này.
+3. **Đợt Agent riêng:** [CP01–CP04](ui/staff/plans/08-copilot-contract.md), I07 trusted draft/confirmation và Customer CH02/CH03/T01/T02. Không fake Agent để lấp Ticket và không tự commit/push.
+
+Docs UI đã hợp nhất màn hình/API/routes/gap vào contract/phases theo chức năng. [Staff plans](ui/staff/plans/README.md) và [Customer plans](ui/customer/plans/README.md) là đầu mối triển khai, không còn ba file tổng hợp song song ở Staff. Các mốc bên dưới là lịch sử, không dùng chúng đưa phần đã E về backlog.
+
 
 ## Đã có
 
@@ -8,14 +17,14 @@
 - [x] Auth/session/đổi password/logout, hồ sơ Customer/Staff contact và Staff assigned-customer list/detail/pagination.
 - [x] Staff UI từ mẫu, Customers riêng, account page/menu, routes/deep link/shared layout; English/Lexend/fullscreen và dọn preview/dead UI.
 - [x] InsurancePolicy/PolicyStatus/insurance_policies bằng migration mới.
-- [x] WebSocket receive-only invalidation account/profile/assignment; REST resync/refresh nền. Chưa realtime chat/Ticket/notification.
+- [x] WebSocket receive-only invalidation account/profile/assignment; REST resync/refresh nền. I06 đã có realtime chat/notification handoff local; Ticket riêng.
 
 ## Staff Policy Lookup — đã triển khai 02/11/2026
 
 A15 và FE Policy Lookup hai cột đã triển khai 02/11/2026. Phần đọc chi tiết/catalog, xem/tải PDF Staff và bootstrap hợp đồng đã có; không làm lại các phần này.
 
 - [x] **Core A15:** `GET /api/v1/staff/policies` dùng session Staff và chỉ lấy hợp đồng của khách đang được phân công. Search số hợp đồng, tên/mã khách, mã/tên sản phẩm; lọc/count toàn tập đúng quyền trước phân trang, thứ tự ổn định. Không tìm CCCD/phone, không nhận actor/role từ client.
-- [x] **Search/filter:** hỗ trợ All/Active/Lapsed/Matured/Pending đúng enum DB, page/pageSize và search; kiểm input, giới hạn và literal search theo baseline Customers. Clear search luôn có vị trí cố định. Chốt DTO/query trong API map trước code.
+- [x] **Search/filter:** hỗ trợ All/Active/Lapsed/Matured/Pending đúng enum DB, page/pageSize và search; kiểm input, giới hạn và literal search theo baseline Customers. Clear search luôn có vị trí cố định. DTO/query đã triển khai, contract tại Staff policies.
 - [x] **FE hai cột:** trái là kết quả gồm số hợp đồng, khách hàng, sản phẩm, trạng thái và phân trang; phải tái sử dụng phần xem PDF chính, thông tin thu gọn, điều khoản/phụ lục và tải hiện có. Màn hình hẹp chuyển danh sách → chi tiết, có quay lại giữ trạng thái.
 - [x] **Dọn UI mẫu:** bỏ Back to Inbox ở trang độc lập; đổi tiêu đề thành Policy Lookup; thay filter In-Force/Grace Period/Review và placeholder CCCD/phone bằng tiêu chí được hỗ trợ.
 - [x] **Thu gọn cột kết quả:** icon trong ô tìm kiếm, icon mở lại ở mép khi đóng; không chữ Hide results, giữ nội dung nhập/bộ lọc/trang/hợp đồng. Header dossier gọn, không có Customer profile; PDF vừa chiều ngang.
@@ -23,16 +32,56 @@ A15 và FE Policy Lookup hai cột đã triển khai 02/11/2026. Phần đọc c
 - [x] **Trạng thái và kiểm chứng đã có:** loading/empty/error/retry, 10 Policy integration + 6 HTTP/realtime tests; browser smoke search/filter/phân trang/PDF/URL/keyboard/mobile và thu gọn cột kết quả.
 - [ ] **QA còn lại:** browser E2E tự động trong repo/CI; lỗi mạng/storage/expiry và thu hồi quyền đầy đủ trên UI.
 
-Nguồn chi tiết: [Staff policies](ui/staff/policies.md#kế-hoạch-tiếp-theo-policy-lookup-a15), [A15 trong API map](ui/staff/api-map.md), [checklist](ui/implementation-status.md). Chọn hợp đồng để xem không tự đổi linkedPolicy của chat; quick lookup trong Inbox và đổi ngữ cảnh chat làm sau khi có contract.
+Nguồn chi tiết: [Staff policies](ui/staff/plans/05-policies-contract.md#policy-lookup), [A15 trong API map](ui/staff/plans/00-staff-contract.md#api-theo-chức-năng), [checklist](ui/implementation-status.md). Chọn hợp đồng để xem không tự đổi linkedPolicy của chat; quick lookup trong Inbox và đổi ngữ cảnh chat làm sau khi có contract.
 
-## Thứ tự tiếp theo đề xuất
+<a id="inbox-ticket-relocation"></a>
+## Inbox/chat — đã gỡ bản thử, lập kế hoạch lại 03/11/2026
 
-1. **G05 — regression và copy:** Customers search toàn tập assignment/count/phân trang và Try again đã nối 31/10; còn browser regression search/URL/retry/realtime, copy/tooltip Policy Lookup/New. Không đưa lại nút Refresh trên header.
-2. **G01/G02 — Policy Lookup/context:** A14/A16/A18/A20 Staff và seed đã có; A15/FE theo kế hoạch trên đã nối. Customer ownership và quick lookup/context còn thiếu. Tách policy đang xem với policy gắn hội thoại; contract đổi liên kết chưa có.
-3. **G03 — product/document/PDF:** catalog, mapping policy–version áp dụng, quyền xem có hạn và citations. Không tự dùng currentVersion hoặc mở upload.
-4. **G04 — Inbox/Ticket:** chốt New/filter, list/transcript/version/idempotency. Theo yêu cầu 31/10, hỗ trợ cả Customer chủ động yêu cầu Staff và Agent gợi ý được khách đồng ý/xác nhận gửi; Core commit Ticket+outbox rồi phát thông báo, Staff tiếp nhận và trả lời trong cùng cuộc, chặn Agent ghi/trả lời muộn. API A07–13/A21–23 và contract tạo/xác nhận Customer/Agent còn cần thiết kế. Xem [luồng chuyển sang Staff](ui/customer/chat.md#6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026).
-5. **G06/G07 — Agent và notifications:** actor/tool scope, retrieval/version, checkpoint bền vững, Copilot/history/summary; recipient Staff/Customer, outbox delivery/read/dedup/reconnect. Chưa chốt provider/model/queue/production transport.
-6. **G08/G09 — hoàn thiện Customer portal và kiểm chứng:** menu/style mới trên các read API dùng chung; E2E được version/CI, keyboard/mobile có dữ liệu, concurrency và benchmark.
+Theo yêu cầu người dùng, bản API/UI Inbox/Ticket vừa thử đã được gỡ. Không dùng kết quả test cũ làm nghiệm thu thiết kế mới.
+
+Nguồn kế hoạch chi tiết: [inbox-plan.md](ui/staff/plans/inbox/00-inbox-spec.md). Bao gồm enum thực tế, All/Requests/Active, accordion tên-mã/tiêu đề/thời gian không counts, search tên-mã, chat cuộn, gate Direct/Accept và toàn bộ lịch sử Customer-facing sau Accept; schema/API vẫn chưa triển khai.
+
+- [x] Gỡ implementation Inbox/Ticket cũ, cập nhật tài liệu.
+- [x] Tạo kế hoạch chi tiết theo yêu cầu; chưa code thay thế.
+- [x] Chốt filter/quyền/bỏ counts/Closed chat đích và ranh giới Ticket trong tài liệu.
+- [ ] Viết/review các kế hoạch triển khai nhỏ trước migration/API.
+- [ ] Read API/group/cursor rồi FE chat đúng bố cục, review trước phase ghi.
+- [ ] Takeover/send/reconcile, Customer hai đầu và realtime; không coi composer disabled là chat đã xong.
+- [ ] Tickets/panel phụ theo phase riêng sau khi chốt workflow.
+
+## Kế hoạch hôm nay — 03/11/2026
+
+Đề xuất phạm vi **hai bản sửa + một checkpoint chốt Inbox**, thực hiện tuần tự. Việc 01/02 đã triển khai và kiểm chứng; việc 03 đã cập nhật quyết định, chưa viết các file triển khai nhỏ hoặc code Inbox.
+
+| Thứ tự | Việc và kế hoạch chi tiết | Kết quả cần có | Ước lượng chia buổi |
+| --- | --- | --- | --- |
+| 01 | [Retry khôi phục phiên](ui/staff/plans/auth/03-session-lifecycle.md) | Try again refetch tại chỗ, không F5; giữ role/next, chống request trùng/cũ; regression liên quan pass | 1–2 giờ |
+| 02 | [Refresh Policy/PDF](ui/staff/plans/policies/04-viewer-lifecycle.md) | Cùng quyền/version không tháo viewer hoặc đổi src do realtime; expiry/revoke/version đổi vẫn đúng; regression liên quan pass | 2–3 giờ |
+| 03 | [Chốt Inbox đợt đầu](ui/staff/plans/03-inbox-contract.md) | Review UX/API/data/read milestone, cập nhật inbox-plan.md; đủ cơ sở làm A08–10 và FE chat sau đó | 45–90 phút |
+
+Ước lượng để giới hạn phạm vi, không là cam kết hoàn tất. Việc 01/02 phải đạt gate trước khi mở việc tiếp theo; nếu thiếu thời gian, chuyển việc 03 sang buổi sau. Không đánh dấu chat đã hoạt động từ việc chốt tài liệu.
+
+- [x] 01: retry phiên không F5; đã tối ưu focus/visibility 30 giây, ready không gọi thừa, invalidation/expiry kiểm ngay. Bản FE mới qua lint/typecheck/Docker và 78 ca browser liên quan; xem Account và kết quả việc 01.
+- [x] 02: giữ vòng đời PDF khi realtime, quyền/expiry đúng; Web lint/typecheck/Docker và 69 ca browser pass, thêm 3 ca tăng tải kiểm lại pass; chi tiết trong kết quả việc 02.
+- [x] 03: cập nhật các quyết định người dùng chốt về filter/gate/lịch sử/counts/Closed/Ticket.
+- [x] 03: viết [bảy phase triển khai Inbox](ui/staff/plans/03-inbox-contract.md), mỗi phase có API/luồng/test/vị trí code.
+- [x] I01 model/quyền/legacy/receipt/sequence/reassignment đã triển khai 04/11, migration và test pass.
+- [x] I02 A08/A09 read metadata/search/cursor đã triển khai/kiểm chứng 04/11, chưa nối UI.
+- [x] I03 Customer entry/handoff/Accept/transcript/lookup đã deploy, 23 ca workflow pass.
+- [x] I04 giao diện Staff Inbox/accordion/request/Accept/chat cuộn đã nối và kiểm chứng browser/gateway.
+- [x] I05 gửi tin và UI Customer chat đã nối/kiểm chứng.
+- [x] 04/11: người dùng xác nhận các chức năng I04/I05 còn lại test tay pass.
+- [x] I06-A: tin SYSTEM trong chat sau Staff Accept, atomic/idempotent; [chi tiết](ui/staff/plans/inbox/06-realtime-routing.md).
+- [x] I06-B: realtime và routing events.
+- [ ] C01: AI Copilot riêng cho Staff theo panel mẫu, hỏi/tóm tắt/gợi ý trả lời/citations; [kế hoạch](ui/staff/plans/08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff). Chốt Agent/checkpoint trước code, không sửa thêm UI Customer ở mốc này.
+
+Đã bỏ enum ConversationStatus.CLOSED bằng migration riêng; giữ TicketStatus.CLOSED, lịch sử và audit dữ liệu cũ. I01 model quyền đã có từ 04/11; I02 read metadata/search/cursor đã có; I03 transcript/Accept/Customer entry đã có; I05 đã triển khai public send/Customer UI; I06 notification handoff đã có; chưa triển khai Ticket/Copilot, Product API, Customer Policy/PDF, cloud hoặc chuẩn hóa schema JSON tài liệu. Những phần đó vẫn nằm trong backlog, không bị loại bỏ khỏi yêu cầu.
+
+## Sau phạm vi hôm nay
+
+1. Theo [các phần Inbox](ui/staff/plans/03-inbox-contract.md): I01 model/quyền → I02 read metadata → I03 Customer entry/handoff/Accept/history → I04 Staff UI → I05 send/Customer UI → I06 realtime → I07 Ticket riêng. Bảy tài liệu đã viết; review từng phần trước code, không mở transcript tạm khi chưa Accept.
+2. Chốt workflow request/consent/Accept/send/reconcile và Agent fence; Customer hai đầu/realtime. Ticket do Agent gợi ý/Customer xác nhận và Ticket+outbox là nhánh riêng, không tự tạo khi yêu cầu Staff. Notification/read markers/Copilot theo phần riêng.
+3. Các phần song song chưa mở hôm nay: Product A17/A19, Customer ownership Policy/PDF, citations, quick lookup/chat linkedPolicy; Customer portal và E2E/CI/benchmark. Chi tiết/điều kiện đóng tại [G01–G10](ui/staff/plans/README.md#phần-còn-lại-theo-chức-năng), không làm lại Staff policy/PDF đã nối.
 
 ## Phần policy/PDF đã có và còn lại
 
@@ -40,10 +89,12 @@ Nguồn chi tiết: [Staff policies](ui/staff/policies.md#kế-hoạch-tiếp-th
 - [x] Bootstrap chung có 2 sản phẩm, 14 hợp đồng, 17 tài liệu/20 PDF version synthetic; chạy lại giữ dữ liệu đã sửa, kiểm checksum và phục hồi file fixture thiếu. Bộ mẫu riêng có sẵn được giữ.
 - [x] Staff Customers → danh sách/chi tiết hợp đồng/catalog; PDF chính làm nội dung trung tâm, thông tin DB thu gọn, điều khoản/phụ lục tách riêng, xem/tải không reload.
 - [x] Policy Lookup A15 và FE danh sách toàn tập assignment đã nối; browser regression tiếp tục ở mục QA.
-- [ ] Customer ownership APIs và My policies/view/download; Product API A17/A19, citations theo trang; quick lookup/context chat theo contract riêng.
+- [x] Product API A17/P01 list/detail Core/gateway; UI chưa làm.
+- [x] Product A19/access/P02 Core/MinIO/gateway; UI chưa làm.
+- [ ] Customer ownership APIs và My policies/view/download; Customer Products UI, citations theo trang; quick lookup/context chat theo contract riêng.
 - [ ] Browser regression có thể chạy lại cho search/filter/deep link, revoke/expiry, storage lỗi, Range/download, retry và keyboard/mobile. Không coi các kiểm thử API/file là nghiệm thu toàn bộ UI.
 
-Đặc tả dùng chung ở [C05 Policy/PDF](ui/customer/documents.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026); trạng thái chính xác ở [Staff policies](ui/staff/policies.md) và [checklist](ui/implementation-status.md). Cloud/RDS, SLO/sizing/HA/DR vẫn cần phạm vi riêng. Giữ Core sở hữu quyền/nghiệp vụ, dữ liệu synthetic và lịch sử migration.
+Đặc tả dùng chung ở [C05 Policy/PDF](ui/customer/plans/05-documents-contract.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026); trạng thái chính xác ở [Staff policies](ui/staff/plans/05-policies-contract.md) và [checklist](ui/implementation-status.md). Cloud/RDS, SLO/sizing/HA/DR vẫn cần phạm vi riêng. Giữ Core sở hữu quyền/nghiệp vụ, dữ liệu synthetic và lịch sử migration.
 
 ## Thiết kế, corpus và việc tiếp theo của Agent
 

@@ -32,7 +32,7 @@ export const policyDetail = (id: string, signal: AbortSignal) => coreRequest<{ p
 export const policyDocuments = (id: string, signal: AbortSignal) => coreRequest<PolicyDocuments>(`staff/policies/${encodeURIComponent(id)}/documents`, { signal });
 export type PolicyDocument = PolicyDocuments['items'][number];
 export async function documentAccess(policyId: string, document: PolicyDocument, intent: 'view' | 'download', signal: AbortSignal) {
-  const session = await me();
+  const session = await me(signal);
   return coreRequest<{ url: string; expiresAt: string }>(`staff/documents/${document.documentId}/versions/${document.versionId}/${intent}`, {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': session.csrfToken },
     body: JSON.stringify({ policyId }),

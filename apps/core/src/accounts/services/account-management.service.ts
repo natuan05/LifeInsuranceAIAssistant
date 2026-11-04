@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { Prisma, type PrismaClient } from '../../generated/prisma/client';
 import { AccountProvisioningService, type ProvisioningContext } from './account-provisioning.service';
 import { generateInitialPassword, hashPassword } from '../utils/password';
+import { revokeCustomerConversations } from '../../conversations/services/conversation-revocation';
 import type { AccountActionDto, AccountStatusDto, AssignmentDto, CreateManagedAccountDto, ManagedListQuery } from '../dto/account-management.dto';
 
 const select = { id: true, accountCode: true, email: true, role: true, status: true, updatedAt: true, passwordChangeRecommended: true,
@@ -102,6 +103,9 @@ export class AccountManagementService {
       const previous = await tx.staffAssignment.findFirst({ where: { customerId: id, isActive: true } });
       if ((previous?.staffId ?? null) === input.staffId) throw new ConflictException();
       const now = new Date();
+      await tx.$queryRaw`SELECT user_id FROM business.customer_profiles WHERE user_id=${id}::uuid FOR UPDATE`;
+      if (previous) await tx.$queryRaw`SELECT id FROM business.staff_assignments WHERE id=${previous.id}::uuid FOR UPDATE`;
+      await revokeCustomerConversations(tx, id, now);
       if (previous) await tx.staffAssignment.update({ where: { id: previous.id }, data: { isActive: false, endedAt: now } });
       if (input.staffId) await tx.staffAssignment.create({ data: { customerId: id, staffId: input.staffId, operatorId: context.operatorId, assignedAt: now } });
       await tx.customerProfile.update({ where: { userId: id }, data: { assignmentVersion: { increment: 1 } } });

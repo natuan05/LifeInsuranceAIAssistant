@@ -1,4 +1,6 @@
 'use client';
+import { StaffInbox } from './staff-inbox';
+import { inboxFilter as normalizeInboxFilter } from '@/lib/conversation-api';
 import { realtimeEvent } from '@/lib/realtime';
 import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams, useParams } from 'next/navigation';
@@ -7,10 +9,12 @@ import { AuthError, type Actor } from '@/lib/auth-api';
 import { assignedCustomer, assignedCustomers, type Customer, type CustomerList } from '@/lib/customer-api';
 import { AccountMenu } from './staff-account-menu';
 import { StaffPolicyLookup } from './staff-policy-lookup';
+import { StaffProducts } from './staff-products';
 import { StaffCustomerDirectory } from './staff-customer-directory';
 import { StaffReferenceTemplate } from './staff-reference-template';
-export function StaffReferenceWorkspace({ actor, pending, error: sessionError, onSignOut, account = false, accountContent }: {
+export function StaffReferenceWorkspace({ actor, csrfToken, pending, error: sessionError, onSignOut, account = false, accountContent }: {
     actor: Actor;
+    csrfToken: string;
     pending: boolean;
     error: string;
     onSignOut: () => void;
@@ -25,8 +29,8 @@ export function StaffReferenceWorkspace({ actor, pending, error: sessionError, o
         policyId?: string;
         ticketId?: string;
     }>();
-    const inboxFilter = search.get('filter') || 'all';
-    const active = account ? 'account' : pathname.startsWith('/staff/customers') ? 'customers' : pathname.startsWith('/staff/policies') ? 'lookup' : pathname.startsWith('/staff/tickets') ? 'tickets' : (['all', 'request', 'recent', 'new'].includes(inboxFilter) ? inboxFilter : 'all');
+    const inboxFilter = normalizeInboxFilter(search.get('filter'));
+    const active = account ? 'account' : pathname.startsWith('/staff/customers') ? 'customers' : pathname.startsWith('/staff/products') ? 'products' : pathname.startsWith('/staff/policies') ? 'lookup' : pathname.startsWith('/staff/tickets') ? 'tickets' : (inboxFilter === 'requests' ? 'request' : inboxFilter === 'active' ? 'recent' : 'all');
     const [panel, setPanel] = useState('details');
     const [collapsed, setCollapsed] = useState(false);
     const [detailsOpen, setDetailsOpen] = useState(true);
@@ -101,7 +105,7 @@ export function StaffReferenceWorkspace({ actor, pending, error: sessionError, o
         return () => window.removeEventListener(realtimeEvent, refresh);
     }, []);
     const unavailable = (text: string) => <p className={"reference-empty tw:text-[12px] tw:leading-[1.8] tw:text-[#64748b] tw:pt-[18px] tw:pr-[18px] tw:pb-[18px] tw:pl-[18px]"}>{text}</p>;
-    const sectionTitle = ({ customers: 'Customers', all: 'All', request: 'Requests', recent: 'Active', new: 'New', tickets: 'Tickets', lookup: 'Policy Lookup' } as Record<string, string>)[active];
+    const sectionTitle = ({ customers: 'Customers', all: 'All', request: 'Requests', recent: 'Active', new: 'New', tickets: 'Tickets', lookup: 'Policy Lookup', products: 'Products' } as Record<string, string>)[active];
     function click(event: MouseEvent<HTMLDivElement>) {
         const element = event.target as Element;
         if (element.closest('.brand-dropdown-wrap')) {
@@ -113,7 +117,7 @@ export function StaffReferenceWorkspace({ actor, pending, error: sessionError, o
             return;
         const category = button.getAttribute('data-category');
         if (category) {
-            router.push(category === 'customers' ? '/staff/customers' : category === 'tickets' ? '/staff/tickets' : `/staff/inbox?filter=${category}`);
+            router.push(category === 'customers' ? '/staff/customers' : category === 'tickets' ? '/staff/tickets' : `/staff/inbox${category === 'all' ? '' : '?filter=' + (category === 'request' ? 'requests' : category === 'recent' ? 'active' : 'all')}`);
             return;
         }
         const view = button.getAttribute('data-panel');
@@ -145,7 +149,7 @@ export function StaffReferenceWorkspace({ actor, pending, error: sessionError, o
         }
     }
     const slots = {
-        customerDirectory: account ? accountContent : active === 'lookup' ? <StaffPolicyLookup key={actor.id} /> : active === 'customers' ? <StaffCustomerDirectory list={list} detail={detail} selected={selected} loading={loading} error={error} page={page} searchTerm={customerSearch} onSearch={term => { const normalized = term.trim(); if (normalized === customerSearch && page === 1 && !selected) { setLoading(true); setRevision(v => v + 1); } else window.history.pushState(null, '', customerUrl(null, 1, normalized)); }} onRetry={() => { setLoading(true); setRevision(v => v + 1); }} onSelect={id => router.push(customerUrl(id))} onBack={() => router.push(customerUrl())} onPage={p => window.history.pushState(null, '', customerUrl(null, p))}/> : active === 'tickets' ? <section className={"customer-directory tw:flex-1 tw:min-w-0 tw:flex tw:flex-col tw:bg-[#f8fafc] tw:overflow-auto tw:max-[1000px]:min-h-[600px]"}><header className={"customer-directory-header tw:flex tw:justify-between tw:items-center tw:gap-[20px] tw:pt-[25px] tw:pr-[30px] tw:pb-[25px] tw:pl-[30px] tw:bg-white tw:[border-bottom:1px_solid_#eaecf0] tw:shrink-0 tw:[&_h1]:text-[21px] tw:[&_h1]:leading-[1.5] tw:[&_h1]:m-0 tw:[&_h1]:tracking-[-.3px] tw:[&_p]:text-[12px] tw:[&_p]:leading-[1.7] tw:[&_p]:text-[#64748b] tw:[&_p]:mt-[5px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px] tw:max-[600px]:[&_h1]:text-[18px]"}><div><h1>{params.ticketId ? 'Ticket details' : 'Tickets'}</h1><p>Support requests assigned to you.</p></div></header><div className={"customer-directory-content tw:pt-[26px] tw:pr-[30px] tw:pb-[26px] tw:pl-[30px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px]"}>{params.ticketId && <Link href="/staff/tickets">Back to tickets</Link>}{unavailable('Ticket data is not connected yet.')}</div></section> : null,
+        customerDirectory: account ? accountContent : active === 'products' ? <StaffProducts key={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} /> : active === 'lookup' ? <StaffPolicyLookup key={actor.id} /> : active === 'customers' ? <StaffCustomerDirectory list={list} detail={detail} selected={selected} loading={loading} error={error} page={page} searchTerm={customerSearch} onSearch={term => { const normalized = term.trim(); if (normalized === customerSearch && page === 1 && !selected) { setLoading(true); setRevision(v => v + 1); } else window.history.pushState(null, '', customerUrl(null, 1, normalized)); }} onRetry={() => { setLoading(true); setRevision(v => v + 1); }} onSelect={id => router.push(customerUrl(id))} onBack={() => router.push(customerUrl())} onPage={p => window.history.pushState(null, '', customerUrl(null, p))}/> : active === 'tickets' ? <section className={"customer-directory tw:flex-1 tw:min-w-0 tw:flex tw:flex-col tw:bg-[#f8fafc] tw:overflow-auto tw:max-[1000px]:min-h-[600px]"}><header className={"customer-directory-header tw:flex tw:justify-between tw:items-center tw:gap-[20px] tw:pt-[12px] tw:pr-[30px] tw:pb-[12px] tw:pl-[30px] tw:bg-white tw:[border-bottom:1px_solid_#eaecf0] tw:shrink-0 tw:[&_h1]:text-[21px] tw:[&_h1]:leading-[1.5] tw:[&_h1]:m-0 tw:[&_h1]:tracking-[-.3px] tw:[&_p]:text-[12px] tw:[&_p]:leading-[1.7] tw:[&_p]:text-[#64748b] tw:[&_p]:mt-[5px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px] tw:max-[600px]:[&_h1]:text-[18px]"}><div><h1>{params.ticketId ? 'Ticket details' : 'Tickets'}</h1><p>Support requests assigned to you.</p></div></header><div className={"customer-directory-content tw:pt-[26px] tw:pr-[30px] tw:pb-[26px] tw:pl-[30px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px]"}>{params.ticketId && <Link href="/staff/tickets">Back to tickets</Link>}{unavailable('Ticket data is not connected yet.')}</div></section> : <StaffInbox csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} />,
         accountMenu: <AccountMenu actor={actor} pending={pending} onSignOut={onSignOut}/>,
         customerNav: <Link href="/staff/customers" className={"nav-item-btn tw:[.inbox-nav-col.collapsed_&]:w-[34px] tw:[.inbox-nav-col.collapsed_&]:h-[34px] tw:[.inbox-nav-col.collapsed_&]:p-0 tw:[.inbox-nav-col.collapsed_&]:mt-[0] tw:[.inbox-nav-col.collapsed_&]:mr-[auto] tw:[.inbox-nav-col.collapsed_&]:mb-[0] tw:[.inbox-nav-col.collapsed_&]:ml-[auto] tw:[.inbox-nav-col.collapsed_&]:flex tw:[.inbox-nav-col.collapsed_&]:justify-center tw:[.inbox-nav-col.collapsed_&]:items-center tw:[.inbox-nav-col.collapsed_&]:rounded-staff-md tw:w-full tw:flex tw:items-center tw:justify-between tw:pt-[7px] tw:pr-[10px] tw:pb-[7px] tw:pl-[10px] tw:bg-transparent tw:border-none tw:rounded-staff-md tw:text-staff-text-secondary tw:font-staff tw:font-normal tw:cursor-pointer tw:[transition:all_0.15s_ease] tw:[user-select:none] tw:text-left tw:min-h-[34px] tw:leading-[20px] tw:text-[12.5px] tw:gap-[9px] tw:[&:hover]:bg-[rgba(0,_0,_0,_0.04)] tw:[&:hover]:text-staff-text-primary tw:[&.active]:bg-[rgba(15,_23,_42,_0.08)] tw:[&.active]:text-staff-text-primary tw:[&.active]:font-semibold tw:[&.active]:[box-shadow:none] tw:max-[1000px]:w-[auto] " + (active === "customers" ? "active" : "")} data-category="customers"><span className={"nav-item-left tw:[.inbox-nav-col.collapsed_&]:w-full tw:[.inbox-nav-col.collapsed_&]:h-full tw:[.inbox-nav-col.collapsed_&]:justify-center tw:[.inbox-nav-col.collapsed_&]:items-center tw:[.inbox-nav-col.collapsed_&]:m-0 tw:[.inbox-nav-col.collapsed_&]:gap-[0] tw:flex tw:items-center tw:gap-[9px] tw:min-w-0"}><svg className={"nav-item-icon tw:[.inbox-nav-col.collapsed_&]:w-[18px] tw:[.inbox-nav-col.collapsed_&]:h-[18px] tw:w-[17px] tw:h-[17px] tw:shrink-0 tw:text-staff-text-secondary tw:[transition:all_0.15s_ease] tw:[.nav-item-btn:hover_&]:text-staff-text-primary tw:[.nav-item-btn.active_&]:text-staff-brand-blue"} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 22v-4a8 8 0 0 1 16 0v4"/></svg><span className={"nav-item-label tw:[.inbox-nav-col.collapsed_&]:hidden! tw:whitespace-nowrap tw:overflow-hidden tw:text-ellipsis"}>Customers</span></span></Link>,
         sectionTitle, filters: <><span className={"col2-filter-pill tw:flex tw:items-center tw:gap-[4px] tw:pt-[4px] tw:pr-[8px] tw:pb-[4px] tw:pl-[8px] tw:bg-staff-bg-hover tw:[border:1px_solid_transparent] tw:rounded-staff-sm tw:text-staff-text-secondary tw:font-staff tw:font-medium tw:cursor-pointer tw:[transition:all_0.15s_ease] tw:w-[auto] tw:whitespace-nowrap tw:text-[11px] tw:[&:hover]:bg-[#e2e8f0] tw:[&:hover]:text-staff-text-primary"}>{active === 'customers' ? `${list?.total ?? '…'} customers` : 'Not connected'}</span><button className={"col2-filter-pill tw:flex tw:items-center tw:gap-[4px] tw:pt-[4px] tw:pr-[8px] tw:pb-[4px] tw:pl-[8px] tw:bg-staff-bg-hover tw:[border:1px_solid_transparent] tw:rounded-staff-sm tw:text-staff-text-secondary tw:font-staff tw:font-medium tw:cursor-pointer tw:[transition:all_0.15s_ease] tw:w-[auto] tw:whitespace-nowrap tw:text-[11px] tw:[&:hover]:bg-[#e2e8f0] tw:[&:hover]:text-staff-text-primary"} disabled={loading} onClick={() => setRevision(v => v + 1)}>Refresh</button></>,

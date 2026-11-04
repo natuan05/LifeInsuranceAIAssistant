@@ -59,7 +59,6 @@ enum ConversationStatus {
   AI_ACTIVE
   PENDING_HANDOFF
   STAFF_ACTIVE
-  CLOSED
 
   @@schema("business")
 }
@@ -70,6 +69,27 @@ enum SenderType {
   AI_AGENT
   SYSTEM
 
+  @@schema("business")
+}
+
+enum SupportOrigin {
+  AI
+  DIRECT
+  LEGACY_UNKNOWN
+  @@schema("business")
+}
+
+enum MessageAudience {
+  CUSTOMER_VISIBLE
+  INTERNAL
+  LEGACY_REVIEW
+  @@schema("business")
+}
+
+enum HandoffState {
+  PENDING
+  ACCEPTED
+  REVOKED
   @@schema("business")
 }
 
@@ -111,6 +131,7 @@ model User {
   sessions                  AuthSession[]
   messages                  Message[]
   auditLogs                 AuditLog[]
+  conversationCommands      ConversationCommandReceipt[]
 
   @@unique([id, role])
   @@map("users")
@@ -163,7 +184,11 @@ model StaffAssignment {
   operatorId String          @map("operator_id") @db.VarChar(100)
   staff      StaffProfile    @relation(fields: [staffId], references: [userId], onDelete: Restrict)
   customer   CustomerProfile @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+  directConversations Conversation[] @relation("DirectAssignment")
+  handoffs ConversationHandoff[]
 
+  @@unique([id, customerId])
+  @@unique([id, customerId, staffId])
   @@index([staffId, isActive])
   @@index([customerId, assignedAt])
   @@map("staff_assignments")
@@ -304,6 +329,13 @@ model Conversation {
   linkedContextConvId  String?             @map("linked_context_conv_id") @db.Uuid
   linkedPolicyId       String?             @map("linked_policy_id") @db.Uuid
   status               ConversationStatus
+  supportOrigin        SupportOrigin? @map("support_origin")
+  createdByCustomerId  String? @map("created_by_customer_id") @db.Uuid
+  subject              String? @db.VarChar(180)
+  directAssignmentId   String? @map("direct_assignment_id") @db.Uuid
+  controlVersion       Int @default(0) @map("control_version")
+  nextMessageSequence  BigInt @default(0) @map("next_message_sequence")
+  lastCustomerFacingActivityAt DateTime? @map("last_customer_facing_activity_at") @db.Timestamptz(3)
   aiSummary            String?             @map("ai_summary")
   draftTicketPayload   Json?               @map("draft_ticket_payload") @db.JsonB
   createdAt            DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -316,7 +348,11 @@ model Conversation {
   messages             Message[]
   tickets              SupportTicket[]
   notifications        Notification[]
+  directAssignment StaffAssignment? @relation("DirectAssignment", fields: [directAssignmentId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: NoAction)
+  handoffs ConversationHandoff[]
 
+  @@unique([id, customerId])
+  @@index([customerId, status, lastCustomerFacingActivityAt, id], map: "conversations_customer_id_status_last_customer_facing_activit_i")
   @@index([customerId, createdAt])
   @@map("conversations")
   @@schema("business")
@@ -327,6 +363,10 @@ model Message {
   conversationId    String       @map("conversation_id") @db.Uuid
   senderType        SenderType   @map("sender_type")
   senderId          String?      @map("sender_id") @db.Uuid
+  sequence          BigInt
+  audience          MessageAudience
+  clientMessageId   String? @map("client_message_id") @db.Uuid
+  internalMessageId String? @map("internal_message_id") @db.Uuid
   content           String
   citations         Json?        @db.JsonB
   toolCallsMetadata Json?        @map("tool_calls_metadata") @db.JsonB
@@ -335,7 +375,51 @@ model Message {
   sender            User?        @relation(fields: [senderId], references: [id], onDelete: Restrict)
 
   @@index([conversationId, createdAt])
+  @@unique([conversationId, sequence])
+  @@unique([conversationId, senderId, clientMessageId])
+  @@unique([conversationId, internalMessageId])
+  @@index([conversationId, audience, sequence])
   @@map("messages")
+  @@schema("business")
+}
+
+model ConversationHandoff {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  customerId String @map("customer_id") @db.Uuid
+  assignmentId String @map("assignment_id") @db.Uuid
+  recipientStaffId String @map("recipient_staff_id") @db.Uuid
+  state HandoffState @default(PENDING)
+  sharedSubject String @map("shared_subject") @db.VarChar(180)
+  sharedReason String? @map("shared_reason") @db.VarChar(1000)
+  consentScope String @map("consent_scope") @db.VarChar(64)
+  consentTextVersion String @map("consent_text_version") @db.VarChar(50)
+  confirmedByCustomerId String @map("confirmed_by_customer_id") @db.Uuid
+  confirmedAt DateTime @default(now()) @map("confirmed_at") @db.Timestamptz(3)
+  acceptedByStaffId String? @map("accepted_by_staff_id") @db.Uuid
+  acceptedAt DateTime? @map("accepted_at") @db.Timestamptz(3)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(3)
+  revokeReason String? @map("revoke_reason") @db.VarChar(50)
+  conversation Conversation @relation(fields: [conversationId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: NoAction)
+  assignment StaffAssignment @relation(fields: [assignmentId, customerId, recipientStaffId], references: [id, customerId, staffId], onDelete: Restrict, onUpdate: NoAction, map: "conversation_handoffs_assignment_id_customer_id_recipient_sta_f")
+  @@index([recipientStaffId, assignmentId, state, confirmedAt, id], map: "conversation_handoffs_recipient_staff_id_assignment_id_state_id")
+  @@index([conversationId, state])
+  @@map("conversation_handoffs")
+  @@schema("business")
+}
+
+model ConversationCommandReceipt {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId String @map("actor_id") @db.Uuid
+  operation String @db.VarChar(50)
+  clientRequestId String @map("client_request_id") @db.Uuid
+  requestHash String @map("request_hash") @db.Char(64)
+  resourceId String @map("resource_id") @db.Uuid
+  resultVersion Int @map("result_version")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  actor User @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  @@unique([actorId, operation, clientRequestId], map: "conversation_command_receipts_actor_id_operation_client_reque_k")
+  @@map("conversation_command_receipts")
   @@schema("business")
 }
 
@@ -374,9 +458,12 @@ model OutboxEvent {
   retryCount    Int          @default(0) @map("retry_count")
   nextAttemptAt DateTime     @default(now()) @map("next_attempt_at") @db.Timestamptz(3)
   lastError     String?      @map("last_error")
+  leaseOwner    String?      @map("lease_owner") @db.VarChar(100)
+  leaseExpiresAt DateTime?   @map("lease_expires_at") @db.Timestamptz(3)
   createdAt     DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
 
   @@index([status, nextAttemptAt])
+  @@index([status, nextAttemptAt, leaseExpiresAt])
   @@map("outbox_events")
   @@schema("business")
 }
@@ -387,6 +474,7 @@ model Notification {
   ticketId         String?        @map("ticket_id") @db.Uuid
   conversationId   String?        @map("conversation_id") @db.Uuid
   title            String         @db.VarChar(255)
+  kind             String?        @db.VarChar(50)
   body             String?
   isRead           Boolean        @default(false) @map("is_read")
   dedupKey         String         @unique @map("dedup_key") @db.VarChar(255)

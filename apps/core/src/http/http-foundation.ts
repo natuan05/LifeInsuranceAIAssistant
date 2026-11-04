@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { STATUS_CODES } from 'node:http';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { SafeApiException } from './safe-api.exception';
 
 type ApiRequest = IncomingMessage & { requestId?: string; route?: { path?: unknown } };
 
@@ -40,8 +41,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       : parserType === 'entity.parse.failed' ? 400 : parserType === 'entity.too.large' ? 413 : 500;
     const validation = exception instanceof InputValidationException;
     // Public status text only: ORM errors, SQL, exception causes and request URLs stay private.
-    const message = validation ? 'Request validation failed.' : STATUS_CODES[statusCode] ?? 'Request failed.';
-    const code = validation ? 'VALIDATION_ERROR' : (STATUS_CODES[statusCode] ?? 'Request failed').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+    const message = exception instanceof SafeApiException ? exception.message : validation ? 'Request validation failed.' : STATUS_CODES[statusCode] ?? 'Request failed.';
+    const code = exception instanceof SafeApiException ? exception.publicCode : validation ? 'VALIDATION_ERROR' : (STATUS_CODES[statusCode] ?? 'Request failed').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
+    if (exception instanceof SafeApiException && exception.retryAfter) response.setHeader('Retry-After', String(exception.retryAfter));
     response.setHeader('Cache-Control', 'no-store');
     this.adapter.reply(response, { statusCode, code, message, requestId: request.requestId, timestamp: new Date().toISOString() }, statusCode);
   }

@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Cập nhật 31/10/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có đăng nhập, hồ sơ/tài khoản/đổi mật khẩu, Staff Customers search/phân trang và WebSocket invalidation. Staff có policy/PDF read/view/download và bootstrap PDF synthetic; chat/Ticket/Copilot/notification APIs, Agent và cloud chưa triển khai. Xem [checklist](ui/implementation-status.md).
+Cập nhật 04/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket APIs/UI nghiệp vụ, Copilot/Agent và Customer UI mới chưa triển khai. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -54,6 +54,8 @@ Linux/macOS dùng `cp -n .env.example .env`. `start-local.ps1` và các helper n
 | MINIO_BUCKET | life-insurance-documents | Bucket private được init tạo |
 | MINIO_BROWSER_REDIRECT_URL | Trống | Tự suy ra URL console, hoặc đặt URL browser truy cập được |
 | MINIO_CORS_ORIGINS | Trống | Tự suy ra origin website theo GATEWAY_PORT |
+| MINIO_PUBLIC_ENDPOINT | Trống | Core suy ra `http://localhost:<MINIO_API_PORT>` để ký link browser truy cập được; khác endpoint nội bộ `http://minio:9000` |
+| STORAGE_URL_TTL_SECONDS | 900 | TTL signed PDF URL; Core hiện kiểm khoảng 60–3600 giây |
 
 `.env.example` chứa bộ credential synthetic local cố định được phép chia sẻ cho team; xem [tài khoản DB/MinIO local](#local-infrastructure-accounts). Máy mới copy mẫu sẽ dùng ngay các giá trị này. Trong `.env` riêng vẫn có thể đặt credential khác hoặc để trống để sinh một lần.
 
@@ -129,6 +131,8 @@ docker compose up -d --build --wait
 
 Compose trực tiếp chỉ in trạng thái container, không có thông báo đường dẫn host ở cuối. Nếu có Node/npm, `npm run local:up` cũng dựng full Docker và in thông báo URL/đường dẫn tương tự.
 
+Compose ưu tiên biến môi trường terminal hơn giá trị cùng tên trong `.env`. Nếu cổng/credential không như dự kiến, kiểm biến đã export thay vì copy đè `.env`. Cơ chế nội suy và chờ health/job theo [Docker environment interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/) và [startup order](https://docs.docker.com/compose/how-tos/startup-order/). Chỉ dùng `docker compose config --quiet` khi không cần in cấu hình có thể chứa secret.
+
 Không cần `npm ci` để chạy stack. MinIO được dựng cùng các service khác, không cần chạy thêm `storage:up`. Core chờ cả seed DB và storage-init hoàn tất thành công; `--wait` chờ các service sẵn sàng.
 
 Mở [Customer login](http://localhost:8080/login), [Staff login](http://localhost:8080/staff/login), [Swagger](http://localhost:8081), [DbGate](http://127.0.0.1:5050) hoặc [MinIO Console](http://localhost:9001). Tool admin chạy riêng theo mục 5.
@@ -165,7 +169,7 @@ docker compose down
 
 ### 3.5. Storage MinIO local
 
-API S3 là `http://localhost:9000`, console tại [localhost:9001](http://localhost:9001). Bucket `life-insurance-documents` private, được tạo tự động. Credential root, reader, writer nằm trong ba volumes riêng; reader chỉ GetObject, writer đọc/ghi/multipart trong bucket, không xóa hoặc quản trị. Chưa cấp credential storage cho Core/Agent/Web ở bước này.
+API S3 là `http://localhost:9000`, console tại [localhost:9001](http://localhost:9001). Bucket `life-insurance-documents` private, được tạo tự động. Credential root, reader, writer nằm trong ba volumes riêng; reader chỉ GetObject, writer đọc/ghi/multipart trong bucket, không xóa hoặc quản trị. Core đã mount credential reader để HEAD/ký URL xem/tải PDF; seed-dev dùng writer. Web không nhận credential, Agent chưa triển khai.
 
 Nếu cần đăng nhập console, chạy trên máy vừa dựng:
 
@@ -188,7 +192,7 @@ npm run storage:check
 
 Image local build Community **AGPL-3.0** từ source [MinIO](https://github.com/minio/minio/tree/9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a) release `RELEASE.2025-10-15T17-29-55Z`, commit `9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`, và [mc](https://github.com/minio/mc/tree/7394ce0dd2a80935aded936b09fa12cbb3cb8096) release `RELEASE.2025-08-13T08-35-41Z`, commit `7394ce0dd2a80935aded936b09fa12cbb3cb8096`. Dockerfile pin source checksum/base digest, license kèm image. Chỉ dùng local; chưa tạo AWS S3/cloud.
 
-Endpoint nội bộ Docker là `http://minio:9000`, region `ap-southeast-1` (Singapore), path-style. MinIO vẫn lưu dữ liệu trên máy, region chỉ là cấu hình tương thích S3; khi triển khai AWS mới chọn tài nguyên thực tại Singapore. Khi nối API, Core phải ký URL bằng endpoint browser truy cập được (`http://localhost:9000` theo cổng cấu hình) và cùng region, sau khi kiểm session/ownership/assignment/document/version. Đã nối SDK Core/access API, viewer Staff và seed PDF synthetic. CORS không thay kiểm quyền.
+Endpoint nội bộ Docker là `http://minio:9000`, region `ap-southeast-1` (Singapore), path-style. MinIO vẫn lưu dữ liệu trên máy, region chỉ là cấu hình tương thích S3; khi triển khai AWS mới chọn tài nguyên thực tại Singapore. Core hiện ký URL bằng endpoint browser truy cập được (`http://localhost:9000` theo cổng cấu hình/MINIO_PUBLIC_ENDPOINT), cùng region, sau khi kiểm session/quyền/document/version. Policy dùng exact applied version, Products dùng PUBLIC current version. Đã nối SDK/access API, viewer Staff và seed PDF synthetic. CORS không thay kiểm quyền; URL đã cấp có thể còn dùng tới hết TTL dù phiên/quyền thay đổi.
 
 <a id="source-updates"></a>
 ## 4. Cập nhật source khi dùng Docker
@@ -308,6 +312,8 @@ Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Đ�
 
 Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Customers search theo tên/mã/email/phone trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
 
+Staff có Products và Policy Lookup riêng trong Tools. Search Products/Customers/Policy Lookup dùng Enter; xóa nội dung rồi Enter để bỏ từ khóa, không có nút Search/Clear. Products tự mở PDF đầu tiên và bộ chọn khi nhiều tài liệu; phiên bản mới chuyển chủ động. Inbox tìm tên/mã khách bằng debounce/Enter, All/Requests/Active không counts. Pending chỉ metadata; Customer đồng ý chia sẻ và Staff Accept mới mở toàn bộ lịch sử Customer-facing của cuộc đó. Direct hợp lệ là luồng riêng; phân công không cho Staff đọc chat AI riêng. Không nút Refresh Inbox/chat hoặc “Message saved.”; ACK/realtime cập nhật đúng vùng, Retry khi lỗi. Handoff/Accept không tạo Ticket.
+
 ### 7.4. Sản phẩm, hợp đồng và PDF mô phỏng
 
 Bootstrap chung tự tạo **2 sản phẩm, 14 hợp đồng, 17 tài liệu và 20 phiên bản PDF**. Không cần sinh file trên host hoặc chạy script riêng. `seed-dev` chờ cả migration và storage-init, dùng DB admin_runtime và credential storage-writer readonly từ volumes; Core vẫn chỉ nhận storage-reader.
@@ -324,14 +330,14 @@ PDF tiếng Việt có font nhúng, 5 trang/hợp đồng chính, 3 trang/điề
 
 Chạy lại chỉ thêm bản ghi còn thiếu, giữ password/khóa/hồ sơ/phân công và các trường hợp đồng/snapshot đã sửa; không bật lại version bị vô hiệu hóa hoặc đổi currentVersion đã chỉnh. File còn nguyên được kiểm SHA-256, không upload đè. File fixture thiếu được phục hồi bằng đúng nội dung ổn định. Nếu trùng mã/ID với dữ liệu không thuộc bootstrap hoặc object/version đã khác checksum thì seed báo lỗi, không chiếm hay ghi đè. DB rollback khi seed thất bại; object đã upload ở prefix riêng được giữ để lần chạy lại tiếp tục, không xóa bucket/volumes.
 
-Máy từng có bộ mẫu riêng sẽ có thêm bộ DEV-... bên cạnh các hợp đồng SIM-...; không xóa hoặc sửa bộ cũ. Con số phân trang ở trên tính riêng seed chung, không tính dữ liệu đã có. Phân công Staff đã thay đổi vẫn được giữ, nên ai nhìn thấy khách/hợp đồng phụ thuộc phân công hiện hành.
+Dữ liệu đã có được giữ nguyên khi chạy lại bootstrap. Số lượng trong bảng mô tả bộ seed dùng chung, không phải tổng dữ liệu của mọi môi trường. Kết quả tra cứu thực tế phụ thuộc dữ liệu và phân công hiện hành; kiểm thử tự động dùng fixture cô lập để không phụ thuộc dữ liệu của thành viên.
 
 Kiểm chứng seed: `npm run test:policy-seed` chạy fixture riêng với DB rollback, kiểm tính ổn định PDF, chạy lại, giữ chỉnh sửa, lỗi storage/retry và xung đột. Chạy ứng dụng bằng Docker; test không khởi động Core/Web trên host.
 
 <a id="database"></a>
 ## 8. Dữ liệu và migration
 
-DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Có 17 bảng ứng dụng trong business/rag; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
+DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Có 19 bảng ứng dụng trong business/rag; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
 
 | Nơi lưu | Nội dung |
 | --- | --- |
@@ -345,7 +351,7 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Model tồn tại không đồng nghĩa đã có API policy.
+Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs đã có; Customer owner policy/PDF APIs còn kế hoạch. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 
 Người sửa backend có thể chạy `npm run db:validate --workspace @life-insurance/core` và `npm run db:generate --workspace @life-insurance/core`. Generate không sửa DB. Thay schema cần migration mới và giữ CHECK/partial indexes; không sửa migration đã apply hoặc dùng db push/migrate reset trên DB cần giữ.
 
@@ -375,7 +381,45 @@ npm run test:admin
 npm run test:http --workspace @life-insurance/core
 ~~~
 
-Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Chưa có bộ browser E2E version trong repo; xem giới hạn tại checklist UI.
+Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Browser mock và gateway E2E có giới hạn riêng ở checklist UI, không thay kiểm quyền Core/DB/MinIO.
+
+Product API có test Docker với PostgreSQL/MinIO thật, sau khi stack đã healthy:
+
+~~~powershell
+docker compose --profile tests build core-tests
+docker compose --profile tests run --rm --no-deps core-tests node --test test/products.test.cjs
+docker compose --profile tests run --rm --no-deps product-document-tests
+~~~
+
+`product-document-tests` chỉ chạy khi gọi tường minh trong profile tests, không thêm vào startup app. Harness dùng PDF synthetic trong memory và prefix object riêng theo UUID, tự xóa đúng fixtures sau test. Reader/writer và root cleanup mount readonly chỉ trong service test riêng; Core runtime giữ reader-only. Root cleanup cần vì writer không có DeleteObject, không sửa IAM/credential đang dùng. Không tạo file secret/fixture trên host, không xóa bucket/volumes/dữ liệu người dùng. Command gateway sau cập nhật runtime và kết quả ở [P01](ui/staff/plans/products/01-catalog-read-api.md), [P02](ui/staff/plans/products/02-document-access.md).
+
+### 9.1. Browser tests qua Web Docker
+
+Sau khi ứng dụng đã healthy và source Web mới đã rebuild theo mục 4, chuẩn bị test runner trên host:
+
+~~~powershell
+npm ci
+npx playwright install chromium
+npm run test:browser:account
+npm run test:browser:customers
+npm run test:browser:policies
+npm run test:browser --workspace apps/web -- staff-products.spec.mjs staff-inbox.spec.mjs conversation-send.spec.mjs conversation-realtime.spec.mjs
+~~~
+
+Đây là browser regression dùng API/WebSocket/PDF mock cho các suite trên, không chứng minh quyền Core hoặc Agent thật. Host chỉ chạy test runner, không mở Web/Core server. Base URL mặc định `http://localhost:8080`; nếu đổi GATEWAY_PORT, đặt `BROWSER_TEST_BASE_URL` theo URL gateway trước khi chạy. Ví dụ PowerShell: `$env:BROWSER_TEST_BASE_URL = 'http://localhost:8090'`.
+
+Các bài E2E thật dùng gateway/Core/PostgreSQL/MinIO đang chạy và fixture synthetic tự dọn. Build image test khớp source trước khi gọi các suite integration:
+
+~~~powershell
+docker compose --profile tests build core-tests
+npm run test:browser --workspace apps/web -- staff-inbox.integration.spec.mjs conversation-flow.integration.spec.mjs conversation-realtime.integration.spec.mjs product-flow.integration.spec.mjs
+~~~
+
+Integration suites hiện dùng default origin/port của stack local trong fixture; chạy với cổng mặc định của `.env.example`. Chỉ đổi BROWSER_TEST_BASE_URL không bảo đảm sửa được Origin/port trong fixture. Không bật E2E trên DB/cloud thật hoặc sửa bootstrap để chuẩn bị test. Không coi các suite đã có là coverage đầy đủ Account/Policy/Agent; bổ sung tests ở phase chức năng tương ứng.
+
+Playwright cấu hình screenshot/video/trace tắt. Kết quả tổng hợp tại `apps/web/test-results/results.json` (Git ignore); đọc kết quả rồi dọn output do lượt test tạo trong `apps/web/test-results`, không xóa volumes hoặc dữ liệu người dùng. PDF kiểm bytes/SHA256/metadata/network, không render thành ảnh.
+
+### 9.2. Dừng và xem trạng thái
 
 - Tool admin: Ctrl+C tại terminal của tool.
 - Dừng riêng Web/Core/gateway: `docker compose stop gateway web core`.
@@ -396,7 +440,7 @@ Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE
 | Login 401 | Đúng email/cổng role; password có thể đã đổi, account khóa hoặc phiên hết hạn |
 | API 403 | Kiểm Host/Origin/cookie/CSRF; không bỏ kiểm quyền để xử lý |
 | API 429 | Đợi giới hạn tạm hết; không gửi lại liên tục |
-| Hồ sơ không tự cập nhật | Kiểm WS /api/v1/realtime, cookie/Origin và gateway Upgrade; đây là invalidation, chưa chat realtime |
+| Hồ sơ/chat không tự cập nhật | Kiểm WS /api/v1/realtime, cookie/Origin và gateway Upgrade; đã có invalidation chat/scope/notification và REST catch-up, không delivery/read ACK |
 | Tool 409 | Đọc lại version/dữ liệu rồi xác nhận lại nếu cần |
 | Không vào Swagger | Kiểm gateway/core, SWAGGER_PORT; dùng cổng gateway Swagger |
 | Không vào MinIO | Kiểm minio healthy/storage-init Exited (0), MINIO_API_PORT/MINIO_CONSOLE_PORT; xem mục 3.5 |

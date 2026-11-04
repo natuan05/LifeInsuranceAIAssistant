@@ -1,72 +1,19 @@
-# Staff — bản đồ màn hình và phạm vi triển khai
+# Staff — tài liệu triển khai
 
-Đối chiếu code ngày **30/10/2026**. [Checklist tiến độ chung](../implementation-status.md) là đầu mối trạng thái; các phần nghiệp vụ dự kiến bên dưới không tự trở thành chức năng đã có.
+04/11/2026 · [Plans theo chức năng](plans/README.md) · [Contract chung](plans/00-staff-contract.md) · [API E/P](plans/00-staff-contract.md#api-theo-chức-năng) · [Routes](plans/00-staff-contract.md#điều-hướng) · [Gap](plans/README.md#phần-còn-lại-theo-chức-năng).
 
-[Thứ tự đọc](../README.md) · [Routes](routes.md) · [Menu](../menu.md) · [API hiện có/đề xuất](api-map.md) · [Gap](gap-review.md)
+## Cách đọc
 
-## Căn cứ và cách hiểu
+Mỗi chức năng có một contract và các phase API/UI/flow/test trong plans, cùng cấu trúc Customer. Nội dung màn hình, API, routes và phần còn thiếu đã gộp vào contract sở hữu; thư mục Staff chỉ giữ README.md và plans/, không duy trì file tổng hợp song song.
 
-| Nguồn | Nội dung áp dụng |
-| --- | --- |
-| [SRS](../../specifications/Requirement.md), II.1–3 và IV | FR-001/002/003/006/007/008/009/010/011/012/013, UC-005/006/007, NFR-001–008. SRS không liệt kê FR-004 trong bảng FR; không tự bổ sung mã đó. |
-| [Application Architecture](../../specifications/Application_Architecture.md), §2–3 | Workspace/Copilot sidebar; Web → Core → Agent, tài liệu và thông báo theo quyền. |
-| [Data Model](../../specifications/Data_Model.md), bảng 7–15 | Tên dữ liệu, quan hệ khách–hợp đồng–tài liệu, conversation khác Ticket, message có citations. Bảng tồn tại không đồng nghĩa có API hoặc thao tác UI. |
-| [ADRs](../../specifications/ADRs.md), Application/Data và ADR-AI | Bối cảnh thiết kế; các lựa chọn đề xuất vẫn mở. Không chốt provider, transport, queue hoặc backend checkpoint từ giao diện. |
-| [Baseline local](../../architecture.md), local-api/local-data-model | Auth email, active assignment, allowlist và ràng buộc đã triển khai được ưu tiên khi nguồn cũ khác baseline. |
-| [Menu MVP](../menu.md) | Bổ sung đã ghi nhận: Ticket khách tự điền, thông báo tin chưa đọc. Đây là kế hoạch MVP trong repo, không gán thành yêu cầu nguyên văn SRS. |
-| `insurance_ui/staff-management.html/.css/.js` | Mẫu hình thức và hành vi mô phỏng. Ảnh người dùng cung cấp là tham chiếu bố cục; dữ liệu/kết quả nghiệp vụ trong mẫu không có thẩm quyền. |
+| Đã có runtime | Còn làm trước Agent | Để nhánh sau |
+| --- | --- | --- |
+| Auth/profile, Customers, Policy/PDF, Products, Inbox I01–I06, handoff notifications | TK01–TK05 Staff Ticket read/accept/UI/events, tests trong từng phase | Agent/Copilot, I07 draft/confirmation, Customer mới |
 
-## Các màn hình/chế độ chức năng
+Products tự mở PDF, nhiều tài liệu dùng selector; phiên bản mới chuyển chủ động. Search Enter không nút Search/Clear trên Products/Customers/Lookup; Inbox debounce/Enter. Realtime giữ vùng đọc/nháp/focus, không F5; mất scope xóa ngay.
 
-Inbox giữ bố cục mẫu; Customer management và tài khoản là màn hình riêng. Điều hướng list/detail đã dùng route theo [bảng routes](routes.md); rail là trạng thái panel client trong Inbox.
+## Bắt đầu lần triển khai tiếp
 
-| Mã | Màn hình/chế độ | Vị trí trong mẫu và điều hướng cần có | Nguồn |
-| --- | --- | --- | --- |
-| S01 | [Đăng nhập, tài khoản](account.md) | Trang riêng; staff card mở tài khoản và có đăng xuất thật | FR-001, baseline auth |
-| S02 | [Tổng quan/hàng đợi](home.md) | Sidebar + danh sách công việc; không cần dashboard số liệu mới | FR-006/010/013, menu MVP |
-| S03 | [Khách được phân công, hồ sơ](customers.md) | Customers list/detail riêng; Case Details chỉ ở Inbox | FR-002/003 |
-| S04 | [Tra cứu hợp đồng, sản phẩm, tài liệu](policies.md) | Policy Lookup toàn màn hình và lookup nhanh; bổ sung sản phẩm/PDF | FR-008, UC-007, NFR-007 |
-| S05 | [Hội thoại, takeover, lịch sử và Copilot](conversations.md) | Cột chat + rail + sidebar nội bộ; mở từ khách/Ticket/thông báo | FR-006/007/011/012, UC-006 |
-| S06 | [Danh sách và chi tiết Ticket](tickets.md) | Tickets phải có dữ liệu Ticket riêng, kể cả Ticket không gắn chat | FR-009/010, UC-005, menu MVP |
-| S07 | [Thông báo](notifications.md) | Bổ sung chuông và danh sách đọc/chưa đọc | FR-013, NFR-005/006 |
+[TK01 — Quyền/model Ticket](plans/tickets/01-scope-model-contract.md) trước TK02 read, TK03 accept, TK04 UI, TK05 event. Hiện Ticket route còn khung; version/confirmed snapshot chưa có trong schema. Không tạo Ticket fake hoặc cho Staff xem AI riêng để lấp UI.
 
-## Gắn menu mẫu với nghiệp vụ
-
-| Nhãn mẫu | Cách dùng dự kiến — cần duyệt trước contract |
-| --- | --- |
-| All | Tất cả hội thoại được phép xem, không phải tất cả khách của công ty |
-| Requests | Hội thoại `PENDING_HANDOFF`; Ticket hỗ trợ độc lập ở S06 |
-| Active | Hội thoại `STAFF_ACTIVE`; cần phân biệt đang do tôi/người khác hỗ trợ theo quyền |
-| New | Mẫu hiểu là hợp đồng mới cấp. Không có quy tắc “mới” trong SRS; chưa biến thành trạng thái conversation. Có thể đổi thành “AI đang hỗ trợ” (`AI_ACTIVE`) nếu được duyệt. |
-| Tickets | Danh sách Ticket thực, không alias của All |
-| Policy Lookup | Tra cứu thủ công trong active assignment; xem sản phẩm công khai ở tab riêng |
-| Preferences | Đã bỏ theo yêu cầu; Staff dùng Lexend cố định. Thu gọn sidebar/panel vẫn là tiện ích client |
-
-Conversation status từ model: `AI_ACTIVE`, `PENDING_HANDOFF`, `STAFF_ACTIVE`, `CLOSED`. Ticket status là miền khác: `OPEN`, `ASSIGNED`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`. Không đồng nhất `Pending` trên Case Details với cả hai; phải ghi nhãn rõ. Có trạng thái trong model không cấp quyền đóng/giải quyết Ticket trong MVP.
-
-## Trạng thái triển khai
-
-- [x] S01: login/session/account/password/logout qua A01–04; menu hai hành động, Personal information có Edit/Save/Cancel họ tên/phone qua GET/PATCH /staff/me. Đã kiểm chứng HTTP qua gateway, cập nhật Docker và bỏ footer Contact (31/10).
-- [x] S03 cơ bản: danh sách/chi tiết khách qua A05–06, pagination URL và read-only profile; tách khỏi Inbox.
-- [x] Shared layout/routes, fullscreen, English, Lexend tự host, rail active theo panel, đóng lời nhắc password; không có preview/iframe/fixture nghiệp vụ.
-- [x] WebSocket invalidation local cho account/profile/assignment; refresh nền không xóa nội dung khi quay lại tab. Vẫn kiểm phiên khi focus/visible.
-- [x] Dọn nhánh Staff cũ trong CustomerWorkspace, CSS login/font-picker/modal/toast/thẻ mẫu không còn dùng. Customer/account/connection đang hoạt động được giữ.
-- [x] S03 search toàn tập assignment, URL/page/detail/back giữ từ khóa và Try again gọi lại request lỗi (31/10).
-- [ ] S03 browser regression cho search/retry/realtime; copy/tooltip Policy Lookup/New còn ở G05.
-- [ ] S04 policy/product/PDF thật và context nhiều policy: A14–20.
-- [ ] S02/S05 queue/transcript/takeover/send/history/Copilot: A07–13/A24–26.
-- [ ] S06 Ticket thật: A21–23. S07 notifications: A27–28.
-
-Customer detail ưu tiên Insurance policies ở vùng chính, Personal information ở cột phụ. Policy hiện ghi rõ chưa kết nối; không suy ra Customer không có hợp đồng. Sidebar Customers không có chat/composer/takeover. Cột giữa sidebar/chat trong Inbox sẽ là danh sách hội thoại theo conversationId; một Customer có thể có nhiều hội thoại.
-
-Staff workspace giữ cấu trúc từ mẫu người dùng gửi, dùng React/Tailwind 4 prefix `tw:`. Toàn bộ CSS UI cũ đã chuyển sang utility; staff-workspace.css đã xóa. Class `.staff-inbox` còn là hook cấu trúc/state, không có stylesheet riêng. Các nút gửi/takeover/search không có API được disabled; rail và route vẫn điều hướng được. Kết quả nghiệp vụ luôn lấy từ Core, không từ JS mẫu.
-
-## Policy và nhiều hợp đồng
-
-Nhãn UI giữ **Policy Lookup**, thuật ngữ tiếng Anh dùng Policy. Tài liệu tiếng Việt dùng “hợp đồng bảo hiểm”. Prisma `InsurancePolicy`, enum `PolicyStatus`, bảng `business.insurance_policies`, quan hệ `policies`; giữ `policyNumber/policyId/linkedPolicyId` và cột `policy_number/policy_id/linked_policy_id`. Migration `202610300001_rename_insurance_policies` đã chuẩn hóa tên; migration cũ giữ nguyên. File tài liệu dùng `policies.md`; các liên kết đã cập nhật theo tên này.
-
-Một Customer có nhiều policy đã được model hỗ trợ; UI chọn policy/context/API chưa triển khai. Policy đang mở để xem không tự thay linkedPolicy của conversation. Cần contract thay context và quyền/phiên bản trước khi nối header/Copilot/Ticket; xem G01–G03.
-
-## Hướng triển khai tiếp
-
-Theo [checklist và thứ tự ưu tiên](../implementation-status.md): S03 search/retry đã nối, còn browser regression; tiếp theo policy read/context/PDF, Inbox/Ticket business, Copilot và notifications. Đây là đề xuất kế hoạch, không phải duyệt endpoint/queue/model mới. Chỉ kênh invalidation local đã có, chưa có realtime chat/Ticket/notification hoặc outbox worker.
+Không triển khai Agent trong mốc này; Customer theo [plans riêng](../customer/plans/README.md) để đợt sau. Tài liệu chia theo chức năng app, không có kế hoạch Release riêng.

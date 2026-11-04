@@ -2,7 +2,7 @@
 
 Ứng dụng hỗ trợ bảo hiểm nhân thọ, gồm Next.js frontend, NestJS Core, PostgreSQL/pgvector, Nginx gateway, DbGate và tool quản trị tài khoản local.
 
-Cập nhật 31/10/2026: đã có đăng nhập Customer/Staff, tài khoản/đổi mật khẩu/đăng xuất, hồ sơ theo quyền, danh sách/chi tiết khách có phân trang cho Staff và WebSocket invalidation local. Staff có ba API đọc danh sách/chi tiết hợp đồng và catalog tài liệu; FE list/detail/catalog Policy đã nối. Staff đã có xem/tải PDF; Agent/AI, Customer PDF, chat/Ticket/notification APIs và cloud chưa triển khai.
+Cập nhật 04/11/2026: Staff đã có tài khoản/hồ sơ, Customers search/phân trang, Policy Lookup/PDF, Products/PDF và Inbox I01–I06 với Direct/consent/Accept/chat hai đầu/realtime/handoff notifications. Customer có login/profile readonly/chat tối thiểu; UI mới còn kế hoạch. Ticket APIs/UI nghiệp vụ chưa triển khai. Xem [Staff plans](docs/ui/staff/plans/README.md), [Customer plans](docs/ui/customer/plans/README.md), [tiến độ](docs/ui/implementation-status.md).
 
 MVP dùng **7 sản phẩm Manulife: 4 chính và 3 bổ trợ**; xem [danh sách và phạm vi dữ liệu](docs/specifications/Agent_Design.md#mvp-products).
 
@@ -21,6 +21,8 @@ FE/BE local chỉ chạy Docker: `docker compose up -d --build --wait`. Core ch�
 
 Cấu hình dùng một `.env` root, tạo từ `.env.example`: Compose đọc rồi truyền đúng biến cho từng service/build Web. Có thể đặt credential khởi tạo trong `.env` riêng; giá trị phải khớp volumes đã có, không tự đổi mật khẩu. PowerShell `scripts/start-local.ps1` tự tạo file mẫu nếu thiếu và in URL/đường dẫn sau khi dựng xong.
 
-Staff đã có API list hợp đồng của khách, detail hợp đồng và catalog metadata tài liệu đúng phiên bản, kiểm session/assignment mỗi request. [Contract và kiểm thử](docs/ui/staff/policies.md). FE Staff đã nối cả signed URL xem/tải PDF; bootstrap chung đã có 2 sản phẩm, 14 hợp đồng và 20 PDF/version synthetic; fixture riêng có sẵn được giữ nguyên.
+Staff đã có API list hợp đồng của khách, detail hợp đồng và catalog metadata tài liệu đúng phiên bản, kiểm session/assignment mỗi request. [Contract và kiểm thử](docs/ui/staff/plans/05-policies-contract.md). FE Staff đã nối cả signed URL xem/tải PDF; bootstrap chung đã có 2 sản phẩm, 14 hợp đồng và 20 PDF/version synthetic; fixture riêng có sẵn được giữ nguyên.
 
 02/11/2026: Staff Policy Lookup đã nối GET /staff/policies (search/status/phân trang trong active assignment), danh sách và dossier/PDF hai cột, giữ query/Back–Forward và không reload document.
+
+04/11/2026: [P01 catalog](docs/ui/staff/plans/products/01-catalog-read-api.md) và [P02 tài liệu/access](docs/ui/staff/plans/products/02-document-access.md) đã có Core API dùng chung Staff/Customer đã đăng nhập, kiểm active/public/current version, session/CSRF/quota và audit trước cấp PDF. Đã kiểm Core/MinIO/gateway; UI Products P03 đã triển khai.

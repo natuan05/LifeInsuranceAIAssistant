@@ -1,6 +1,6 @@
 # Kiến trúc Ứng dụng & Trách nhiệm Thành phần (Application Architecture)
 
-> **Đối chiếu implementation 30/10/2026:** Sơ đồ dưới là kiến trúc logic đích. Local đã có Web/Core/Auth/Customers/DB và native WebSocket invalidation account/profile/assignment; chưa External IdP, Policy APIs, Conversation/Handoff, Agent/Retrieval, Ticket/Document/Notification APIs hoặc worker. Xem [checklist UI và gap](../ui/implementation-status.md), [baseline local](../architecture.md) và [đối chiếu nguồn](../source-review.md). Phần đặc tả nguồn bên dưới được giữ để truy vết, không sửa tài liệu online hoặc nâng đề xuất thành quyết định.
+> **Đối chiếu app04/11/2026:** Sơ đồ dưới là kiến trúc logic đích, không bản triển khai production. Local có Web/Core/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications, Staff PDF và I01–I06 consent/Accept/send/catch-up/handoff notifications. Chưa External IdP, Ticket nghiệp vụ hoặc Customer owner policy/PDF/UI mới. Agent do nhánh riêng phụ trách; các đề xuất Agent/cloud trong nguồn không tự thành implementation. Xem [tiến độ](../ui/implementation-status.md), [architecture](../architecture.md), [source review](../source-review.md).
 
 > **Tài liệu tổng hợp từ:** `Application Architecture.pdf` và `Component Responsible.pdf`  
 > **Hệ thống:** Life Insurance Customer Service Application

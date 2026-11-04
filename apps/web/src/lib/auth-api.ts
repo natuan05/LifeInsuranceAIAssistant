@@ -3,7 +3,7 @@ import { coreApiUrl } from './core-api';
 export type Actor = { id: string; accountCode: string; email: string; role: 'STAFF' | 'CUSTOMER'; fullName: string; passwordChangeRecommended: boolean };
 export type Session = { actor: Actor; csrfToken: string };
 export class AuthError extends Error {
-  constructor(public readonly status: number) {
+  constructor(public readonly status: number, public readonly retryAfter?: number) {
     super(status === 401 ? 'Invalid email or password, incorrect portal, locked account, or expired session.'
       : status === 400 ? 'Enter a valid email address and password.'
       : status === 429 ? 'Too many attempts. Try again in 15 minutes.'
@@ -20,11 +20,14 @@ function apiBase() {
 }
 export async function coreRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(`${apiBase()}/${path}`, { ...options, credentials: 'include', cache: 'no-store', signal: options.signal ?? AbortSignal.timeout(15000) });
-  if (!response.ok) throw new AuthError(response.status);
+  if (!response.ok) {
+    const retry = response.headers.get('retry-after');
+    throw new AuthError(response.status, retry && /^\d+$/.test(retry) ? Math.max(1, Math.min(3600, Number(retry))) : undefined);
+  }
   return response.json();
 }
 const request = <T,>(path: string, options: RequestInit = {}) => coreRequest<T>(`auth/${path}`, options);
-export const me = () => request<Session>('me');
+export const me = (signal?: AbortSignal) => request<Session>('me', { signal });
 export const login = (email: string, password: string, role: Actor['role']) => request<Session>(role === 'STAFF' ? 'staff/login' : 'login', {
   method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Auth-Request': '1' }, body: JSON.stringify({ email, password }),
 });

@@ -1,4 +1,5 @@
 'use client';
+import { CustomerConversations } from './customer-conversations';
 import { realtimeEvent } from '@/lib/realtime';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -17,7 +18,8 @@ function ProfileDetails({ customer }: {
     <div><dt>Account status</dt><dd>{customer.status === 'ACTIVE' ? 'Active' : 'Locked'}</dd></div>
   </dl>;
 }
-export function CustomerWorkspace({ actorId }: {
+export function CustomerWorkspace({ actorId, csrfToken, blocked }: {
+    csrfToken: string; blocked: boolean;
     actorId: string;
 }) {
     const router = useRouter();
@@ -69,7 +71,7 @@ export function CustomerWorkspace({ actorId }: {
         window.addEventListener(realtimeEvent, refresh);
         return () => window.removeEventListener(realtimeEvent, refresh);
     }, []);
-    return <section className={"auth-card tw:bg-white tw:[border:1px_solid_#dce6e1] tw:rounded-[18px] tw:pt-[32px] tw:pr-[32px] tw:pb-[32px] tw:pl-[32px] tw:[box-shadow:0_12px_40px_#163e2f08] tw:[&_h1]:text-[30px] tw:[&_h1]:leading-[1.3] tw:[&_h1]:mt-[14px] tw:[&_h1]:mr-[0] tw:[&_h1]:mb-[14px] tw:[&_h1]:ml-[0] tw:[&_h2]:text-[27px] tw:[&_h2]:mt-[0] tw:[&_h2]:mr-[0] tw:[&_h2]:mb-[10px] tw:[&_h2]:ml-[0] tw:[&>p]:text-[#687c72] tw:[&>p]:text-[14px] tw:max-[700px]:pt-[24px] tw:max-[700px]:pr-[24px] tw:max-[700px]:pb-[24px] tw:max-[700px]:pl-[24px] customer-workspace tw:mt-[24px]"} aria-labelledby="workspace-title">
+    return <><CustomerConversations csrfToken={csrfToken} blocked={blocked}/><section className={"auth-card tw:bg-white tw:[border:1px_solid_#dce6e1] tw:rounded-[18px] tw:pt-[32px] tw:pr-[32px] tw:pb-[32px] tw:pl-[32px] tw:[box-shadow:0_12px_40px_#163e2f08] tw:[&_h1]:text-[30px] tw:[&_h1]:leading-[1.3] tw:[&_h1]:mt-[14px] tw:[&_h1]:mr-[0] tw:[&_h1]:mb-[14px] tw:[&_h1]:ml-[0] tw:[&_h2]:text-[27px] tw:[&_h2]:mt-[0] tw:[&_h2]:mr-[0] tw:[&_h2]:mb-[10px] tw:[&_h2]:ml-[0] tw:[&>p]:text-[#687c72] tw:[&>p]:text-[14px] tw:max-[700px]:pt-[24px] tw:max-[700px]:pr-[24px] tw:max-[700px]:pb-[24px] tw:max-[700px]:pl-[24px] customer-workspace tw:mt-[24px]"} aria-labelledby="workspace-title">
     <div className={"workspace-heading tw:flex tw:items-center tw:justify-between tw:gap-[16px] tw:flex-wrap tw:[&_h2]:m-0 tw:[&_h3]:m-0 tw:[.auth-shell_&_button]:w-[auto] tw:[.auth-shell_&_button]:pt-[10px] tw:[.auth-shell_&_button]:pr-[16px] tw:[.auth-shell_&_button]:pb-[10px] tw:[.auth-shell_&_button]:pl-[16px] tw:[.auth-shell_&_button]:justify-center tw:max-[600px]:[&_h2]:text-[22px]"}><h2 id="workspace-title">Your profile</h2>
       <button type="button" onClick={() => setRevision(value => value + 1)} disabled={loading}>Refresh</button></div>
     {loading && <p role="status">Loading data…</p>}
@@ -80,5 +82,5 @@ export function CustomerWorkspace({ actorId }: {
         <div><dt>Contact phone</dt><dd>{own.staff.phone || 'Not provided'}</dd></div><div><dt>Department</dt><dd>{own.staff.department || 'Not provided'}</dd></div></dl>
                 : <p>{own.assignmentStatus === 'UNASSIGNED' ? 'No staff member is currently assigned.' : 'Your assigned staff member is currently unavailable. Contact your administrator for assistance.'}</p>}
     </section></>}
-  </section>;
+  </section></>;
 }

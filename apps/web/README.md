@@ -1,23 +1,25 @@
 # Web
 
-Next.js App Router cho Customer Portal và Staff Workspace. Web gọi Core để đọc/ghi nghiệp vụ; không trực tiếp gọi Agent hoặc database, không nhận credential server.
+Next.js App Router cho Customer Portal và Staff Workspace. Web gọi Core, không trực tiếp gọi Agent/DB hoặc nhận credential server. App runtime chỉ Docker Compose qua gateway; lệnh setup/test ở [Getting Started](../../docs/getting-started.md).
 
-Setup env, chạy Docker, cổng và đăng nhập ở [hướng dẫn chung](../../docs/getting-started.md). Thiết kế ở [kiến trúc](../../docs/architecture.md).
+## Runtime hiện tại — 04/11/2026
 
-## Giao diện đăng nhập
+Customer /login, Staff /staff/login dùng LoginPanel; /account dùng auth boundary theo role. Staff có Personal information editor tên/phone và Security/change-password; account menu Personal information/Sign out. Session passive freshness30 giây, initial/invalidate/expiry/retry kiểm ngay; không gọi auth/me mỗi tin hoặc selection.
 
-- Customer: `/login`; Staff: `/staff/login`. Cả hai dùng `LoginPanel`, Tailwind CSS 4 và font Lexend tự host (giấy phép trong `public/fonts/OFL-Lexend.txt`).
-- Chuyển từ mẫu `insurance_ui/login.html` và `staff-login.html`: nền xanh nhạt, cửa sổ hai cột, ảnh riêng cho từng role; điện thoại thu về một cột. Hai ảnh trong `public/images` lấy từ các file PNG cùng tên của mẫu do người dùng cung cấp.
-- Vẫn đăng nhập bằng email qua Core; quyền và điều hướng dựa trên actor trong phiên. Quên mật khẩu hiển thị hướng dẫn liên hệ quản trị; không mô phỏng OTP, SSO/2FA, lưu mật khẩu hoặc dùng tài khoản demo của mẫu.
-- Utility Tailwind dùng prefix `tw:` và không nạp Preflight. CSS Customer account/profile và connection đang dùng nằm trong layer `legacy`; Staff account đã dùng style workspace mới. Nhánh Staff cũ/CSS không dùng/preview đã bỏ.
+Staff có Customers search/list/profile/policies, Policy Lookup/dossier/PDF, Products/catalog/PDF tự mở và Inbox All/Requests/Active với accordion/search/Accept/transcript/composer/notifications. Tickets route chỉ khung; Copilot chưa nối. Customer hiện có own profile/contact và chat tối thiểu/Direct/consent/handoff/send/reconcile/realtime; Customer shell/registration/PATCH/policy/PDF UI mới còn plans riêng.
 
+## Giao diện và router
 
-## Staff workspace và trạng thái
+Tất cả styling dùng Tailwind4 prefix tw:, Lexend/font/ảnh tự host, English labels. globals.css chỉ import/theme/font; không staff-workspace.css, legacy layer hoặc stylesheet component riêng. Giấy phép font tại public/fonts/OFL-Lexend.txt. Không public signup/reset/OTP/SSO chỉ vì UI mẫu có.
 
-Đối chiếu 30/10/2026. Cấu trúc mẫu người dùng được chuyển sang `staff-reference-template.tsx`; `staff-reference-workspace.tsx` ghép dữ liệu/panel/URL và `staff-workspace.css` scope `.staff-inbox`. Staff fullscreen, English/Lexend, không Preferences; account popover chỉ Personal information/Sign out. Customers tách khỏi chat; detail ưu tiên Insurance policies nhưng policy data chưa kết nối.
+Shared route group staff/(workspace) giữ layout/socket cho customers/inbox/policies/products/tickets và detail. Page marker trả null để layout sở hữu workspace, không phải dead code. /staff redirect /staff/customers. Query History API, đổi route Next Link/router; không F5/remount workspace khi tìm/lọc/phân trang/lưu/thử lại.
 
-`/staff` redirect `/staff/customers`; route group `(workspace)` giữ layout/socket cho customers/inbox/policies/tickets và detail. Page markers trả null là điểm vào layout, không phải dead code. `/account` là entry riêng dùng chung hai role, Staff có Security mở password form. Xem [routes](../../docs/ui/staff/routes.md).
+Search Products/Customers/Policy Lookup bằng Enter, xóa text rồi Enter bỏ lọc; Inbox debounce300ms/Enter/IME. Products tự mở PDF đầu, nhiều tài liệu selector; cùng version giữ iframe, version mới chuyển chủ động. Policy main PDF theo binding, information đóng mặc định/related docs riêng. Không tự trích PDF thành dữ liệu nghiệp vụ.
 
-Auth/account/Customer profile/assigned-customer list-detail-pagination dùng API thật. Search khách chưa có; Inbox/policy/Ticket chỉ khung route, composer/takeover disabled, Copilot và notification chưa có API. Customer profile/account vẫn là layout cũ đang hoạt động, không coi đó là code thừa.
+## Realtime và privacy
 
-`useRealtime` dùng native WebSocket cookie tới `/api/v1/realtime`, nhận ready/invalidate/session-expired rồi đọc lại REST. Account/profile/assignment là scope hiện có; không phải chat transport. Profile/list refresh nền, không refetch khi focus; auth vẫn revalidate phiên. Xem [checklist và gap](../../docs/ui/implementation-status.md), [thứ tự tài liệu](../../docs/ui/README.md).
+useRealtime nhận ready/invalidate/session-expired và I06 chat/scope/notification invalidations, REST authority cho data/grant/catch-up. Background sync giữ DOM/accordion/nháp/focus/scroll/cursor pages, không đưa revision realtime vào directory key. Revoke/actor/session đổi xóa memory/iframe đúng scope. Inbox không Refresh inbox/conversation/messages hoặc Message saved, giữ sending/unknown/reconcile/errors.
+
+Core mới quyết định Direct/consent/Accept và quyền tài liệu; client không suy từ assignment/UUID/Ticket link. Signed URL chỉ memory, không history/localStorage/chat/log; vẫn có residual TTL ở storage.
+
+Code/API/test plans ở [Staff](../../docs/ui/staff/plans/README.md), [Customer](../../docs/ui/customer/plans/README.md), [tiến độ](../../docs/ui/implementation-status.md). Browser tests dùng DOM/network/console/PDF bytes/hash; không screenshot/video/trace. Mock không chứng minh Core/MinIO authorization.

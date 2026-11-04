@@ -5,5 +5,5 @@ import { StaffPolicyController } from './controllers/staff-policy.controller';
 import { PolicyService } from './services/policy.service';
 import { PolicyStorageService } from './services/policy-storage.service';
 
-@Module({ imports: [AuthModule, DatabaseModule], controllers: [StaffPolicyController], providers: [PolicyService, PolicyStorageService] })
+@Module({ imports: [AuthModule, DatabaseModule], controllers: [StaffPolicyController], providers: [PolicyService, PolicyStorageService], exports: [PolicyService, PolicyStorageService] })
 export class PoliciesModule {}

@@ -82,8 +82,12 @@ export class PolicyService {
   documents(request: IncomingMessage, policyId: string): Promise<PolicyDocumentsResponseDto> {
     return this.read(request, (tx, actorId) => this.catalog(tx, actorId, policyId));
   }
-  private async catalog(tx: Prisma.TransactionClient, actorId: string, policyId: string): Promise<PolicyDocumentsResponseDto> {
-      const policy = await tx.insurancePolicy.findFirst({ where: { id: policyId, customer: this.assigned(actorId) },
+  async citationCatalog(tx: Prisma.TransactionClient, actorId: string, role: 'STAFF' | 'CUSTOMER', policyId: string) {
+    return this.catalog(tx, actorId, policyId, role);
+  }
+  private async catalog(tx: Prisma.TransactionClient, actorId: string, policyId: string, role: 'STAFF' | 'CUSTOMER' = 'STAFF'): Promise<PolicyDocumentsResponseDto> {
+      const policy = await tx.insurancePolicy.findFirst({ where: { id: policyId,
+        ...(role === 'CUSTOMER' ? { customerId: actorId } : { customer: this.assigned(actorId) }) },
         select: { id: true, customerId: true, productId: true, benefitsSnapshot: true } });
       if (!policy) throw new NotFoundException();
       const source = object(object(policy.benefitsSnapshot)?.documents);

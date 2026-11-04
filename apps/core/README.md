@@ -1,14 +1,25 @@
 # Core
 
-NestJS modular monolith sở hữu danh tính, quyền và nghiệp vụ. Source tại src/, Prisma schema/migrations tại prisma/, operator entrypoint/UI tách khỏi public Core. Không cho Agent truy cập trực tiếp business DB.
+NestJS modular monolith sở hữu danh tính, phân quyền và nghiệp vụ. Setup Docker, env, cổng, Swagger, tài khoản mẫu và lệnh test ở [Getting Started](../../docs/getting-started.md); baseline tại [kiến trúc](../../docs/architecture.md).
 
-Setup env, chạy Docker/admin, cổng, Swagger, tài khoản dev và lệnh test đều ở [hướng dẫn chung](../../docs/getting-started.md). Thiết kế/ràng buộc ở [kiến trúc](../../docs/architecture.md).
+## Runtime hiện tại — 04/11/2026
 
-Source chia theo tính năng `auth/`, `customers/`, `accounts/`, `admin/`; mỗi tính năng có thư mục `controllers/`, `dto/`, `services/` theo nhu cầu và file `*.module.ts` để khai báo Nest dependency injection. `database/` cung cấp Prisma qua `DatabaseModule`; model database nằm trong `prisma/schema.prisma`, không lặp lại bằng file model TypeScript thủ công.
+AppModule import Database/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications. Source theo tính năng với controllers/dto/services/module tương ứng. AdminModule/AccountsModule thuộc entrypoint local src/admin/main.ts, role admin_runtime riêng; không public qua gateway. Prisma schema/migrations là nguồn model, không tạo bản model TypeScript song song.
 
-Public `AppModule` import Auth/Customers/Database và đăng ký `RealtimeService`. `AdminModule` và `AccountsModule` được ghép tại entrypoint local `src/admin/main.ts` với client `admin_runtime`. Fixtures/seed nằm ở `src/cli/`; helper mật khẩu ở `src/accounts/utils/`.
+Đã có auth/session/password/logout, GET/PATCH staff/me, GET customers/me, Staff assigned-customer list/search/detail, policy list/lookup/detail/applied-document catalog/view/download, product PUBLIC catalog/current-document access hai role, Inbox groups/metadata/consent/Accept/history/send/reconcile và handoff notifications.
 
+I01–I06 thực thi Direct/consent/Accept gate, command receipts/sequence, SYSTEM sau Accept và outbox/realtime catch-up. Assignment không cho Staff xem chat AI riêng. Ticket APIs và nghiệp vụ tạo/xác nhận/tiếp nhận còn kế hoạch, không suy từ bảng hoặc route.
 
-Đối chiếu 30/10/2026: public APIs hiện gồm auth, `customers/me`, assigned `staff/customers` list/detail và health. Native WebSocket receive-only `/api/v1/realtime` kiểm cookie/Origin và snapshot theo scope mỗi 2 giây, phát invalidation account/profile/assignment; không nhận mutation. Đã có ba API Staff policy list/detail/catalog. Chưa có product API độc lập, cấp URL PDF, conversation/Ticket/Copilot/notification controllers hoặc outbox worker.
+## Database và storage
 
-Prisma `InsurancePolicy`/`PolicyStatus` và bảng `business.insurance_policies` được chuẩn hóa bằng migration `202610300001_rename_insurance_policies`; ba migration trước giữ nguyên. A01–06 và A14/A16/A18 trong [bản đồ UI/API](../../docs/ui/staff/api-map.md) đã dùng; Các API còn lại vẫn đề xuất. [Checklist/gap](../../docs/ui/implementation-status.md) không coi schema/route/UI shell là hoàn thành nghiệp vụ.
+Schema hiện có19 model ứng dụng và7 migrations đến 202611040002_inbox_realtime. Rename InsurancePolicy/PolicyStatus/insurance_policies và remove ConversationStatus.CLOSED giữ lịch sử bằng migration mới; TicketStatus.CLOSED còn riêng. Runtime/operator kiểm compatibility hiện hành, không reset DB hoặc sửa migration đã apply.
+
+Core dùng DB role core_runtime và storage-reader từ Docker volumes; seed/job dùng writer riêng. Policy exact applied version khác Product current published version. Core kiểm session/quyền/binding/version, HEAD/recheck/audit trước signed URL; Web không nhận credential. URL đã cấp còn residual TTL theo contract.
+
+## Realtime và kiểm thử
+
+WS /api/v1/realtime receive-only, cookie/exact Origin/session; account/profile/assignment snapshot và I06 chat/scope/notification invalidation. Client REST resync theo quyền; không transcript/raw tool/LLM tokenstream trong frame. Outbox worker local một Core process có lease/retry/dedup, không production fanout hoặc delivery/read ACK.
+
+Core tests, browser mock và gateway E2E là các lớp riêng. Lệnh dùng Docker test harness trong Getting Started; fixture synthetic riêng tự dọn, không thay bootstrap hoặc credential. API E/P và kế hoạch code ở [Staff contracts/phases](../../docs/ui/staff/plans/README.md); Customer mới theo [plans riêng](../../docs/ui/customer/plans/README.md).
+
+Agent và các contract/tác vụ tương lai do nhánh phụ trách riêng; README này chỉ ghi trạng thái app, không phê duyệt thiết kế Agent/cloud.

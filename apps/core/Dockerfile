@@ -14,6 +14,10 @@ WORKDIR /app/apps/core
 RUN npm run db:generate
 CMD ["node", "scripts/migrate.mjs"]
 
+FROM migrator AS test
+RUN npm run build
+CMD ["node", "--test", "test/conversation-permissions.test.cjs"]
+
 FROM migrator AS build
 RUN npm run build
 RUN npm prune --omit=dev --offline --ignore-scripts --workspace @life-insurance/core --include-workspace-root=false --no-audit --no-fund
