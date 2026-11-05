@@ -198,7 +198,7 @@ def test_reference_target_outside_scope_is_reported_not_opened():
             if ref.get("target_section_key") == "dieu-4":
                 ref["target_document_id"] = foreign
     eng, _ = engine(rows)
-    result = valid(eng.search("quyền lợi nằm viện", scope_of(version), search_config()))
+    result = valid(eng.search(BENEFIT_QUERY, scope_of(version), search_config(fused_candidates=1)))
     assert any(m["code"] == "REFERENCE_OUT_OF_SCOPE" and m["reference"] == "Điều 4" for m in result["missing"])
     assert all(e["document_id"] == version.document_id for e in result["evidence"])
 

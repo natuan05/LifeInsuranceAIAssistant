@@ -140,6 +140,8 @@ Các khác biệt/ràng buộc quan trọng so với nguồn:
 | db_viewer | SELECT 19 bảng ứng dụng, không sửa/xóa dữ liệu |
 | rag_indexer | Indexer RAG offline: SELECT/INSERT/DELETE `rag`, không quyền business; không cấp cho Agent runtime |
 | rag_retriever | Retrieval Agent: chỉ SELECT `rag`, không quyền business/ghi index |
+| agent_migrator | Chủ schema `agent_runtime`, chạy migration Agent; không quyền business/rag |
+| agent_runtime | DML `agent_runtime` (checkpoint, receipt, ledger, event); không DDL, business hay ghi rag. Core không có quyền trên schema này |
 
 
 Credential ở volumes riêng; không tự rotate role password đã tồn tại hoặc dùng local_owner cho Core/tool. Không DDL/superuser cho runtime. Migration runner cập nhật quyền metadata để Core/tool kiểm compatibility.

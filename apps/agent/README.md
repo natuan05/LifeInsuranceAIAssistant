@@ -92,3 +92,34 @@ python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end
 ```
 
 Lệnh index gọi embedding có tính phí theo cấu hình thử; chạy lại cùng dữ liệu/cấu hình sẽ bỏ qua tài liệu đã nạp. Báo cáo ghi vào `.local/agent-eval/` (ignored), gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt hay nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` cho tới khi người chấm điền file `--human-review`; báo cáo không tự tuyên bố đạt nghiệm thu.
+
+## Trạng thái: mốc 4 — Task 4, lưu bền phía Agent
+
+Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2) theo các quyết định ngày 06/11/2026. Chưa có HTTP/HMAC (Task 6), API Core (Task 3, đội application) hay worker nhận việc chạy nền. Vì vậy mới kiểm bằng gọi trực tiếp store và graph, chưa qua Core thật.
+
+| Thành phần (`store.py`, `migrations/`) | Nội dung |
+| --- | --- |
+| `PgRuntimeStore` | `accept_run` (receipt theo attempt, `DUPLICATE`/`CONFLICT`/`IGNORED_STALE`), `revoke` (tombstone cho attempt chưa tới), `claim_execution` (lease, mỗi claim nâng epoch), ledger `open_message`/`reserve`/`settle`, `persist_final`/`persist_progress`, `pending_events`/`ack_event`, `recoverable`, `fence_after_restore` |
+| `FencedPostgresSaver` | Checkpointer LangGraph; `put`, `put_writes`, `delete_thread` kiểm `(thread_id, attempt_id, writer_epoch)` `FOR SHARE` trong cùng transaction. Graph chạy `durability="sync"` |
+| `LeasedStore`, `execute_attempt` | Store của graph gắn lease; receipt `FINALIZED` trả lại event đã lưu, không chạy graph |
+| `migrations/001_durable_runtime.sql`, `python -m life_agent.store migrate` | Bảng trong schema `agent_runtime` (do bootstrap tạo, chủ là `agent_migrator`); runner ghi `schema_migrations` và từ chối file đã áp bị sửa |
+
+`StaleWriter` là `BaseException` để không bị các khối `except Exception` trong graph/adapter nuốt mất rồi tiếp tục gửi request hoặc ghi. Role `agent_runtime` chỉ có DML trên `agent_runtime`; role Core không có quyền trên schema này.
+
+### Chạy
+
+1. `.env` root: thêm `DB_AGENT_MIGRATOR_PASSWORD`, `DB_AGENT_RUNTIME_PASSWORD` (giá trị mẫu ở `.env.example`) rồi `docker compose up -d --build --wait`.
+2. `apps/agent/.env`: điền `LIFE_AGENT_STORE_MIGRATOR_DSN`, `LIFE_AGENT_STORE_DSN` và các DSN test theo `.env.example`. Test tách DB cần `LIFE_AGENT_TEST_ADMIN_DSN` (role `local_owner`).
+3. Từ `apps/agent`: `python -m life_agent.store migrate`, rồi `python -m pytest tests/test_store.py`.
+
+### Runbook tách `agent_runtime` sang PostgreSQL riêng (bảo trì)
+
+1. Dựng DB đích: tạo role, `CREATE SCHEMA agent_runtime AUTHORIZATION agent_migrator`, cấp quyền như `bootstrap-database.mjs`, chạy `migrate` tới cùng version với nguồn.
+2. Dừng nhận việc: Core ngừng dispatch; chờ các lượt đang chạy kết thúc hoặc revoke chúng; xác nhận không còn event chưa ACK.
+3. Dừng ghi: tắt tiến trình Agent.
+4. Sao chép: `copy_runtime_data(nguồn, đích)` (COPY từng bảng theo thứ tự FK, kiểm cùng version migration). Có thể dùng `pg_dump --schema=agent_runtime` nếu có công cụ.
+5. Kiểm: số dòng từng bảng; đọc lại một thread mẫu bằng checkpointer; event cuối của một attempt mẫu giống nguồn.
+6. Trên đích chạy `fence_after_restore()`: thu hồi receipt `ACCEPTED` và nâng epoch, để writer trước khi tách không ghi được nữa.
+7. Đổi `LIFE_AGENT_STORE_DSN` sang đích, mở lại nhận việc.
+
+Rollback: nếu đích **chưa nhận ghi**, chỉ cần trỏ lại nguồn (nguồn còn nguyên). Nếu đích **đã nhận ghi**, phải chép các dòng mới của đích về nguồn (hoặc giữ đích) rồi chạy `fence_after_restore()` trên bên dùng tiếp. Không chạy hai bên song song, không dual-write/CDC.

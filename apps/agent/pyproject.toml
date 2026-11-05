@@ -7,10 +7,11 @@ name = "life-agent"
 version = "0.1.0"
 description = "Agent/RAG service (custom LangGraph). Milestone 3: Public RAG trial (corpus, hybrid retrieval, evaluation)."
 requires-python = ">=3.13"
-# Checkpointer library and HTTP framework are chosen at G2-G3. The Gemini trial adapters use the REST API through the
+# HTTP framework (Starlette + uvicorn, decision 12.13 #5) is pinned in Task 6. The Gemini trial adapters use the REST API through the
 # standard library, so no provider SDK is pinned. psycopg is the PostgreSQL driver for the rag index (pgvector).
 dependencies = [
   "langgraph==1.2.20",
+  "langgraph-checkpoint==4.3.1",  # BaseCheckpointSaver for the fenced checkpointer (decision 12.13 #2)
   "jsonschema==4.26.0",
   "psycopg[binary]==3.3.6",
 ]

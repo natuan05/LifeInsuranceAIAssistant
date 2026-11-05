@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 
-const roles = ['bootstrap', 'migration', 'core', 'admin', 'viewer', 'rag_indexer', 'rag_retriever'];
+const roles = ['bootstrap', 'migration', 'core', 'admin', 'viewer', 'rag_indexer', 'rag_retriever', 'agent_migrator', 'agent_runtime'];
 // Added after the first local release: their DB roles do not exist yet in older databases, so bootstrap can create
 // them with a newly generated credential instead of requiring an original volume.
-const addedLater = new Set(['rag_indexer', 'rag_retriever']);
+const addedLater = new Set(['rag_indexer', 'rag_retriever', 'agent_migrator', 'agent_runtime']);
 // Preflight every supplied value before writing any credential. Never rotate implicitly.
 for (const role of roles) {
   const supplied = process.env[`DB_${role.toUpperCase()}_PASSWORD`] || '';
