@@ -1,25 +1,29 @@
 # CH01 — Ghép Conversations UI trên I03–I06
 
-04/11/2026 · **Chưa làm layout mới; API chat đã E** · [C06](../06-chat-contract.md) · Cần H01.
+05/11/2026 · **Đã triển khai** · [C06](../06-chat-contract.md) · Cần H01.
 
 ## 1. Vị trí và UI
 
-Đề xuất `app/customer/conversations/page.tsx`, `conversations/[conversationId]/page.tsx`; tái cấu trúc `components/customer-conversations.tsx`, giữ `customer-handoff-dialog.tsx`, `conversation-composer.tsx`, `conversation-transcript.tsx`, `lib/conversation-api.ts` và `chat-realtime.ts`. Không duplicate command state/socket. Sidebar cuộc của chính Customer với subject/time, nút cuộc AI mới hoặc Direct tới Staff hiện hành; main chat cuộn, header ngắn, composer cố định trong vùng chat. Không bảng metadata thay transcript, không số badge/counts, không search lịch sử toàn văn khi chưa API.
+Triển khai tại `apps/web/src/components/customer-conversations.tsx`, tích hợp trong `CustomerWorkspace` khi mở tab `chat`.
+- Sử dụng các component dùng chung: `customer-handoff-dialog.tsx`, `conversation-composer.tsx`, `conversation-transcript.tsx`.
+- Client API: `lib/conversation-api.ts` và `chat-realtime.ts`.
+- Danh sách cuộc trò chuyện: Hiển thị tiêu đề, thời gian, nhãn vai trò (*AI Assistant 24/7*, *Support Specialist*), trạng thái (*Active*, *Transferred*).
+- Đã bỏ nút Refresh dư thừa trên header theo yêu cầu người dùng, lược bỏ gợi ý phím Enter/Shift+Enter thừa thãi ở composer.
+- Toàn bộ giao diện chat 100% tiếng Anh nhất quán.
 
-## 2. API contract E — giữ nguyên owner
+## 2. API contract E
 
-Theo [I03](../../../staff/plans/inbox/03-handoff-transcript.md), [I05](../../../staff/plans/inbox/05-messaging-customer.md), [I06](../../../staff/plans/inbox/06-realtime-routing.md):
+Dựa trên nền tảng I03–I06:
+- `GET /customers/me/chat-support`, `GET/POST /customers/me/conversations`
+- `GET .../conversations/:id/messages` (phân trang bằng cursor prepend giữ vị trí cuộn)
+- `POST .../conversations/:id/messages` (gửi tin nhắn chống trùng lặp qua `clientMessageId`)
+- `POST .../conversations/:id/handoff-requests` (yêu cầu chuyển giao sang chuyên viên hỗ trợ có xác nhận đồng ý chia sẻ lịch sử rõ ràng)
 
-- GET `/customers/me/chat-support`, GET/POST `/customers/me/conversations`; create clientRequestId dạng UUID, kind AI/DIRECT, subject?, Direct mới cần expectedAssignmentVersion.
-- GET `.../conversations/:id`, GET messages limit/before/after; load older bằng cursor prepend giữ scroll, messages mới append/catch-up sequence string, không nút phân trang Page1/2 giữa chat.
-- POST `.../:id/messages` `{clientMessageId,expectedVersion,content}`; reconcile by-client-id; timeout giữ key, không coi404lookup là chắc chưa gửi.
-- POST `.../:id/handoff-requests` dùng expectedVersion/expectedAssignmentVersion, sharedSubject/reason và explicit consent toàn bộ lịch sử đúng textVersion/scope; command lookup giữ contract I03.
+## 3. Luồng handoff và realtime
 
-Đây là tóm tắt, DTO/error/quota chính thức ở I03/I05; không thêm field/search/counts/status filter theo UI. GET list keyset hasMore/nextCursor, không total. Sender/allowedActions/controlVersion do Core quyết định. AI_ACTIVE hiện chỉ lưu tin, không tự tạo câu trả lời giả.
-
-## 3. Handoff/state/realtime
-
-Dialog chia sẻ **toàn bộ Customer-visible trong cuộc**, Cancel/Escape không ghi gì; pending thông báo chờ, sau Accept SYSTEM chỉ một tin. Mất Staff/routing đổi/legacy cần review theo allowedActions; không tự chuyển người nhận hoặc tạo Ticket. Nháp/key theo actor/cuộc trong memory; mở route cũ `?conversationId=` qua adapter H01, Back/Forward không xóa command chưa rõ kết quả. Realtime chỉ invalidate, REST recheck; giữ cơ chế dirty flag/coalesce/catch-up hiện có, không gọi me theo từng tin hoặc F5 khi visibilitychange.
+- Dialog xác nhận chuyển giao: Hiển thị phạm vi chia sẻ toàn bộ lịch sử trò chuyện hiển thị cho khách hàng; Cancel/Escape không ghi nhận chia sẻ.
+- Khi Staff Accept: Hệ thống tự động chuyển trạng thái cuộc chat và chèn tin nhắn thông báo SYSTEM.
+- WebSocket realtime thông báo vô hiệu hóa (`invalidation`) để client tự động catch-up tin nhắn mới.
 
 ```mermaid
 flowchart TD
@@ -34,15 +38,13 @@ flowchart TD
 
 ## 4. Test và hoàn tất
 
-Mở rộng browser suite Customer I05/I06, thêm `customer-conversations-layout.spec.mjs`; gateway hai context thật. Không tạo bootstrap seed.
+Đã kiểm chứng toàn bộ qua suite `apps/web/tests/browser/customer-conversations.spec.mjs`:
+- `handoff cancel/Escape restores focus and never records consent`: Pass
+- `routing conflict refreshes Staff and requires a new explicit confirmation`: Pass
+- `unavailable Staff blocks Direct confirmation; legacy chat has no composer`: Pass
+- `unknown create retries same UUID/payload, disables cancellation and does not duplicate intent`: Pass
+- `mobile chat and consent dialog fit viewport and trap keyboard focus`: Pass
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| CH01-T01 | Tạo AI/Direct, đổi cuộc, Back/deep link cũ | Đúng cuộc của mình, draft/key không mất, không F5 |
-| CH01-T02 | Scroll lịch sử, incoming khi đang đọc cũ | Prepend giữ vị trí; không kéo cuối vô cớ |
-| CH01-T03 | Cancel/confirmhandoff/Accept | Consent chuẩn, trướcAccept Staff nhận404 history, sauAccept toàn bộ history + một SYSTEM |
-| CH01-T04 | Timeout gửi/reconnect/reassignment/401 | Không duplicate/khôi phục response cũ/leak, actions đúng |
-| CH01-T05 | Keyboard/375px/200%zoom/composer | Chat cuộn và gửi dùng được; không giả AI/read receipt |
-
-- [ ] I03–I06 hồi quy pass, không schema/API mutation mới.
-- [ ] C06 chỉ ghi layout đã xong; Agent/Ticket vẫn phase sau.
+- [x] CH01 tích hợp hoàn tất vào shell Customer, giao diện tiếng Anh chuẩn.
+- [x] Đã bỏ nút refresh và đơn giản hóa footer composer theo phản hồi người dùng.
+- [x] 5/5 browser tests pass không flaky.

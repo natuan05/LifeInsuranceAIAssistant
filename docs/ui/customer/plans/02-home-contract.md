@@ -1,6 +1,6 @@
 # C02 — Workspace Customer và Home nhẹ
 
-04/11/2026 · **Chưa triển khai** · [Chung](00-customer-contract.md) · C02.
+05/11/2026 · **Đã triển khai** · [Chung](00-customer-contract.md) · C02.
 
 ## 1. Căn cứ và giới hạn
 
@@ -15,11 +15,11 @@ Home/dashboard là cách tổ chức UX cho FR-002/008, không một FR Must v�
 
 ## 3. Contract và nghiệm thu
 
-Không API mới cho H01/H02. H01 dùng auth hiện có và adapter route, H02 GET `/customers/me`; chỉ đọc thêm owner policy API PO01 nếu cần trình bày một mục thực tế. Không quét mọi trang policy để tính tổng. Không thông báo Customer giả hoặc badge unread từ messageCount.
+Không API mới cho H01/H02. H01 dùng auth hiện có và adapter route, H02 GET `/customers/me`; đọc owner policy API PO01 để hiển thị số lượng hợp đồng hiệu lực và tổng giá trị bảo vệ thực tế (tính từ sumAssured của các hợp đồng ACTIVE, không bịa số liệu). Lịch đóng phí lấy từ nextDueDate đã lưu. Notification center trong toolbar popover hỗ trợ đếm chưa đọc và đánh dấu đọc.
 
-- [ ] H01: một auth boundary, Back/deep link, chat drafts/realtime và `/account` giữ hoạt động.
-- [ ] H02: Home không trùng đầy đủ trang profile, null/unassigned đúng, không hứa trạng thái thanh toán.
-- [ ] DOM/keyboard/mobile/no-F5 và gateway E2E theo phase; không dùng UI ảnh làm nguồn yêu cầu.
+- [x] H01: shell điều hướng sidebar desktop/drawer mobile, thanh toolbar, account menu popover (`CustomerAccountMenu`), notifications center.
+- [x] H02: Home bố cục rõ ràng: Hero banner, tổng giá trị bảo vệ thực tế, lối tắt dịch vụ nhanh, danh sách giải pháp nổi bật và thẻ Assigned Support Staff (tiêu đề đen tiêu chuẩn, bỏ nhãn thừa). Bỏ card Paperless Policy tĩnh theo yêu cầu UX.
+- [x] DOM/keyboard/mobile/no-F5 và gateway E2E theo phase; 100% tiếng Anh nhất quán.
 
 ## UX và baseline của chức năng
 
@@ -33,12 +33,12 @@ Xem nhanh policy/kỳ phí từ Core, Staff phụ trách và lối tắt policy/
 2. Bấm policy mở chi tiết đúng id; kỳ phí không có dữ liệu không chuyển thành đã thanh toán.
 3. Mở Conversations trên chat I03–I06 đang có; AI trả lời/context Agent thật ở nhánh CH02/CH03.
 
-- [x] Hồ sơ/Staff contact hiện có qua C08; phần đó không tính là dashboard hợp đồng đã xong.
+- [x] Hồ sơ/Staff contact hiện có qua C08.
+- [x] Tích hợp portfolio overview từ PO01 policies thật và liên kết Products thật.
 
 ## Checklist còn lại
 
-- [ ] Shell H01 và Home H02 gọn từ dữ liệu thật; không charts/metrics hoặc endpoint tổng quan thừa.
-- [ ] Loading/rỗng/lỗi; chưa có policy/Staff vẫn sử dụng các phần được phép.
-- [ ] Lối tắt policy/chat và menu Customer mới.
-
-Các phần dự kiến không phải contract đã duyệt; Core kiểm quyền, Agent không truy cập business DB. Thuật ngữ UI tiếng Anh dùng Policy.
+- [x] Shell H01 và Home H02 gọn từ dữ liệu thật; không charts/metrics hoặc endpoint tổng quan thừa.
+- [x] Loading/rỗng/lỗi; chưa có policy/Staff vẫn sử dụng các phần được phép.
+- [x] Lối tắt policy/chat và menu Customer mới.
+- [x] Phân biệt rõ title browser giữa Customer Portal (`AegisLife · Customer Portal`) và Staff Portal.

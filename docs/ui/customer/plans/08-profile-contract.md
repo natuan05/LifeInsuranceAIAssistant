@@ -33,5 +33,5 @@ Customer sửa fullName/phone/birth/address chính mình; email/accountCode/role
 - [x] Đổi mật khẩu/logout thật; password mới 6 ký tự đến 72 byte UTF-8, không trim, thu hồi các phiên cũ.
 - [x] Lời nhắc password có Later; refresh thủ công và WebSocket ready/invalidate tải lại dữ liệu theo quyền.
 - [x] Refresh nền giữ nội dung khi cùng actor; không refetch profile mỗi lần focus, vẫn kiểm lại session.
-- [ ] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
+- [x] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
 - [ ] Chỉnh sửa hồ sơ chỉ làm sau khi chốt trường, quyền và API; không đánh dấu FR-002 hoàn tất chỉ vì đọc được hồ sơ.

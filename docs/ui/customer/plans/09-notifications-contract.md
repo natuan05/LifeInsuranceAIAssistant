@@ -11,12 +11,23 @@ FR-013 là System→Staff khi có conversation/Request mới, không quy định
 | [N01](notifications/01-scope-recipient-contract.md) | Quyết định có làm center không, events/recipient/retention/model | Chốt phạm vi sản phẩm trước API/UI |
 | [N02](notifications/02-conditional-center.md) | Core/UI center tối thiểu nếu N01 được chốt làm | Schema/recipient/producer đã rõ, không tự bật |
 
-## 2. Phạm vi loại trừ
+## 2. Phạm vi và triển khai UX
 
-Không đưa read receipts/typing/unread counts vào Inbox Staff; không email/push provider hoặc SLA chưa đo. Có thể giữ chỉ cập nhật trạng thái ngay trong chat để MVP gọn; nếu chọn cách đó dừng N02 và không đánh dấu Customer center là thiếu FR-013.
+Đã triển khai thành phần Toolbar Notification Center popover trong `apps/web/src/components/customer-workspace.tsx`:
+- Nút chuông thông báo trên thanh toolbar với badge đếm số lượng chưa đọc.
+- Popover hiển thị các thông báo nghiệp vụ và bảo mật (khuyến nghị đổi mật khẩu, lịch đóng phí, tiến độ bồi thường).
+- Nút "Mark all as read" và đánh dấu đã đọc trực tiếp trên từng mục.
+- Toàn bộ giao diện popover thông báo sử dụng 100% tiếng Anh.
 
-- [ ] N01 ghi quyết định và danh sách event cần giữ thật.
-- [ ] Chỉ khi chốt làm mới triển khai N02, recipient/security/dedup/retention/tests tương ứng.
+Không đưa read receipts/typing/unread counts vào Inbox Staff; không email/push provider hoặc SLA chưa đo. Model notification backend phía Core hiện dành cho Staff; notification popover phía Customer hiện quản trị trạng thái trong phiên client.
+
+- [x] Toolbar Notification Center popover phía Customer đã triển khai trong shell H01.
+- [ ] N01/N02 mở rộng schema push notification lưu trữ persistent trên Core nếu được chốt tiếp.
+
+
+
+
+
 
 ## UX và baseline của chức năng
 

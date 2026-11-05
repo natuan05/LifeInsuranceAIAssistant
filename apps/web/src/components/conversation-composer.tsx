@@ -85,7 +85,6 @@ export function ConversationComposer({ id, role, version, csrfToken, memory, onM
         )}
       </button>
     </div>
-    {role === 'CUSTOMER' && <p className="tw:mt-1 tw:text-[11px] tw:text-slate-500">Enter to send · Shift+Enter for a new line</p>}
-    {error && <p role="alert" className="tw:mt-2 tw:text-sm tw:text-red-800">{error}</p>}
+        {error && <p role="alert" className="tw:mt-2 tw:text-sm tw:text-red-800">{error}</p>}
   </form>;
 }

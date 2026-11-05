@@ -8,7 +8,7 @@ FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/hi
 
 | Phase | Kết quả | Gate |
 | --- | --- | --- |
-| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat đang chạy vào shell/route Customer mới | H01; không Agent |
+| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat vào shell Customer mới (Đã triển khai) | H01; không Agent |
 | [CH02](chat/02-agent-boundary.md) | Service identity, durable turns, tools/retrieval/fence và contract Agent | Review kiến trúc/migration trước nối LLM |
 | [CH03](chat/03-agent-answers-ui.md) | Hiển thị tiến trình/answer/citations/gợi ý đã được Core cho phép | CH02+Agent thật, D01/D02 nếu mở policy PDF |
 
@@ -18,7 +18,7 @@ ConversationStatus chỉ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE, không CLOSED. 
 
 CH02 là phase phân tích kỹ thuật/contract và triển khai nền sau khi quyết định được ghi lại; không tự chọn AgentCore/provider/HTTPframework/checkpoint từ đề xuất ADR. Cần test Core với adapter giả trong harness rồi Agent thật; không lấy mock answer làm FR-005 đã đạt.
 
-- [ ] CH01 giữ quyền/nháp/reconcile/realtime I03–I06.
+- [x] CH01 giữ quyền/nháp/reconcile/realtime I03–I06, giao diện 100% tiếng Anh, tối ưu header và composer.
 - [ ] CH02 boundary/security/durability được chốt và kiểm chứng riêng.
 - [ ] CH03 nguồn/citation/handoff/Ticket-gate/no-F5 tests; FR-005 không xong chỉ vì gửi được tin.
 

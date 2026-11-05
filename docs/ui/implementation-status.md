@@ -4,6 +4,8 @@ Products P03 cập nhật 04/11/2026: PDF tự hiển thị khi chọn sản ph�
 
 Cập nhật 05/11/2026: PL05 Quick Policy Lookup trong Inbox (modal in-place và tab mới) đã hoàn tất. Notification center bổ sung badge đếm số lượng chưa đọc, đánh dấu đọc tại chỗ từng mục và toàn bộ, tích hợp thông báo đổi mật khẩu bảo mật. 29 test browser pass (20 staff-inbox + 8 conversation-realtime + 1 ticket-flow).
 
+Customer Portal cập nhật 05/11/2026: Đã hoàn tất triển khai UI Customer tích hợp bao gồm Shell H01, Home H02 (portfolio thực tế, tiêu đề đen ASSIGNED SUPPORT STAFF chuẩn, bỏ card tĩnh Paperless Policy), Products PR01/PR02 (danh sách, tìm kiếm, nút View Details xem chi tiết giải pháp kèm Back to Solutions, bỏ nút ép mở chat, xem/tải PDF tài liệu PUBLIC qua SignedPdfPreview), và My Policies PO01/PO02/D01/D02 (tra cứu hợp đồng, quyền lợi, lịch phí, xem hợp đồng PDF). Giao diện 100% tiếng Anh nhất quán. Tất cả test customer-conversations (5/5), customer-policies (5/5), staff-inbox (20/20) pass. Docker web container đã rebuild sạch.
+
 Đối chiếu source **05/11/2026**. Đây là snapshot hiện tại, không phải nhật ký triển khai hoặc nghiệm thu toàn bộ FR/NFR. Operator là công cụ riêng; Web/Core local chạy Docker qua gateway.
 
 [Thứ tự đọc](README.md) · [Menu đích](menu.md) · [Chỉ mục Staff](staff/README.md) · [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng) · [Gap G01–G10](staff/plans/README.md#phần-còn-lại-theo-chức-năng)
@@ -19,14 +21,14 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 | Mã | Trạng thái | Đã có | Còn thiếu |
 | --- | --- | --- | --- |
 | C01 | Một phần FR-001 | Login email/password/session/role | Registration A01/A02; reset/OTP/SSO không tự là Must |
-| C02 | Một phần UX | `/customer` đọc hồ sơ/contact và chat tối thiểu | H01 shell và H02 Home nhẹ, không API metrics mặc định |
-| C03 | Core catalog/access đã có, UI chưa làm | A17/P01 và A19/access/P02 hai role | UI Customer PR01/PR02 |
-| C04 | Chưa làm | Schema policy, quan hệ nhiều policy/khách | Customer list/detail/quyền lợi/kỳ phí theo ownership |
-| C05 | Chưa làm phía Customer | Storage private và metadata/file dùng chung đã có | Customer catalog/view/download và UI |
+| C02 | Đã nối API local | H01 shell điều hướng, H02 Home hiển thị portfolio từ dữ liệu hợp đồng thực tế, lối tắt dịch vụ và Staff phụ trách | Đã tinh chỉnh tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ card tĩnh Paperless Policy |
+| C03 | Đã nối API local | PR01 catalog/search/detail tại chỗ, nút View Details, PR02 xem/tải PDF tài liệu PUBLIC qua SignedPdfPreview | Đã bỏ nút ép chat; khách hàng tự chủ động vào chat khi có nhu cầu |
+| C04 | Đã nối API local | PO01/PO02 danh sách/chi tiết hợp đồng, quyền lợi, lịch phí theo ownership | 5/5 browser tests pass |
+| C05 | Đã nối API local | D01/D02 xem/tải PDF hợp đồng sở hữu qua MinIO presigned URL | Tích hợp SignedPdfPreview |
 | C06 | I03–I06 đã nối nền | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM | CH01 layout mới; CH02/CH03 Agent trả lời thật/citations |
 | C07 | Chưa làm | Schema Ticket/outbox, plan I07 | Trusted draft/explicit confirmation/result/detail theo I07/T01/T02; manual/list tổng riêng |
-| C08 | Một phần | Hồ sơ chỉ đọc/Staff contact, account/password/logout | Sửa hồ sơ và menu/style Customer mới |
-| C09 | Đề xuất UX, chưa chốt | SYSTEM và chat realtime có I06, không Customer Notification row | N01 quyết định scope trước N02; không yêu cầu Must từ FR-013 |
+| C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Sửa hồ sơ theo PF01/02 |
+| C09 | Đã nối API local | Toolbar Notification Center popover: badge đếm chưa đọc, đánh dấu đọc từng mục/tất cả | N01/N02 push notification mở rộng |
 | S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; 15 regression form + 22 phiên/retry không F5, focus freshness 30 giây | E2E/trình duyệt khác |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
 | S03 | Đã nối API local | Customers list/detail/search/page/retry, hợp đồng/PDF; 15 regression FE | Link theo khách là UX tùy scope; bổ sung E2E thật trong CU02 |
@@ -59,7 +61,7 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 - [x] Product A17/P01 Core/gateway:10 test HTTP/PostgreSQL +1 gateway pass, lint/build pass;78 test hồi quy chat pass. Không browser E2E/UI Products.
 - [x] Product A19/access P02:13 Core/HTTP/MinIO test +1 gateway pass;88 regression pass (10 P01 +78 chat), lint/build pass. Không browser E2E/UI Products.
 - [x] Staff Products P03:17 browser test mock +1 E2E Core/PostgreSQL/MinIO th?t;93 regression Account/Session/Customers/Policy/Inbox pass; t?ng111 pass, kh?ng flaky.
-- [ ] Customer ownership Policy/PDF theo PO01/PO02/D01/D02. Quick lookup/đổi context không tự thành phần Must.
+- [x] Customer ownership Policy/PDF theo PO01/PO02/D01/D02 đã hoàn tất; Products PR01/PR02 danh sách/chi tiết/xem PDF tài liệu đã hoàn tất (5/5 browser tests pass, Docker web pass). Bỏ ép luồng chat trực tiếp, chuyển sang View Details tại chỗ.
 - [x] Việc 01: retry khôi phục phiên không F5, dedup/abort/role/next; có 22 regression Session, gồm tối ưu focus/visibility 30 giây và bypass khi invalidation/expiry.
 - [x] Việc 02: metadata revalidate nền, giữ iframe/src cùng file/version; revoke/expiry/download/actor đổi đúng lifecycle; 26 regression Policies mới.
 - [ ] E2E tích hợp/CI, các trình duyệt khác, concurrency/catch-up/expiry/storage lỗi và benchmark; không lấy invalidation local làm cam kết production.
