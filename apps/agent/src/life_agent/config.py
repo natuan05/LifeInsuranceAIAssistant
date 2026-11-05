@@ -5,8 +5,10 @@ No value is defaulted in code: a missing limit or config value stops the run ins
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, fields
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Mapping
 
 
@@ -86,3 +88,34 @@ class AgentConfig:
                 raise ConfigError(f"{field.name} must not be negative")
         if self.chars_per_token <= 0 or self.max_context_chars <= 0:
             raise ConfigError("chars_per_token and max_context_chars must be positive")
+
+
+AGENT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_env(path: Any = None) -> dict[str, str]:
+    """Read KEY=VALUE pairs from a private env file (default ``apps/agent/.env``, Git ignored); process environment
+    wins. Values are never printed; callers pass them straight to the client that needs them."""
+    file = Path(path) if path else AGENT_ROOT / ".env"
+    values: dict[str, str] = {}
+    if file.is_file():
+        for line in file.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            value = value.strip()
+            if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                value = value[1:-1]
+            values[key.strip()] = value
+    elif path:
+        raise ConfigError("env file not found")
+    values.update({k: v for k, v in os.environ.items() if k.startswith(("LIFE_AGENT_", "GEMINI_"))})
+    return values
+
+
+def require(env: Mapping[str, str], name: str) -> str:
+    value = env.get(name)
+    if not value:
+        raise ConfigError(f"{name} is not set (see apps/agent/.env.example)")
+    return value

@@ -15,7 +15,7 @@ from life_agent.config import AgentConfig
 from life_agent.core_client import CoreError
 from life_agent.graph import AgentRunner, build_graph
 from life_agent.model import ModelReply, TokenUsage
-from life_agent.store import BudgetExhausted, Reservation
+from life_agent.store import MemoryStore
 from langgraph.checkpoint.memory import InMemorySaver
 
 NS = uuid.UUID("6a0f6d55-8a8c-4d5e-9a71-2b8a1c9e0f00")
@@ -153,49 +153,7 @@ class ManualClock:
         self.current += timedelta(seconds=seconds)
 
 
-class InMemoryStore:
-    """Ledger semantics of the planned durable store, in memory only (no durability, no fencing)."""
-
-    def __init__(self) -> None:
-        self.caps: dict[str, dict[str, int]] = {}
-        self.used: dict[str, dict[str, int]] = {}
-        self.reservations: dict[tuple[str, str, str], int] = {}
-        self.events: list[dict] = []
-        self.sequences: dict[str, int] = {}
-
-    def open_message(self, message_id: str, caps: dict[str, int]) -> None:
-        if message_id not in self.caps:
-            self.caps[message_id] = dict(caps)
-            self.used[message_id] = {kind: 0 for kind in caps}
-
-    def reserve(self, message_id: str, kind: str, operation_id: str, amount: int = 1) -> Reservation:
-        key = (message_id, kind, operation_id)
-        if key in self.reservations:
-            return Reservation(message_id, kind, operation_id, self.reservations[key])
-        if self.used[message_id][kind] + amount > self.caps[message_id][kind]:
-            raise BudgetExhausted(kind)
-        self.used[message_id][kind] += amount
-        self.reservations[key] = amount
-        return Reservation(message_id, kind, operation_id, amount)
-
-    def settle(self, message_id: str, kind: str, operation_id: str, actual: int) -> None:
-        key = (message_id, kind, operation_id)
-        self.used[message_id][kind] += actual - self.reservations[key]
-        self.reservations[key] = actual
-
-    def usage(self, message_id: str) -> dict[str, int]:
-        return dict(self.used.get(message_id, {}))
-
-    def persist_final(self, execution: dict, outcome: dict) -> dict:
-        attempt = execution["attempt_id"]
-        self.sequences[attempt] = self.sequences.get(attempt, 0) + 1
-        kind = "RESULT" if "result" in outcome else "ERROR"
-        event = {"schema_version": "agent-v1", "run_id": execution["run_id"], "attempt_id": attempt,
-                 "event_id": str(uuid.uuid4()), "sequence": self.sequences[attempt], "kind": kind,
-                 "payload": {"result": outcome["result"]} if kind == "RESULT" else {"failure": outcome["failure"]}}
-        contracts.validate("AgentEvent", event)
-        self.events.append(event)
-        return event
+InMemoryStore = MemoryStore  # moved to life_agent.store for local evaluation runs
 
 
 def _pos(cursor: str | None) -> int:

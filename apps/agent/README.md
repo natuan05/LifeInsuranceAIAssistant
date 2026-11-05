@@ -54,4 +54,41 @@ python -m pip install -e . --group dev
 python -m pytest
 ```
 
-`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `pytest` 9.2.0. Checkpointer chỉ dùng `InMemorySaver` trong test; thư viện checkpointer, HTTP framework và provider model chọn ở G2–G4.
+`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Checkpointer chỉ dùng `InMemorySaver`; thư viện checkpointer và HTTP framework chọn ở G2–G3.
+
+## Trạng thái: mốc 3 — Public RAG thử nghiệm
+
+Phần Public của Tasks 7–9: tài liệu → chunk → embedding → hybrid search → câu trả lời có nguồn → báo cáo chất lượng. **Corpus Public vẫn `ai_checked/needs_human_review` (G5 chưa duyệt)**; người dùng cho phép dùng để thử ngày 05/11/2026, mọi chunk ghi trạng thái duyệt và UL049 trang 29 mang cảnh báo nguồn. Cấu hình Gemini trong [`evaluation/trial-config.json`](evaluation/trial-config.json) là cấu hình **thử** theo G4, không phải mặc định hay model được chọn. Private, Copilot, Core thật, checkpoint bền vững và HTTP chưa làm ở mốc này.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `corpus.py` | Inventory 13 PDF/243 trang/7 sản phẩm và checksum; NFC, anchor trang, bỏ dòng lặp đầu/cuối trang, tách ghi chú hiệu đính; parent theo Điều/Phụ lục/mục, child theo khối không cắt câu, bảng tách lặp header; prefix metadata tách khỏi nội dung gốc; dẫn chiếu Điều/Phụ lục phân giải trong cùng tài liệu/phiên bản; ghi index một transaction/tài liệu–phiên bản, chống nạp trùng bằng fingerprint |
+| `retrieval.py` | PostgreSQL FTS + pgvector + RRF trong đúng cặp document/version Core cấp ở mọi câu lệnh; mở rộng parent và một bước dẫn chiếu có cap; năm trạng thái, `degraded` khi embedding lỗi, lỗi keyword/DB là `ERROR`; kiểm model/version/số chiều trước khi so vector |
+| `model.py` | Adapter Gemini qua REST (thư viện chuẩn, không SDK): embedding theo định dạng từng model, sinh quyết định JSON theo schema, đếm token input/output/thinking; lỗi chỉ trả mã đã lọc, key chỉ đi trong header |
+| `evaluation/` | `cases.json` (43 ca Public/ngoài phạm vi/tấn công/lỗi nguồn), `evaluate.py` hai chế độ `retrieval`/`end-to-end`; `mandatory_checks` PASS/FAIL/NOT_RUN tách `quality_metrics` (Recall@k, nDCG@k, MRR, trích dẫn, latency, token, chi phí) |
+
+Quyền DB: thêm role `rag_indexer` (SELECT/INSERT/DELETE `rag`, chỉ dùng offline) và `rag_retriever` (chỉ SELECT `rag`) qua bootstrap/compose; cả hai không có quyền `business`.
+
+Đề xuất cần review cùng PR (chưa phải quyết định):
+
+- Metadata `rag-chunk-v1` trong `RagKnowledgeChunk.metadata`: `kind`, `chunk_key`, `evidence_key`, `parent_key`, `section_key`, `heading_path`, `clause`, `pages`/`page_end`, `anchor`, `prefix`, `refs`, `issues`, `editorial_notes`, `product`, `approval`, `dataset_version`, `corpus_config_id`, `fingerprint`, `embedding`. Parent cũng là một dòng có vector (cột embedding bắt buộc) nhưng không vào nhánh tìm kiếm.
+- Catalog Public tạm: `document_id` uuid5 theo đường dẫn nguồn, `document_version` = `sha256-` + 12 ký tự checksum PDF, tiêu đề ghép tên sản phẩm. Thay bằng catalog Core ở Task 3; không phải `currentVersion`.
+- Unique `(document_id, document_version, chunk_index)` chỉ cho một không gian vector mỗi tài liệu/phiên bản: so hai embedding phải index lại tuần tự hoặc đổi schema sau review.
+- FTS `simple`, truy vấn OR các từ, `tsvector` tính khi truy vấn (chưa thêm migration/GIN/HNSW); 40/40 ứng viên → 20 hợp nhất → tối đa 8 bằng chứng, RRF 60 chỉ là biến thể thử có `config_id`.
+- Dẫn chiếu tới Chương không được mở rộng; dòng mục lục không tính là dẫn chiếu; dẫn chiếu sang Luật/Điều Khoản Chung/Sản Phẩm Chính là chưa phân giải.
+- Phát hiện khi chunk corpus, chuyển người duyệt G5: TnC Dự Phòng Xanh có tiêu đề “Điều 12” dính vào cuối đoạn 11.2 nên dẫn chiếu tới Điều 12 không tìm thấy đích; TnC Hộ Vệ Xanh không có tiêu đề Điều riêng (Điều nằm trong đoạn/bảng) nên dẫn chiếu Điều trong tài liệu đó chưa phân giải được.
+
+### Chạy với PostgreSQL và Gemini
+
+1. `.env` ở root: thêm `DB_RAG_INDEXER_PASSWORD` và `DB_RAG_RETRIEVER_PASSWORD` (giá trị mẫu trong `.env.example`) rồi `docker compose up -d --build --wait` để tạo hai role.
+2. Copy `apps/agent/.env.example` thành `apps/agent/.env` (bị Git ignore), điền `GEMINI_API_KEY`. Không đưa key vào Git, chat hay log.
+3. Từ `apps/agent`, sau khi cài như trên:
+
+```bash
+python -m pytest                       # DB tests chạy khi có LIFE_AGENT_TEST_RAG_*_DSN, không thì skip
+python -m life_agent.corpus --manifest ../../data/public/manifest-manulife-text.json --trial evaluation/trial-config.json --index
+python evaluation/evaluate.py --cases evaluation/cases.json --mode retrieval
+python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end
+```
+
+Lệnh index gọi embedding có tính phí theo cấu hình thử; chạy lại cùng dữ liệu/cấu hình sẽ bỏ qua tài liệu đã nạp. Báo cáo ghi vào `.local/agent-eval/` (ignored), gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt hay nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` cho tới khi người chấm điền file `--human-review`; báo cáo không tự tuyên bố đạt nghiệm thu.
