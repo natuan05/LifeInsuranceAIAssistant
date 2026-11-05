@@ -1170,3 +1170,5 @@ RAG **lịch sử, không phải cam kết hiện tại**: tuần 7 corpus/manif
 ## Ngoại lệ dữ liệu được người dùng cho phép ngày 03/11/2026
 
 [Bản hợp đồng đầy đủ có dữ liệu demo](../../data/private/manulife-demo-full-v1/README.md) được dùng trực tiếp từ nguồn đã khử định danh và được phép lưu Git. `synthetic=false`, chưa human/RAG approval; không tự seed/chunk/embedding. Các quy định synthetic-only ở trên tiếp tục áp dụng cho dữ liệu khác. Không dùng số liệu/đáp án fixture rút gọn cho bản đầy đủ; ô đã loại là dữ liệu thiếu.
+
+**Chốt G5 phần Private ngày 06/11/2026 (người dùng chọn):** chỉ [hợp đồng synthetic](../../data/synthetic/manulife-demo-v1/README.md) được chunk/embed/gửi provider để thử Private, nhiều lượt và Copilot; bản đầy đủ ở trên không được gửi. Hai quyền lợi `DEMO-TITAN` giữ chưa ánh xạ sang bổ trợ thương mại, fixture không sửa; Core/double trả `ridersComplete=false`. Chưa có quyết định nguồn UL049 trang 29: giữ cảnh báo. Quyết định này không duyệt corpus Public hay mapping nghiệp vụ. Cách chạy ở [README Agent](../../apps/agent/README.md#trạng-thái-mốc-5--private-và-copilot-thử-nghiệm).

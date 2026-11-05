@@ -123,3 +123,33 @@ Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-prot
 7. Đổi `LIFE_AGENT_STORE_DSN` sang đích, mở lại nhận việc.
 
 Rollback: nếu đích **chưa nhận ghi**, chỉ cần trỏ lại nguồn (nguồn còn nguyên). Nếu đích **đã nhận ghi**, phải chép các dòng mới của đích về nguồn (hoặc giữ đích) rồi chạy `fence_after_restore()` trên bên dùng tiếp. Không chạy hai bên song song, không dual-write/CDC.
+
+## Trạng thái: mốc 5 — Private và Copilot (thử nghiệm)
+
+Phần Private/Copilot của Tasks 5, 7–9 trên **hợp đồng hoàn toàn synthetic** [`manulife-demo-v1`](../../data/synthetic/manulife-demo-v1/README.md). Quyết định G5 ngày 06/11/2026 (người dùng chọn):
+
+- Chỉ bộ synthetic được chunk, embed và gửi provider. Bản đầy đủ đã khử định danh [`manulife-demo-full-v1`](../../data/private/manulife-demo-full-v1/README.md) (`synthetic=false`) không được chuẩn bị/index; `prepare_private_fixture` từ chối dữ liệu không synthetic hoặc lệch checksum manifest.
+- Hai quyền lợi `DEMO-TITAN` giữ **chưa ánh xạ** sang sản phẩm bổ trợ thương mại; không sửa fixture. Core double trả hai mục theo nhãn fixture với `riders_complete=false`, nên Agent không được kết luận “không tham gia” một bổ trợ khác.
+- Chưa có quyết định nguồn cho UL049 trang 29: giữ cảnh báo nguồn như mốc 3. Corpus Public vẫn chưa được người duyệt.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `corpus.py` | `prepare_private_fixture`: `PRIVATE_POLICY`, `document_type=CONTRACT`, `policy_id`/`owner_customer_id` từ `contract.json` chỉ để kiểm chéo (quyền vẫn do Core cấp), vị trí là anchor `syn-*` không tạo trang PDF. Writer ghi `policy_id`/`owner_customer_id`, từ chối Private thiếu metadata chủ sở hữu hoặc Public có metadata đó; fingerprint Private gồm chủ sở hữu. CLI `--private-fixture` |
+| `evaluation/evaluate.py` | `LocalCore` mô phỏng quyền dự kiến của fixture (khách sở hữu và Staff được phân công; khách/Staff khác bị từ chối, không phân biệt “không có” với “không được xem”), lịch sử hội thoại và chat liên kết theo view đã chốt. Không chứng minh quyền Core (Task 3/10). Ca `multi_turn` chạy thật từng lượt trước rồi lưu như lịch sử Core đã nhận; ca `copilot` đọc chat Customer synthetic cắt tại `linked_through` |
+| `evaluation/cases.json` | 84 ca: 43 Public, 21 Private (15 từ `expected-answers.json`), 8 kết hợp Private + Public Hành Trình Hạnh Phúc, 6 nhiều lượt, 6 Copilot. Đích Private khớp đúng anchor |
+
+Kiểm bắt buộc thêm: `cross_access_denied` (không bằng chứng/trích dẫn Private của hợp đồng actor không được đọc ở mọi lượt; chế độ retrieval còn đòi trạng thái `DENIED`) và `linked_view_frozen` (mọi lần đọc chat liên kết dùng đúng view của lượt, tin commit sau mốc không vào câu trả lời). `review_checks` tách riêng, không đổi `mandatory_status`: Copilot không kèm action (code kiểm), còn lại — không soạn nháp, phạm vi gần/từ đầu, rider chưa ánh xạ, không hỏi sức khỏe, không lấy giá trị tài khoản thay giá trị hoàn lại… — là `NOT_RUN` tới khi người chấm điền `--human-review`. Lượt có nhiều lần retrieval được chấm trên thứ hạng xen kẽ giữa các lần gọi.
+
+Báo cáo mặc định không ghi câu hỏi/câu trả lời/query của ca không phải Public. `--include-synthetic-private-text` cho phép ghi để người chấm, chỉ với ca dùng dữ liệu synthetic; nội dung chunk không bao giờ được ghi.
+
+### Chạy
+
+Từ `apps/agent`, sau phần chạy của mốc 3 (cùng `trial-config.json`, đã có `private_fixture`):
+
+```bash
+python -m life_agent.corpus --manifest ../../data/public/manifest-manulife-text.json --trial evaluation/trial-config.json --private-fixture ../../data/synthetic/manulife-demo-v1 --index
+python evaluation/evaluate.py --cases evaluation/cases.json --mode retrieval --kind private mixed
+python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end --kind private mixed multi_turn copilot --include-synthetic-private-text
+```
+
+Tài liệu Public đã nạp ở mốc 3 được bỏ qua nhờ fingerprint; chỉ hợp đồng synthetic gọi embedding mới. `--kind public` giữ phép đo mốc 3 để so sánh.

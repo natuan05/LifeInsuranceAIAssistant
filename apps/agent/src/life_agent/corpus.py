@@ -112,6 +112,8 @@ class PreparedVersion:
     source_issues: list[dict[str, Any]]
     boilerplate_removed: int
     page_count: int
+    policy_id: str | None = None  # PRIVATE_POLICY only: cross-check metadata, never a permission
+    owner_customer_id: str | None = None
 
 
 @dataclass
@@ -667,6 +669,9 @@ def fingerprint(version: PreparedVersion, embedding_config_id: str) -> str:
     material = {"document_id": version.document_id, "document_version": version.document_version,
                 "output_sha256": version.source["output_sha256"], "dataset_version": version.dataset_version,
                 "corpus_config": asdict(version.corpus_config), "embedding": embedding_config_id, "schema": CHUNK_SCHEMA}
+    if version.access_scope != "PUBLIC":  # Public fingerprints stay as they were; Private rows re-index on owner change
+        material.update(access_scope=version.access_scope, policy_id=version.policy_id,
+                        owner_customer_id=version.owner_customer_id)
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
 
 
@@ -717,6 +722,11 @@ class PgIndexWriter:
         return psycopg.connect(self._dsn, connect_timeout=10)
 
     def write_version(self, version: PreparedVersion, chunks: Sequence[PreparedChunk]) -> IndexReceipt:
+        private = version.access_scope == "PRIVATE_POLICY"
+        if version.access_scope not in ("PUBLIC", "PRIVATE_POLICY") or \
+                private != bool(version.policy_id and version.owner_customer_id) or \
+                (not private and (version.policy_id or version.owner_customer_id)):
+            raise CorpusError("PRIVATE_POLICY needs policy and owner metadata, PUBLIC must have none; nothing written")
         fp = fingerprint(version, self._config.config_id)
         parents = sum(1 for c in chunks if c.kind == "parent")
         receipt = IndexReceipt(version.document_id, version.document_version, fp, len(chunks), parents,
@@ -740,8 +750,8 @@ class PgIndexWriter:
                 meta = chunk_metadata(version, chunk, fp=fp, embedding=identity)
                 rows.append((str(uuid.uuid5(_NAMESPACE, f"{chunk.chunk_key}:{fp}")), version.document_id,
                              version.document_version, chunk.ordinal, chunk.content, vector_literal(vector["values"]),
-                             version.access_scope, chunk.pages[0] if chunk.pages else None,
-                             json.dumps(meta, ensure_ascii=False)))
+                             version.access_scope, version.policy_id, version.owner_customer_id,
+                             chunk.pages[0] if chunk.pages else None, json.dumps(meta, ensure_ascii=False)))
             with conn.transaction():
                 with conn.cursor() as cur:
                     cur.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (lock,))
@@ -755,8 +765,48 @@ class PgIndexWriter:
                     cur.executemany(
                         "INSERT INTO rag.rag_knowledge_chunks (id, document_id, document_version, chunk_index, content, "
                         "embedding, access_scope, product_id, policy_id, owner_customer_id, page_number, metadata) "
-                        "VALUES (%s, %s, %s, %s, %s, %s::vector, %s, NULL, NULL, NULL, %s, %s::jsonb)", rows)
+                        "VALUES (%s, %s, %s, %s, %s, %s::vector, %s, NULL, %s, %s, %s, %s::jsonb)", rows)
         return receipt
+
+
+SYNTHETIC_FIXTURE = REPO_ROOT / "data" / "synthetic" / "manulife-demo-v1"
+
+
+def prepare_private_fixture(directory: Path, config: CorpusConfig, *, repo_root: Path = REPO_ROOT) -> PreparedVersion:
+    """Synthetic Private contract (G5 decision 06/11/2026: only fully synthetic Private data is chunked/embedded and
+    sent to the provider; the de-identified full contract is not). Markdown anchors are the location; no invented PDF
+    pages. DEMO-TITAN riders stay unmapped (riders_complete=false)."""
+    directory = Path(directory)
+    manifest = json.loads((directory / "manifest.json").read_text(encoding="utf-8"))
+    contract = json.loads((directory / "contract.json").read_text(encoding="utf-8"))
+    if manifest.get("synthetic") is not True or contract.get("synthetic") is not True:
+        raise CorpusError("only fully synthetic Private fixtures may be indexed (G5)")
+    for entry in manifest["files"]:
+        if _sha256_file(directory / entry["path"]) != entry["sha256"]:
+            raise CorpusError(f"fixture checksum differs from manifest: {entry['path']}")
+    doc = contract["private_document"]
+    raw = (directory / "contract.md").read_bytes()
+    text = unicodedata.normalize("NFC", raw.decode("utf-8")).replace("\r\n", "\n")
+    front, body = _split_frontmatter(text)
+    if front.get("synthetic") != "true" or front.get("access_scope") != "PRIVATE_POLICY" or \
+            front.get("document_version") != doc["version"]:
+        raise CorpusError("contract.md front matter does not match a synthetic PRIVATE_POLICY fixture")
+    blocks, removed = remove_boilerplate(parse_blocks(body), config)
+    main = contract["contract"]["main_product"]
+    product = {"code": main["fixture_product_ref"], "name": main["name"], "role": "MAIN", "option": None}
+    policy_number = contract["contract"]["policy_number"]
+    rel = str((directory / "contract.md").resolve().relative_to(repo_root.resolve())).replace("\\", "/")
+    return PreparedVersion(
+        document_id=doc["proposed_uuid"], document_version=doc["version"],
+        title=f"Hợp đồng {policy_number} – dữ liệu giả lập"[:255], document_type="CONTRACT", access_scope="PRIVATE_POLICY",
+        product=product,
+        source={"relative_path": rel, "sha256": hashlib.sha256(raw).hexdigest(), "output_markdown": rel,
+                "output_sha256": hashlib.sha256(raw).hexdigest(), "document_title": f"Hợp đồng {policy_number}",
+                "dataset_id": manifest["dataset_id"], "dataset_version": manifest["dataset_version"], "synthetic": True},
+        approval={"status": "synthetic_fixture/g5_trial_2026-11-06", "human_approved": False},
+        dataset_version=config.dataset_version, corpus_config=config, blocks=blocks, source_issues=[],
+        boilerplate_removed=removed, page_count=0, policy_id=contract["contract"]["proposed_uuid"],
+        owner_customer_id=contract["owner_customer"]["proposed_uuid"])
 
 
 def prepare_corpus(manifest: Mapping[str, Any], config: CorpusConfig, *, repo_root: Path = REPO_ROOT
@@ -788,13 +838,15 @@ def corpus_summary(prepared: Iterable[tuple[PreparedVersion, RefReport]]) -> dic
 
 
 def _main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Prepare (and optionally index) the Public corpus offline.")
+    parser = argparse.ArgumentParser(description="Prepare (and optionally index) the Public corpus and the synthetic "
+                                                 "Private fixture offline.")
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--trial", required=True, type=Path, help="approved trial configuration JSON")
     parser.add_argument("--out", type=Path, help="write chunk JSONL here (must be inside an ignored local area)")
     parser.add_argument("--index", action="store_true", help="embed and write to rag (needs indexer credential)")
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--embed-retries", type=int, default=4, help="retries per batch on provider outage (offline)")
+    parser.add_argument("--private-fixture", type=Path, help="also prepare/index a synthetic Private fixture directory")
     args = parser.parse_args(argv)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
@@ -803,6 +855,9 @@ def _main(argv: Sequence[str] | None = None) -> int:
     manifest = load_manifest(args.manifest)
     inv = inventory(manifest)
     prepared = prepare_corpus(manifest, config)
+    if args.private_fixture:
+        private = prepare_private_fixture(args.private_fixture, config)
+        prepared.append((private, resolve_refs(build_chunks(private))))
     summary = corpus_summary(prepared)
     print(json.dumps({"inventory": inv, "summary": summary["totals"], "refs": summary["refs"]}, ensure_ascii=False))
     if args.out:

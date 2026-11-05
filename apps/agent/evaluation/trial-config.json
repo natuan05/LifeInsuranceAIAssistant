@@ -1,7 +1,8 @@
 {
  "trial_id": "gemini-trial-1",
- "status": "Cấu hình THỬ theo G4, người dùng cho phép gọi Gemini API ngày 05/11/2026 trên corpus Public chưa duyệt. Không phải mặc định, không phải lựa chọn chính; số liệu dưới là tham số thử cần review.",
+ "status": "Cấu hình THỬ theo G4, người dùng cho phép gọi Gemini API ngày 05/11/2026 trên corpus Public chưa duyệt; ngày 06/11/2026 cho phép thêm hợp đồng hoàn toàn synthetic manulife-demo-v1 (G5: chỉ bộ synthetic, không gửi manulife-demo-full-v1). Không phải mặc định, không phải lựa chọn chính; số liệu dưới là tham số thử cần review.",
  "manifest": "data/public/manifest-manulife-text.json",
+ "private_fixture": "data/synthetic/manulife-demo-v1",
  "corpus": {
   "config_id": "structure-v1",
   "dataset_version": "public-trial-2026-11-05",
@@ -82,6 +83,7 @@
  "notes": [
   "Các trần 3 retrieval/4 request Core/3 giây/1 retry là quyết định đã chốt; model_calls_max, graph_steps_max, turn_token_budget, finish_reserve_tokens, deadline_s là giá trị thử G4.",
   "Số chiều 1536 chọn để thử (khuyến nghị của provider, vừa giới hạn HNSW 2000 của pgvector); chưa so với cấu hình khác.",
-  "Embedding cùng hãng với model sinh không phải lý do chọn; cần phép so có kiểm soát (Task 9 Step 4a)."
+  "Embedding cùng hãng với model sinh không phải lý do chọn; cần phép so có kiểm soát (Task 9 Step 4a).",
+  "private_fixture chỉ nhận dữ liệu synthetic=true có checksum khớp manifest; rider DEMO-TITAN giữ chưa ánh xạ (riders_complete=false)."
  ]
 }

@@ -9,8 +9,7 @@ import pytest
 
 from life_agent import contracts
 from life_agent.config import load_env
-from life_agent.corpus import (CorpusError, PgIndexWriter, build_chunks, chunk_metadata, fingerprint, index_version,
-                               prepare_document, resolve_refs, vector_literal)
+from life_agent.corpus import CorpusError, PgIndexWriter, build_chunks, index_version, prepare_document, resolve_refs
 from life_agent.retrieval import PgIndexReader, SearchEngine
 
 from corpus_fixtures import corpus_config, fixture_manifest
@@ -59,21 +58,9 @@ def rows_of(document_id):
 
 
 def insert_private(version, policy_id, owner_id):
-    """Private rows for scope tests (PgIndexWriter is Public-only until the Private milestone)."""
-    import psycopg
-
-    cfg = embedding_config()
-    chunks = resolve_refs(build_chunks(version)).chunks
-    fp = fingerprint(version, cfg.config_id)
-    with psycopg.connect(INDEXER) as conn:
-        for c in chunks:
-            meta = chunk_metadata(version, c, fp=fp, embedding=cfg.identity())
-            conn.execute("INSERT INTO rag.rag_knowledge_chunks (document_id, document_version, chunk_index, content, "
-                         "embedding, access_scope, policy_id, owner_customer_id, page_number, metadata) VALUES "
-                         "(%s, %s, %s, %s, %s::vector, 'PRIVATE_POLICY', %s, %s, %s, %s::jsonb)",
-                         (version.document_id, version.document_version, c.ordinal, c.content,
-                          vector_literal(HashEmbedding.values(c.embedding_text, cfg.dimensions)), policy_id, owner_id,
-                          c.pages[0], json.dumps(meta, ensure_ascii=False)))
+    """Private rows written through the offline writer (same path as `python -m life_agent.corpus --private-fixture`)."""
+    private = dataclasses.replace(version, access_scope="PRIVATE_POLICY", policy_id=policy_id, owner_customer_id=owner_id)
+    return index_version(private, writer())
 
 
 # ---------------------------------------------------------------------------------------------- scope
@@ -91,7 +78,10 @@ def test_same_content_other_version_is_never_returned(documents):
         reader.close()
     assert result["status"] == "OK" and eng.last_trace["keyword"] and eng.last_trace["vector"]
     assert {e["document_version"] for e in result["evidence"]} == {"fixture-v1"}  # newer version does not replace it
-    assert any(e["location"]["clause"] == "Điều 4. Loại trừ" for e in result["evidence"])  # ref expansion, same scope
+    # ref expansion in the same scope; when equal-score rows (ties ordered by row id) fill the cap first, the ref is
+    # reported as cut instead of silently dropped
+    assert any(e["location"]["clause"] == "Điều 4. Loại trừ" for e in result["evidence"]) or \
+        ("EXPANSION_CAP_REACHED", "Điều 4") in {(m["code"], m.get("reference")) for m in result["missing"]}
 
 
 def test_scope_filter_applies_before_candidate_caps(documents):
@@ -128,6 +118,37 @@ def test_private_pairs_are_checked_with_policy(documents):
         reader.close()
     assert ok["status"] == "OK" and {e["document_version"] for e in ok["evidence"]} == {"fixture-v1"}
     assert other["status"] == "ERROR"  # nothing indexed for that pair: never falls back to another policy's rows
+
+
+def test_synthetic_contract_indexed_by_writer_is_found_only_with_its_policy(documents):
+    from life_agent.corpus import SYNTHETIC_FIXTURE, prepare_private_fixture
+
+    version = prepare_private_fixture(SYNTHETIC_FIXTURE, corpus_config())
+    documents.append(version.document_id)
+    receipt = index_version(version, writer())
+    assert receipt.chunks_written > 0 and index_version(version, writer()).skipped
+    import psycopg
+
+    with psycopg.connect(INDEXER) as conn:
+        rows = conn.execute("SELECT DISTINCT access_scope, policy_id::text, owner_customer_id::text, page_number "
+                            "FROM rag.rag_knowledge_chunks WHERE document_id = %s", (version.document_id,)).fetchall()
+    assert rows == [("PRIVATE_POLICY", version.policy_id, version.owner_customer_id, None)]
+    scope = scope_of(version, kind="PRIVATE")
+    scope["policy_number"] = "SYN-POL-2024-0001"
+    scope["documents"][0]["policy_id"] = version.policy_id
+    public = scope_of(version)  # same pair asked as Public: never matches Private rows
+    foreign = json.loads(json.dumps(scope))
+    foreign["documents"][0]["policy_id"] = str(uuid.uuid4())
+    eng, reader = engine()
+    try:
+        ok = contracts.validate("RetrievalResult", eng.search("hạn mức nội trú DEMO-TITAN", scope, search_config()))
+        as_public = eng.search("hạn mức nội trú DEMO-TITAN", public, search_config())
+        other = eng.search("hạn mức nội trú DEMO-TITAN", foreign, search_config())
+    finally:
+        reader.close()
+    assert ok["status"] == "OK" and {e["location"].get("anchor") for e in ok["evidence"]} & {"syn-benefits"}
+    assert all("pages" not in e["location"] for e in ok["evidence"])
+    assert as_public["evidence"] == [] and other["evidence"] == []
 
 
 # ---------------------------------------------------------------------------------------------- roles

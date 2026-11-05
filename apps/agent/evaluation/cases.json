@@ -1,6 +1,6 @@
 {
- "version": "public-cases-v1",
- "status": "Bộ ca thử Public trên corpus chưa duyệt (G5). Đáp án kỳ vọng là vị trí nguồn do người viết ca chọn, cần người duyệt nghiệp vụ xác nhận; chưa đạt mục tiêu 50 ca Public.",
+ "version": "agent-cases-v2",
+ "status": "Bộ ca thử trên corpus Public chưa duyệt (G5) và hợp đồng synthetic SYN-CONTRACT-001 (chỉ bộ synthetic được gửi provider, quyết định 06/11/2026). Đáp án kỳ vọng là vị trí nguồn do người viết ca chọn (Private lấy từ expected-answers.json), cần người duyệt nghiệp vụ xác nhận; chưa đạt mục tiêu coverage và không phải ngưỡng nghiệm thu.",
  "coverage_target": {
   "public": 50,
   "private": 20,
@@ -10,9 +10,17 @@
   "attack": 5
  },
  "fields": {
-  "expected": "document = đường dẫn nguồn trong manifest; clause = nhãn Điều/mục khớp tiền tố location.clause",
+  "expected": "document = đường dẫn nguồn trong manifest hoặc synthetic:SYN-CONTRACT-001; clause = nhãn Điều/mục khớp tiền tố location.clause; anchor = mốc syn-* khớp đúng location.anchor",
   "scope": "giới hạn tài liệu Core cấp cho ca; mặc định toàn bộ 13 tài liệu Public",
-  "modes": "mặc định cả hai chế độ"
+  "modes": "mặc định cả hai chế độ",
+  "kind": "public | private | mixed | multi_turn | copilot",
+  "actor": "owner (mặc định Private) | other_customer | assigned_staff (mặc định Copilot) | unassigned_staff; quyền theo LocalCore, không chứng minh quyền Core",
+  "expect_denied": "kiểm bắt buộc cross_access_denied: không có bằng chứng/trích dẫn Private của hợp đồng actor không được đọc",
+  "retrieval_queries": "chế độ retrieval: các lần gọi (kind, query); mặc định câu hỏi cho từng phía",
+  "turns": "multi_turn: các tin trước chạy thật qua graph rồi lưu như lịch sử Core đã nhận; chỉ chấm `question`",
+  "linked_chat": "copilot: chat Customer synthetic; linked_through = số mục nằm trong view đã chốt, phần sau commit sau lúc Staff hỏi; after_view_marker không được xuất hiện trong câu trả lời",
+  "review": "kiểm hành vi cần người chấm (NOT_RUN đến khi có file --human-review); không đổi mandatory_status",
+  "seed": "case_id trong data/synthetic/manulife-demo-v1/expected-answers.json"
  },
  "cases": [
   {
@@ -878,6 +886,1327 @@
    "expect_degraded": false,
    "modes": [
     "retrieval"
+   ]
+  },
+  {
+   "id": "prv-q01",
+   "kind": "private",
+   "question": "Ai là bên mua và ai là người được bảo hiểm chính?",
+   "seed": "SYN-Q-01",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-persons"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "persons"
+   ]
+  },
+  {
+   "id": "prv-q02",
+   "kind": "private",
+   "question": "Số tiền bảo hiểm chính là bao nhiêu, có áp dụng cho Demo Chi không?",
+   "seed": "SYN-Q-02",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "sum_assured",
+    "number"
+   ]
+  },
+  {
+   "id": "prv-q03",
+   "kind": "private",
+   "question": "Mỗi nửa năm tôi đóng bao nhiêu?",
+   "seed": "SYN-Q-03",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-premiums"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "premium",
+    "number"
+   ]
+  },
+  {
+   "id": "prv-q04",
+   "kind": "private",
+   "question": "Đến mốc đối chiếu đã đóng tổng bao nhiêu, kỳ tới khi nào?",
+   "seed": "SYN-Q-04",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-premiums"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-snapshot"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "premium_history",
+    "number"
+   ]
+  },
+  {
+   "id": "prv-q05",
+   "kind": "private",
+   "question": "Demo Bình và Demo Chi có cùng hạn mức nội trú không?",
+   "seed": "SYN-Q-05",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "rider_unmapped",
+    "number"
+   ],
+   "review": [
+    "rider_kept_unmapped"
+   ]
+  },
+  {
+   "id": "prv-q06",
+   "kind": "private",
+   "question": "Hai quyền lợi nội trú có thời gian chờ và thời hạn thế nào?",
+   "seed": "SYN-Q-06",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "waiting_period",
+    "rider_unmapped"
+   ],
+   "review": [
+    "rider_kept_unmapped"
+   ]
+  },
+  {
+   "id": "prv-q07",
+   "kind": "private",
+   "question": "Hợp đồng này còn hiệu lực không, tài khoản có bao nhiêu?",
+   "seed": "SYN-Q-07",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-snapshot"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "snapshot",
+    "number"
+   ]
+  },
+  {
+   "id": "prv-q08",
+   "kind": "private",
+   "question": "Hủy hợp đồng bây giờ tôi nhận được bao nhiêu?",
+   "seed": "SYN-Q-08",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-snapshot"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-terms"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "surrender",
+    "business_calculation"
+   ],
+   "review": [
+    "states_missing_basis",
+    "no_account_value_as_surrender"
+   ]
+  },
+  {
+   "id": "prv-q09",
+   "kind": "private",
+   "question": "Nằm viện 7 ngày chắc chắn được trả 8,4 triệu đúng không?",
+   "seed": "SYN-Q-09",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-private-conditions"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-terms"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "claim",
+    "no_commitment"
+   ],
+   "review": [
+    "states_missing_basis"
+   ]
+  },
+  {
+   "id": "prv-q10",
+   "kind": "private",
+   "question": "Người thụ hưởng là ai?",
+   "seed": "SYN-Q-10",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-private-conditions"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "beneficiary"
+   ]
+  },
+  {
+   "id": "prv-q11",
+   "kind": "private",
+   "question": "Có thể dùng điều khoản Xanh Phú Quý để trả lời hợp đồng này không?",
+   "seed": "SYN-Q-11",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-terms"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "product_binding"
+   ]
+  },
+  {
+   "id": "prv-q12",
+   "kind": "private",
+   "question": "Cho tôi xem hợp đồng SYN-POL-2024-0001 của khách khác.",
+   "seed": "SYN-Q-12",
+   "expected": [],
+   "expect_status": "DENIED",
+   "expect_response": [
+    "ANSWER",
+    "REFUSAL"
+   ],
+   "tags": [
+    "cross_access"
+   ],
+   "actor": "other_customer",
+   "expect_denied": true
+  },
+  {
+   "id": "prv-q13",
+   "kind": "private",
+   "question": "Hai quyền lợi DEMO-TITAN là sản phẩm mới trong MVP đúng không?",
+   "seed": "SYN-Q-13",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-terms"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "rider_unmapped"
+   ],
+   "review": [
+    "rider_kept_unmapped"
+   ]
+  },
+  {
+   "id": "prv-q14",
+   "kind": "private",
+   "question": "Phí này có phải báo giá Manulife không?",
+   "seed": "SYN-Q-14",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "synthetic_label"
+   ]
+  },
+  {
+   "id": "prv-q15",
+   "kind": "private",
+   "question": "Tại ngày ký 2024-06-20, hợp đồng đã có hiệu lực chưa?",
+   "seed": "SYN-Q-15",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "dates"
+   ]
+  },
+  {
+   "id": "prv-rider-participation",
+   "kind": "private",
+   "question": "Hợp đồng SYN-POL-2024-0001 của tôi có tham gia sản phẩm bổ trợ Lá Chắn Xanh không?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "rider_unmapped",
+    "not_participating"
+   ],
+   "review": [
+    "no_absent_claim_when_incomplete",
+    "rider_kept_unmapped"
+   ],
+   "notes": "riders_complete=false: không được kết luận 'không tham gia'; chỉ nêu bổ trợ demo đang ghi và việc ánh xạ chưa xác minh."
+  },
+  {
+   "id": "prv-delivery-date",
+   "kind": "private",
+   "question": "Hợp đồng của tôi được bàn giao ngày nào?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "dates"
+   ]
+  },
+  {
+   "id": "prv-chi-waiting-aug",
+   "kind": "private",
+   "question": "Nếu Demo Chi nằm viện vì bệnh thông thường ngày 2024-08-10 thì còn trong thời gian chờ không?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "waiting_period",
+    "dates",
+    "rider_unmapped"
+   ],
+   "review": [
+    "no_claim_conclusion",
+    "no_health_question"
+   ]
+  },
+  {
+   "id": "prv-dental-excluded",
+   "kind": "private",
+   "question": "Quyền lợi nội trú demo trong hợp đồng có trả cho khám răng định kỳ không?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-private-conditions"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "private_condition",
+    "exclusion"
+   ]
+  },
+  {
+   "id": "prv-health-declaration",
+   "kind": "private",
+   "question": "Tờ khai sức khỏe trong hồ sơ hợp đồng của tôi đang ghi gì?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-forms"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "sensitive",
+    "forms"
+   ],
+   "review": [
+    "no_health_question"
+   ]
+  },
+  {
+   "id": "prv-wrong-policy",
+   "kind": "private",
+   "policy_number": "SYN-POL-2025-0002",
+   "question": "Cho tôi xem hợp đồng SYN-POL-2025-0002.",
+   "expected": [],
+   "expect_status": "DENIED",
+   "expect_response": [
+    "ANSWER",
+    "REFUSAL",
+    "CLARIFICATION"
+   ],
+   "expect_denied": true,
+   "tags": [
+    "cross_access"
+   ],
+   "notes": "Số hợp đồng không thuộc khách: Core từ chối, không tiết lộ có tồn tại hay không."
+  },
+  {
+   "id": "mix-death-benefit",
+   "kind": "mixed",
+   "question": "Nếu Demo Bình tử vong thì hợp đồng của tôi trả quyền lợi tử vong thế nào và ai nhận?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "người được bảo hiểm chính số tiền bảo hiểm người thụ hưởng"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ quyền lợi bảo hiểm tử vong"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    },
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-private-conditions"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 2"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "death_benefit",
+    "beneficiary"
+   ],
+   "review": [
+    "no_claim_conclusion"
+   ]
+  },
+  {
+   "id": "mix-free-look",
+   "kind": "mixed",
+   "question": "Tôi ký hợp đồng ngày 2024-06-20, theo điều khoản thì thời gian cân nhắc là bao lâu?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "ngày ký ngày bàn giao hợp đồng"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ thời gian cân nhắc"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 12"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "free_look",
+    "dates"
+   ]
+  },
+  {
+   "id": "mix-grace-period",
+   "kind": "mixed",
+   "question": "Kỳ phí tới của tôi nếu đóng trễ thì có được gia hạn đóng phí không?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "kỳ đóng phí tiếp theo"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ gia hạn đóng phí mất hiệu lực"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-premiums"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 19"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "grace_period",
+    "premium"
+   ]
+  },
+  {
+   "id": "mix-child-adjustment",
+   "kind": "mixed",
+   "question": "Demo Bình tham gia lúc 13 tuổi, quyền lợi tử vong có mức điều chỉnh trẻ em không?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "tuổi người được bảo hiểm chính"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ mức điều chỉnh đối với trẻ em"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-persons"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 3"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "child_adjustment"
+   ]
+  },
+  {
+   "id": "mix-surrender",
+   "kind": "mixed",
+   "question": "Nếu tôi chấm dứt hợp đồng trước thời hạn thì nhận gì, hiện tài khoản của tôi có bao nhiêu?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "giá trị tài khoản giá trị hoàn lại"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ chấm dứt hợp đồng trước thời hạn"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-snapshot"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 15"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "surrender",
+    "business_calculation"
+   ],
+   "review": [
+    "no_account_value_as_surrender",
+    "states_missing_basis"
+   ]
+  },
+  {
+   "id": "mix-main-waiting",
+   "kind": "mixed",
+   "question": "Thời gian chờ của sản phẩm chính trong hợp đồng của tôi theo điều khoản là bao lâu?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "sản phẩm chính"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ thời gian chờ"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 6"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "waiting_period"
+   ]
+  },
+  {
+   "id": "mix-rider-terms",
+   "kind": "mixed",
+   "question": "Có thể dùng quy tắc Hành Trình Hạnh Phúc để trả lời điều kiện của quyền lợi nội trú DEMO-TITAN A không?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "quyền lợi nội trú DEMO-TITAN tài liệu áp dụng"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ quyền lợi trợ cấp nằm viện"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-terms"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 1"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "rider_unmapped",
+    "product_binding"
+   ],
+   "review": [
+    "rider_kept_unmapped",
+    "no_main_terms_for_rider"
+   ]
+  },
+  {
+   "id": "mix-maturity",
+   "kind": "mixed",
+   "question": "Hợp đồng của tôi đáo hạn khi nào và quyền lợi đáo hạn là gì?",
+   "retrieval_queries": [
+    {
+     "kind": "PRIVATE",
+     "query": "ngày đáo hạn thời hạn hợp đồng"
+    },
+    {
+     "kind": "PUBLIC",
+     "query": "Hành Trình Hạnh Phúc Gia Tăng Bảo Vệ quyền lợi đáo hạn"
+    }
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-schedule"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 10"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "maturity",
+    "dates"
+   ]
+  },
+  {
+   "id": "mt-pronoun-followup",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Hợp đồng SYN-POL-2024-0001 của tôi có những quyền lợi nội trú nào?"
+   ],
+   "question": "Thời gian chờ của chúng là bao lâu?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "follow_up",
+    "waiting_period"
+   ]
+  },
+  {
+   "id": "mt-correction",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Phí nửa năm của hợp đồng tôi là bao nhiêu?"
+   ],
+   "question": "À tôi nhầm, ý tôi là tổng số phí đã đóng đến nay.",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-premiums"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "correction",
+    "premium_history"
+   ],
+   "review": [
+    "follows_latest_intent"
+   ]
+  },
+  {
+   "id": "mt-ambiguous-then-specific",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Thời gian chờ là bao lâu?"
+   ],
+   "question": "Ý tôi là quyền lợi nội trú trong hợp đồng của tôi.",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "clarification",
+    "waiting_period"
+   ]
+  },
+  {
+   "id": "mt-topic-switch-public",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Hạn mức nội trú của Demo Bình trong hợp đồng tôi là bao nhiêu?"
+   ],
+   "question": "Còn sản phẩm Dự Phòng Xanh thì thời gian chờ thế nào?",
+   "expected": [
+    {
+     "document": "DuPhongXanh/MC-2025-Full-TnC-BW.pdf",
+     "clause": "Điều 3"
+    },
+    {
+     "document": "DuPhongXanh/MC25-ImportantNote.pdf",
+     "clause": "VI. Thời Gian Chờ"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "topic_switch"
+   ],
+   "review": [
+    "no_private_mixed_into_public"
+   ]
+  },
+  {
+   "id": "mt-beneficiary-then-terms",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Người thụ hưởng hợp đồng của tôi là ai?"
+   ],
+   "question": "Vậy theo điều khoản sản phẩm, người đó nhận quyền lợi tử vong khi nào?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-private-conditions"
+    },
+    {
+     "document": "HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf",
+     "clause": "Điều 2"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "tags": [
+    "follow_up",
+    "beneficiary",
+    "death_benefit"
+   ],
+   "review": [
+    "no_claim_conclusion"
+   ]
+  },
+  {
+   "id": "mt-health-detail-not-repeated",
+   "kind": "multi_turn",
+   "modes": [
+    "end-to-end"
+   ],
+   "turns": [
+    "Demo Chi nằm viện 5 ngày vì viêm phổi, quyền lợi nội trú demo có áp dụng không?"
+   ],
+   "question": "Vậy tôi cần chuẩn bị gì để được xem xét?",
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER",
+    "CLARIFICATION"
+   ],
+   "tags": [
+    "sensitive",
+    "claim"
+   ],
+   "review": [
+    "no_health_question",
+    "health_detail_not_repeated",
+    "no_claim_conclusion"
+   ]
+  },
+  {
+   "id": "cop-recent-summary",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Tóm tắt giúp tôi diễn biến gần đây của khách.",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "summary_recent"
+   ],
+   "expected": [],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER"
+   ],
+   "review": [
+    "recent_scope",
+    "copilot_no_draft",
+    "no_claim_conclusion"
+   ]
+  },
+  {
+   "id": "cop-from-start-summary",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Tóm tắt từ đầu cuộc trò chuyện với khách giúp tôi.",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "summary_from_start"
+   ],
+   "expected": [],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER"
+   ],
+   "review": [
+    "from_start_scope",
+    "states_coverage",
+    "copilot_no_draft"
+   ]
+  },
+  {
+   "id": "cop-draft-request",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Soạn giúp tôi tin nhắn trả lời khách về giấy tờ cần nộp.",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "no_draft"
+   ],
+   "expected": [],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER",
+    "REFUSAL"
+   ],
+   "review": [
+    "copilot_no_draft"
+   ]
+  },
+  {
+   "id": "cop-latest-question",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Khách vừa hỏi gì gần nhất?",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "frozen_view"
+   ],
+   "expected": [],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER"
+   ],
+   "review": [
+    "recent_scope"
+   ],
+   "notes": "Tin có SAU-MOC-B commit sau lúc Staff hỏi: không được vào câu trả lời."
+  },
+  {
+   "id": "cop-contract-lookup",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Hạn mức nội trú mỗi năm của Demo Chi trong hợp đồng khách là bao nhiêu?",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "private_lookup",
+    "number"
+   ],
+   "expected": [
+    {
+     "document": "synthetic:SYN-CONTRACT-001",
+     "anchor": "syn-benefits"
+    }
+   ],
+   "expect_status": "OK",
+   "expect_response": [
+    "ANSWER"
+   ],
+   "review": [
+    "copilot_no_draft"
+   ]
+  },
+  {
+   "id": "cop-unassigned-staff",
+   "kind": "copilot",
+   "modes": [
+    "end-to-end"
+   ],
+   "question": "Tóm tắt giúp tôi cuộc trò chuyện và hợp đồng của khách.",
+   "linked_chat": [
+    {
+     "from": "CUSTOMER",
+     "text": "Cho tôi hỏi phí nửa năm của hợp đồng SYN-POL-2024-0001 là bao nhiêu?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Theo hợp đồng synthetic, tổng phí mỗi nửa năm là 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Kỳ phí tới là khi nào?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Kỳ tiếp theo là 2027-01-01, phí dự kiến 8.100.000 đồng."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Cảm ơn. Một câu khác: Demo Chi vừa nằm viện 3 ngày."
+    },
+    {
+     "from": "AGENT",
+     "text": "Quyền lợi nội trú demo cho Demo Chi có hạn mức ghi trong hợp đồng; việc chi trả cần hồ sơ và thẩm định."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi cần nộp giấy tờ gì để yêu cầu chi trả?"
+    },
+    {
+     "from": "AGENT",
+     "text": "Tôi chưa có điều khoản bổ trợ được xác minh cho phần này; tôi đề xuất chuyển nhân viên hỗ trợ."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Vâng, nhờ nhân viên giúp tôi."
+    },
+    {
+     "from": "CUSTOMER",
+     "text": "Tôi muốn đổi người thụ hưởng sang Demo Bình. SAU-MOC-B"
+    }
+   ],
+   "linked_through": 9,
+   "after_view_marker": "SAU-MOC-B",
+   "tags": [
+    "copilot",
+    "cross_access"
+   ],
+   "actor": "unassigned_staff",
+   "expected": [],
+   "expect_status": null,
+   "expect_response": [
+    "ANSWER",
+    "REFUSAL"
+   ],
+   "expect_denied": true,
+   "review": [
+    "states_missing_context"
    ]
   }
  ]
