@@ -20,7 +20,7 @@ const controllers = [
   require(folder + 'controllers/customer-conversation.controller').CustomerConversationController,
 ];
 function conversationTestProviders(core) {
-  return [require('../../dist/notifications/notifications.service').NotificationsService, { provide: DatabaseService, useValue: { prisma: core } }, AuthService, ...types,
+  return [require('../../dist/tickets/services/ticket-access.service').TicketAccessService, require('../../dist/notifications/notifications.service').NotificationsService, { provide: DatabaseService, useValue: { prisma: core } }, AuthService, ...types,
     { provide: PolicyService, inject: [DatabaseService, AuthService],
       useFactory: (database, auth) => new PolicyService(database, auth, {}) }];
 }

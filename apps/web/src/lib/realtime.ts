@@ -4,6 +4,7 @@ import { chatEvent, chatScopeEvent, notificationEvent, connectionEvent } from '.
 import { coreApiUrl } from './core-api';
 
 export const realtimeEvent = 'core:data-changed';
+export const ticketEvent = 'core:tickets-changed';
 
 export function useRealtime(enabled: boolean) {
   useEffect(() => {
@@ -25,11 +26,11 @@ export function useRealtime(enabled: boolean) {
           const message = JSON.parse(event.data) as { type?: string; eventId?: string; conversationId?: string };
           if (['ready', 'invalidate', 'session-expired'].includes(message.type ?? '')) window.dispatchEvent(new CustomEvent(realtimeEvent, { detail: { type: message.type } }));
           if (message.type === 'ready') { delay = 1000; window.dispatchEvent(new CustomEvent(connectionEvent, { detail: { connected: true } })); window.dispatchEvent(new CustomEvent(chatEvent, { detail: { type: 'resync' } })); window.dispatchEvent(new CustomEvent(notificationEvent)); }
-          if (['chat-invalidated', 'chat-scope-invalidated', 'notifications-invalidated'].includes(message.type ?? '') && uuid.test(message.eventId ?? '') && (message.type !== 'chat-invalidated' || uuid.test(message.conversationId ?? ''))) {
+          if (['chat-invalidated', 'chat-scope-invalidated', 'notifications-invalidated', 'tickets-invalidated'].includes(message.type ?? '') && uuid.test(message.eventId ?? '') && (message.type !== 'chat-invalidated' || uuid.test(message.conversationId ?? ''))) {
             const key = `${message.type}:${message.eventId}`;
             if (seen.has(key)) return;
             seen.add(key); if (seen.size > 256) seen.delete(seen.values().next().value!);
-            const name = message.type === 'chat-invalidated' ? chatEvent : message.type === 'chat-scope-invalidated' ? chatScopeEvent : notificationEvent;
+            const name = message.type === 'tickets-invalidated' ? ticketEvent : message.type === 'chat-invalidated' ? chatEvent : message.type === 'chat-scope-invalidated' ? chatScopeEvent : notificationEvent;
             window.dispatchEvent(new CustomEvent(name, { detail: message }));
           }
         } catch { /* Ignore unsupported messages. */ }

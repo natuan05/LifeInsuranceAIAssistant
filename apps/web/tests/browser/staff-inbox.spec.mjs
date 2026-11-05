@@ -242,3 +242,130 @@ test('live refresh keeps loaded customer and conversation pages and replaces rem
   await page.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
   await expect(directory.getByRole('link', { name: /Synthetic loaded older/ })).toHaveCount(0);
 });
+
+test('customer policy lookup: renders policy list, search filter, and dossier link', async ({ page }) => {
+  const policiesMock = {
+    items: [
+      {
+        id: 'policy-01',
+        policyNumber: 'POL-884920',
+        customerId: customer.id,
+        product: { id: 'prod-01', productCode: 'PRD-BATD', name: 'Kế hoạch Bảo An Toàn Diện', isActive: true },
+        status: 'ACTIVE',
+        sumAssured: '500000000',
+        premiumAmount: '25000000',
+        currency: 'VND',
+        paymentFrequency: 'ANNUAL',
+        effectiveDate: '2023-03-15T00:00:00Z',
+        nextDueDate: '2027-03-15T00:00:00Z',
+        expiryDate: null,
+      },
+      {
+        id: 'policy-02',
+        policyNumber: 'POL-123456',
+        customerId: customer.id,
+        product: { id: 'prod-02', productCode: 'PRD-HTAV', name: 'Hưu Trí An Vui', isActive: true },
+        status: 'PENDING',
+        sumAssured: '300000000',
+        premiumAmount: '12000000',
+        currency: 'VND',
+        paymentFrequency: 'QUARTERLY',
+        effectiveDate: '2024-01-01T00:00:00Z',
+        nextDueDate: null,
+        expiryDate: null,
+      },
+    ],
+    total: 2,
+    page: 1,
+    pageSize: 10,
+  };
+
+  await setup(page, '/staff/inbox/one', { active: true });
+  await page.route('**/api/v1/staff/customers/*/policies**', route => route.fulfill({ json: policiesMock }));
+
+  // Switch to Policy Lookup tab on the right panel
+  await page.getByRole('button', { name: 'Policy Lookup', exact: true }).click();
+
+  // Check right panel header and counter
+  await expect(page.getByRole('heading', { name: 'Policy Lookup' })).toBeVisible();
+  await expect(page.getByText('2 / 2')).toBeVisible();
+
+  // Check policy card details
+  await expect(page.getByText('#POL-884920')).toBeVisible();
+  await expect(page.getByText('Kế hoạch Bảo An Toàn Diện')).toBeVisible();
+  await expect(page.getByRole('article', { name: 'Policy POL-884920' }).getByText('Active')).toBeVisible();
+  await expect(page.getByText('500,000,000 VND')).toBeVisible();
+  const newTabLink = page.getByRole('link', { name: 'Open in new tab' }).first();
+  await expect(newTabLink).toHaveAttribute('href', '/staff/policies/policy-01');
+  await expect(newTabLink).toHaveAttribute('target', '_blank');
+
+  // Client-side search by policy number
+  const searchInput = page.getByPlaceholder('Search by policy number, product name…');
+  await searchInput.fill('884920');
+  await expect(page.getByText('#POL-884920')).toBeVisible();
+  await expect(page.getByText('#POL-123456')).toHaveCount(0);
+  await expect(page.getByText('1 / 2')).toBeVisible();
+
+  // Search by non-matching string
+  await searchInput.fill('NON_EXISTENT');
+  await expect(page.getByText('No matching policies')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Clear search filter' })).toBeVisible();
+
+  // Clear search filter
+  await page.getByRole('button', { name: 'Clear search filter' }).click();
+  await expect(page.getByText('#POL-884920')).toBeVisible();
+  await expect(page.getByText('#POL-123456')).toBeVisible();
+});
+
+test('customer policy lookup: shows empty state when customer has no policies', async ({ page }) => {
+  await setup(page, '/staff/inbox/one', { active: true });
+  await page.route('**/api/v1/staff/customers/*/policies**', route =>
+    route.fulfill({ json: { items: [], total: 0, page: 1, pageSize: 10 } }),
+  );
+
+  await page.getByRole('button', { name: 'Policy Lookup', exact: true }).click();
+  await expect(page.getByText('No policies found')).toBeVisible();
+  await expect(page.getByText('This customer has no active insurance policies registered in the system.')).toBeVisible();
+});
+
+test('customer policy lookup: handles error and in-place retry', async ({ page }) => {
+  let shouldFail = true;
+  await setup(page, '/staff/inbox/one', { active: true });
+  await page.route('**/api/v1/staff/customers/*/policies**', route => {
+    if (shouldFail) {
+      return route.fulfill({ status: 500, json: { message: 'Internal Server Error' } });
+    }
+    return route.fulfill({
+      json: {
+        items: [
+          {
+            id: 'policy-retry-01',
+            policyNumber: 'POL-999999',
+            customerId: customer.id,
+            product: { id: 'p1', productCode: 'PRD-RETRY', name: 'Hợp đồng phục hồi', isActive: true },
+            status: 'ACTIVE',
+            sumAssured: '100000000',
+            premiumAmount: '5000000',
+            currency: 'VND',
+            paymentFrequency: 'ANNUAL',
+            effectiveDate: null,
+            nextDueDate: null,
+            expiryDate: null,
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 10,
+      },
+    });
+  });
+
+  await page.getByRole('button', { name: 'Policy Lookup', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
+
+  // Retry after fix
+  shouldFail = false;
+  await page.getByRole('button', { name: 'Try again' }).click();
+  await expect(page.getByText('#POL-999999')).toBeVisible();
+  await expect(page.getByText('Hợp đồng phục hồi')).toBeVisible();
+});

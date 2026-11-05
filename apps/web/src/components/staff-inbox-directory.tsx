@@ -34,21 +34,38 @@ function CustomerGroup({ customer, filter, selected, href, expand, memory, onDen
     }).catch(failure => { if (!abort.signal.aborted) { if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure); setError(failure instanceof ConversationError ? failure.message : 'Unable to load conversations.'); } }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
   }, [customer.id, filter, open, cursor, revision, onDenied, refreshToken]);
-  return <section className="tw:border-b tw:border-slate-200">
-    <button aria-expanded={open} aria-controls={`inbox-customer-${customer.id}`} className="tw:flex tw:w-full! tw:items-center tw:justify-between! tw:gap-3! tw:px-4! tw:py-4! tw:text-left tw:hover:bg-slate-100" onClick={() => { if (open) memory.open.delete(customer.id); else memory.open.add(customer.id); setOpen(value => !value); }}>
-      <span className="tw:min-w-0"><span className="tw:block tw:truncate tw:text-sm tw:font-semibold">{customer.fullName}</span><span className="tw:mt-1 tw:block tw:text-xs tw:text-slate-600">{customer.accountCode}</span></span>
-      <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d={open ? 'm6 15 6-6 6 6' : 'm6 9 6 6 6-6'}/></svg>
+  return <section className="tw:border-b tw:border-slate-100">
+    <button aria-expanded={open} aria-controls={`inbox-customer-${customer.id}`} className="tw:flex tw:w-full! tw:items-center tw:justify-between! tw:gap-3! tw:px-4! tw:py-3.5! tw:text-left tw:hover:bg-slate-50 tw:transition-colors tw:cursor-pointer" onClick={() => { if (open) memory.open.delete(customer.id); else memory.open.add(customer.id); setOpen(value => !value); }}>
+      <div className="tw:flex tw:items-center tw:gap-2.5 tw:min-w-0">
+        <div className="tw:w-7 tw:h-7 tw:rounded-full tw:bg-blue-100 tw:text-blue-700 tw:text-xs tw:font-bold tw:grid tw:place-items-center tw:shrink-0">
+          {customer.fullName.slice(0, 1)}
+        </div>
+        <span className="tw:min-w-0">
+          <span className="tw:block tw:truncate tw:text-xs tw:font-bold tw:text-slate-900">{customer.fullName}</span>
+          <span className="tw:block tw:text-[11px] tw:font-mono tw:text-slate-500">{customer.accountCode}</span>
+        </span>
+      </div>
+      <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={`tw:text-slate-400 tw:transition-transform ${open ? 'tw:rotate-180' : ''}`}><path d="m6 9 6 6 6-6"/></svg>
     </button>
-    {open && <div id={`inbox-customer-${customer.id}`}>
-      {result?.items.map(row => <Link key={row.id} href={href(row.id)} prefetch={false} aria-current={selected === row.id ? 'page' : undefined} className={'tw:block tw:border-t tw:border-slate-100 tw:px-5 tw:py-3 tw:no-underline tw:hover:bg-blue-50 ' + (selected === row.id ? 'tw:bg-blue-50' : 'tw:bg-white')}>
-        <span className="tw:block tw:break-words tw:text-sm tw:font-medium tw:text-slate-900">{row.subject || 'Conversation'}</span>
-        <span className="tw:mt-2 tw:block tw:text-xs tw:text-slate-600">{row.status === 'PENDING_HANDOFF' ? 'Awaiting staff' : 'Staff active'} · {row.entryType === 'DIRECT' ? 'Direct message' : 'Transferred'}</span>
-        <time className="tw:mt-1 tw:block tw:text-xs tw:text-slate-500" dateTime={row.activityAt}>{new Date(row.activityAt).toLocaleString()}</time>
-      </Link>)}
-      {loading && !result && <p role="status" className="tw:px-4 tw:py-3 tw:text-sm tw:text-slate-600">Loading conversations…</p>}
-      {error && <div role="alert" className="tw:p-4 tw:text-sm tw:text-red-800">{error}<button className={inboxButton} onClick={() => setRevision(value => value + 1)}>Retry conversations</button></div>}
-      {!loading && !error && result?.items.length === 0 && <p className="tw:p-4 tw:text-sm tw:text-slate-600">No matching conversations.</p>}
-      {result?.pageInfo.hasMore && <button className={inboxButton + ' tw:m-3!'} disabled={loading} onClick={() => setCursor(result.pageInfo.nextCursor ?? undefined)}>Load more conversations</button>}
+    {open && <div id={`inbox-customer-${customer.id}`} className="tw:bg-slate-50/50">
+      {result?.items.map(row => (
+        <Link key={row.id} href={href(row.id)} prefetch={false} aria-current={selected === row.id ? 'page' : undefined} className={'tw:block tw:border-t tw:border-slate-100 tw:px-4 tw:py-3 tw:no-underline tw:transition-colors ' + (selected === row.id ? 'tw:bg-blue-50/90 tw:border-l-4 tw:border-l-blue-600' : 'tw:hover:bg-blue-50/40')}>
+          <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
+            <span className="tw:block tw:truncate tw:text-xs tw:font-semibold tw:text-slate-900">{row.subject || 'Conversation'}</span>
+            <span className={`tw:shrink-0 tw:rounded-full tw:px-2 tw:py-0.5 tw:text-[10px] tw:font-semibold ${row.status === 'PENDING_HANDOFF' ? 'tw:bg-amber-100 tw:text-amber-800' : 'tw:bg-emerald-100 tw:text-emerald-800'}`}>
+              {row.status === 'PENDING_HANDOFF' ? 'Request' : 'Active'}
+            </span>
+          </div>
+          <div className="tw:mt-1.5 tw:flex tw:items-center tw:justify-between tw:text-[11px] tw:text-slate-500">
+            <span>{row.entryType === 'DIRECT' ? 'Direct message' : 'Transferred'}</span>
+            <time dateTime={row.activityAt}>{new Date(row.activityAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</time>
+          </div>
+        </Link>
+      ))}
+      {loading && !result && <p role="status" className="tw:px-4 tw:py-3 tw:text-xs tw:text-slate-500">Loading conversations…</p>}
+      {error && <div role="alert" className="tw:p-4 tw:text-xs tw:text-red-700">{error}<button className={inboxButton + ' tw:mt-2! tw:text-xs!'} onClick={() => setRevision(value => value + 1)}>Retry</button></div>}
+      {!loading && !error && result?.items.length === 0 && <p className="tw:p-4 tw:text-xs tw:text-slate-500">No conversations in this section.</p>}
+      {result?.pageInfo.hasMore && <button className={inboxButton + ' tw:m-3! tw:text-xs!'} disabled={loading} onClick={() => setCursor(result.pageInfo.nextCursor ?? undefined)}>Load more conversations</button>}
     </div>}
   </section>;
 }
@@ -82,9 +99,9 @@ export function StaffInboxDirectory({ filter, search, customerId, selected, sele
   }, [filter, search, customerId, cursor, revision, onDenied, refreshToken]);
   return <div ref={scroll} onScroll={event => { memory.position.set('top', event.currentTarget.scrollTop); }} className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:overscroll-contain" aria-label="Inbox customers">
     {result?.items.map(({ customer }) => <CustomerGroup key={customer.id} customer={customer} filter={filter} selected={selected} href={href} expand={selectedCustomerId === customer.id} memory={memory} onDenied={onDenied} refreshToken={refreshToken}/>)}
-    {loading && !result && <p role="status" className="tw:p-4 tw:text-sm tw:text-slate-600">Loading customers…</p>}
-    {error && <div role="alert" className="tw:p-4 tw:text-sm tw:text-red-800">{error}<button className={inboxButton} onClick={() => setRevision(value => value + 1)}>Retry customers</button></div>}
-    {!loading && !error && result?.items.length === 0 && <p className="tw:p-5 tw:text-sm tw:leading-6 tw:text-slate-600">No matching conversations. Only direct messages and requests shared with you appear here.</p>}
-    {result?.pageInfo.hasMore && <button className={inboxButton + ' tw:m-4!'} disabled={loading} onClick={() => setCursor(result.pageInfo.nextCursor ?? undefined)}>Load more customers</button>}
+    {loading && !result && <p role="status" className="tw:p-4 tw:text-xs tw:text-slate-500">Loading customers…</p>}
+    {error && <div role="alert" className="tw:p-4 tw:text-xs tw:text-red-700">{error}<button className={inboxButton + ' tw:mt-2! tw:text-xs!'} onClick={() => setRevision(value => value + 1)}>Retry</button></div>}
+    {!loading && !error && result?.items.length === 0 && <p className="tw:p-5 tw:text-xs tw:leading-relaxed tw:text-slate-500">No matching conversations. Direct messages and transferred customer cases appear here.</p>}
+    {result?.pageInfo.hasMore && <button className={inboxButton + ' tw:m-4! tw:text-xs!'} disabled={loading} onClick={() => setCursor(result.pageInfo.nextCursor ?? undefined)}>Load more customers</button>}
   </div>;
 }

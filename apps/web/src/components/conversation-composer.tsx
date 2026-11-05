@@ -49,11 +49,43 @@ export function ConversationComposer({ id, role, version, csrfToken, memory, onM
       } else { setUnknown(true); setError('The result is unknown. Check this message before sending another.'); }
     } finally { if (!abort.signal.aborted) { lock.current = false; setPending(false); } }
   };
-  return <form aria-label="Message composer" className="tw:shrink-0 tw:border-t tw:border-slate-200 tw:bg-white tw:p-4" onSubmit={event => { event.preventDefault(); void send(); }}>
-    {intent && <div className="tw:mb-3 tw:rounded-lg tw:bg-blue-50 tw:p-3 tw:text-sm tw:whitespace-pre-wrap tw:break-words tw:[overflow-wrap:anywhere]"><p>{intent.content}</p><p role="status" className="tw:mt-1 tw:text-xs tw:text-slate-600">{pending ? 'Sending / checking result…' : 'Result unknown'}</p></div>}
+  return <form aria-label="Message composer" className="tw:shrink-0 tw:border-t tw:border-slate-200/80 tw:bg-white tw:p-3" onSubmit={event => { event.preventDefault(); void send(); }}>
+    {intent && <div className="tw:mb-2 tw:rounded-lg tw:bg-blue-50 tw:p-2.5 tw:text-xs tw:whitespace-pre-wrap tw:break-words tw:[overflow-wrap:anywhere]"><p>{intent.content}</p><p role="status" className="tw:mt-1 tw:text-[11px] tw:text-slate-600">{pending ? 'Sending / checking result…' : 'Result unknown'}</p></div>}
     <label htmlFor={`compose-${id}`} className="tw:sr-only">Message</label>
-    <textarea ref={input} id={`compose-${id}`} rows={3} value={draft} readOnly={unknown && !pending} placeholder="Write a message…" className="tw:w-full tw:resize-none tw:rounded-lg tw:border tw:border-slate-300 tw:bg-white tw:p-3 tw:text-sm tw:leading-6 tw:text-slate-900 tw:focus:outline-2 tw:focus:outline-blue-600" onChange={event => { setDraft(event.target.value); const current = memory.get(id); memory.set(id, { draft: event.target.value, intent: current?.intent ?? null, unknown: current?.unknown ?? false }); }} onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; }} onKeyDown={event => { if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current) { event.preventDefault(); void send(); } }}/>
-    <div className="tw:mt-2 tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3"><p className="tw:text-xs tw:text-slate-600">Enter to send · Shift+Enter for a new line</p><button type="submit" disabled={pending || !csrfToken} className={inboxButton + ' tw:bg-blue-600! tw:text-white! tw:hover:bg-blue-700!'}>{unknown ? 'Check message result' : pending ? 'Sending…' : 'Send'}</button></div>
+    <div className="tw:flex tw:items-end tw:gap-2 tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white tw:p-1.5 tw:focus-within:border-blue-600 tw:focus-within:ring-2 tw:focus-within:ring-blue-600/20 tw:transition-all">
+      <textarea 
+        ref={input} 
+        id={`compose-${id}`} 
+        rows={1} 
+        value={draft} 
+        readOnly={unknown && !pending} 
+        placeholder="Write a message…" 
+        className="tw:min-h-[38px] tw:max-h-24 tw:flex-1 tw:resize-none tw:border-0 tw:bg-transparent tw:px-2.5 tw:py-2 tw:text-sm tw:leading-5 tw:text-slate-900 tw:outline-none tw:placeholder:text-slate-400" 
+        onChange={event => { 
+          setDraft(event.target.value); 
+          const current = memory.get(id); 
+          memory.set(id, { draft: event.target.value, intent: current?.intent ?? null, unknown: current?.unknown ?? false }); 
+        }} 
+        onCompositionStart={() => { composing.current = true; }} 
+        onCompositionEnd={() => { composing.current = false; }} 
+        onKeyDown={event => { 
+          if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing && !composing.current) { 
+            event.preventDefault(); 
+            void send(); 
+          } 
+        }}
+      />
+      <button 
+        type="submit" 
+        disabled={pending || !csrfToken} 
+        className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-lg tw:bg-blue-600 tw:px-4 tw:py-2 tw:text-xs tw:font-semibold tw:text-white tw:shadow-xs tw:hover:bg-blue-700 tw:disabled:opacity-50 tw:cursor-pointer tw:transition-all tw:shrink-0">
+        <span>{unknown ? 'Check message result' : pending ? 'Sending…' : 'Send'}</span>
+        {!unknown && !pending && (
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        )}
+      </button>
+    </div>
+    {role === 'CUSTOMER' && <p className="tw:mt-1 tw:text-[11px] tw:text-slate-500">Enter to send · Shift+Enter for a new line</p>}
     {error && <p role="alert" className="tw:mt-2 tw:text-sm tw:text-red-800">{error}</p>}
   </form>;
 }

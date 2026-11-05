@@ -88,7 +88,7 @@ Customer detail `GET /api/v1/customers/me/tickets/:ticketId`: snapshot đã xác
 
 Contract Staff được tách thành [TK01 scope/model](01-scope-model-contract.md), [TK02 read](02-staff-read-api.md), [TK03 accept](03-accept-command.md), [TK04 UI](04-list-detail-ui.md), [TK05 notifications](05-notification-events.md). Nhánh Staff có thể làm trước Agent; không một module Ticket thứ hai.
 
-TK01 đề xuất scope mặc định active assignment + Ticket recipient chính actor; không global/unassigned OPEN queue. Chốt quyền/version/legacy trước code, review lại routing khi nối producer I07. Schema hiện chưa version/confirmed snapshot; version migration TK01 và snapshot/draft I07 không được giả là E. Read/accept không mở chat grant; Customer confirmation/trusted draft ở mục4 vẫn thuộc I07.
+TK01 đề xuất scope mặc định active assignment + Ticket recipient chính actor; không global/unassigned OPEN queue. Chốt quyền/version/legacy trước code, review lại routing khi nối producer I07. TK01 đã có version/policy nội bộ; confirmed snapshot/draft I07 chưa triển khai, không được giả là E. Read/accept không mở chat grant; Customer confirmation/trusted draft ở mục4 vẫn thuộc I07.
 
 ## 6. Luồng và transaction
 

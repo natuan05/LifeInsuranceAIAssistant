@@ -15,7 +15,7 @@ export function useCooldown(until?: number) {
   return until !== undefined && elapsed !== until;
 }
 
-type ReadOptions = { unavailable?: string; failure?: (status?: number, stale?: boolean) => string };
+type ReadOptions = { unavailable?: string; failure?: (status?: number, stale?: boolean) => string; eventName?: string };
 export function useAuthorizedRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>, realtime = true, options: ReadOptions = {}) {
   const router = useRouter();
   const [revision, setRevision] = useState(0);
@@ -27,8 +27,9 @@ export function useAuthorizedRead<T>(key: string, read: (signal: AbortSignal) =>
     if (!realtime) return;
     const refresh = () => { if (!retryDisabled) setRevision(value => value + 1); };
     window.addEventListener(realtimeEvent, refresh);
-    return () => window.removeEventListener(realtimeEvent, refresh);
-  }, [realtime, retryDisabled]);
+    if (options.eventName) window.addEventListener(options.eventName, refresh);
+    return () => { window.removeEventListener(realtimeEvent, refresh); if (options.eventName) window.removeEventListener(options.eventName, refresh); };
+  }, [realtime, retryDisabled, options.eventName]);
   useEffect(() => {
     const controller = new AbortController(); request.current = controller;
     void read(AbortSignal.any([controller.signal, AbortSignal.timeout(15000)])).then(data => {

@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Cập nhật 04/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket APIs/UI nghiệp vụ, Copilot/Agent và Customer UI mới chưa triển khai. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
+Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; nguồn tạo/xác nhận Ticket từ Agent, Copilot/Agent và Customer UI mới còn kế hoạch. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -263,7 +263,7 @@ Web/Core chỉ mở cổng nội bộ 3000/4000, không publish lên host. Brows
 | `/login`, `/staff/login` qua 8080 | Customer/Staff login |
 | `/customer`, `/staff/customers` qua 8080 | Customer profile / Staff Customers |
 | `/account` qua 8080 | Tài khoản và đổi mật khẩu |
-| `/staff/inbox`, `/staff/policies`, `/staff/tickets` | Khung UI chưa đủ business APIs |
+| `/staff/inbox`, `/staff/policies`, `/staff/tickets` | Inbox chat, Policy Lookup/PDF, Ticket read/Accept/notification đã nối Core; Ticket chưa có producer tạo nghiệp vụ |
 | `/api/v1/realtime` qua 8080 | WebSocket invalidation account/profile/assignment |
 | `/api/v1/health/live`, `/api/v1/health/ready` qua 8080 | Core liveness / DB readiness |
 | `/connection` qua 8080 | Kiểm tra kết nối FE–BE |
@@ -312,7 +312,7 @@ Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Đ�
 
 Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Customers search theo tên/mã/email/phone trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
 
-Staff có Products và Policy Lookup riêng trong Tools. Search Products/Customers/Policy Lookup dùng Enter; xóa nội dung rồi Enter để bỏ từ khóa, không có nút Search/Clear. Products tự mở PDF đầu tiên và bộ chọn khi nhiều tài liệu; phiên bản mới chuyển chủ động. Inbox tìm tên/mã khách bằng debounce/Enter, All/Requests/Active không counts. Pending chỉ metadata; Customer đồng ý chia sẻ và Staff Accept mới mở toàn bộ lịch sử Customer-facing của cuộc đó. Direct hợp lệ là luồng riêng; phân công không cho Staff đọc chat AI riêng. Không nút Refresh Inbox/chat hoặc “Message saved.”; ACK/realtime cập nhật đúng vùng, Retry khi lỗi. Handoff/Accept không tạo Ticket.
+Staff có Products và Policy Lookup riêng trong Tools. Tickets hiển thị danh sách rồi mở chi tiết riêng; dropdown status hỗ trợ resolve/close/reopen đúng workflow Core. Notifications ở toolbar chung, popup không nằm trong cột cuộn. Search Products/Customers/Policy Lookup dùng Enter; xóa nội dung rồi Enter để bỏ từ khóa, không có nút Search/Clear. Products tự mở PDF đầu tiên và bộ chọn khi nhiều tài liệu; phiên bản mới chuyển chủ động. Inbox tìm tên/mã khách bằng debounce/Enter, All/Requests/Active không counts. Pending chỉ metadata; Customer đồng ý chia sẻ và Staff Accept mới mở toàn bộ lịch sử Customer-facing của cuộc đó. Direct hợp lệ là luồng riêng; phân công không cho Staff đọc chat AI riêng. Không nút Refresh Inbox/chat hoặc “Message saved.”; ACK/realtime cập nhật đúng vùng, Retry khi lỗi. Handoff/Accept không tạo Ticket.
 
 ### 7.4. Sản phẩm, hợp đồng và PDF mô phỏng
 

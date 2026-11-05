@@ -1,11 +1,11 @@
 # Mô hình Dữ liệu & Từ điển Dữ liệu (Data Model & Data Dictionary)
 
-> **Đối chiếu model app04/11/2026:** Có19 model ứng dụng,7 migrations đến 202611040002_inbox_realtime. I01 thêm ConversationHandoff/ConversationCommandReceipt và provenance/control/audience/sequence/keys; I06 thêm outbox lease/notification kind. I01–I06 API/UI/send/realtime đã có. Legacy không tự grant Staff, giữ nội dung/time/link. SupportTicket chưa version/updatedAt/confirmedContent/sourceDraftId; TK01/I07 vẫn là đề xuất. [I01](../ui/staff/plans/inbox/01-model-permissions.md), [I06](../ui/staff/plans/inbox/06-realtime-routing.md), [bảng18](#bảng-18-conversation_handoffs), [bảng19](#bảng-19-conversation_command_receipts).
+> **Đối chiếu model app05/11/2026:** Có19 model ứng dụng,10 migrations đến 202611050002_ticket_status_notifications. I01 thêm ConversationHandoff/ConversationCommandReceipt và provenance/control/audience/sequence/keys; I06 thêm outbox lease/notification kind. I01–I06 API/UI/send/realtime đã có. Legacy không tự grant Staff, giữ nội dung/time/link. TK01 đã thêm SupportTicket.version default0/CHECK nonnegative và policy nội bộ; TK02–TK05 read/Accept/UI/notification đã có; chưa updatedAt/confirmedContent/sourceDraftId hoặc TicketDraft. Snapshot/draft I07 vẫn P. [I01](../ui/staff/plans/inbox/01-model-permissions.md), [I06](../ui/staff/plans/inbox/06-realtime-routing.md), [bảng18](#bảng-18-conversation_handoffs), [bảng19](#bảng-19-conversation_command_receipts).
 
 
 > **Cập nhật local 03/11/2026 — đã migration enum:** ConversationStatus chỉ còn AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus.CLOSED giữ nguyên. Migration 202611030001_remove_conversation_closed chuyển Customer Support CLOSED cũ về AI_ACTIVE/controller NULL, bảo toàn lịch sử/liên kết/thời gian và audit trạng thái/controller cũ; không tạo consent/Accept/grant. Copilot CLOSED chưa review sẽ chặn migration và rollback. Assignment/assignedStaffId đơn lẻ không đủ quyền xem lịch sử AI: pending chỉ metadata, sau Accept mới toàn bộ transcript Customer-facing trong cuộc đó. Inbox không counts/conversationCode; handoff khác SupportTicket. [Spec](../ui/staff/plans/inbox/00-inbox-spec.md#2-data-model-hiện-có-và-đích-thay-đổi), [quyết định nguồn](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026).
 
-> **Mốc lịch sử30/10/2026:** Có17 bảng/4 migrations; sau enum03/11 là5, I01 là6, I06 hiện là7. Staff policy/product/chat/notification APIs đã triển khai thêm sau mốc này; không dùng snapshot cũ đưa chúng về backlog. Dictionary/schema và [tiến độ](../ui/implementation-status.md) phân biệt bảng đã có với API/nghiệp vụ còn P. Nguồn bên dưới giữ truy vết, không sửa tài liệu online.
+> **Mốc lịch sử30/10/2026:** Có17 bảng/4 migrations; sau enum03/11 là5, I01 là6, I06 là7, TK01 là8, TK05 notification constraints là9, mở rộng status notification là10. Staff policy/product/chat/notification APIs đã triển khai thêm sau mốc này; không dùng snapshot cũ đưa chúng về backlog. Dictionary/schema và [tiến độ](../ui/implementation-status.md) phân biệt bảng đã có với API/nghiệp vụ còn P. Nguồn bên dưới giữ truy vết, không sửa tài liệu online.
 
 > Cập nhật local 25/10/2026 theo thống nhất: giữ 16 bảng nguồn và bổ sung bảng 17 `AUTH_SESSIONS` để quản lý phiên đăng nhập. Không dùng bảng `ADMIN_REQUESTS`. Các khác biệt triển khai còn lại được ghi trong [baseline data model](../architecture.md#local-data-model); bản nguồn bên ngoài repo không tự thay đổi.
 
@@ -234,6 +234,7 @@ erDiagram
         text ai_summary
         jsonb extracted_details
         varchar status "OPEN | ASSIGNED | IN_PROGRESS | RESOLVED | CLOSED"
+        int version "TK01: NOT NULL DEFAULT 0; >= 0"
         varchar idempotency_key UK "Chống tạo trùng NFR-005"
         timestamptz confirmed_at
         timestamptz created_at
@@ -258,7 +259,7 @@ erDiagram
         uuid ticket_id FK "NULL"
         uuid conversation_id FK "NULL"
         varchar title
-        varchar kind "NULL legacy | HANDOFF_REQUESTED"
+        varchar kind "NULL legacy | HANDOFF_REQUESTED | TICKET_CREATED | TICKET_ACCEPTED | TICKET_STATUS_CHANGED"
         text body
         boolean is_read
         varchar dedup_key UK "Chống gửi trùng ADR-CLOUD-003"
@@ -487,6 +488,7 @@ erDiagram
 | **extracted_details** | JSONB | NULLable | Dữ liệu bóc tách có cấu trúc (loại viện phí, số tiền, ngày nằm viện...) dùng để điền form hoặc lọc báo cáo. |
 | **status** | VARCHAR(50) | CHECK | Trạng thái: `'OPEN'` (mới tạo), `'ASSIGNED'` (đã phân công), `'IN_PROGRESS'` (đang xử lý), `'RESOLVED'`, `'CLOSED'`. |
 | **idempotency_key** | VARCHAR(255) | UK, NOT NULL | Khóa chống tạo trùng Ticket khi người dùng click liên tục hoặc mạng retry (NFR-005). |
+| **version** | INTEGER | NOT NULL DEFAULT 0, CHECK >=0 | TK01: token concurrency cho Ticket; legacy backfill0, không là bằng chứng consent/content đã xác nhận. Mutation TK03 sẽ increment atomic. |
 | **confirmed_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm khách hàng bấm nút xác nhận tạo Ticket. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm bản ghi được ghi bền vững vào cơ sở dữ liệu. |
 
@@ -500,7 +502,7 @@ erDiagram
 | **id** | UUID | PK | Mã định danh sự kiện. |
 | **aggregate_type** | VARCHAR(50) | NOT NULL | Loại đối tượng phát sinh sự kiện: `'TICKET'` hoặc `'CONVERSATION'`. |
 | **aggregate_id** | UUID | NOT NULL | Mã ID của đối tượng phát sinh sự kiện (`ticket_id` hoặc `conversation_id`). |
-| **event_type** | VARCHAR(100) | NOT NULL | Tên sự kiện: `'TICKET_COMMITTED'` (tạo ticket xong) hoặc `'HANDOFF_REQUESTED'` (customer cần tư vấn). |
+| **event_type** | VARCHAR(100) | NOT NULL | Nguồn tham chiếu dùng TICKET_COMMITTED/HANDOFF_REQUESTED. Runtime TK05 dùng aggregateType=TICKET với TICKET_CREATED (consumer, producer I07 chưa có) và TICKET_ACCEPTED (TK03 emitter), payload schemaVersion/version; handoff giữ HANDOFF_REQUESTED. |
 | **payload** | JSONB | NOT NULL | Metadata allowlist để Worker recheck DB/quyền; chat I06 chỉ schemaVersion/controlVersion/requestId nếu cần. Không chép content, tên khách, summary Private hoặc signed URL. |
 | **status** | VARCHAR(50) | CHECK | Trạng thái gửi: `'PENDING'` (chờ worker), `'PROCESSING'` (đang gửi), `'PUBLISHED'` (thành công), `'FAILED_DLQ'` (lỗi vào hàng đợi chết). |
 | **retry_count** | INT | DEFAULT 0 | Số lần thử gửi lại khi gặp lỗi mạng kết nối. |
@@ -522,7 +524,7 @@ erDiagram
 | **ticket_id** | UUID | FK, NULLable | Tham chiếu `support_tickets(id)` nếu thông báo liên quan đến Ticket (click mở ticket). |
 | **conversation_id** | UUID | FK, NULLable | Tham chiếu `conversations(id)` nếu thông báo liên quan đến cuộc chat cần tiếp nhận. |
 | **title** | VARCHAR(255) | NOT NULL | Tiêu đề thông báo ngắn gọn (vd: `'Yêu cầu hỗ trợ mới: #TK-0042'`). |
-| **kind** | VARCHAR(50) | NULLable, CHECK | I06 HANDOFF_REQUESTED; legacy null giữ nguyên. A27 chỉ trả loại hỗ trợ và target scope còn hợp lệ. |
+| **kind** | VARCHAR(50) | NULLable, CHECK | I06 HANDOFF_REQUESTED; TK05 TICKET_CREATED/TICKET_ACCEPTED và mở rộng TICKET_STATUS_CHANGED; legacy null giữ nguyên. CHECK typed target: handoff chỉ conversation_id, Ticket chỉ ticket_id. A27 chỉ trả kind hỗ trợ và target scope còn hợp lệ. |
 | **body** | TEXT | NULLable | Handoff I06 để null; title generic, không preview AI/private chat. |
 | **is_read** | BOOLEAN | DEFAULT `FALSE` | Trạng thái đọc: `false` (chưa đọc, hiện chấm đỏ), `true` (đã click xem). |
 | **dedup_key** | VARCHAR(255) | UK, NOT NULL | Khóa chống trùng (Idempotent Consumer) bảo đảm dù Worker retry thì nhân viên chỉ nhận 1 thông báo duy nhất. |

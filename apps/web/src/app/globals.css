@@ -2,6 +2,20 @@
 @import "tailwindcss/theme.css" layer(theme) prefix(tw);
 @import "tailwindcss/utilities.css" layer(utilities) prefix(tw);
 
+@layer base {
+  h1, h2, h3, h4, h5, h6, p {
+    margin: 0;
+  }
+  button {
+    background-color: transparent;
+    border: 0 solid transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+  }
+}
+
 @font-face { font-family: 'Lexend'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/lexend-400.ttf') format('truetype'); }
 @font-face { font-family: 'Lexend'; font-style: normal; font-weight: 500; font-display: swap; src: url('/fonts/lexend-500.ttf') format('truetype'); }
 @font-face { font-family: 'Lexend'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/lexend-600.ttf') format('truetype'); }

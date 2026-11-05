@@ -10,7 +10,7 @@ Ngày **27/10/2026** đã đối chiếu văn bản ba phần AI Agent Module, O
 
 **Rà soát ngày 31/10/2026:** đọc [bản tổng thể Agent/RAG](specifications/Agent_Design.md#design-overview) và [phân loại công việc còn lại](specifications/Agent_Design.md#remaining-work) để biết trạng thái hiện hành. Bảng đối chiếu/lịch sử bên dưới không phải danh sách toàn bộ kiến trúc cần brainstorm lại. Schema/cơ chế thực thi và tham số cần đo được tách khỏi quyết định nghiệp vụ/model còn mở.
 
-> **Hiện trạng app04/11/2026:** Staff Auth/profile, Customers/search, Policies/PDF, Products/PDF và Inbox I01–I06/chat hai đầu/handoff notifications đã có. Ticket nghiệp vụ/Customer UI mới còn P; xem [checklist](ui/implementation-status.md), [Staff plans](ui/staff/plans/README.md). Các mốc cũ bên dưới là lịch sử/quyết định nguồn, không là snapshot runtime hiện tại. Không sửa thiết kế/kế hoạch Agent ở đợt đồng bộ app này.
+> **Hiện trạng app05/11/2026:** Staff Auth/profile, Customers/search, Policies/PDF, Products/PDF và Inbox I01–I06/chat hai đầu/handoff notifications đã có. Ticket TK01–TK05 read/Accept/UI/notification đã có; producer tạo/xác nhận Ticket từ Agent và Customer UI mới còn P; xem [checklist](ui/implementation-status.md), [Staff plans](ui/staff/plans/README.md). Các mốc cũ bên dưới là lịch sử/quyết định nguồn, không là snapshot runtime hiện tại. Không sửa thiết kế/kế hoạch Agent ở đợt đồng bộ app này.
 
 ## Nguồn
 

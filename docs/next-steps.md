@@ -4,7 +4,7 @@
 
 ## Thứ tự tiếp theo — 04/11/2026
 
-1. **Staff không Agent:** Auth/Customers/Policies/Products/Inbox I01–I06/handoff notifications đã E. Làm [TK01–TK05](ui/staff/plans/07-tickets-contract.md): scope/model Ticket → read → accept → UI → notification, triển khai tests ngay trong từng phase. Tất cả phase mới còn P; version/legacy/scope phải review trước code.
+1. **Staff không Agent:** Auth/Customers/Policies/Products/Inbox I01–I06/handoff notifications đã E. TK01 nền scope/version/legacy và TK02 A21/A22 read đã có;44 tests TK02+regression pass. TK03 A23 Accept đã có; TK04 UI đã nối; [TK05](ui/staff/plans/tickets/05-notification-events.md) notification/realtime đã có,69 Core/migration tests và browser hai tab pass; I07 producer/xác nhận còn P.
 2. **Đợt Customer sau:** [H01 rồi từng chức năng](ui/customer/plans/README.md), giữ auth/chat/shared APIs đang chạy; chưa triển khai đợt này.
 3. **Đợt Agent riêng:** [CP01–CP04](ui/staff/plans/08-copilot-contract.md), I07 trusted draft/confirmation và Customer CH02/CH03/T01/T02. Không fake Agent để lấp Ticket và không tự commit/push.
 

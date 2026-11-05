@@ -2,38 +2,285 @@
 import { useEffect, useRef } from 'react';
 import { StaffCustomerPolicies } from './staff-policies';
 import type { Customer, CustomerList } from '@/lib/customer-api';
-export function StaffCustomerDirectory({ list, detail, selected, loading, error, page, searchTerm, onSearch, onRetry, onSelect, onBack, onPage }: {
-    list: CustomerList | null;
-    detail: Customer | null;
-    selected: string | null;
-    loading: boolean;
-    error: string;
-    page: number;
-    searchTerm: string;
-    onSearch: (term: string) => void;
-    onRetry: () => void;
-    onSelect: (id: string) => void;
-    onBack: () => void;
-    onPage: (page: number) => void;
+
+export function StaffCustomerDirectory({ 
+  list, 
+  detail, 
+  selected, 
+  loading, 
+  error, 
+  page, 
+  searchTerm, 
+  onSearch, 
+  onRetry, 
+  onSelect, 
+  onBack, 
+  onPage 
+}: {
+  list: CustomerList | null;
+  detail: Customer | null;
+  selected: string | null;
+  loading: boolean;
+  error: string;
+  page: number;
+  searchTerm: string;
+  onSearch: (term: string) => void;
+  onRetry: () => void;
+  onSelect: (id: string) => void;
+  onBack: () => void;
+  onPage: (page: number) => void;
 }) {
-    const searchInput = useRef<HTMLInputElement>(null);
-    useEffect(() => { if (searchInput.current) searchInput.current.value = searchTerm; }, [searchTerm]);
-    return <section className={"customer-directory tw:flex-1 tw:min-w-0 tw:flex tw:flex-col tw:bg-[#f8fafc] tw:overflow-auto tw:max-[1000px]:min-h-[600px]"} aria-label="Customer management">
-  <header className={"customer-directory-header tw:flex tw:justify-between tw:items-center tw:gap-[20px] tw:pt-[12px] tw:pr-[30px] tw:pb-[12px] tw:pl-[30px] tw:bg-white tw:[border-bottom:1px_solid_#eaecf0] tw:shrink-0 tw:[&_h1]:text-[21px] tw:[&_h1]:leading-[1.5] tw:[&_h1]:m-0 tw:[&_h1]:tracking-[-.3px] tw:[&_p]:text-[12px] tw:[&_p]:leading-[1.7] tw:[&_p]:text-[#64748b] tw:[&_p]:mt-[5px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px] tw:max-[600px]:[&_h1]:text-[18px] " + (selected ? "customer-detail-header tw:pt-[12px] tw:pr-[30px] tw:pb-[12px] tw:pl-[30px] tw:max-[600px]:pt-[16px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[20px] tw:max-[600px]:pl-[18px]" : "")}>
-    {selected ? <div className={"customer-detail-heading tw:min-w-0 tw:w-full"}><nav className={"customer-breadcrumb tw:flex tw:items-center tw:gap-[8px] tw:text-[11px] tw:leading-[18px] tw:text-[#64748b] tw:mb-[10px] tw:[&_button]:font-[inherit] tw:[&_button]:text-[#64748b] tw:[&_button]:rounded-[4px] tw:[&_button]:pt-[2px] tw:[&_button]:pr-[0] tw:[&_button]:pb-[2px] tw:[&_button]:pl-[0] tw:[&_button:hover]:text-[#2563eb] tw:[&_button:hover]:underline tw:[&_button:hover]:underline-offset-[3px] tw:[&_span]:text-[#94a3b8]"} aria-label="Breadcrumb"><button onClick={onBack}>Customers</button><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg><span>Customer details</span></nav><div className={"customer-identity tw:flex tw:items-center tw:gap-[12px] tw:[&_h1]:text-[21px] tw:[&_h1]:leading-[28px] tw:[&_h1]:wrap-anywhere tw:max-[600px]:[&_h1]:text-[18px]"}><span className={"customer-identity-avatar tw:grid tw:place-items-center tw:w-[44px] tw:h-[44px] tw:shrink-0 tw:rounded-[12px] tw:bg-[#dbeafe] tw:text-[#1d4ed8] tw:text-[17px] tw:font-semibold"}>{detail?.fullName.slice(0, 1) || '–'}</span><div><h1>{detail?.fullName || 'Customer details'}</h1><div className={"customer-identity-meta tw:flex tw:items-center tw:gap-[8px] tw:mt-[5px] tw:text-[11px] tw:text-[#64748b]"}><span>{detail?.accountCode || 'Loading profile…'}</span>{detail && <><span aria-hidden="true">·</span><span className={"directory-status tw:text-[11px] tw:pt-[4px] tw:pr-[7px] tw:pb-[4px] tw:pl-[7px] tw:rounded-[5px] tw:bg-[#f1f5f9] tw:whitespace-nowrap tw:[&.is-active]:bg-[#ecfdf5] tw:[&.is-active]:text-[#047857] " + (detail.status === "ACTIVE" ? "is-active" : "")}>{detail.status === 'ACTIVE' ? 'Active' : 'Locked'}</span></>}</div></div></div></div> : <div><h1>Customers</h1><p>Customers currently assigned to you.</p></div>}
-  </header>
-  <div className={"customer-directory-content tw:pt-[26px] tw:pr-[30px] tw:pb-[26px] tw:pl-[30px] tw:max-[600px]:pt-[18px] tw:max-[600px]:pr-[18px] tw:max-[600px]:pb-[18px] tw:max-[600px]:pl-[18px]"}>
-   {!selected && <form role="search" aria-label="Search assigned customers" className="tw:mb-5 tw:flex tw:flex-wrap tw:items-end tw:gap-3" onSubmit={event => { event.preventDefault(); onSearch(String(new FormData(event.currentTarget).get('search') ?? '')); }}>
-     <div className="tw:min-w-0 tw:flex-1 tw:basis-[260px]"><label htmlFor="customer-search" className="tw:mb-2 tw:block tw:text-xs tw:font-medium tw:text-slate-700">Search customers</label><input ref={searchInput} id="customer-search" name="search" type="search" autoComplete="off" defaultValue={searchTerm} maxLength={100} placeholder="Name, customer code, email or phone" aria-describedby="customer-search-help" className="tw:box-border tw:w-full tw:rounded-lg tw:border tw:border-solid tw:border-slate-300 tw:bg-white tw:px-3 tw:py-2.5 tw:font-[inherit] tw:text-sm tw:text-slate-900 tw:caret-blue-600 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600" /></div>
-     <p id="customer-search-help" className="tw:w-full tw:text-xs tw:leading-5 tw:text-slate-500">Search across all customers assigned to you. Up to 100 characters.</p>
-   </form>}
-   {loading && <p role="status" className={"reference-empty tw:text-[12px] tw:leading-[1.8] tw:text-[#64748b] tw:pt-[18px] tw:pr-[18px] tw:pb-[18px] tw:pl-[18px]"}>Loading data…</p>}
-   {error && <div role="alert" className={"directory-error tw:pt-[16px] tw:pr-[16px] tw:pb-[16px] tw:pl-[16px] tw:bg-[#fef2f2] tw:text-[#b42318] tw:text-[12px] tw:leading-[1.8]"}>{error}<button className={"directory-button tw:inline-flex tw:justify-center tw:items-center tw:[border:1px_solid_#dbe3ef] tw:rounded-[6px] tw:bg-white tw:text-[#2563eb] tw:font-[inherit] tw:text-[12px] tw:leading-[20px] tw:pt-[7px] tw:pr-[12px] tw:pb-[7px] tw:pl-[12px] tw:whitespace-nowrap tw:gap-[8px] tw:[&:hover]:bg-[#eff6ff] tw:[&:disabled]:opacity-[.5] tw:[&:disabled]:cursor-default"} disabled={loading} onClick={onRetry}>Try again</button>{selected && <button type="button" className="tw:ml-3 tw:text-xs tw:text-blue-600 tw:underline tw:focus-visible:outline-blue-600" onClick={onBack}>Back to list</button>}</div>}
-   {!loading && !error && !selected && list && <><div className={"directory-count tw:text-[12px] tw:text-[#64748b] tw:mb-[14px]"}>{list.total} {list.total === 1 ? 'customer' : 'customers'}{searchTerm && ' matching your search'}</div><div className={"directory-table-wrap tw:relative tw:overflow-auto tw:bg-white tw:[border:1px_solid_#e2e8f0] tw:rounded-[10px]"}><table className={"directory-table tw:border-collapse tw:w-full tw:text-[12px] tw:text-left tw:[&_th]:font-medium tw:[&_th]:text-[#64748b] tw:[&_th]:bg-[#f8fafc] tw:[&_th]:pt-[13px] tw:[&_th]:pr-[16px] tw:[&_th]:pb-[13px] tw:[&_th]:pl-[16px] tw:[&_th]:whitespace-nowrap tw:[&_td]:pt-[17px] tw:[&_td]:pr-[16px] tw:[&_td]:pb-[17px] tw:[&_td]:pl-[16px] tw:[&_td]:[border-top:1px_solid_#eaecf0] tw:[&_td]:text-[#334155] tw:[&_td]:[vertical-align:middle]"}><thead><tr><th>Customer</th><th>Customer code</th><th>Email</th><th>Phone</th><th>Status</th><th><span className={"tw:sr-only"}>Actions</span></th></tr></thead><tbody>{list.items.map(c => <tr key={c.id}><td><div className={"directory-customer-name tw:flex tw:items-center tw:gap-[10px] tw:whitespace-nowrap"}><span className={"directory-avatar tw:grid tw:place-items-center tw:rounded-[50%] tw:w-[32px] tw:h-[32px] tw:bg-[#dbeafe] tw:text-[#1d4ed8] tw:font-semibold tw:shrink-0"}>{c.fullName.slice(0, 1)}</span><strong>{c.fullName}</strong></div></td><td>{c.accountCode}</td><td>{c.email}</td><td>{c.phone || 'Not provided'}</td><td><span className={"directory-status tw:text-[11px] tw:pt-[4px] tw:pr-[7px] tw:pb-[4px] tw:pl-[7px] tw:rounded-[5px] tw:bg-[#f1f5f9] tw:whitespace-nowrap tw:[&.is-active]:bg-[#ecfdf5] tw:[&.is-active]:text-[#047857] " + (c.status === "ACTIVE" ? "is-active" : "")}>{c.status === 'ACTIVE' ? 'Active' : 'Locked'}</span></td><td><button className={"directory-button tw:inline-flex tw:justify-center tw:items-center tw:[border:1px_solid_#dbe3ef] tw:rounded-[6px] tw:bg-white tw:text-[#2563eb] tw:font-[inherit] tw:text-[12px] tw:leading-[20px] tw:pt-[7px] tw:pr-[12px] tw:pb-[7px] tw:pl-[12px] tw:whitespace-nowrap tw:gap-[8px] tw:[&:hover]:bg-[#eff6ff] tw:[&:disabled]:opacity-[.5] tw:[&:disabled]:cursor-default"} aria-label={`View profile ${c.fullName}`} onClick={() => onSelect(c.id)}>View details</button></td></tr>)}</tbody></table>{list.items.length === 0 && <p className={"reference-empty tw:text-[12px] tw:leading-[1.8] tw:text-[#64748b] tw:pt-[18px] tw:pr-[18px] tw:pb-[18px] tw:pl-[18px]"}>{searchTerm && list.total === 0 ? 'No customers match your search.' : list.total === 0 ? 'No customers are currently assigned to you.' : 'No customers on this page.'}</p>}</div><nav className={"directory-pagination tw:flex tw:items-center tw:justify-end tw:gap-[16px] tw:mt-[18px] tw:text-[#64748b] tw:text-[12px]"} aria-label="Customer pagination"><button className={"directory-button tw:inline-flex tw:justify-center tw:items-center tw:[border:1px_solid_#dbe3ef] tw:rounded-[6px] tw:bg-white tw:text-[#2563eb] tw:font-[inherit] tw:text-[12px] tw:leading-[20px] tw:pt-[7px] tw:pr-[12px] tw:pb-[7px] tw:pl-[12px] tw:whitespace-nowrap tw:gap-[8px] tw:[&:hover]:bg-[#eff6ff] tw:[&:disabled]:opacity-[.5] tw:[&:disabled]:cursor-default"} disabled={page <= 1} onClick={() => onPage(page - 1)}>Previous</button><span>Page {page} of {Math.max(1, Math.ceil(list.total / list.pageSize))}</span><button className={"directory-button tw:inline-flex tw:justify-center tw:items-center tw:[border:1px_solid_#dbe3ef] tw:rounded-[6px] tw:bg-white tw:text-[#2563eb] tw:font-[inherit] tw:text-[12px] tw:leading-[20px] tw:pt-[7px] tw:pr-[12px] tw:pb-[7px] tw:pl-[12px] tw:whitespace-nowrap tw:gap-[8px] tw:[&:hover]:bg-[#eff6ff] tw:[&:disabled]:opacity-[.5] tw:[&:disabled]:cursor-default"} disabled={page * list.pageSize >= list.total} onClick={() => onPage(page + 1)}>Next</button></nav></>}
-   {!loading && !error && selected && detail && <div className={"directory-profile tw:grid tw:[grid-template-columns:minmax(0,1fr)_minmax(0,1fr)] tw:gap-[22px] tw:items-start tw:max-[1000px]:[grid-template-columns:1fr] tw:[&.policies-first]:[grid-template-columns:minmax(0,1fr)_290px] tw:[&.policies-first]:gap-[22px] tw:max-[1100px]:[&.policies-first]:[grid-template-columns:minmax(0,1fr)_250px] tw:max-[1100px]:[&.policies-first]:gap-[16px] tw:max-[850px]:[&.policies-first]:[grid-template-columns:1fr] policies-first"}>
-    <StaffCustomerPolicies customerId={detail.id} />
-    <aside className={"directory-profile-card tw:bg-white tw:[border:1px_solid_#e2e8f0] tw:rounded-[10px] tw:min-w-0 tw:[&_h2]:mt-[0] tw:[&_h2]:mr-[0] tw:[&_h2]:ml-[0] tw:[&_dl]:grid tw:[&_dt]:text-[#64748b] tw:[&_dd]:wrap-anywhere customer-personal tw:pt-[20px] tw:pr-[20px] tw:pb-[20px] tw:pl-[20px] tw:[&_h2]:text-[13px] tw:[&_h2]:mb-[18px] tw:[&_dl]:gap-[14px] tw:[&_dl>div]:pb-[12px] tw:[&_dl>div]:[border-bottom:1px_solid_#f1f5f9] tw:[&_dl>div:last-child]:border-0 tw:[&_dl>div:last-child]:pb-[0] tw:[&_dt]:text-[10.5px] tw:[&_dt]:mb-[4px] tw:[&_dd]:text-[12px] tw:[&_dd]:leading-[1.7] tw:max-[850px]:[&_dl]:[grid-template-columns:repeat(2,minmax(0,1fr))] tw:max-[600px]:[&_dl]:[grid-template-columns:1fr]"}><h2>Personal information</h2><dl>{[['Customer code', detail.accountCode], ['Email', detail.email], ['Phone', detail.phone], ['Date of birth', detail.birth], ['Address', detail.address]].map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v || 'Not provided'}</dd></div>)}</dl></aside>
-   </div>}
-  </div>
- </section>;
+  const searchInput = useRef<HTMLInputElement>(null);
+  useEffect(() => { 
+    if (searchInput.current) searchInput.current.value = searchTerm; 
+  }, [searchTerm]);
+
+  return (
+    <section 
+      aria-label="Customer management"
+      className="customer-directory tw:flex-1 tw:min-w-0 tw:w-full tw:flex tw:flex-col tw:bg-slate-50 tw:overflow-auto tw:max-[1000px]:min-h-[600px]">
+      
+      {/* Top Header */}
+      <header className={'customer-directory-header tw:shrink-0 tw:border-b tw:border-slate-200/80 tw:bg-white tw:px-4 tw:sm:px-6 tw:py-3.5 ' + (selected ? 'customer-detail-header' : '')}>
+        {selected ? (
+          <div className="customer-detail-heading tw:min-w-0 tw:w-full">
+            <nav aria-label="Breadcrumb" className="customer-breadcrumb tw:mb-2.5 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:font-medium tw:text-slate-500">
+              <button 
+                onClick={onBack}
+                className="tw:text-slate-500 tw:hover:text-blue-600 tw:transition-colors tw:cursor-pointer">
+                Customers
+              </button>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="tw:text-slate-400">
+                <path d="m9 5 7 7-7 7"/>
+              </svg>
+              <span className="tw:text-slate-900 tw:font-semibold">Customer details</span>
+            </nav>
+
+            <div className="customer-identity tw:flex tw:items-center tw:gap-4">
+              <div className="customer-identity-avatar tw:grid tw:place-items-center tw:w-12 tw:h-12 tw:rounded-2xl tw:bg-gradient-to-tr tw:from-blue-600 tw:to-indigo-500 tw:text-white tw:text-lg tw:font-bold tw:shrink-0 tw:shadow-xs">
+                {detail?.fullName.slice(0, 1) || '–'}
+              </div>
+              <div className="tw:min-w-0">
+                <h1 className="tw:truncate tw:text-xl tw:font-bold tw:text-slate-900">
+                  {detail?.fullName || 'Customer details'}
+                </h1>
+                <div className="customer-identity-meta tw:mt-1 tw:flex tw:items-center tw:gap-2 tw:text-xs tw:text-slate-500">
+                  <span className="tw:font-mono tw:font-medium tw:text-slate-700">{detail?.accountCode || 'Loading profile…'}</span>
+                  {detail && (
+                    <>
+                      <span aria-hidden="true" className="tw:text-slate-300">·</span>
+                      <span className={'directory-status tw:inline-flex tw:items-center tw:px-2.5 tw:py-0.5 tw:rounded-full tw:text-[11px] tw:font-semibold ' + (detail.status === 'ACTIVE' ? 'tw:bg-emerald-50 tw:text-emerald-700 tw:border tw:border-emerald-200/60 is-active' : 'tw:bg-amber-50 tw:text-amber-700 tw:border tw:border-amber-200/60')}>
+                        {detail.status === 'ACTIVE' ? 'Active' : 'Locked'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="tw:flex tw:items-center tw:justify-between tw:gap-4">
+            <div>
+              <h1 className="tw:text-lg tw:font-bold tw:text-slate-900">Customers</h1>
+              <p className="tw:mt-0.5 tw:text-xs tw:text-slate-500">
+                Customers currently assigned to your portfolio.
+              </p>
+            </div>
+          </div>
+        )}
+      </header>
+
+      {/* Main Content Body */}
+      <div className="customer-directory-content tw:p-4 tw:sm:p-6 tw:max-w-full">
+        {/* Search Bar (When listing) */}
+        {!selected && (
+          <form 
+            role="search" 
+            aria-label="Search assigned customers" 
+            onSubmit={event => { 
+              event.preventDefault(); 
+              onSearch(String(new FormData(event.currentTarget).get('search') ?? '')); 
+            }}
+            className="tw:mb-6">
+            <div className="tw:max-w-md">
+              <label htmlFor="customer-search" className="tw:block tw:text-xs tw:font-semibold tw:text-slate-700 tw:mb-1.5">
+                Search customers
+              </label>
+              <div className="tw:relative">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="tw:absolute tw:left-3.5 tw:top-1/2 tw:-translate-y-1/2 tw:text-slate-400 tw:pointer-events-none">
+                  <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <input 
+                  ref={searchInput} 
+                  id="customer-search" 
+                  name="search" 
+                  type="search" 
+                  autoComplete="off" 
+                  defaultValue={searchTerm} 
+                  maxLength={100} 
+                  placeholder="Name, customer code, email or phone" 
+                  className="tw:w-full tw:pl-10 tw:pr-4 tw:py-2.5 tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white tw:text-xs tw:text-slate-900 tw:placeholder:text-slate-400 tw:focus:outline-hidden tw:focus:border-blue-500 tw:focus:ring-2 tw:focus:ring-blue-100 tw:transition-all" 
+                />
+              </div>
+            </div>
+          </form>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div role="status" className="reference-empty tw:py-12 tw:text-center tw:text-xs tw:text-slate-500">
+            <div className="tw:inline-block tw:w-5 tw:h-5 tw:border-2 tw:border-blue-600 tw:border-t-transparent tw:rounded-full tw:animate-spin tw:mb-2"/>
+            <p>Loading data…</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <div role="alert" className="directory-error tw:rounded-2xl tw:border tw:border-red-200 tw:bg-red-50/80 tw:p-4 tw:text-xs tw:text-red-800 tw:flex tw:items-center tw:justify-between tw:mb-6">
+            <div className="tw:flex tw:items-center tw:gap-2">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>{error}</span>
+            </div>
+            <div className="tw:flex tw:items-center tw:gap-3">
+              <button 
+                onClick={onRetry} 
+                disabled={loading}
+                className="directory-button tw:rounded-lg tw:bg-red-600 tw:text-white tw:px-3 tw:py-1.5 tw:font-semibold tw:hover:bg-red-700 tw:transition-colors tw:cursor-pointer">
+                Try again
+              </button>
+              {selected && (
+                <button 
+                  type="button" 
+                  onClick={onBack}
+                  className="tw:text-xs tw:font-semibold tw:text-red-700 tw:underline tw:cursor-pointer">
+                  Back to list
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Customer Directory Table */}
+        {!loading && !error && !selected && list && (
+          <>
+            <div className="directory-count tw:text-xs tw:font-medium tw:text-slate-500 tw:mb-3">
+              {list.total} {list.total === 1 ? 'customer' : 'customers'}{searchTerm && ' matching your search'}
+            </div>
+
+            <div className="directory-table-wrap tw:relative tw:overflow-x-auto tw:w-full tw:rounded-2xl tw:border tw:border-slate-200/80 tw:bg-white tw:shadow-2xs">
+              <table className="directory-table tw:w-full tw:border-collapse tw:text-left tw:text-xs">
+                  <thead>
+                    <tr className="tw:border-b tw:border-slate-100 tw:bg-slate-50/70 tw:text-[11px] tw:font-bold tw:uppercase tw:tracking-wider tw:text-slate-500">
+                      <th className="tw:px-5 tw:py-3.5">Customer</th>
+                      <th className="tw:px-5 tw:py-3.5">Customer code</th>
+                      <th className="tw:px-5 tw:py-3.5">Email</th>
+                      <th className="tw:px-5 tw:py-3.5">Phone</th>
+                      <th className="tw:px-5 tw:py-3.5">Status</th>
+                      <th className="tw:px-5 tw:py-3.5 tw:text-right"><span className="tw:sr-only">Actions</span></th>
+                    </tr>
+                  </thead>
+                  <tbody className="tw:divide-y tw:divide-slate-100">
+                    {list.items.map(c => (
+                      <tr key={c.id} className="tw:hover:bg-slate-50/60 tw:transition-colors">
+                        <td className="tw:px-5 tw:py-3.5">
+                          <div className="directory-customer-name tw:flex tw:items-center tw:gap-3 tw:whitespace-nowrap">
+                            <span className="directory-avatar tw:grid tw:place-items-center tw:rounded-full tw:w-8 tw:h-8 tw:bg-gradient-to-tr tw:from-blue-600 tw:to-indigo-500 tw:text-white tw:font-bold tw:text-xs tw:shrink-0 tw:shadow-2xs">
+                              {c.fullName.slice(0, 1)}
+                            </span>
+                            <strong className="tw:font-bold tw:text-slate-900">{c.fullName}</strong>
+                          </div>
+                        </td>
+                        <td className="tw:px-5 tw:py-3.5 tw:font-mono tw:text-slate-600">{c.accountCode}</td>
+                        <td className="tw:px-5 tw:py-3.5 tw:text-slate-600">{c.email}</td>
+                        <td className="tw:px-5 tw:py-3.5 tw:text-slate-600">{c.phone || 'Not provided'}</td>
+                        <td className="tw:px-5 tw:py-3.5">
+                          <span className={'directory-status tw:inline-flex tw:items-center tw:px-2.5 tw:py-0.5 tw:rounded-full tw:text-[11px] tw:font-semibold ' + (c.status === 'ACTIVE' ? 'tw:bg-emerald-50 tw:text-emerald-700 tw:border tw:border-emerald-200/60 is-active' : 'tw:bg-amber-50 tw:text-amber-700 tw:border tw:border-amber-200/60')}>
+                            {c.status === 'ACTIVE' ? 'Active' : 'Locked'}
+                          </span>
+                        </td>
+                        <td className="tw:px-5 tw:py-3.5 tw:text-right">
+                          <button 
+                            onClick={() => onSelect(c.id)}
+                            aria-label={`View profile ${c.fullName}`}
+                            className="directory-button tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-1.5 tw:text-xs tw:font-semibold tw:text-blue-600 tw:shadow-2xs tw:hover:bg-blue-50 tw:hover:border-blue-200 tw:transition-all tw:cursor-pointer">
+                            View details →
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              {list.items.length === 0 && (
+                <div className="reference-empty tw:py-12 tw:text-center tw:text-xs tw:text-slate-500">
+                  {searchTerm && list.total === 0 
+                    ? 'No customers match your search.' 
+                    : list.total === 0 
+                      ? 'No customers are currently assigned to you.' 
+                      : 'No customers on this page.'}
+                </div>
+              )}
+            </div>
+
+            {/* Pagination */}
+            <nav aria-label="Customer pagination" className="directory-pagination tw:flex tw:items-center tw:justify-between tw:mt-4 tw:text-xs tw:text-slate-500">
+              <span>
+                Page {page} of {Math.max(1, Math.ceil(list.total / list.pageSize))}
+              </span>
+              <div className="tw:flex tw:items-center tw:gap-2">
+                <button 
+                  onClick={() => onPage(page - 1)}
+                  disabled={page <= 1}
+                  className="directory-button tw:inline-flex tw:items-center tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-1.5 tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:disabled:opacity-40 tw:disabled:cursor-not-allowed tw:transition-colors tw:cursor-pointer">
+                  Previous
+                </button>
+                <button 
+                  onClick={() => onPage(page + 1)}
+                  disabled={page * list.pageSize >= list.total}
+                  className="directory-button tw:inline-flex tw:items-center tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-1.5 tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:disabled:opacity-40 tw:disabled:cursor-not-allowed tw:transition-colors tw:cursor-pointer">
+                  Next
+                </button>
+              </div>
+            </nav>
+          </>
+        )}
+
+        {/* Customer Detail Dossier View */}
+        {!loading && !error && selected && detail && (
+          <div className="directory-profile tw:grid tw:grid-cols-1 tw:lg:grid-cols-3 tw:gap-6 tw:items-start policies-first">
+            {/* Policies section (Takes 2 cols) */}
+            <div className="tw:lg:col-span-2">
+              <StaffCustomerPolicies customerId={detail.id} />
+            </div>
+
+            {/* Personal Information Card (Takes 1 col) */}
+            <aside className="directory-profile-card customer-personal tw:rounded-2xl tw:border tw:border-slate-200/80 tw:bg-white tw:p-6 tw:shadow-2xs">
+              <div className="tw:flex tw:items-center tw:justify-between tw:mb-4">
+                <h2 className="tw:text-xs tw:font-bold tw:uppercase tw:tracking-wider tw:text-slate-400">
+                  Personal information
+                </h2>
+                <span className="tw:inline-flex tw:items-center tw:px-2 tw:py-0.5 tw:rounded-md tw:bg-slate-100 tw:text-[10px] tw:font-mono tw:text-slate-600">
+                  ID: {detail.accountCode}
+                </span>
+              </div>
+
+              <dl className="tw:space-y-3.5 tw:text-xs">
+                {[
+                  ['Customer code', detail.accountCode],
+                  ['Email', detail.email],
+                  ['Phone', detail.phone],
+                  ['Date of birth', detail.birth],
+                  ['Address', detail.address]
+                ].map(([k, v]) => (
+                  <div key={k} className="tw:border-b tw:border-slate-100 tw:pb-3 tw:last:border-0 tw:last:pb-0">
+                    <dt className="tw:text-[11px] tw:font-medium tw:text-slate-400 tw:mb-0.5">{k}</dt>
+                    <dd className="tw:font-semibold tw:text-slate-900 tw:break-words">{v || 'Not provided'}</dd>
+                  </div>
+                ))}
+              </dl>
+            </aside>
+          </div>
+        )}
+      </div>
+    </section>
+  );
 }

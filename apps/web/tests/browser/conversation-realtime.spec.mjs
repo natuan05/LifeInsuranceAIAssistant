@@ -77,6 +77,40 @@ test('notification read routes to request, preserves CSRF and has no Inbox count
   await expect(page).toHaveURL(/inbox\/two\?filter=requests/); expect(reads).toHaveLength(1);
   expect(reads[0].headers()['x-csrf-token']).toBe('synthetic-csrf'); expect(reads[0].postDataJSON()).toEqual({}); expect(state.documents).toHaveLength(1);
 });
+
+test('notification bell badge shows unread count and supports mark as read', async ({ page }) => {
+  const state = await setup(page);
+  let readCalled = false;
+  await page.route('**/api/v1/staff/notifications**', route => route.fulfill({
+    json: {
+      items: [
+        { id: 'notif-1', title: 'Handoff request 1', kind: 'HANDOFF_REQUESTED', isRead: false, createdAt: '2026-11-04T00:00:00Z', target: { type: 'CONVERSATION', id: 'one' } },
+        { id: 'notif-2', title: 'Handoff request 2', kind: 'HANDOFF_REQUESTED', isRead: false, createdAt: '2026-11-04T00:00:00Z', target: { type: 'CONVERSATION', id: 'two' } },
+      ],
+      pageInfo: { hasMore: false, nextCursor: null },
+    },
+  }));
+  await page.route('**/api/v1/staff/notifications/*/read', route => {
+    readCalled = true;
+    return route.fulfill({ json: { id: 'notif-1', isRead: true } });
+  });
+
+  emit(state, 'notifications-invalidated');
+
+  // Verify bell badge displays unread count
+  const bell = page.getByRole('button', { name: 'Notifications', exact: true });
+  await expect(bell.locator('span')).toHaveText('2');
+
+  // Open dropdown and click mark single read
+  await bell.click();
+  const markReadBtn = page.getByRole('button', { name: 'Mark as read' }).first();
+  await expect(markReadBtn).toBeVisible();
+  await markReadBtn.click();
+  expect(readCalled).toBe(true);
+
+  // Mark all as read button
+  await expect(page.getByRole('button', { name: 'Mark all as read' })).toBeVisible();
+});
 test('new message while reading earlier content preserves anchor and offers Jump to latest', async ({ page }) => {
   const state = await setup(page, { messages: Array.from({ length: 35 }, (_, i) => chat({ clientMessageId: crypto.randomUUID(), content: `Synthetic old ${i}` }, String(i + 1))) });
   await expect(transcript(page).locator('[data-message-id]')).toHaveCount(35);
