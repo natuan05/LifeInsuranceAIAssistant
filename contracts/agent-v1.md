@@ -124,7 +124,7 @@ LLM chỉ chọn **một** `ToolDecision {tool, arguments}` mỗi vòng, đúng 
 
 | Nhóm | Vòng đời | Nội dung |
 | --- | --- | --- |
-| `ConversationContext` | Theo thread, qua nhiều tin | Chủ đề, hợp đồng đang xét, câu hỏi chờ làm rõ (lựa chọn có `ordinal`, run/tin đã hỏi, `PROPOSED`/`ASKED`), tóm tắt lịch sử cũ kèm cursor đã phủ, cursor lịch sử đã đồng bộ, mốc chat liên kết đã đồng bộ |
+| `ConversationContext` | Theo thread, qua nhiều tin | Chủ đề, hợp đồng đang xét, câu hỏi chờ làm rõ (lựa chọn có `ordinal`, run/tin đã hỏi, `PROPOSED`/`ASKED`), tóm tắt lịch sử cũ kèm `position` cuối đã phủ, cursor lịch sử đã đồng bộ, mốc chat liên kết đã đồng bộ |
 | `MessageWork` | Theo tin nhắn | Câu hỏi gốc, kết quả tool thật (`SourceOutput` có `operation_id`, `replaced`), đánh giá riêng của Agent, điều kiện đã nhận diện nhưng chưa kiểm (`basis_refs` bắt buộc, lý do), bộ đếm, tiến độ, lỗi |
 | `ExecutionContext` | Theo attempt, tin cậy | ID run/attempt/thread, actor, Customer mục tiêu, view, limits |
 
