@@ -1,0 +1,78 @@
+{
+ "profile": "LI-HMAC-SHA256-v1",
+ "note": "Test-only keys derived from fixed strings and published here; never use them outside tests. Shared by the Python (apps/agent/tests/test_delivery.py) and Node (apps/core/test/agent-hmac-vector.test.cjs) checks.",
+ "keys": {
+  "test-c2a-1": "2yVN8JdIZFdxtLOuMGy4_Bh8T87CFDjIACiMQXeHomc",
+  "test-other": "j5dxKj6QurQ5-DdMEEf08FA9eim_H4OfIJ8EJhEbeHI"
+ },
+ "now": 1793900030,
+ "valid": {
+  "method": "POST",
+  "target": "/internal/runs",
+  "body_utf8": "{\"schema_version\":\"agent-v1\",\"run_id\":\"00000000-0000-4000-8000-000000000001\",\"note\":\"Dữ liệu synthetic\"}",
+  "headers": {
+   "X-LI-Key-Id": "test-c2a-1",
+   "X-LI-Timestamp": "1793900000",
+   "X-LI-Nonce": "AAECAwQFBgcICQoLDA0ODw",
+   "X-LI-Content-SHA256": "1feef789e6dc2485ebd3bd448a1835f17ced43d464bafd1b120f7c5006dfe94e",
+   "X-LI-Signature": "AxCsPS0ynusswF7b0xKflg-rEEl0gE7d31QQ_7mWjNQ"
+  },
+  "string_to_sign": "LI-HMAC-SHA256-v1\nPOST\n/internal/runs\n1793900000\nAAECAwQFBgcICQoLDA0ODw\n1feef789e6dc2485ebd3bd448a1835f17ced43d464bafd1b120f7c5006dfe94e\ntest-c2a-1"
+ },
+ "invalid": [
+  {
+   "name": "body_changed",
+   "change": {
+    "body_utf8": "{\"schema_version\":\"agent-v1\",\"run_id\":\"00000000-0000-4000-8000-000000000001\",\"note\":\"Dữ liệu Synthetic\"}"
+   }
+  },
+  {
+   "name": "path_changed",
+   "change": {
+    "target": "/internal/attempts/00000000-0000-4000-8000-000000000001/revoke"
+   }
+  },
+  {
+   "name": "query_added",
+   "change": {
+    "target": "/internal/runs?x=1"
+   }
+  },
+  {
+   "name": "method_changed",
+   "change": {
+    "method": "PUT"
+   }
+  },
+  {
+   "name": "timestamp_changed",
+   "change": {
+    "headers": {
+     "X-LI-Timestamp": "1793900001"
+    }
+   }
+  },
+  {
+   "name": "nonce_changed",
+   "change": {
+    "headers": {
+     "X-LI-Nonce": "AQIDBAUGBwgJCgsMDQ4PEA"
+    }
+   }
+  },
+  {
+   "name": "key_id_changed",
+   "change": {
+    "headers": {
+     "X-LI-Key-Id": "test-other"
+    }
+   }
+  },
+  {
+   "name": "clock_skew",
+   "change": {
+    "now": 1793900121
+   }
+  }
+ ]
+}

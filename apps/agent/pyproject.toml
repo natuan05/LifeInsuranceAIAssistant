@@ -5,15 +5,19 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "life-agent"
 version = "0.1.0"
-description = "Agent/RAG service (custom LangGraph). Milestone 3: Public RAG trial (corpus, hybrid retrieval, evaluation)."
+description = "Agent/RAG service (custom LangGraph): graph, durable runtime store, RAG, evaluation and the Core HTTP surface."
 requires-python = ">=3.13"
-# HTTP framework (Starlette + uvicorn, decision 12.13 #5) is pinned in Task 6. The Gemini trial adapters use the REST API through the
-# standard library, so no provider SDK is pinned. psycopg is the PostgreSQL driver for the rag index (pgvector).
+# HTTP framework: Starlette + uvicorn (decision 12.13 #5), pinned at Task 6 on 06/11/2026; starlette 1.10.0 instead of the
+# planned 1.9.0 (latest release, fixes handled exceptions keeping requests alive). HMAC and outbound HTTP use the standard
+# library. The Gemini trial adapters use the REST API through the standard library, so no provider SDK is pinned.
+# psycopg is the PostgreSQL driver for the rag index (pgvector) and the agent_runtime store.
 dependencies = [
   "langgraph==1.2.20",
   "langgraph-checkpoint==4.3.1",  # BaseCheckpointSaver for the fenced checkpointer (decision 12.13 #2)
   "jsonschema==4.26.0",
   "psycopg[binary]==3.3.6",
+  "starlette==1.10.0",
+  "uvicorn==0.54.0",
 ]
 
 [dependency-groups]

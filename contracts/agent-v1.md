@@ -314,9 +314,16 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 | Agent → Core | `POST /api/v1/internal/agent/events` | `AgentEvent` → `DurableAck` |
 | Agent → Core | Các đọc nội bộ Task 3 (history, linked-history, scope, contracts) | Ký cùng profile; quyền theo attempt hiện hành |
 
+**Phía Agent đã triển khai ngày 06/11/2026 (Task 6, chờ Core ở Task 3/6):**
+
+- Lỗi xác thực trả 401 `{"error":{"code":"AUTH_FAILED"}}` hoặc `REPLAY_REJECTED`, không kèm `DurableAck`, vì chưa có ID đáng tin. Body đã xác thực nhưng sai schema trả 400 `DurableAck` `REJECTED`/`SCHEMA_INVALID` nếu có `run_id`/`attempt_id` hợp lệ, không thì `{"error":{"code":"SCHEMA_INVALID"}}`. Kho Agent lỗi trả 503 (không ACK, Core gửi lại). Revoke có `attempt_id` trên path khác body → 400 `REJECTED`. `GET /healthz` không cần chữ ký và không trả chi tiết.
+- Event nhận `REJECTED` từ Core vẫn được giữ và gửi lại theo backoff tới hạn tối đa (theo 12.4), payload không đổi; mục 4 "dừng, không tự sửa payload" được hiểu là không sửa nội dung. Hết hạn thì ghi `gave_up_at` và log sự cố; Core gửi lại `RunRequest` (`DUPLICATE`) mở lại việc giao. Migration `002_delivery.sql` thêm `gave_up_at`, `last_failure`.
+- **Đề xuất cho Task 3** (đội application xác nhận hoặc đổi): các đọc nội bộ là `POST` ký HMAC tới `/api/v1/internal/agent/{history,linked-history,scope,contracts,contract-overview}`, body luôn có `run_id`, `attempt_id` cùng `view`+`cursor`, `kind`+`policy_number` hoặc `policy_number`. Trả 200 với `ConversationHistoryPage`, `DocumentScope`, `{"contracts":[ContractSummary]}`, `ContractOverview`; lỗi `{"error":{"code":…}}` với 403 `NOT_AUTHORIZED`, 404 `NOT_FOUND`, 409 `INVALID_ATTEMPT`, 400 `INVALID_INPUT`. Agent kiểm schema mọi câu trả lời; câu trả lời sai dạng hoặc 5xx là `UNAVAILABLE`.
+- Test vector chung [`fixtures/hmac-v1.json`](fixtures/hmac-v1.json) (khóa chỉ dùng cho test, công khai), kiểm bằng Python và `node --test apps/core/test/agent-hmac-vector.test.cjs` (chỉ `node:crypto`).
+
 Giao lại đề xuất: backoff mũ 1 → 60 giây có jitter. Dispatch/revoke lặp tới khi có ACK hoặc tới hạn của run. Event lặp tối đa 24 giờ rồi ghi sự cố. Event đã ACK giữ 30 ngày. Các mức 3 giây/4 request/1 retry của Business Tools không áp vào callback. URL callback lấy từ cấu hình, không từ model/tài liệu/body.
 
-**HTTP framework phía Agent — đã chốt 06/11/2026 (12.13 #5):** Starlette + uvicorn, dự kiến pin `starlette` 1.9.0 và `uvicorn` 0.54.0 ở Task 6 (kiểm lại tài liệu/bản vá khi pin). Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
+**HTTP framework phía Agent — đã chốt 06/11/2026 (12.13 #5):** Starlette + uvicorn. Khi pin ở Task 6 (06/11/2026) chọn `starlette` **1.10.0** thay 1.9.0 dự kiến (bản mới nhất, sửa lỗi exception handler giữ request trong bộ nhớ) và `uvicorn` 0.54.0. Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
 
 ### 12.11 DDL đề xuất
 
@@ -408,8 +415,8 @@ Agent — schema `agent_runtime`: đã triển khai ở Task 4 bằng [`apps/age
 | FIFO, một `RUNNING`/hội thoại, history view gồm kết quả commit muộn | Task 3: enqueue B khi A chạy, A commit sau B; nhiều dispatcher chỉ một claim |
 | Không ghi đè sau revoke | Task 4: `test_stale_process_cannot_publish_checkpoint_after_revoke_ack` với hai tiến trình |
 | Budget không cấp lại sau crash | Task 4: `test_core_budget_survives_crash_after_send_before_checkpoint`, `test_token_reservations_survive_replay` |
-| Không chạy lại graph khi giao lại | Task 6: `test_restart_after_lost_ack_redelivers_without_graph` |
-| HMAC | Task 6: sửa body/path/header, sai khóa, lệch giờ, nonce lặp, gửi lại nonce mới cùng ID nghiệp vụ |
+| Không chạy lại graph khi giao lại | Task 6: `test_restart_after_lost_ack_redelivers_without_graph` (đã có phía Agent với Core double; Core thật ở Task 10) |
+| HMAC | Task 6: sửa body/path/header, sai khóa, lệch giờ, nonce lặp, gửi lại nonce mới cùng ID nghiệp vụ — phía Agent có trong `apps/agent/tests/test_delivery.py`; phía Core chờ Task 3 |
 | Takeover/late event | Task 6/10: takeover khi tool đang chờ; event muộn không đổi kết quả |
 
 ### 12.13 Quyết định G2/G3 ngày 06/11/2026
@@ -422,7 +429,7 @@ Người dùng giao Agent tự chọn và ghi lại ngày 06/11/2026; anh Tuấn
 | 2 | Checkpointer | **Tự viết lớp con `BaseCheckpointSaver`** trên psycopg trong schema `agent_runtime`, kiểm `(thread_id, attempt_id, writer_epoch)` trong cùng transaction với mọi đường ghi; pin `langgraph-checkpoint` 4.3.1 | `langgraph-checkpoint-postgres` tự quản bảng/migration và không cho chèn bước kiểm quyền ghi vào cùng transaction, kể cả pending writes; kế hoạch yêu cầu dừng nếu thư viện không hook được mọi đường ghi |
 | 3 | Revoke không tới được Agent | **Chấp nhận khoảng hở ở 12.5**, không thêm điều kiện lease vào câu kiểm. Core chặn ngay tool/scope/history/event của attempt cũ, không giao attempt mới hay tin kế tiếp cho hội thoại tới khi có `RevocationAck`, gửi lại revoke theo backoff và để trạng thái chờ hiện cho vận hành | Lease không giải quyết trường hợp này (writer mất mạng tới Core vẫn tới được DB và gia hạn được) mà thêm heartbeat; các lần ghi muộn không thành kết quả Core và attempt kế tiếp chỉ đọc sau ACK |
 | 4 | Attempt lỗi/quá hạn | **Run kết thúc `FAILED`** (takeover: `CANCELLED`), không tự tạo attempt mới. Mất ACK thì gửi lại cùng attempt | MVP đơn giản, tránh chạy lại model/tool ngoài ý người dùng; khách gửi tin mới thì có lượt mới với budget mới. Lý do `RETRY` giữ trong protocol cho thao tác chủ động sau này |
-| 5 | Xác thực và framework | **Profile HMAC tự đặt `LI-HMAC-SHA256-v1`** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn** phía Agent, dự kiến `starlette` 1.9.0 / `uvicorn` 0.54.0 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
+| 5 | Xác thực và framework | **Profile HMAC tự đặt `LI-HMAC-SHA256-v1`** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn** phía Agent; pin ở Task 6 là `starlette` 1.10.0 (thay 1.9.0 dự kiến, xem 12.10) / `uvicorn` 0.54.0 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
 
 Còn đề xuất, chưa chốt:
 

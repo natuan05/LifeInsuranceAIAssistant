@@ -215,7 +215,7 @@ class PgRuntimeStore:
                     return _ack("CONFLICT", run_id, attempt_id, "PAYLOAD_MISMATCH")
                 if status == "REVOKED":
                     return _ack("IGNORED_STALE", run_id, attempt_id, "ATTEMPT_NOT_CURRENT")
-                cur.execute(f"UPDATE {SCHEMA}.outbound_events SET next_delivery_at = now() "
+                cur.execute(f"UPDATE {SCHEMA}.outbound_events SET next_delivery_at = now(), gave_up_at = NULL "
                             f"WHERE attempt_id = %s AND ack_outcome IS NULL", (attempt_id,))
                 return _ack("DUPLICATE", run_id, attempt_id)
             owner = self._lock_owner(cur, thread_id)
@@ -428,23 +428,55 @@ class PgRuntimeStore:
             return self._event(cur, row[0]) if row else None
 
     def pending_events(self, limit: int = 50) -> list[dict]:
-        with self.transaction() as cur:
-            cur.execute(f"SELECT event FROM {SCHEMA}.outbound_events WHERE ack_outcome IS NULL AND next_delivery_at <= now() "
-                        f"ORDER BY created_at, sequence LIMIT %s", (limit,))
-            return [row[0] for row in cur.fetchall()]
+        return [d["event"] for d in self.pending_deliveries(limit)]
 
-    def ack_event(self, event_id: str, ack: Mapping[str, Any], *, retry_after_s: float = 0) -> None:
-        """Stop resending on ACCEPTED/DUPLICATE/IGNORED_STALE/CONFLICT; REJECTED or no ACK keeps the event."""
+    def pending_deliveries(self, limit: int = 50) -> list[dict]:
+        """Unacknowledged events due now, oldest first, with their age and number of sends so far."""
+        with self.transaction() as cur:
+            cur.execute(f"SELECT event, EXTRACT(EPOCH FROM now() - created_at), delivery_attempts "
+                        f"FROM {SCHEMA}.outbound_events WHERE ack_outcome IS NULL AND gave_up_at IS NULL "
+                        f"AND next_delivery_at <= now() ORDER BY created_at, sequence LIMIT %s", (limit,))
+            return [{"event": row[0], "age_s": float(row[1]), "attempts": int(row[2])} for row in cur.fetchall()]
+
+    def ack_event(self, event_id: str, ack: Mapping[str, Any] | None, *, retry_after_s: float = 0,
+                  failure: str | None = None) -> None:
+        """Stop resending on ACCEPTED/DUPLICATE/IGNORED_STALE/CONFLICT; REJECTED or no ACK keeps the event and
+        schedules the next send. ``failure`` is a filtered code, never a body or URL."""
         outcome = ack.get("outcome") if ack else None
         with self.transaction() as cur:
             if outcome in ("ACCEPTED", "DUPLICATE", "IGNORED_STALE", "CONFLICT"):
                 cur.execute(f"UPDATE {SCHEMA}.outbound_events SET ack_outcome = %s, acked_at = now(), "
-                            f"delivery_attempts = delivery_attempts + 1 WHERE event_id = %s AND ack_outcome IS NULL",
-                            (outcome, event_id))
+                            f"delivery_attempts = delivery_attempts + 1, last_failure = NULL "
+                            f"WHERE event_id = %s AND ack_outcome IS NULL", (outcome, event_id))
             else:
                 cur.execute(f"UPDATE {SCHEMA}.outbound_events SET delivery_attempts = delivery_attempts + 1, "
-                            f"next_delivery_at = now() + make_interval(secs => %s) WHERE event_id = %s",
-                            (retry_after_s, event_id))
+                            f"next_delivery_at = now() + make_interval(secs => %s), last_failure = %s "
+                            f"WHERE event_id = %s AND ack_outcome IS NULL",
+                            (retry_after_s, failure or ("REJECTED" if outcome == "REJECTED" else "NO_ACK"), event_id))
+
+    def give_up_event(self, event_id: str, failure: str) -> None:
+        """Stop resending after the max age (incident). The event stays stored; a Core resend reopens it."""
+        with self.transaction() as cur:
+            cur.execute(f"UPDATE {SCHEMA}.outbound_events SET gave_up_at = now(), last_failure = %s "
+                        f"WHERE event_id = %s AND ack_outcome IS NULL", (failure, event_id))
+
+    def event_delivery(self, event_id: str) -> dict | None:
+        with self.transaction() as cur:
+            cur.execute(f"SELECT ack_outcome, delivery_attempts, gave_up_at IS NOT NULL, last_failure "
+                        f"FROM {SCHEMA}.outbound_events WHERE event_id = %s", (event_id,))
+            row = cur.fetchone()
+        return None if row is None else {"ack_outcome": row[0], "attempts": row[1], "gave_up": row[2],
+                                         "last_failure": row[3]}
+
+    # ------------------------------------------------------------------ HMAC nonces
+    def remember_nonce(self, key_id: str, nonce: str, window_s: int) -> bool:
+        """Durable replay window (12.9): False when (key_id, nonce) was already seen inside the window."""
+        with self.transaction() as cur:
+            cur.execute(f"DELETE FROM {SCHEMA}.request_nonces WHERE received_at < now() - make_interval(secs => %s)",
+                        (window_s,))
+            cur.execute(f"INSERT INTO {SCHEMA}.request_nonces (key_id, nonce) VALUES (%s, %s) "
+                        f"ON CONFLICT DO NOTHING RETURNING 1", (key_id, nonce))
+            return cur.fetchone() is not None
 
     # ------------------------------------------------------------------ maintenance
     def fence_after_restore(self) -> int:

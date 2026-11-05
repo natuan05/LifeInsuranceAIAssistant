@@ -153,3 +153,24 @@ python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end --
 ```
 
 Tài liệu Public đã nạp ở mốc 3 được bỏ qua nhờ fingerprint; chỉ hợp đồng synthetic gọi embedding mới. `--kind public` giữ phép đo mốc 3 để so sánh.
+
+## Trạng thái: Task 6 phía Agent — HTTP/HMAC và giao lại kết quả
+
+Người dùng chọn ngày 06/11/2026 làm phần Agent của Task 6 trước, vì GitHub chưa có API Core của Task 3. Phần Core của Task 6 (`apps/core/src/agent/…`, `npm run test:agent-delivery`) và E2E Task 10 chờ Task 3. Core trong test là double; không chứng minh transaction, quyền hay HMAC của Core.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `signing.py` | Profile `LI-HMAC-SHA256-v1` bằng thư viện chuẩn: ký/kiểm trên byte body thô, ±120 giây, nonce bền 10 phút (`request_nonces`, chỉ ghi sau khi chữ ký đúng), body ≤ 1 MiB, keyring theo `key_id` để xoay khóa; lỗi chỉ trả `AUTH_FAILED`/`REPLAY_REJECTED` |
+| `http.py` | `AgentService` (xác thực → lưu receipt/revoke → ACK; graph không chạy trong request), app Starlette, `deliver_pending` (gửi nguyên event đã lưu, ký lại mỗi lần, backoff, bỏ cuộc sau hạn tối đa), `Worker` (chạy receipt `ACCEPTED` đọc từ DB, cũng là đường phục hồi sau restart), `serve` |
+| `core_client.HttpCoreClient` | Đọc Core có ký, luôn gửi `run_id`/`attempt_id`; endpoint là đề xuất cho Task 3 ([contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3)) |
+| `migrations/002_delivery.sql` | `gave_up_at`, `last_failure` cho `outbound_events`; index nonce theo thời gian |
+
+Lịch gửi lại (1 → 60 giây, jitter 0,2, bỏ cuộc sau 24 giờ) và hạn lưu vẫn là đề xuất của 12.10, đặt qua `.env`. Lease không gia hạn trong lúc chạy nên `LIFE_AGENT_LEASE_S` phải lớn hơn deadline Core gửi. Pin `starlette` 1.10.0 (thay 1.9.0 dự kiến) và `uvicorn` 0.54.0.
+
+### Chạy
+
+1. Cài lại từ `apps/agent` để có Starlette/uvicorn, rồi `python -m life_agent.store migrate` (áp `002_delivery`).
+2. `apps/agent/.env`: thêm các biến của khối "Agent HTTP service" trong `.env.example`. Hai keyring (Core → Agent, Agent → Core) mỗi khóa ≥ 32 byte ngẫu nhiên, cùng giá trị phía Core; không đưa vào Git/chat/log.
+3. `python -m pytest tests/test_delivery.py` (ca DB cần `LIFE_AGENT_TEST_STORE_DSN`), `node --test ../core/test/agent-hmac-vector.test.cjs`.
+4. `python -m life_agent.http serve` khi Core đã có endpoint của Task 3; trước đó service vẫn nhận việc, nhưng đọc Core và gửi kết quả sẽ thử lại theo lịch.
+

@@ -381,7 +381,7 @@ def test_split_target_is_built_by_migrations_and_restores_a_thread(store, ids):
             conn.execute("ALTER DEFAULT PRIVILEGES FOR ROLE agent_migrator IN SCHEMA agent_runtime "
                          "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO agent_runtime")
             assert conn.execute("SELECT count(*) FROM pg_namespace WHERE nspname IN ('business', 'rag')").fetchone()[0] == 0
-        assert migrate(make_conninfo(MIGRATOR, dbname=target_db)) == ["001_durable_runtime"]
+        assert migrate(make_conninfo(MIGRATOR, dbname=target_db)) == ["001_durable_runtime", "002_delivery"]
         source_admin = make_conninfo(ADMIN, dbname=conninfo_to_dict(DSN).get("dbname", "life_insurance"))
         counts = copy_runtime_data(source_admin, target_admin)
         assert counts["checkpoints"] >= 1 and counts["outbound_events"] >= 1

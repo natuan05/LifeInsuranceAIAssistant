@@ -719,7 +719,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Core gửi mã lượt để liên kết yêu cầu và callback. Core kiểm tra callback rồi ghi nhận trạng thái/kết quả; chỉ công bố câu trả lời hoàn chỉnh đã qua kiểm tra. Web nhận cập nhật qua Core, giao thức Web–Core còn mở.
 - Callback cần xác thực/giao lại/chống trùng/thứ tự/xử lý kết quả muộn/kiểm tiếp quản. Lưu sự kiện chờ giao/khôi phục phải bền vững; callback không tự bảo đảm đúng một lần/sống qua mọi lỗi.
 - ACK/ID lượt–attempt–event theo luật dưới. Cần đặc tả endpoint/schema/ID/mã phản hồi/timeout–retry/đối soát mất ACK. URL callback từ cấu hình tin cậy, không từ LLM/tài liệu.
-- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; chưa chọn FastAPI hoặc cài SDK chỉ từ quyết định HTTP + callback. **Ngày 06/11/2026** chọn Starlette + uvicorn cho HTTP phía Agent (không FastAPI); xem [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
+- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; chưa chọn FastAPI hoặc cài SDK chỉ từ quyết định HTTP + callback. **Ngày 06/11/2026** chọn Starlette + uvicorn cho HTTP phía Agent (không FastAPI); xem [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026). Phần Agent của Task 6 đã triển khai cùng ngày (pin `starlette` 1.10.0, `uvicorn` 0.54.0); phía Core chờ Task 3, xem [contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3).
 
 <a id="durable-ack"></a>
 ### ACK sau khi lưu bền vững
