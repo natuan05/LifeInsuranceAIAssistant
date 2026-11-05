@@ -2134,6 +2134,72 @@
         "errors": []
       },
       "note": "No invented conditions."
+    },
+    {
+      "name": "revocation_takeover",
+      "type": "AttemptRevocation",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "7c1e2a40-1111-4a8b-9c3d-000000000001",
+        "attempt_id": "7c1e2a40-2222-4a8b-9c3d-000000000002",
+        "conversation_id": "7c1e2a40-3333-4a8b-9c3d-000000000003",
+        "reason": "STAFF_TAKEOVER",
+        "requested_at": "2026-11-05T09:00:00Z"
+      }
+    },
+    {
+      "name": "revocation_with_actor_rejected",
+      "type": "AttemptRevocation",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "7c1e2a40-1111-4a8b-9c3d-000000000001",
+        "attempt_id": "7c1e2a40-2222-4a8b-9c3d-000000000002",
+        "conversation_id": "7c1e2a40-3333-4a8b-9c3d-000000000003",
+        "reason": "RETRY",
+        "requested_at": "2026-11-05T09:00:00Z",
+        "actor": {
+          "id": "7c1e2a40-3333-4a8b-9c3d-000000000003",
+          "role": "STAFF"
+        }
+      }
+    },
+    {
+      "name": "revocation_ack_revoked",
+      "type": "RevocationAck",
+      "valid": true,
+      "value": {
+        "outcome": "REVOKED",
+        "run_id": "7c1e2a40-1111-4a8b-9c3d-000000000001",
+        "attempt_id": "7c1e2a40-2222-4a8b-9c3d-000000000002",
+        "writer_epoch": 3,
+        "reason": null
+      }
+    },
+    {
+      "name": "revocation_ack_without_epoch_rejected",
+      "type": "RevocationAck",
+      "valid": false,
+      "value": {
+        "outcome": "REVOKED",
+        "run_id": "7c1e2a40-1111-4a8b-9c3d-000000000001",
+        "attempt_id": "7c1e2a40-2222-4a8b-9c3d-000000000002",
+        "writer_epoch": null,
+        "reason": null
+      }
+    },
+    {
+      "name": "revocation_ack_rejected_auth",
+      "type": "RevocationAck",
+      "valid": true,
+      "value": {
+        "outcome": "REJECTED",
+        "run_id": "7c1e2a40-1111-4a8b-9c3d-000000000001",
+        "attempt_id": "7c1e2a40-2222-4a8b-9c3d-000000000002",
+        "writer_epoch": null,
+        "reason": "AUTH_FAILED"
+      }
     }
   ]
 }

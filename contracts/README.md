@@ -65,7 +65,7 @@ Retry hai tool đọc: code adapter chỉ thử lại tối đa một lần khi 
 
 ## Agent contracts v1 — đề xuất chờ review G1
 
-[`agent-v1.md`](agent-v1.md), [`agent-v1.schema.json`](agent-v1.schema.json) và [`fixtures/agent-v1.json`](fixtures/agent-v1.json) đặc tả các kiểu Web ↔ Core, Core ↔ Agent, tool, kết quả truy xuất/kết quả Agent và state checkpoint theo Task 1 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md). Kiểm bằng `node --test apps/core/test/agent-contracts.test.cjs`. Đây là đề xuất, chưa duyệt; chưa có API, bảng hoặc runtime dùng các contract này. Các điểm cần chốt nằm ở [mục 11](agent-v1.md#11-cần-chốt-ở-review-g1).
+[`agent-v1.md`](agent-v1.md), [`agent-v1.schema.json`](agent-v1.schema.json) và [`fixtures/agent-v1.json`](fixtures/agent-v1.json) đặc tả các kiểu Web ↔ Core, Core ↔ Agent, tool, kết quả truy xuất/kết quả Agent và state checkpoint theo Task 1 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md). Kiểm bằng `node --test apps/core/test/agent-contracts.test.cjs`. Đây là đề xuất, chưa duyệt; chưa có API, bảng hoặc runtime dùng các contract này. Các điểm cần chốt nằm ở [mục 11](agent-v1.md#11-cần-chốt-ở-review-g1). Task 2 thêm [mục 12](agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2): gói đề xuất G2/G3 (state machine run/attempt, fencing checkpoint, ledger, crash matrix, HMAC, DDL), kiểm bằng reference model `node --test apps/core/test/agent-protocol.test.cjs`; chưa có migration hay runtime.
 
 ## Trạng thái 30/10/2026
 
