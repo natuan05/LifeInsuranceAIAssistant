@@ -30,9 +30,65 @@ flowchart LR
   C --> E[Lỗi an toàn và retry có kiểm soát]
 ```
 
-## 5. Kiểm thử
+## 5. Test cases
 
-Policy suite kiểm scope/binding/inactive/malformed/CSRF; storage smoke kiểm real bytes/checksum/MIME/Range/CORS/expiry/tamper; browser E2E cần thêm qua Core/MinIO thật, kiểm đúng hash/version được cấp. Fixtures hoàn toàn synthetic và tự dọn, không rotate env/volumes.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### PL02-T01 — Applied version khác product current
+
+**Lớp kiểm thử:** API + Storage.
+**Điều kiện và dữ liệu:** PolicyA bind D1/v1; product của D1 đã current v2, hai PDF hash khác nhau.
+
+**Các bước:**
+
+1. GET /staff/policies/PolicyA/documents.
+2. POST view/download D1/v1 với body policyId=PolicyA.
+3. Đối chiếu version và hash.
+
+**Kết quả mong đợi:** Catalog/access dùng applied v1, không trôi sang current v2; view inline và download attachment đúng bản.
+
+### PL02-T02 — Binding và scope không thể giả
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** PolicyA của C-A; PolicyB ngoài scope; D2 không bind PolicyA.
+
+**Các bước:**
+
+1. Gửi PolicyA với D2 hoặc version chưa bind.
+2. Gửi D1/v1 nhưng policyId=PolicyB.
+3. Đổi body thêm bucket/key/url.
+
+**Kết quả mong đợi:** Ngoài binding/scope 404, trường lạ 400; không trả URL hoặc storage metadata.
+
+### PL02-T03 — PDF chính thiếu vẫn có catalog an toàn
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** PolicyA có binding chính thiếu/invalid và tài liệu liên quan hợp lệ.
+
+**Các bước:**
+
+1. GET catalog.
+2. Kiểm availability/mainDocumentStatus/issues.
+3. Xin access tài liệu chính không hợp lệ rồi tài liệu liên quan hợp lệ.
+
+**Kết quả mong đợi:** Metadata phản ánh đúng thiếu/invalid, không tự chọn current/thay thế; chỉ tài liệu liên quan có binding đúng được cấp link.
+
+### PL02-T04 — Mất quyền, storage và audit failure
+
+**Lớp kiểm thử:** API + DB/Storage barrier.
+**Điều kiện và dữ liệu:** Có phiên Staff, CSRF và policy binding hợp lệ; các lỗi được inject trong harness.
+
+**Các bước:**
+
+1. Revoke assignment trong lúc cấp link.
+2. Lặp với storage timeout và audit commit failure.
+3. Kiểm response và số audit/URL được trả.
+
+**Kết quả mong đợi:** Không trả link sau check cuối mất quyền hoặc audit lỗi; storage error an toàn; không để credential/URL ký trong log.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 
@@ -42,3 +98,34 @@ Policy suite kiểm scope/binding/inactive/malformed/CSRF; storage smoke kiểm 
 
 Không dùng product guide/terms thay bản chính bị thiếu. Product PUBLIC current catalog/access P02 khác applied version policy; không mở rộng lẫn quyền.
 
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    participant S as Storage
+    U->>W: Mở hoặc tải PDF
+    W->>C: POST view hoặc download, CSRF và exact version
+    C->>D: Session, assignment, policy binding và applied version
+    D-->>C: Binding và version được phép
+    alt Ngoài scope hoặc binding không hợp lệ
+        C-->>W: 404, không URL
+    else Được phép
+        C->>S: HEAD PDF và ký link ngắn hạn
+        S-->>C: Object metadata hoặc lỗi storage
+        C->>D: Recheck quyền/version và commit audit
+        alt Check cuối hoặc audit không thành công
+            C-->>W: Lỗi an toàn, không trả link
+        else Hợp lệ
+            C-->>W: url và expiresAt
+            W->>S: GET PDF hoặc Range bằng grant
+            S-->>W: Đúng bytes/version
+            W-->>U: Preview inline hoặc file download
+        end
+    end
+```

@@ -28,9 +28,65 @@ flowchart LR
   C --> E[Lỗi an toàn và retry có kiểm soát]
 ```
 
-## 5. Kiểm thử
+## 5. Test cases
 
-`staff-account.spec.mjs`15 ca + `staff-session.spec.mjs`22 ca đã có: keyboard, invalid input,401/403/409/429/5xx, focus,375/768/1600px, scope change, request cũ. Chạy `npm run test:browser:account` trên Web Docker; mock không chứng minh Core authorization.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### AU02-T01 — Edit, Cancel rồi Save bằng bàn phím
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A mở /account; ghi lại tên/phone ban đầu.
+
+**Các bước:**
+
+1. Tab tới Edit personal information và mở form.
+2. Đổi tên/phone rồi Cancel.
+3. Mở lại, nhập giá trị synthetic khác và Save.
+
+**Kết quả mong đợi:** Cancel không gửi PATCH và trả focus về Edit; Save gửi đúng changed fields/token, cập nhật header/hồ sơ không F5.
+
+### AU02-T02 — Validation và trường readonly
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A ở form Edit; mở Network để quan sát request, không lưu payload riêng tư.
+
+**Các bước:**
+
+1. Để tên chỉ có khoảng trắng và nhập phone không hợp lệ.
+2. Bấm Save.
+3. Kiểm tra email, mã tài khoản, role, department.
+
+**Kết quả mong đợi:** Lỗi nằm tại trường thích hợp; không gửi PATCH dữ liệu sai; các trường định danh không sửa được bằng UI.
+
+### AU02-T03 — Giữ nháp khi refresh và xung đột
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Hai tab S-A cùng mở form; tab 1 đang có nháp chưa lưu.
+
+**Các bước:**
+
+1. Tab2 lưu tên mới.
+2. Kích hoạt cập nhật nền ở tab 1.
+3. Save nháp tab 1 với token ban đầu.
+
+**Kết quả mong đợi:** Nháp không bị refresh ghi đè; conflict được hiển thị để review, không tự gửi lại bằng token mới.
+
+### AU02-T04 — Mạng lỗi, mobile và phiên hết hạn
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** S-A mở form tại375px; harness điều khiển PATCH503/401.
+
+**Các bước:**
+
+1. Cho PATCH503 rồi Save; thử lại sau khi khôi phục mạng.
+2. Đặt zoom 200% và dùng Tab qua form.
+3. Cho request tiếp theo trả 401.
+
+**Kết quả mong đợi:** Lỗi retry tại chỗ, không F5; controls không tràn/focus thấy được;401 xóa nháp riêng và chuyển đăng nhập.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 
@@ -40,3 +96,33 @@ flowchart LR
 
 Giữ nháp/focus khi background refresh, không F5. Session freshness/retry chi tiết AU03; không thêm spinner che toàn workspace mỗi focus.
 
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Xác nhận thao tác
+    W->>C: PATCH /staff/me sau Save
+    C->>D: Kiểm session, CSRF và khóa self scope và token ban đầu của form
+    D-->>C: Quyền, version và state hiện hành
+    alt Không đủ quyền hoặc version stale
+        C-->>W: 401, 403, 404 hoặc409 an toàn
+        W-->>U: Giữ nháp phù hợp và review trạng thái
+    else Hợp lệ
+        C->>D: Update tên hoặc phone và audit
+        D-->>C: COMMIT
+        C-->>W: 200 projection mới; Cancel không request
+        W-->>U: Cập nhật sau ACK
+    end
+    opt Timeout hoặc mất ACK
+        W->>C: GET current state hoặc receipt theo contract
+        C->>D: Kiểm lại quyền và đọc kết quả
+        C-->>W: Current state, không tự cấp quyền mới
+        W-->>U: Review trước khi ghi lại
+    end
+```

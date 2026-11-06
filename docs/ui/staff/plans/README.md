@@ -4,6 +4,8 @@
 
 ## 1. Một chức năng, một contract
 
+Các phase có test case với dữ liệu, bước làm và kỳ vọng cụ thể, kèm sequence diagram; áp dụng [quy ước chung](../../README.md#quy-ước-test-case-và-sequence-diagram). Phần Agent/Copilot chưa làm giữ nhãn dự kiến, không biến danh sách test thành báo cáo pass.
+
 Plans đã đủ làm đầu mối triển khai; không cần giữ bộ file màn hình cũ song song. Các phase baseline được bổ sung từ code thật cho chức năng làm trước khi có bộ plans. **Đã triển khai** không có nghĩa Agent/production hoặc toàn bộ test tích hợp đã xong.
 
 | Nhánh | Trạng thái / căn cứ | Phase theo thứ tự |
@@ -19,7 +21,7 @@ Plans đã đủ làm đầu mối triển khai; không cần giữ bộ file m�
 
 ## 2. Thứ tự làm tiếp cho mốc Staff không Agent
 
-**TK01 đã xong nền Core và32 tests** (3 migration +7 Ticket policy +16 Conversation +6 HTTP/WS regression). **TK02 đã có A21/A22 và44 tests TK02+regression pass**; TK03 A23 đã có; TK04 UI đã nối; TK05 sự kiện/notification đã có; I07 producer tạo/xác nhận riêng còn P. Mỗi phase triển khai luôn tests tương ứng, không có nhánh Release riêng. Không cần dựng Agent để test Ticket read/accept bằng fixture; không được báo nguồn tạo Ticket từ AI đã có.
+**TK01 đã xong nền Core và 32 tests** (3 migration +7 Ticket policy +16 Conversation +6 HTTP/WS regression). **TK02 đã có A21/A22 và 44 tests TK02+regression pass**; TK03 A23 đã có; TK04 UI đã nối; TK05 sự kiện/notification đã có; I07 producer tạo/xác nhận riêng còn P. Mỗi phase triển khai luôn tests tương ứng, không có nhánh Release riêng. Không cần dựng Agent để test Ticket read/accept bằng fixture; không được báo nguồn tạo Ticket từ AI đã có.
 
 Nguồn Ticket hiện không có producer nghiệp vụ nên UI có thể rỗng nếu không có dữ liệu. Fixture local riêng chỉ theo yêu cầu, tuyệt đối không sửa bootstrap hoặc thêm endpoint tạo Ticket giả. TK02 dùng scope/legacy/version đã chốt TK01; không tự mở OPEN queue hoặc claim unassigned.
 

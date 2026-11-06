@@ -16,15 +16,15 @@ Document phải PUBLIC, productId đúng, policyId=null, ownerCustomerId=null. c
 
 Đối chiếu schema thực: AccessScope chỉ có PUBLIC/PRIVATE_POLICY, **không có PRIVATE_CUSTOMER**. Không thêm scope hoặc migration để khớp nhánh thừa trong plan cũ. Quan hệ `Document.current` thực thi liên kết exact documentId/versionNumber.
 
-Catalog chỉ trả binding hợp lệ; tài liệu thiếu currentVersion/inactive bị loại. Nếu không có tài liệu hợp lệ trả items=[], không leak số lượng tài liệu private hoặc metadata lỗi. Product inactive/không có404. Không biến product inactive thành việc thu hồi hợp đồng cá nhân đã phát hành.
+Catalog chỉ trả binding hợp lệ; tài liệu thiếu currentVersion/inactive bị loại. Nếu không có tài liệu hợp lệ trả items=[], không leak số lượng tài liệu private hoặc metadata lỗi. Product inactive/không có 404. Không biến product inactive thành việc thu hồi hợp đồng cá nhân đã phát hành.
 
 ## 3. API spec đã triển khai — A19 và access E
 
 `GET /api/v1/products/:productId/documents?limit=20&cursor=...`
 
-limit1–50/default20; keyset `(title ASC,id ASC)` sau publication gate, lấy limit+1 để tính hasMore, không COUNT. Cursor base64url canonical tối đa2731 ký tự/2048 byte JSON, đúng keys v/scope/title/id, v=1; scope hash bind endpoint/product/actor/role/limit, title tối đa255 code points và id UUID. Cursor không phải chứng cứ quyền: mọi query vẫn lọc publication, kể cả boundary bị sửa. Cursor sai/sai product/actor/limit trả400; không lấy raw SQL từ cursor. Không counts. Catalog live có thể đổi thứ tự giữa pages; FE dedup/reset khi refetch.
+limit 1–50/default20; keyset `(title ASC,id ASC)` sau publication gate, lấy limit+1 để tính hasMore, không COUNT. Cursor base64url canonical tối đa2731 ký tự/2048 byte JSON, đúng keys v/scope/title/id, v=1; scope hash bind endpoint/product/actor/role/limit, title tối đa255 code points và id UUID. Cursor không phải chứng cứ quyền: mọi query vẫn lọc publication, kể cả boundary bị sửa. Cursor sai/sai product/actor/limit trả 400; không lấy raw SQL từ cursor. Không counts. Catalog live có thể đổi thứ tự giữa pages; FE dedup/reset khi refetch.
 
-Catalog dùng chung quota PRODUCT_READ120/phút/actor với P01. View/download dùng PRODUCT_DOCUMENT_ACCESS30/phút/actor chung hai intent, độc lập read quota; DB upsert atomic ngoài transaction snapshot,429 RATE_LIMITED + Retry-After. Unknown query/body field, repeated parameter, UUID/limit sai bị400. POST chỉ nhận JSON `{}`, không có policyId giả.
+Catalog dùng chung quota PRODUCT_READ120/phút/actor với P01. View/download dùng PRODUCT_DOCUMENT_ACCESS30/phút/actor chung hai intent, độc lập read quota; DB upsert atomic ngoài transaction snapshot,429 RATE_LIMITED + Retry-After. Unknown query/body field, repeated parameter, UUID/limit sai bị 400. POST chỉ nhận JSON `{}`, không có policyId giả.
 
 ```json
 {
@@ -33,7 +33,7 @@ Catalog dùng chung quota PRODUCT_READ120/phút/actor với P01. View/download d
 }
 ```
 
-`POST /api/v1/products/:productId/documents/:documentId/versions/:versionId/view` hoặc `/download`, body `{}`; session hai role và CSRF. Response `200 {url,expiresAt}` tương thích storage service. Không nhận bucket/key/URL/policyId/contentDisposition từ client. UUID sai400, version không còn là current hoặc private/cross-product/thiếu404; quota429, object thiếu/không PDF404, storage unavailable503. Không auto-fallback sang version khác.
+`POST /api/v1/products/:productId/documents/:documentId/versions/:versionId/view` hoặc `/download`, body `{}`; session hai role và CSRF. Response `200 {url,expiresAt}` tương thích storage service. Không nhận bucket/key/URL/policyId/contentDisposition từ client. UUID sai400, version không còn là current hoặc private/cross-product/thiếu404; quota 429, object thiếu/không PDF404, storage unavailable503. Không auto-fallback sang version khác.
 
 Mỗi POST recheck publication trong DB, rồi HEAD object và ký link đúng version đã được cho phép. Audit actor/action/document/version/outcome; không ghi URL/key/PDF. `view` inline, `download` attachment tên server kiểm soát. TTL local hiện mặc định900 giây có cấu hình; không hứa logout thu hồi ngay URL đã cấp. DB và S3 không chung transaction: mô tả mốc kiểm quyền và TTL residual; recheck publication trước trả kết quả nếu publication đổi trong lúc HEAD/sign, bỏ link khi check cuối fail. Không giữ DB transaction lâu qua mạng storage.
 
@@ -56,27 +56,75 @@ sequenceDiagram
   W->>S: GET/Range PDF
 ```
 
-## 5. Test plan và nghiệm thu
+## 5. Test cases
 
-Đề xuất `apps/core/test/product-documents.test.cjs`, fixtures DB/object synthetic runId qua Docker; bảo toàn bucket/object/volumes đang dùng. Không tạo seed chung để phục vụ test.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Kiểm tra | Kỳ vọng |
-| --- | --- | --- |
-| P02-T01 | CUSTOMER/STAFF mở cùng PUBLIC current | Cùng version/file, inline/attachment đúng |
-| P02-T02 | UUID biết trước của PRIVATE_POLICY/cross-product | 404 cả catalog/access, không signed URL |
-| P02-T03 | currentVersion đổi, version inactive, thiếu binding | Không trả bản cũ hay fallback bản mới tự động |
-| P02-T04 | Object mất/zero byte/non-PDF/storage timeout | 404/503 an toàn; không raw SDK error |
-| P02-T05 | Origin/CSRF sai, input lạ, burst | 403/400/429; không cấp link |
-| P02-T06 | Range/CORS, TTL hết, audit/log scan | Đọc được đúng PDF; regrant sau expiry; không log URL/secret |
-| P02-T07 | Publication đổi giữa check và sign, catalog >1 batch | Không trả link sau check cuối fail; cursor không trùng/leak |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### P02-T01 — PUBLIC current và hai intent
+
+**Lớp kiểm thử:** API + Storage.
+**Điều kiện và dữ liệu:** P1 active có PUBLIC D1 current v2; lưu hash PDF synthetic v2.
+
+**Các bước:**
+
+1. Đọc catalog P1 bằng Staff và Customer.
+2. POST view và download D1/v2 với CSRF hợp lệ.
+3. Đọc metadata/bytes trả về trong harness.
+
+**Kết quả mong đợi:** Catalog cùng exact version; view inline/download attachment; hash đúngv2, không credential trong DTO/log.
+
+### P02-T02 — Không cấp Private hoặc tài liệu khác sản phẩm
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** P1 có PUBLIC D1; P2 có D2; có PRIVATE_POLICY D3.
+
+**Các bước:**
+
+1. Gửi access P1/D2 rồi P1/D3 bằng UUID biết trước.
+2. Gửi thêm bucket/key/policyId vào body.
+3. Đọc catalog P1.
+
+**Kết quả mong đợi:** Cross-product/Private 404, body lạ 400; catalog không hé D2/D3 hoặc object key; không tạo signed URL.
+
+### P02-T03 — Publication đổi trong lúc cấp link
+
+**Lớp kiểm thử:** API + Storage barrier.
+**Điều kiện và dữ liệu:** D1/v1 đang current; barrier dừng tại HEAD/sign.
+
+**Các bước:**
+
+1. Bắt đầu view v1.
+2. Đổi current sangv2 hoặc vô hiệu D1 trong fixture.
+3. Cho request tiếp tục và thử lạiv1.
+
+**Kết quả mong đợi:** Check cuối từ chối link v1 khi không còn hợp lệ; không tự fallback v2; audit không ghi SUCCESS sai.
+
+### P02-T04 — Storage lỗi và quota
+
+**Lớp kiểm thử:** API + Storage harness.
+**Điều kiện và dữ liệu:** Các PDF synthetic riêng: thiếu object,0byte, sai MIME; bucket quota riêng.
+
+**Các bước:**
+
+1. Lần lượt xin view các object lỗi.
+2. Mô phỏng storage unavailable.
+3. Vượt quota access bằng cả view/download.
+
+**Kết quả mong đợi:** 404/503 an toàn theo contract; không SDK exception hoặc URL lỗi;429 Retry-After và quota chung hai intent.
+
+**Suite tham khảo:** [product-documents.test.cjs](../../../../../apps/core/test/product-documents.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 
 - [x] Tests Core+MinIO thực, metadata/file hash tương ứng; không dùng ảnh để QA PDF.
 - [x] Swagger và API map cập nhật E cho đúng routes đã có.
-- [x] Staff catalog/access vẫn đọc appliedv1 khi product công bố currentv2; hồi quy P01/chat pass. UI không đổi trong phase này.
 
-## 6. Kiểm chứng và cách chạy — 04/11/2026
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
-**13 test P02 Core/HTTP/PostgreSQL/MinIO pass**, **1 gateway integration pass** sau cập nhật Core; **88 regression pass** (10 P01 +78 permissions/Inbox/workflow/send/realtime). Core lint và Docker build TypeScript pass. Test gồm nhiều batch/title trùng/Unicode, cursor bind/forged boundary, private-deny trước storage, actual PDF/hash/Range/CORS/inline/attachment, missing/zero/non-PDF/timeout5 giây, đổi publication/object/session giữa sign/recheck, audit failure, quota, CSRF, expired/tampered URL và TTL residual sau revoke. Đây không phải browser E2E/P03 UI.
+## 6. Chạy kiểm thử tự động
+
 
 Test chỉ dùng PDF synthetic tạo trong memory và object dưới `p02-tests/<UUID>/`, không thay bootstrap/corpus đang dùng. Teardown xóa đúng từng key do run tạo, kiểm prefix rỗng, xóa fixtures DB/audit/quota rồi đóng clients. Writer hiện không được DeleteObject, vì vậy service **product-document-tests** riêng trong profile tests mount root credential readonly chỉ để cleanup các key run tạo; Core runtime vẫn chỉ reader, core-tests thường không nhận storage-root. Không tạo/rotate credential hay file trên host, không xóa bucket/volume/dữ liệu người dùng.
 

@@ -78,22 +78,67 @@ flowchart TD
      * Quyền lợi bảo hiểm: `Sum assured` và `Periodic premium`, cùng `Effective date`.
      * **Mở tab mới (New Tab)**: Nút "Open in new tab" (`target="_blank" rel="noopener noreferrer"`) trên thẻ và liên kết "Browse all policies" ở cuối panel mở trang Policy Lookup `/staff/policies` trong tab mới độc lập, giúp tư vấn viên vừa xem toàn bộ PDF điều khoản vừa tiếp tục trò chuyện với khách hàng mà không bị che khuất màn hình.
 
-## 5. Kế hoạch kiểm thử (Test Cases)
+## 5. Test cases
 
-Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.spec.mjs`:
-1. **Hiển thị danh sách hợp đồng**:
-   * Khi chọn khách hàng có hợp đồng và mở tab Policy Lookup, kiểm tra danh sách render đúng số lượng thẻ hợp đồng, đúng số HĐ và tên sản phẩm.
-2. **Tìm kiếm tại chỗ**:
-   * Nhập số hợp đồng vào ô tìm kiếm: chỉ hiển thị thẻ hợp đồng tương ứng.
-   * Xóa ô tìm kiếm: hiển thị lại đầy đủ tất cả các hợp đồng.
-3. **Khách hàng không có hợp đồng**:
-   * Khi khách hàng có danh sách rỗng từ API: render đúng thông báo empty state.
-4. **Xử lý lỗi mạng và Thử lại**:
-   * Giả lập API lỗi (network error): giao diện hiện nút "Thử lại", click thử lại thành công sẽ nạp lại danh sách mà không F5.
-5. **Cách ly ngữ cảnh phiên chat**:
-   * Chuyển sang khách hàng khác: panel lập tức hủy request cũ, tải danh sách hợp đồng của khách hàng mới, không để lẫn dữ liệu của khách cũ.
-6. **Mở hồ sơ trên tab mới**:
-   * Kiểm tra liên kết mở tab mới có thuộc tính `target="_blank"` và `href` chính xác trỏ đến `/staff/policies/:policyId`.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### PL05-T01 — Mở lookup theo khách đang chat
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có cuộc của C-A; C-A có 2 policy; C-B có policy riêng.
+
+**Các bước:**
+
+1. Chọn cuộc của C-A rồi mở Quick Policy Lookup.
+2. Đối chiếu các thẻ với GET customer policies.
+3. Mở chi tiết policy trong modal hoặc tab mới theo control hiện có.
+
+**Kết quả mong đợi:** Chỉ hợp đồng C-A; link đúng policyId; modal không thay cuộc chat hoặc làm mất draft.
+
+### PL05-T02 — Lọc tại chỗ và khách không hợp đồng
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** Catalog policy C-A đã tải; C-Z không có hợp đồng.
+
+**Các bước:**
+
+1. Gõ số hợp đồng rồi tên/mã sản phẩm trong panel.
+2. Xóa từ khóa.
+3. Chuyển sang C-Z và mở lookup.
+
+**Kết quả mong đợi:** Lọc đúng catalog đang tải, không request search mới nếu client-side theo contract; C-Z empty, không giữ thẻ C-A.
+
+### PL05-T03 — Đổi khách khi request pending
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ response policies C-A; có cuộc C-B khác.
+
+**Các bước:**
+
+1. Mở lookupA rồi chọn cuộc B.
+2. Trả responseB rồi responseA muộn.
+3. Kiểm header/thẻ/link trong panel.
+
+**Kết quả mong đợi:** Chỉ render B; responseA bị abort/bỏ, không mở link dựa trên context A.
+
+### PL05-T04 — Retry, quyền và focus
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** LookupA có biến thể network 503 và 404; popup đang mở.
+
+**Các bước:**
+
+1. Retry lỗi mạng tại panel.
+2. Cho request tiếp theo404 sau revoke.
+3. Dùng Escape để đóng modal và quay focus.
+
+**Kết quả mong đợi:** Retry không F5;404 clear thẻ/link cũ; focus về control mở lookup, composer/draft không bị thay đổi.
+
+**Suite tham khảo:** [staff-inbox.spec.mjs](../../../../../apps/web/tests/browser/staff-inbox.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn an toàn
 
@@ -103,7 +148,7 @@ Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.s
 - [x] Mở xem chi tiết hợp đồng đầy đủ qua tab mới độc lập mà không điều hướng rời khỏi phiên chat hoặc che khuất giao diện chat.
 - [x] Dọn dẹp sạch sẽ tài nguyên sau khi triển khai và kiểm thử.
 
-## 7. Kết quả triển khai 05/11/2026
+## 7. Ghi chú triển khai
 
 * **Thực thi**:
   * Tạo component `apps/web/src/components/staff-inbox-policy-lookup.tsx`.
@@ -111,6 +156,27 @@ Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.s
   * Hiển thị thẻ hợp đồng tinh gọn kèm đầy đủ thông tin quyền lợi, phí định kỳ, hiệu lực; nút "Mở tab mới" sử dụng `target="_blank" rel="noopener noreferrer"`.
   * Toàn bộ link mở trang ngoài đều dùng `target="_blank" rel="noopener noreferrer"`.
 * **Kiểm chứng**:
-  * Suite Playwright `apps/web/tests/browser/staff-inbox.spec.mjs`: **20/20 test pass**, gồm 5 ca kiểm thử quick policy lookup, lọc tìm kiếm, empty state và new tab links.
   * Không phát sinh lỗi hồi quy trên toàn bộ workspace Inbox.
 
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/customers/customerId/policies
+    C->>D: Kiểm session, role và assignment của Customer đang chọn
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

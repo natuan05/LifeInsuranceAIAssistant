@@ -61,30 +61,68 @@ Quyền thực tế do Core chặn mọi request mới. FE không thể xác min
 7. Giữ download lifecycle, abort và revoke blob URLs; tránh refetch làm mất thông báo download hoặc tạo nhiều grant do loop. Không đưa signed URL vào log/browser storage/test report.
 8. Bổ sung regression browser có mục đích lâu dài cho các ca dưới; có thể dùng `staff-policies.spec.mjs`. Nếu thêm lệnh test root, đặt tên rõ và giữ config screenshot/video/trace off.
 
-## 6. Ma trận kiểm thử
+## 6. Test cases
 
-| Ca | Assertion |
-| --- | --- |
-| Detail/catalog realtime trả chậm | PDF iframe vẫn là cùng DOM node, URL src không đổi; không chuyển cả vùng thành Loading |
-| Nhiều ready/invalidate cùng lúc | Không tạo vòng lặp fetch hoặc view grants không cần thiết; response chậm không ghi đè mới |
-| Policy information mở, đang xem endorsement | Refetch cùng version giữ details.open, tài liệu chọn, parent scroll và focus |
-| Lookup search/page/collapse và Customers policyPage | Giữ đúng query/nháp/trạng thái; không navigation document mới |
-| 401/403/404 trên các cấp metadata/access | Bỏ data/viewer/URL liên quan; 401 về Staff login, không lộ data key cũ |
-| Mạng/5xx rồi retry | Cảnh báo trong vùng, dữ liệu cùng key không nháy mất; retry phục hồi và không tự báo đồng bộ thành công |
-| Chuyển policy A→B, response A đến muộn | B không hiển thị data/URL của A |
-| Catalog bỏ document/version | Viewer cũ bị thay/bỏ đúng, không render PDF cũ như phiên bản mới |
-| Grant hết hạn rồi Reload preview | Timer đúng URL; chỉ hành động xin lại mới đổi src; hết expired khi grant mới hợp lệ |
-| Download success/error | Xin download grant mới, lỗi có retry; không reload app hoặc giữ blob URL không cần thiết |
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-Trình đọc PDF native/cross-origin không cho FE đọc tin cậy page/zoom bên trong. Browser test chứng minh không remount bằng iframe DOM identity, src/load count và parent scroll, **không tuyên bố đo được scroll/page nội bộ PDF**. PDF mock sinh trong bộ nhớ, không thêm ảnh/PDF fixture dùng một lần vào repo, không screenshot. Kiểm bytes/Range/download thực là smoke tích hợp riêng khi cần, không suy ra từ mock.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-## 7. Kiểm chứng và phạm vi hôm nay
+### PL04-T01 — Refresh cùng file giữ viewer
 
-- Web lint/typecheck, build Docker/Web qua gateway; không host dev server.
-- Chạy regression mới và Account/Customers đã có vì hook/auth dùng chung; chỉ mở rộng kiểm khi failure/phụ thuộc thực tế đòi hỏi.
-- Nếu smoke PDF thật: chỉ synthetic đang có và request đúng quyền, không sửa assignment/password/schema để dựng ca âm trên dữ liệu đang dùng. Không chạy bootstrap hoặc seed riêng cho bản sửa này.
-- Không biến việc này thành hoàn tất toàn bộ E2E Customer/Staff/MinIO/CI hoặc thay schema JSON document bindings.
-- Sau pass: cập nhật Policies/G05/checklist theo bằng chứng thật; dọn kết quả/test artifact, không tạo report Markdown hoặc tự commit.
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** PolicyA/D1/v1 đang mở; lưu tham chiếu iframe, src và scroll container ngoài PDF.
+
+**Các bước:**
+
+1. Cuộn dossier, mở vùng thông tin thu gọn.
+2. Phát nhiều metadata invalidation cùng version.
+3. So sánh iframe identity/src và vị trí đọc ngoài iframe.
+
+**Kết quả mong đợi:** Không remount hoặc xin grant lặp vô hạn; disclosure/focus/parent scroll giữ nguyên. Không suy ra page/zoom bên trong native PDF từ assertion này.
+
+### PL04-T02 — Response cũ không thay viewer mới
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** View request policyA bị giữ; policyB có PDF khác.
+
+**Các bước:**
+
+1. Mở A rồi chọn B.
+2. Cho B trả grant trước; trả grantA muộn.
+3. Quay lại A qua navigation hợp lệ.
+
+**Kết quả mong đợi:** ViewerB không bịA ghi đè; grant thuộc selection/actor cũ bị bỏ; Back giữ context đúng, không F5.
+
+### PL04-T03 — Phân biệt expired với revoked
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** ViewerA có grant sắp hết hạn; chuẩn bị biến thể metadata 403/404 riêng.
+
+**Các bước:**
+
+1. Cho grant hết hạn rồi regrant cùng binding.
+2. Sau đó cho metadata báo mất quyền.
+3. Kích hoạt retry/update nền.
+
+**Kết quả mong đợi:** Expiry có thể xin lại đúng version; revoke phải clear viewer/link, không giữ Private stale hoặc fallback version khác.
+
+### PL04-T04 — Download và không lộ URL ký
+
+**Lớp kiểm thử:** Browser + E2E Storage.
+**Điều kiện và dữ liệu:** PDF synthetic hash xác định, storage có hỗ trợ Range.
+
+**Các bước:**
+
+1. Download bản đang xem và đối chiếu hash/filename.
+2. Kiểm request Range bằng API harness.
+3. Kiểm URL app, browser storage và log test.
+
+**Kết quả mong đợi:** Download đúng exact version, Range hoạt động; signed URL không nằm trong route/localStorage/log. Không coi PDF mock là bằng chứng Storage thật.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## 7. Chạy kiểm thử theo phạm vi thay đổi
+
 
 ## 8. Điều kiện hoàn thành
 
@@ -94,16 +132,42 @@ Trình đọc PDF native/cross-origin không cho FE đọc tin cậy page/zoom b
 - [x] List/detail/Lookup/Customer policyPage cũ vẫn đúng; regression mới và liên quan pass.
 - [x] Tài liệu ghi đúng phần đã kiểm và giới hạn native PDF/browser mock.
 
-Ước lượng chia buổi: **2–3 giờ** sau việc 01, có thể tăng nếu phát hiện phụ thuộc lifecycle auth. Hết thời gian mà chưa pass thì dừng ở việc 02, không vội mở migration Inbox để bù tiến độ.
 
-## 9. Kết quả triển khai 03/11/2026
+## 9. Ghi chú triển khai
 
 - usePolicyRead giữ data đúng logical key khi refetch, phân biệt loading/refreshing; network/5xx giữ nội dung kèm cảnh báo cũ, 401/403/404 clear và 401 chuyển login. Abort/stale guard ngăn response cũ hồi sinh nội dung.
 - Metadata detail/catalog vẫn kiểm lại qua REST khi invalidation. Preview không tự xin grant mới theo event; giữ iframe/src nếu policy/document/version không đổi. Actor đổi reset workspace private; đổi version/tài liệu chọn tạo viewer mới, thiếu binding không giữ PDF cũ.
 - Expiry gắn object grant thực đang hiển thị; reload lỗi không làm link cũ sống lại, grant mới có timer riêng. Download luôn xin grant riêng; 401/403/404 lúc download loại preview ngay cả khi metadata trả chậm. documentAccess dùng signal xuyên bước auth/me.
-- Web lint/typecheck và Docker build/up pass; gateway phục vụ build mới tại http://localhost:8080. Không sửa Core/schema/storage/seed/credential hoặc dữ liệu đang dùng.
-- 69 ca Chromium pass trong một lượt: 15 Account + 15 Customers + 13 Session + 26 Policies. Sau đó tăng assertions burst realtime/slow policy-list và chạy lại đúng 3 ca liên quan, đều pass. Không có failure cần sửa code ứng dụng.
 - Suite mới apps/web/tests/browser/staff-policies.spec.mjs, chạy riêng bằng npm run test:browser:policies. Dùng API/WebSocket và PDF synthetic sinh trong bộ nhớ; download mock được đối chiếu byte, không để PDF/report/ảnh trong repo.
 - Bằng chứng viewer là iframe DOM identity/src, parent scroll/focus/disclosure và số grant; không tuyên bố đo được page/zoom/scroll bên trong native PDF hoặc E2E Core/DB/MinIO. Tests screenshot/video/trace tắt, artifact được dọn sau kiểm.
 
 Việc 02 đã đạt gate; việc 03 chưa triển khai/review trong lượt này.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Viewer
+    participant C as Core
+    participant S as Storage
+    U->>W: Mở policy hoặc tài liệu
+    W->>C: GET catalog theo quyền hiện hành
+    C-->>W: Binding, version và availability
+    alt Cùng file, version và grant còn hạn
+        W->>W: Giữ iframe, src và vị trí vùng đọc
+    else Grant hết hạn hoặc chọn tài liệu khác
+        W->>C: POST view exact version với CSRF
+        C-->>W: Grant mới sau gate hoặc lỗi an toàn
+        opt Grant hợp lệ
+            W->>S: GET PDF
+            S-->>W: PDF bytes
+        end
+    end
+    opt API báo mất quyền hoặc phiên
+        C-->>W: 401,403 hoặc404
+        W->>W: Clear viewer và link cũ
+    end
+```

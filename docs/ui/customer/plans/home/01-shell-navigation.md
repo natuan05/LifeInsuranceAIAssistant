@@ -37,15 +37,89 @@ flowchart TD
   G --> E
 ```
 
-## 4. Test và hoàn tất
+## 4. Test cases
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| H01-T01 | Login→nav→Back/Forward, route cũ có conversationId | Đúng màn/cuộc, không document request/F5 |
-| H01-T02 | Chuyển menu nhanh, focus tab, WS ready | Không me mỗi click, không duplicate socket/query |
-| H01-T03 | Logout/role đổi khi response cũ pending | Không restore dữ liệu actor cũ |
-| H01-T04 | Chat đang có nháp/unknown send rồi chuyển nav | Giữ key/nháp theo actor/cuộc, không gửi trùng |
-| H01-T05 | 375px/768px/zoom200%, drawer keyboard | Tab/escape/focus return/aria-current đúng |
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-- [x] Auth/profile/account/I03–I06 pass; không thay code Core hoặc model từ việc dựng shell.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### H01-T01 — Route, Back và session dùng chung
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** C-A đăng nhập Customer; chuẩn bị deep link hợp lệ tới một cuộc của C-A.
+
+**Các bước:**
+
+1. Mở Home → Products → My Policies → Conversations.
+2. Back/Forward rồi mở deep link cuộc chat.
+3. Quan sát document navigation, auth/me và socket.
+
+**Kết quả mong đợi:** Route/selection đúng, không F5 hoặc tạo auth/socket mới theo mỗi click; chỉ render dữ liệu owner.
+
+### H01-T02 — Sai role và response actor cũ
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Giữ chậm auth/profile C-A; có session S-A và Customer C-B riêng.
+
+**Các bước:**
+
+1. Mở route Customer bằng S-A.
+2. Ở biến thể C-A, logout/đổi actor khi request pending.
+3. Trả response C-A sau khi C-B đăng nhập.
+
+**Kết quả mong đợi:** Staff không render Customer shell; response cũ không phục hồi dữ liệu/nháp của C-A cho C-B.
+
+### H01-T03 — Giữ chat draft khi đổi menu
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** C-A có cuộc Direct đang nhập nháp, chưa Send.
+
+**Các bước:**
+
+1. Nhập nháp rồi đi Products/Home.
+2. Quay lại đúng cuộc.
+3. Lặp khi message đang unknown outcome bằng harness.
+
+**Kết quả mong đợi:** Nháp/intent gắn đúng actor/cuộc, không tự gửi hoặc tạo key mới; không lẫn nháp giữa các cuộc.
+
+### H01-T04 — Mobile và bàn phím
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Viewport375px và 768px, Customer shell có drawer.
+
+**Các bước:**
+
+1. Dùng Tab mở/đóng menu, chọn Policies.
+2. Escape rồi kiểm focus về nút mở.
+3. Đặt zoom 200% và kiểm bounds các control.
+
+**Kết quả mong đợi:** Menu/current route có nhãn truy cập đúng, focus thấy được, không overflow hoặc link chết.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+
 - [x] Route/menu/docs cập nhật đồng thời; H01, Home, Products, Policies hoạt động liền mạch.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /auth/me và GET /customers/me
+    C->>D: Kiểm session, role và role CUSTOMER và self scope
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

@@ -12,7 +12,7 @@
 - [x] Security mở Change password; `/account#change-password` mở form. Lời nhắc password là khuyến nghị, đóng được trong phiên mount UI.
 - [x] Session/role/CSRF/version/rate limit và audit; đổi mật khẩu thu hồi phiên cũ/cấp phiên mới.
 - [x] Có 15 regression browser form hồ sơ và 22 regression phiên/retry Chromium, API giả lập.
-- [x] Retry khôi phục phiên gọi lại GET auth/me tại chỗ, không F5; pending/disabled/focus, chống request trùng và abort khi rời màn hình. Đã triển khai [việc 01](auth/03-session-lifecycle.md#8-kết-quả-triển-khai-03112026).
+- [x] Retry khôi phục phiên gọi lại GET auth/me tại chỗ, không F5; pending/disabled/focus, chống request trùng và abort khi rời màn hình. Đã triển khai [việc 01](auth/03-session-lifecycle.md#8-ghi-chú-triển-khai).
 - [ ] E2E browser → Core → DB đầy đủ và Firefox/WebKit.
 
 ## Thành phần và điều hướng
@@ -79,13 +79,67 @@ Tối ưu 03/11/2026: focus và visibilitychange chỉ kiểm GET auth/me khi tr
 
 Đây là giảm kiểm tra nền từ FE, không thay cookie TTL, Cache-Control no-store hoặc auth/ownership/assignment ở từng Business API. Các thao tác cần CSRF như xin PDF/download vẫn có thể gọi auth/me riêng; không phải giới hạn tất cả request auth/me thành một lần/30 giây. Không hứa phát hiện thu hồi tức thì khi offline hoặc socket mất kết nối.
 
-## Kiểm thử và giới hạn
+## Test cases
 
-Các đợt trước đã kiểm HTTP qua gateway: lưu/đọc lại, tên auth/me, stale 409 và Customer 403. Đây là bằng chứng backend riêng; lượt triển khai việc 01 không chạy lại các phép thử backend đó.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-`apps/web/tests/browser/staff-account.spec.mjs`: 15 ca Chromium gồm Tab/Enter/Escape/focus, mở/hủy/lưu/lỗi/retry, validation, payload/version/CSRF, tên app shell, pending/chống trùng, mạng/400/403/429/500, stale 409, hết phiên 401 và responsive 375/768/1600px. Thao tác form không navigation document mới.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-Playwright giả lập API/phiên trên giao diện Docker, không sửa hồ sơ/password dev. Đây là regression FE, chưa phải E2E tích hợp hoặc bằng chứng authorization backend. Bộ staff-session.spec.mjs có 22 ca, gồm bootstrap network/500, retry lỗi/timeout 15 giây, dedup focus/visibility/realtime, 401/role/next/query/hash, Customer/login portals, abort request cũ, đổi actor và 9 ca bổ sung cho passive freshness/ready/expiry/portal. Root test:browser:account chạy cả hai file (37 ca).
+### S01-T01 — Đăng nhập đúng cổng Staff
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A là Staff ACTIVE có mật khẩu synthetic đã biết; C-A là Customer.
+
+**Các bước:**
+
+1. POST /auth/staff/login bằng S-A.
+2. Dùng cookie nhận được gọi GET /auth/me và GET /staff/me.
+3. Lặp đăng nhập cổng Staff bằng C-A.
+
+**Kết quả mong đợi:** S-A nhận session và đúng hồ sơ chính mình; C-A không tạo được phiên Staff; không trả password hash/token nội bộ.
+
+### S01-T02 — Edit, Cancel rồi Save bằng bàn phím
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A mở /account; ghi lại tên/phone ban đầu.
+
+**Các bước:**
+
+1. Tab tới Edit personal information và mở form.
+2. Đổi tên/phone rồi Cancel.
+3. Mở lại, nhập giá trị synthetic khác và Save.
+
+**Kết quả mong đợi:** Cancel không gửi PATCH và trả focus về Edit; Save gửi đúng changed fields/token, cập nhật header/hồ sơ không F5.
+
+### S01-T03 — Giữ nháp khi refresh và xung đột
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Hai tab S-A cùng mở form; tab 1 đang có nháp chưa lưu.
+
+**Các bước:**
+
+1. Tab2 lưu tên mới.
+2. Kích hoạt cập nhật nền ở tab 1.
+3. Save nháp tab 1 với token ban đầu.
+
+**Kết quả mong đợi:** Nháp không bị refresh ghi đè; conflict được hiển thị để review, không tự gửi lại bằng token mới.
+
+### S01-T04 — Response phiên cũ không khôi phục actor
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Giữ chậm response /auth/me của S-A.
+
+**Các bước:**
+
+1. Chuyển portal hoặc logout trong lúc request pending.
+2. Trả response S-A muộn.
+3. Đăng nhập bằng actor synthetic khác.
+
+**Kết quả mong đợi:** Request cũ bị abort hoặc bị generation guard bỏ qua; không hiện tên, role hay dữ liệu S-A trong phiên mới.
+
+**Suite tham khảo:** [staff-account.spec.mjs](../../../../apps/web/tests/browser/staff-account.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## Chạy lại regression form hồ sơ
 
@@ -97,7 +151,7 @@ npm run test:browser:account
 
 Nếu source ứng dụng đổi, rebuild Docker theo Getting Started trước test; không dựng Web/Core bằng npm trên host. Mặc định `http://localhost:8080`, đổi bằng `BROWSER_TEST_BASE_URL`. Screenshot/video/trace tắt; kết quả tổng hợp `apps/web/test-results/results.json` (Git ignore), dọn artifact do lần test tạo sau khi đọc.
 
-Tối ưu quay lại tab ngày 03/11 đã qua Web lint/typecheck/Docker và 78 ca browser: 15 Account + 22 Session + 15 Customers + 26 Policies. 9 ca Session bổ sung kiểm đúng mốc 30 giây/hidden, ready không gọi thừa, invalidate/expiry/close 4001 bypass, expiry lúc pending, retry sau lỗi và cổng login đúng role/phiên mới còn hợp lệ. Đây là regression mock, không E2E Core/DB. Bằng chứng việc 01 ban đầu tại [kế hoạch](auth/03-session-lifecycle.md#8-kết-quả-triển-khai-03112026); không sửa credential/DB.
+Tối ưu quay lại tab ngày 03/11 đã qua Web lint/typecheck/Docker và 78 ca browser: 15 Account + 22 Session + 15 Customers + 26 Policies. 9 ca Session bổ sung kiểm đúng mốc 30 giây/hidden, ready không gọi thừa, invalidate/expiry/close 4001 bypass, expiry lúc pending, retry sau lỗi và cổng login đúng role/phiên mới còn hợp lệ. Đây là regression mock, không E2E Core/DB. Bằng chứng việc 01 ban đầu tại [kế hoạch](auth/03-session-lifecycle.md#8-ghi-chú-triển-khai); không sửa credential/DB.
 
 ## Phase và ownership
 
@@ -132,3 +186,34 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | ID | Phần còn lại | Phase sở hữu |
 | --- | --- | --- |
 | G05 | Các lỗi Search/session/PDF refresh/Inbox remount đã sửa | Giữ regression AU03/PL04/I04/I06; mở lại chỉ khi có lỗi kiểm chứng, không dùng F5 |
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Xác nhận thao tác
+    W->>C: PATCH /staff/me sau Save
+    C->>D: Kiểm session, CSRF và khóa self scope và token ban đầu của form
+    D-->>C: Quyền, version và state hiện hành
+    alt Không đủ quyền hoặc version stale
+        C-->>W: 401, 403, 404 hoặc409 an toàn
+        W-->>U: Giữ nháp phù hợp và review trạng thái
+    else Hợp lệ
+        C->>D: Update tên hoặc phone và audit
+        D-->>C: COMMIT
+        C-->>W: 200 projection mới; Cancel không request
+        W-->>U: Cập nhật sau ACK
+    end
+    opt Timeout hoặc mất ACK
+        W->>C: GET current state hoặc receipt theo contract
+        C->>D: Kiểm lại quyền và đọc kết quả
+        C-->>W: Current state, không tự cấp quyền mới
+        W-->>U: Review trước khi ghi lại
+    end
+```

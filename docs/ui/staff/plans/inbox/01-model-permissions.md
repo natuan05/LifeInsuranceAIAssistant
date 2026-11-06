@@ -78,7 +78,7 @@ Hash canonical DTO gồm expectedVersion/resource/content cần chống trùng. 
 - Message index `(conversationId,audience,sequence)` cho before/after; không full-text search nội dung.
 - DIRECT phải có creator/direct assignment hợp lệ lúc tạo; AI/LEGACY_UNKNOWN không directAssignmentId. Copilot không đi qua support endpoints.
 - CHECK accepted fields/state/timestamps nhất quán, version/sequence không âm. SQL migration thể hiện partial unique nếu Prisma chưa biểu diễn đủ.
-- Giữ FK linkedPolicy cùng Customer và constraints hiện có, không nới để migration pass.
+- Giữ FK linkedPolicy cùng Customer và constraints hiện có, không nới constraints chỉ để bỏ qua lỗi migration.
 
 ## 4. Policy dùng chung
 
@@ -156,22 +156,80 @@ Access/execute nhận tx; send/appendAI là transaction boundary và dùng các 
 5. Generate client/build, compatibility Core/operator; deploy Docker migrate; đối chiếu hash nội dung/link/time trước/sau.
 6. Deploy lại không duplicate/pending. Migration fail rollback transaction; không reset DB/volume. Rollback app dùng bản tương thích, không drop cột/bảng có chứng cứ.
 
-## 8. Kiểm thử
+## 8. Test cases
 
-Test **đã thêm/chạy**: `apps/core/test/conversation-permissions.test.cjs`, `conversation-model-migration.test.cjs`. Chạy integration trong test container với PostgreSQL Docker; fixtures runId tự dọn. Giữ test CLOSED đã có như regression độc lập.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Kiểm tra | Kết quả |
-| --- | --- | --- |
-| I01-T01 | Assignment + AI riêng/legacy STAFF_ACTIVE | NONE, không grant từ status |
-| I01-T02 | Pending đúng/sai recipient, Customer, assignment | Chỉ metadata đúng scope, transcript luôn deny |
-| I01-T03 | Accepted đúng/sai Staff, gán lại cùng Staff | Chỉ assignment id hiện hành có grant |
-| I01-T04 | Direct mới và đổi origin cuộc AI | Direct mới hợp lệ, đổi origin bị chặn |
-| I01-T05 | Copilot/SYSTEM internal/tool payload | Không vào transcript Customer-facing |
-| I01-T06 | Hai append/cùng clientMessageId | Sequence unique, cùng key một message |
-| I01-T07 | Migration empty/legacy/timestamp tie | Order ổn định, không mất content/link/time hoặc tạo grant |
-| I01-T08 | FK/check/partial unique sai | DB từ chối, không chỉ DTO |
-| I01-T09 | Reassignment đua send/Accept/AI | Thứ tự commit rõ, quyền cũ bị chặn, bounded retry |
-| I01-T10 | Migration fail/redeploy | Atomic rollback, không duplicate/xóa dữ liệu |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### I01-T01 — Predicate không cấp quyền từ status hoặc assignment đơn thuần
+
+**Lớp kiểm thử:** Service + DB.
+**Điều kiện và dữ liệu:** Schema test có AI origin/legacy STAFF_ACTIVE/Copilot và active assignment S-A→C-A.
+
+**Các bước:**
+
+1. Gọi staffScope/requireMetadata/requireTranscript cho từng cuộc.
+2. Đổi status/controller của fixture nhưng không thêm consent/acceptance hợp lệ.
+3. Gọi lại các policy.
+
+**Kết quả mong đợi:** Không tự có grant từ cờ legacy/controller; Copilot/AI riêng không vào Staff Customer-facing scope.
+
+### I01-T02 — Pending và accepted gắn đúng assignment
+
+**Lớp kiểm thử:** Service + DB.
+**Điều kiện và dữ liệu:** Pending handoff thuộc C-A, recipient S-A và assignmentId=a1.
+
+**Các bước:**
+
+1. Gọi metadata/transcript bằng S-A và S-B.
+2. Accept bằng S-A trong harness.
+3. Revoke a1, gán lại cùng S-A bằng a2 rồi đọc lại.
+
+**Kết quả mong đợi:** Pending chỉ metadata; accepted mở lịch sử Customer-visible; a2 không hồi sinh grant gắn a1.
+
+### I01-T03 — Provenance và constraints ở DB
+
+**Lớp kiểm thử:** DB integration.
+**Điều kiện và dữ liệu:** DB/schema riêng có Direct hợp lệ, AI và handoff fixture.
+
+**Các bước:**
+
+1. Thử đổi origin AI thành Direct.
+2. Thử handoff trỏ assignment/Customer không khớp hoặc hai handoff hiện hành.
+3. Thử chèn message audience/sequence vi phạm contract.
+
+**Kết quả mong đợi:** DB từ chối dữ liệu sai, rollback transaction; không chỉ dựa validation FE/DTO.
+
+### I01-T04 — Idempotency và rollback message
+
+**Lớp kiểm thử:** Service + DB barrier.
+**Điều kiện và dữ liệu:** Cuộc Direct hợp lệ; key K và expectedVersion hiện hành.
+
+**Các bước:**
+
+1. Gửi đồng thời hai lần cùng K/content.
+2. Gửi hai key khác nhau.
+3. Inject lỗi outbox sau append rồi đọc message/counter/receipt.
+
+**Kết quả mong đợi:** Cùng key một message/receipt, hai key là hai intent; sequence unique; lỗi transaction không để message/counter/receipt/outbox nửa chừng.
+
+### I01-T05 — Migration giữ dữ liệu và không backfill quyền
+
+**Lớp kiểm thử:** Migration harness.
+**Điều kiện và dữ liệu:** Schema riêng có legacy messages cùng timestamp, internal payload và Ticket/policy liên kết.
+
+**Các bước:**
+
+1. Ghi hash các field cần bảo toàn.
+2. Apply migration rồi kiểm order/provenance/grant.
+3. Inject failure và kiểm rollback trong schema riêng khác.
+
+**Kết quả mong đợi:** Nội dung/time/link giữ nguyên, order ổn định, không tạo consent/grant giả; failure rollback DDL/data. Không chạy trên DB đang dùng.
+
+**Suite tham khảo:** [conversation-permissions.test.cjs](../../../../../apps/core/test/conversation-permissions.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 9. Điều kiện hoàn tất
 
@@ -183,11 +241,10 @@ Test **đã thêm/chạy**: `apps/core/test/conversation-permissions.test.cjs`, 
 **Checkpoint:** Bắt đầu I02 khi policy chứng minh deny-before-Accept ở query/service. Chưa có thao tác UI mới để manual test.
 
 
-## 10. Kết quả triển khai 04/11/2026
+## 10. Ghi chú triển khai
 
 Migration `202611040001_inbox_foundation` đã apply bằng Docker; deploy lại không pending. Thêm hai bảng business `conversation_handoffs`, `conversation_command_receipts`, tổng19 bảng ứng dụng/6 migrations. PostgreSQL constraints/triggers giữ provenance/consent bất biến, cùng Customer/assignment và một handoff hiện hành; grant/query không suy từ status/controller. Index/FK có map tên PostgreSQL giới hạn63 ký tự, Prisma migrate diff trả empty.
 
-Đã chạy16 ca `conversation-permissions.test.cjs` trong container, 3 ca migration trên schema test riêng và 5 ca HTTP foundation trong container: 24 pass. Kiểm dữ liệu trước/sau xác nhận nội dung/time/link của conversation/message và Ticket/policy giữ nguyên; legacy không được backfill grant/audience Customer-visible. Đây là service/DB/HTTP foundation tests, chưa phải browser E2E Inbox.
 
 Lệnh chạy lại từ root, khi PostgreSQL Docker và migration đã sẵn sàng:
 
@@ -199,3 +256,27 @@ docker compose --profile tests run --rm --no-deps core-tests node --test test/ht
 ```
 
 Test profile dùng credential volumes readonly và fixture synthetic theo runId, tự dọn đúng ID; không seed bootstrap, không mở Core/Web trên host, không xuất credential. Không có script/file tạm hoặc `.local` mới. Core local qua gateway vẫn `http://localhost:8080`; không tạo file riêng ngoài repo hoặc credential mới. Đây chưa là public send API: giới hạn/normalization trong service chuẩn bị nền, I03/I05 còn phải làm HTTP/CSRF/rate limit/DTO/reconcile/UI đúng kế hoạch.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    participant H as Test hoặc Migration runner
+    participant D as PostgreSQL
+    participant C as Core policy
+    H->>D: Tạo schema riêng và legacy synthetic fixtures
+    H->>D: Ghi hash dữ liệu cần bảo toàn
+    H->>D: BEGIN, apply migration và constraints
+    alt Validation hoặc DDL lỗi
+        D-->>H: ROLLBACK, dữ liệu cũ giữ nguyên
+    else Hợp lệ
+        D-->>H: COMMIT
+        H->>C: Kiểm predicate quyền trên fixtures cũ và mới
+        C->>D: Query scope, không suy grant từ legacy status
+        D-->>C: Chỉ dữ liệu đủ gate
+        C-->>H: Grant hoặc deny theo contract
+    end
+    H->>D: Dọn đúng schema test, không đụng DB người dùng
+```

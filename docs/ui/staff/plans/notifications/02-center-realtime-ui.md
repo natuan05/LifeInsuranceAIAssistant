@@ -28,9 +28,65 @@ flowchart LR
   C --> E[Lỗi an toàn và retry có kiểm soát]
 ```
 
-## 5. Kiểm thử
+## 5. Test cases
 
-`conversation-realtime.spec.mjs` notification navigation/CSRF/no-count; real realtime integration backlog/reconnect/scope. Kiểm375px/keyboard/focus/error bằng DOM; không screenshot. Không hứa NFR latency5s khi chưa đo workload.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### NO02-T01 — Toolbar chung và popup không bị che
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A mở Inbox rồi Tickets; viewport desktop và 375px.
+
+**Các bước:**
+
+1. Bấm chuông trên toolbar.
+2. Cuộn cột Inbox và kiểm parent/bounds popup.
+3. Resize, Escape rồi mở bằng Enter.
+
+**Kết quả mong đợi:** Một chuông chung, popup portal document.body nằm trong viewport, không clipping; Escape/Close trả focus về chuông.
+
+### NO02-T02 — Read tại chỗ khác mở target
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** Có một Ticket notification và một handoff notification unread.
+
+**Các bước:**
+
+1. Bấm control đánh dấu đọc của một mục.
+2. Kiểm URL rồi bấm link mở target của mục còn lại.
+3. Quan sát body/CSRF của A28.
+
+**Kết quả mong đợi:** Read tại chỗ không điều hướng; link mở đúng Tickets hoặc Inbox; body{} và CSRF đúng; không tạo Accept.
+
+### NO02-T03 — Badge và Mark all read theo tập đang tải
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Danh sách đang tải có 2 unread/1 read; password notice là biến thể riêng.
+
+**Các bước:**
+
+1. Kiểm badge, bấm Mark all read.
+2. Đối chiếu A28 chỉ cho các mục unread đã tải.
+3. Giả lập một request lỗi rồi mở lại panel.
+
+**Kết quả mong đợi:** Trạng thái/badge theo dữ liệu hiện có, không khẳng định total toàn DB; lỗi không giả tất cả đã đọc; không gửi read lặp cho mục read.
+
+### NO02-T04 — Thông báo mật khẩu và scope invalidation
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** passwordChangeRecommended=true; có request notifications cũ đang pending.
+
+**Các bước:**
+
+1. Dismiss password notice hoặc mở Change password.
+2. Phát scope/session invalidation.
+3. Trả notifications cũ muộn.
+
+**Kết quả mong đợi:** Notice không ghi read vào Ticket/chat; link account đúng; response cũ không khôi phục dữ liệu sau scope clear,401 chuyển login.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 
@@ -51,4 +107,30 @@ Chuông chuyển khỏi Inbox/Tickets header riêng sang toolbar chung Staff Wor
 3. **Đánh dấu tất cả đã đọc (Mark All As Read)**: Nút trên header popover ("Mark all as read") gọi A28 đồng thời cho tất cả các thông báo chưa đọc hiện có.
 4. **Security Notice tích hợp**: Thông báo khuyến nghị đổi mật khẩu (trước đây là banner nổi trên workspace) được đưa vào gọn gàng trong popover Notification thành thẻ cảnh báo an ninh ("Security Notice"), kèm nút "Change password now" và nút "Dismiss" (dismiss ghi nhớ trong sessionStorage).
 5. **Auto-refresh khi mở**: Popover tự động nạp lại danh sách thông báo mới nhất mỗi khi nhân viên nhấp mở chuông.
-6. **Kiểm thử tự động**: Suite Playwright `apps/web/tests/browser/conversation-realtime.spec.mjs` đã bổ sung các ca kiểm thử: unread count badge, inline checkmark mark-read, mark all read, dismiss security notice (8/8 ca pass).
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Toolbar và portal
+    participant C as Core Notifications
+    U->>W: Mở chuông chung
+    W->>C: GET notifications với session
+    C-->>W: Items đã qua current target scope
+    W-->>U: Popup fixed trong viewport
+    alt Chọn mark read tại chỗ
+        W->>C: POST read với CSRF
+        C-->>W: isRead sau commit
+        W-->>U: Cập nhật mục và badge theo dữ liệu hiện có
+    else Chọn mở target
+        W->>C: POST read hoặc kiểm target theo action
+        C-->>W: Kết quả đúng quyền
+        W-->>U: Route Tickets hoặc Inbox tương ứng
+    end
+    opt Scope đổi khi fetch pending
+        W->>W: Clear scope và bỏ response cũ
+    end
+```

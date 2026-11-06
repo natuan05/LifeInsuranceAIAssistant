@@ -22,13 +22,13 @@ Rà projection/types của Customer Web và fingerprint/invalidation profile tro
 | address | Trim string1–1000 hoặc null; giới hạn1000 là contract mới cần chốt, không HTML/control chars |
 | expectedProfileVersion | Integer≥0 bắt buộc, chỉ compare không gán tùy ý |
 
-email/accountCode/status/role/citizenId/assignmentVersion/profileVersion hoặc customerId gửi body400. Phone unique conflict409 generic không nói ai đang sở hữu. Stale version409 `PROFILE_CONFLICT` (mã P cần thêm safe allowlist), response không chèn dữ liệu mới tùy tiện. No-op cùng version trả current profile không tăng version; actualchange tăng1. 401/403/400/429/503 theo common contract; quota đề xuất10patch/phút/actor, cần chốt.
+email/accountCode/status/role/citizenId/assignmentVersion/profileVersion hoặc customerId gửi body400. Phone unique conflict409 generic không nói ai đang sở hữu. Stale version 409 `PROFILE_CONFLICT` (mã P cần thêm safe allowlist), response không chèn dữ liệu mới tùy tiện. No-op cùng version trả current profile không tăng version; actualchange tăng1. 401/403/400/429/503 theo common contract; quota đề xuất10patch/phút/actor, cần chốt.
 
 ## 3. Transaction và timeout
 
 Lock User và CustomerProfile theo thứ tự thống nhất với writer hiện có; recheck ACTIVE session/role trong transaction, compare version, normalize/compare diff, update User.phone + profile + version + audit atomic. Không log old/new PII vào audit. Audit target/action/outcome/field names đủ dùng. Unique phone race rollback cả hai bảng. Không thay session token/password/assignment hoặc policy PDF.
 
-PATCH chưa có command receipt: timeout là **chưa rõ kết quả**. FE GET lại own profile; đối chiếu version/giá trị định gửi để giúp người dùng quyết định. Nếu cần gửi lại thì dùng expected version gốc; đã commit sẽ409, không blindretry với token mới. Không nói giá trị khớp chứng minh lệnh của mình đã commit vì writer khác có thể giống. Nếu yêu cầu exactly-once command tracking sau này phải mở contract riêng, không giả idempotency từ version.
+PATCH chưa có command receipt: timeout là **chưa rõ kết quả**. FE GET lại own profile; đối chiếu version/giá trị định gửi để giúp người dùng quyết định. Nếu cần gửi lại thì dùng expected version gốc; đã commit sẽ 409, không blindretry với token mới. Không nói giá trị khớp chứng minh lệnh của mình đã commit vì writer khác có thể giống. Nếu yêu cầu exactly-once command tracking sau này phải mở contract riêng, không giả idempotency từ version.
 
 ```mermaid
 sequenceDiagram
@@ -46,18 +46,66 @@ sequenceDiagram
   end
 ```
 
-## 4. Test và hoàn tất
+## 4. Test cases
 
-Đề xuất `apps/core/test/customer-profile.test.cjs`; migration/writer compatibility tests; fixtures synthetic cô lập.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| PF01-T01 | Sửa riêng profile, riêng phone, cả hai | Version bao phủ đúng, response GET tương ứng |
-| PF01-T02 | Hai tab cùng version và operator edit | Một update; stale409; mọi writer tăng version |
-| PF01-T03 | Uniquephone race/no-op/rollbackaudit | Không partial update, no-op không tăng |
-| PF01-T04 | Forbidden fields/ngày sai/control chars/CSRF/Staff | 400/403, không side effect |
-| PF01-T05 | Timeout sau commit, GET/retry version cũ | Không ghi đè lại; không false success |
-| PF01-T06 | Migration dữ liệu đang có và assignment change | Bảo toàn profile/credential, version routing riêng |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-- [ ] Migration mới + toàn bộ writers/model docs thống nhất, test thật pass.
+### PF01-T01 — PATCH changed fields và version
+
+**Lớp kiểm thử:** API + DB dự kiến.
+**Điều kiện và dữ liệu:** Sau PF01 có migration/API, C-A đọc profileVersion=n.
+
+**Các bước:**
+
+1. PATCH riêng fullName, rồi riêng phone, rồi birth/address bằng token mới mỗi lần.
+2. GET lại profile sau từng request.
+3. Gửi no-op cùng version.
+
+**Kết quả mong đợi:** Đúng owner/changed fields; thay đổi thật tăng1; no-op không tăng; không thay assignment/session/định danh.
+
+### PF01-T02 — Concurrent edit và unique phone
+
+**Lớp kiểm thử:** API + DB barrier dự kiến.
+**Điều kiện và dữ liệu:** Hai context C-A cùng version n; phone synthetic trùng fixture C-B.
+
+**Các bước:**
+
+1. Context1 lưu, context 2 lưu bằng n.
+2. Thử đổi phone trùng.
+3. Inject audit failure sau update profile.
+
+**Kết quả mong đợi:** Stale409, phone conflict không nói owner; không partial User.phone/profile hoặc version, audit failure rollback toàn bộ.
+
+### PF01-T03 — Forbidden fields và validation
+
+**Lớp kiểm thử:** API dự kiến.
+**Điều kiện và dữ liệu:** Customer session/CSRF hợp lệ; các biến thể ngày/phone/text synthetic.
+
+**Các bước:**
+
+1. PATCH thêm role/email/customerId/citizenId.
+2. Gửi ngày tương lai/ngày không tồn tại, control chars hoặc tên trống.
+3. Gửi bằng Staff/CSRF sai.
+
+**Kết quả mong đợi:** 400/403 đúng contract; không sửa dữ liệu hoặc tin actor/body; không tự coerce field sai.
+
+### PF01-T04 — Timeout và migration compatibility
+
+**Lớp kiểm thử:** API + Migration harness dự kiến.
+**Điều kiện và dữ liệu:** Schema riêng có profile/credentials đã tồn tại; ACK có thể bị ngắt sau commit.
+
+**Các bước:**
+
+1. Apply migration và đối chiếu hash dữ liệu giữ nguyên.
+2. PATCH rồi ngắt ACK; GET profile đối chiếu.
+3. Retry bằng version cũ khi dữ liệu đã thay đổi.
+
+**Kết quả mong đợi:** Migration giữ dữ liệu/credential; GET phân biệt current state, stale retry không overwrite; mọi writer được chốt phải cập nhật version.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+
 - [ ] Không reset dữ liệu hoặc tự đổi credential/assignment; API chỉ P→E sau code.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.

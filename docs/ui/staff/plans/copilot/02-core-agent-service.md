@@ -29,9 +29,52 @@ flowchart TD
   E --> F[Retry hoặc reconcile theo contract]
 ```
 
-## 5. Test cần có
+## 5. Test cases
 
-HTTP/DB tests permission/thread ownership/duplicates/timeout/revoke/citations; Agent integration cần provider/runtime thật cấu hình ngoài Git. Không log prompt/transcript/secrets không cần thiết. Tool/storage outage trả hạn chế, không citation giả.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### CP02-T01 — History/task không lẫn Staff hoặc source
+
+**Lớp kiểm thử:** API/Service dự kiến.
+**Điều kiện và dữ liệu:** CP01 APIs đã ổn định; S-A có task ở cuộcA, S-B có task riêng.
+
+**Các bước:**
+
+1. S-A đọc history và lookup task mình.
+2. Thử task/source của S-B và cursor đổi source.
+3. Revoke source grant rồi lookup lại.
+
+**Kết quả mong đợi:** Không metadata/history ngoài scope; cursor/lookup không cấp quyền; no-store và safe errors theo contract đã duyệt.
+
+### CP02-T02 — Timeout/crash/replay cùng intent
+
+**Lớp kiểm thử:** Worker + DB dự kiến.
+**Điều kiện và dữ liệu:** Task UUID K đã accepted; barrier điều khiển Agent completion.
+
+**Các bước:**
+
+1. Làm timeout sau durable acceptance.
+2. Lookup/retry cùng K rồi restart worker.
+3. Cho callback completion trùng.
+
+**Kết quả mong đợi:** Một task/result cho intent, durable resume và sequence đúng; không trả success chỉ vì enqueue hoặc tạo task mới do timeout.
+
+### CP02-T03 — Provider/storage lỗi và citations
+
+**Lớp kiểm thử:** Agent integration dự kiến.
+**Điều kiện và dữ liệu:** Task có source catalog exact version; inject provider/retrieval/storage lỗi.
+
+**Các bước:**
+
+1. Hỏi dữ liệu cần source hợp lệ.
+2. Gây lỗi một dependency rồi phục hồi.
+3. Kiểm result/citations và Customer transcript.
+
+**Kết quả mong đợi:** Lỗi an toàn/thiếu căn cứ rõ; không citation giả hoặc auto-send A12; Customer không thấy Copilot internal.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Gate hoàn tất
 
@@ -42,3 +85,32 @@ HTTP/DB tests permission/thread ownership/duplicates/timeout/revoke/citations; A
 
 Gate CP02: nội dung internal không xuất hiện Customer A10/API/events; chính sách retention/audit và checkpoint fence được kiểm. Không báo FR-007/012 hoàn tất từ backend mock.
 
+## Sequence diagram
+
+**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    participant A as Agent
+    U->>W: Gửi câu hỏi theo channel
+    W->>C: Copilot request và task lookup theo CP01
+    C->>D: Session, source grant và durable intent
+    D-->>C: Turn hoặc task identity theo contract đã chốt
+    C->>A: Trusted service envelope và context version
+    A->>C: Business API hoặc retrieval scope
+    C->>D: Recheck actor, owner và exact source version
+    D-->>C: Dữ liệu đúng quyền
+    C-->>A: Context allowlist
+    A->>C: Result gắn turn, attempt và watermark
+    C->>D: Recheck fence và quyền trước lưu hoặc trả result
+    alt Scope hoặc control version đã đổi
+        C-->>W: Result không khả dụng, không Private muộn
+    else Hợp lệ
+        C-->>W: Draft hoặc answer đúng channel
+        W-->>U: Review hoặc message đã commit
+    end
+```

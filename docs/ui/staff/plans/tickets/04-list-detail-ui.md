@@ -22,7 +22,7 @@ Code: apps/web/src/components/staff-tickets.tsx, lib/ticket-api.ts, slot Tickets
 
 A21 list/A22 detail và PATCH /api/v1/staff/tickets/:ticketId/status theo [TK03 mục7](03-accept-command.md#7-mở-rộng-lifecycle-do-người-dùng-chốt--05112026).
 
-Dropdown luôn đủ5 status: Open, Assigned, In progress, Resolved, Closed. Theo quyết định người dùng05/11, được chọn trực tiếp bất kỳ status nào; không bắt buộc đi tuần tự. Core trả4 đích trong allowedActions.transitions, FE thêm current status; quyền/version/CSRF vẫn do Core kiểm tra.
+Dropdown luôn đủ 5 status: Open, Assigned, In progress, Resolved, Closed. Theo quyết định người dùng05/11, được chọn trực tiếp bất kỳ status nào; không bắt buộc đi tuần tự. Core trả 4 đích trong allowedActions.transitions, FE thêm current status; quyền/version/CSRF vẫn do Core kiểm tra.
 
 Gửi {expectedVersion,status} + CSRF. Lock đồng bộ chống thao tác trùng; disable pending/blocked/session error/refresh/unknown/cooldown. Chỉ cập nhật sau ACK commit hoặc GET reconcile; ACK version mới không bị read nền cũ ghi đè. UI bỏ nút Accept riêng; POST Accept cũ giữ tương thích API.
 
@@ -55,17 +55,91 @@ flowchart TD
   H --> B
 ```
 
-## 6. Kiểm thử và kết quả
+## 6. Test cases
 
-staff-tickets.spec.mjs:14 browser tests với API mock, gồm full-width list/detail/Back/query/load more/no-F5; workflow/reopen; legacy/chat link; pending/unknown/409/429/denied/session; late response; mobile375px/zoom200%; popup portal parent body/bounds/keyboard/Escape; background DOM/pages/draft/focus.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-ticket-flow.integration.spec.mjs:1 **browser E2E thật hai tab** Web→gateway→Core/PostgreSQL/outbox/WS. Search/detail/status IN_PROGRESS→RESOLVED→CLOSED→IN_PROGRESS; tab còn lại cập nhật, notification mark read/target và3 status notifications. Helper browser-ticket-fixture.cjs tạo isolated synthetic/session và teardown theo lock order, không bootstrap/seed riêng.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-conversation-realtime.spec.mjs:7 regression tests handoff/notification/transcript/scope/reconnect. Tổng **22 browser tests pass**. Không gộp backend tests thành E2E; không screenshot/trace/video. Web lint/typecheck/build pass.
+### TK04-T01 — Danh sách → chi tiết → Back
 
-```powershell
-npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.integration.spec.mjs conversation-realtime.spec.mjs --reporter=list
-```
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có hơn20 Ticket và một mã ở trang sau.
+
+**Các bước:**
+
+1. Search bằng Enter, lọc status và Load more.
+2. Bấm dòng Ticket để mở detail.
+3. Back về list và dùng Back/Forward trình duyệt.
+
+**Kết quả mong đợi:** Detail riêng không sidebar kết quả; query/pages giữ đúng; dòng không underline/visited tím; không F5.
+
+### TK04-T02 — Dropdown đủ 5 và status cập nhật sau ACK
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Detail T-A đang IN_PROGRESS; Core trả 4 transitions còn lại.
+
+**Các bước:**
+
+1. Mở dropdown và đếm5 option.
+2. Chọn CLOSED rồi OPEN rồi ASSIGNED.
+3. Giữ chậm một ACK và thử thao tác lần2.
+
+**Kết quả mong đợi:** Cho chọn trực tiếp; current chỉ đổi theo ACK/reconcile; pending khóa control, không gửi mutation trùng.
+
+### TK04-T03 — Unknown và 409 không auto-write
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ/ngắt ACK sau commit; biến thể riêng PATCH409.
+
+**Các bước:**
+
+1. Chọn status mới rồi làm ACK mất.
+2. Cho GET reconcile cũng lỗi, bấm Check status sau khi khôi phục.
+3. Với409 quan sát request tiếp theo.
+
+**Kết quả mong đợi:** Unknown chỉ kiểm GET, không PATCH version mới; current state được cập nhật để người dùng review, không false success.
+
+### TK04-T04 — Detail denied và response cũ
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** T-A đang mở; giữ responseA rồi chọn B; sau đó B bị revoke.
+
+**Các bước:**
+
+1. Trả responseA muộn.
+2. Cho detail B403/404 hoặc session 401.
+3. Kiểm nội dung/actions và điều hướng.
+
+**Kết quả mong đợi:** Không dữ liệu A ghi đè B; denied clear Ticket/actions,401 về login; không giữ Private dưới thông báo lỗi.
+
+### TK04-T05 — Notification và hai tab realtime
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** Hai tab S-A cùng T-A; worker/WS đang chạy, fixture riêng.
+
+**Các bước:**
+
+1. Tab1 đổi status.
+2. Tab2 chờ update và mở Notifications.
+3. Đánh dấu đọc/mở target, kiểm version qua API.
+
+**Kết quả mong đợi:** Tab2 tự cập nhật đúng status; target là Tickets, không Inbox; thông báo generic; read không đổi status; không F5.
+
+### TK04-T06 — Mobile và zoom
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Ticket/title/Customer có chuỗi dài, viewport 375px.
+
+**Các bước:**
+
+1. Mở list rồi detail.
+2. Zoom200%, Tab tới Back/dropdown/chat link nếu có.
+3. Đo bounds các panel và popup Notifications.
+
+**Kết quả mong đợi:** Không tràn ngang hoặc popup bị clipping; focus thấy được; không cần hiển thị dòng nhắc Enter để search vẫn hoạt động.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 7. Checklist
 
@@ -75,3 +149,26 @@ npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.
 - [x] Notifications toolbar/portal không bị che, keyboard/mobile/zoom.
 - [x] Browser mock + E2E thật và fixture/artifact cleanup.
 - [ ] I07 producer tạo/xác nhận và immutable snapshot; không thuộc UI phase này.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/tickets và Ticket detail
+    C->>D: Kiểm session, role và recipient và active assignment
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

@@ -28,18 +28,90 @@ flowchart LR
   E --> F[Policy summary & financial metrics]
 ```
 
-## 3. Lifecycle và kiểm thử
+## 3. Test cases
 
-- Giữ nội dung khi same-actor background refresh; loading đầu khác refresh; profile lỗi retry tại vùng.
-- Không reload F5 khi tương tác.
-- Responsive hoàn hảo từ mobile (375px) đến desktop.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| H02-T01 | Assigned/unassigned/staff locked | Đúng contact/status; không leak contact cũ |
-| H02-T02 | Không policy hoặc PO01 chưa có | Home hữu ích, không số liệu/tài liệu giả |
-| H02-T03 | Ngày/financial null và past nextDueDate | Không suy ra payment state |
-| H02-T04 | Refresh lỗi, logout, Back/mobile/keyboard | Scope cleanup đúng; retry tại vùng; không F5 |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### H02-T01 — Home chỉ dùng dữ liệu của chính Customer
+
+**Lớp kiểm thử:** Browser + API.
+**Điều kiện và dữ liệu:** C-A/C-B có hồ sơ và portfolio synthetic khác nhau.
+
+**Các bước:**
+
+1. Đăng nhập C-A, mở Home.
+2. Đối chiếu tên/mã, portfolio với API owner.
+3. Mở View My Policies và một Featured solution.
+
+**Kết quả mong đợi:** Không lộ C-B, không số liệu tĩnh giả; links mở đúng tính năng và không document reload.
+
+### H02-T02 — Số liệu policy và null/date
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** C-A có 2 ACTIVE và 1 LAPSED; các biến thể premium/nextDueDate null.
+
+**Các bước:**
+
+1. Tính tổng quyền lợi ACTIVE từ fixture, đối chiếu Home.
+2. Đổi một policy thành LAPSED trong response cập nhật.
+3. Cho ngày phí đã qua và một field tài chính null.
+
+**Kết quả mong đợi:** Không cộng policy ngoài tập ACTIVE; null không thành0 tùy tiện; ngày quá hạn không tự suy đã thanh toán hoặc quyết định nghiệp vụ.
+
+### H02-T03 — Assigned Staff và unavailable
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Ba biến thể: C-A có S-A khả dụng, không assignment, Staff unavailable.
+
+**Các bước:**
+
+1. Mở Home từng biến thể.
+2. Kiểm contact/Message Staff.
+3. Đổi availability qua cập nhật nền.
+
+**Kết quả mong đợi:** Contact/action đúng contract và xóa contact cũ khi không còn; không tự tạo Direct tới Staff khác.
+
+### H02-T04 — Refresh lỗi không làm mất Home
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** C-A đã tải Home; profile request tiếp theo503.
+
+**Các bước:**
+
+1. Phát update nền.
+2. Retry vùng lỗi sau khi API phục hồi.
+3. Dùng keyboard và viewport 375px.
+
+**Kết quả mong đợi:** Không biến lỗi mạng thành logout, giữ dữ liệu cùng actor có nhãn lỗi phù hợp; retry không F5, links/focus dùng được.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 
 - [x] H02 không tạo model/API/metrics thừa; liên kết dữ liệu thật hoàn tất.
 - [x] Đã cập nhật theo các phản hồi UX của người dùng (tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ nhãn dư, gỡ card Paperless Policy).
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /customers/me và owner policy data
+    C->>D: Kiểm session, role và self và policy owner
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

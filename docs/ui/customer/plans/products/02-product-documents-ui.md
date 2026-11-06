@@ -32,3 +32,95 @@ flowchart TD
 - [x] Xem trực tiếp và tải về bản PDF chính thức đã được chứng thực.
 - [x] Hiển thị thông báo thân thiện khi sản phẩm chưa có tài liệu đính kèm.
 - [x] Kiểm tra bảo mật và quyền truy cập: không thể truy cập tài liệu Private hoặc tài liệu của sản phẩm khác.
+
+## Test cases
+
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### PR02-T01 — PUBLIC current view/download
+
+**Lớp kiểm thử:** Browser + E2E Storage.
+**Điều kiện và dữ liệu:** P1 có PUBLIC D1 current v2, hash PDFv2 đã biết.
+
+**Các bước:**
+
+1. Mở chi tiết sản phẩm P1 và tài liệu D1.
+2. View PDF rồi Download.
+3. Đối chiếu version label, response intent và hash.
+
+**Kết quả mong đợi:** Đúng current PUBLICv2; view inline/download đúng file; không dùng policy Private để cấp tài liệu sản phẩm.
+
+### PR02-T02 — Private/cross-product không truy cập được
+
+**Lớp kiểm thử:** API + Browser.
+**Điều kiện và dữ liệu:** Có D2 của P2 và PRIVATE_POLICY D3; C-A mở P1.
+
+**Các bước:**
+
+1. Dùng UUID D2/D3 trong access P1.
+2. Thử version cũ không còn current.
+3. Kiểm UI sau404.
+
+**Kết quả mong đợi:** Core 404, không signed URL hoặc storage key; UI không giữ preview sai hay tự fallback tài liệu khác.
+
+### PR02-T03 — Sản phẩm chưa có tài liệu
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** P0 active có catalog documents rỗng; P1 có PDF.
+
+**Các bước:**
+
+1. Mở P1 rồi đổi P0.
+2. Kiểm empty state và viewer.
+3. Quay lại P1.
+
+**Kết quả mong đợi:** P0 không giữ PDF/link của P1; không nút download giả, description vẫn dùng được.
+
+### PR02-T04 — Expiry,503 và session
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** PDF grant ngắn hạn; có biến thể storage 503/401.
+
+**Các bước:**
+
+1. Để grant hết hạn và xin lại đúng version.
+2. Mô phỏng503 rồi Retry.
+3. Cho401 khi đang cấp link.
+
+**Kết quả mong đợi:** Regrant đúng tài liệu; lỗi PDF không hỏng page;401 clear viewer/memory. Không lưu signed URL vào URL app/localStorage.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    participant S as Storage
+    U->>W: Mở hoặc tải PDF
+    W->>C: POST view hoặc download, CSRF và exact version
+    C->>D: Session, active product, PUBLIC current version
+    D-->>C: Binding và version được phép
+    alt Ngoài scope hoặc binding không hợp lệ
+        C-->>W: 404, không URL
+    else Được phép
+        C->>S: HEAD PDF và ký link ngắn hạn
+        S-->>C: Object metadata hoặc lỗi storage
+        C->>D: Recheck quyền/version và commit audit
+        alt Check cuối hoặc audit không thành công
+            C-->>W: Lỗi an toàn, không trả link
+        else Hợp lệ
+            C-->>W: url và expiresAt
+            W->>S: GET PDF hoặc Range bằng grant
+            S-->>W: Đúng bytes/version
+            W-->>U: Preview inline hoặc file download
+        end
+    end
+```

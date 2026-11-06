@@ -38,7 +38,7 @@ Trang My policies cần list/detail từ DB và bản PDF hợp đồng chi ti�
 
 Core xác minh Customer từ phiên và ownership ở mỗi API; không dùng API Staff hoặc ID do client gửi để tự cấp quyền. Chọn hợp đồng/tài liệu, xem/zoom/tải và retry không reload kiểu F5; giữ URL/back và focus phù hợp. Khi chưa có tài liệu vẫn xem thông tin hợp đồng và trạng thái chưa có PDF. Luồng Hỏi về policy này tiếp tục phụ thuộc chat/context, không chặn việc triển khai policy read/PDF.
 
-Đặc tả dùng chung và checklist hai vai trò ở [Xem/tải tài liệu](05-documents-contract.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026).
+Đặc tả tài liệu phía Customer ở [Xem/tải tài liệu](05-documents-contract.md#2-nguồn-và-phân-loại).
 
 ## Checklist còn lại
 

@@ -44,26 +44,71 @@ GET `/api/v1/auth/me`, cookie hiện tại, credentials include, cache no-store.
 6. Giữ một bộ event listeners đúng vòng đời; không reconnect socket liên tục do tạo callback mới mỗi render. Không đưa csrfToken/session vào localStorage/sessionStorage hoặc log.
 7. Cập nhật regression tập trung trong suite Account hoặc tệp test có mục đích lâu dài nếu suite hiện tại không phù hợp; không tạo script dùng một lần trong repo.
 
-## 5. Ma trận kiểm thử
+## 5. Test cases
 
-| Ca | Assertion chính |
-| --- | --- |
-| auth/me mạng lỗi lần đầu, retry 200 | Vào Account; document navigation chỉ có lần mở trang ban đầu |
-| auth/me 500 rồi 200 | Lỗi hết, tên/mã Core đúng, URL/hash giữ nguyên |
-| Click/Enter retry nhiều lần, focus/visibility cùng lúc | Tối đa một request cùng vòng; không kẹt nút pending |
-| Retry tiếp tục lỗi/timeout | Nút dùng lại được, không phát nhiều request tự động vô hạn |
-| Retry 401 | Xóa dữ liệu, chuyển Staff login; next nội bộ giữ đúng deep link |
-| Mode/actor đổi hoặc unmount khi response chậm | Không render actor cũ, không redirect bởi response cũ |
-| Staff login/Customer login/Customer account | Smoke bảo toàn luồng dùng chung vì AuthScreen phục vụ cả hai role |
-| Keyboard/375px và desktop | Focus/status/lỗi dùng được, không tràn ngang |
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-Browser assertions dùng DOM/network, không screenshot. API mock kiểm FE, không tuyên bố chứng minh Core authorization. Có thể smoke GET auth/me thật qua gateway sau build; không đổi password/hồ sơ/credential để kiểm retry.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### AU03-T01 — Khôi phục phiên sau lỗi mạng
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** GET /auth/me bị chặn lỗi mạng lần đầu; route đích có query/hash hợp lệ.
+
+**Các bước:**
+
+1. Mở route Staff được bảo vệ.
+2. Khôi phục GET /auth/me rồi bấm Try again.
+3. Theo dõi navigation của main frame.
+
+**Kết quả mong đợi:** Ở lỗi mạng không bị coi là logout; retry vào đúng route/query/hash; chỉ có document navigation ban đầu.
+
+### AU03-T02 — Không gọi auth theo mỗi thao tác
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** S-A có phiên mới xác thực; ghi số GET /auth/me ban đầu.
+
+**Các bước:**
+
+1. Đổi Customers → Products → Tickets.
+2. Chuyển tab trình duyệt đi rồi quay về ngay.
+3. Phát burst invalidation tài nguyên.
+
+**Kết quả mong đợi:** Không bootstrap auth lại theo từng route/message; chỉ revalidate theo điều kiện freshness của auth boundary, không remount workspace.
+
+### AU03-T03 — Response phiên cũ không khôi phục actor
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Giữ chậm response /auth/me của S-A.
+
+**Các bước:**
+
+1. Chuyển portal hoặc logout trong lúc request pending.
+2. Trả response S-A muộn.
+3. Đăng nhập bằng actor synthetic khác.
+
+**Kết quả mong đợi:** Request cũ bị abort hoặc bị generation guard bỏ qua; không hiện tên, role hay dữ liệu S-A trong phiên mới.
+
+### AU03-T04 — Phân biệt timeout với401 và sai role
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Route Staff và safe next đã chuẩn bị; kiểm riêng từng biến thể fixture.
+
+**Các bước:**
+
+1. Cho auth request timeout rồi retry.
+2. Cho auth trả 401.
+3. Cho auth trả actor CUSTOMER với response 200.
+
+**Kết quả mong đợi:** Timeout cho phục hồi tại chỗ;401 về login; Customer không render Staff. Không chấp nhận next trỏ ra domain ngoài.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Thứ tự kiểm và Docker
 
 - Chạy Web lint/typecheck cho thay đổi; chỉ thêm kiểm khác khi có lỗi/phụ thuộc mới.
 - Build Web bằng Docker Compose và chờ healthy, gateway phục vụ đúng build theo Getting Started; không chạy Web/Core dev bằng npm trên host.
-- Chạy `npm run test:browser:account` trên gateway Docker; giữ tests cũ và các ca mới cùng pass. Test runner không được start host server.
+- Chạy `npm run test:browser:account` trên gateway Docker; kiểm cả tests cũ và test cases mới theo phạm vi thay đổi. Test runner không được start host server.
 - Đọc một kết quả tổng hợp; dọn artifact do lần chạy tạo, không tạo Markdown report, không log session/token.
 
 ## 7. Điều kiện hoàn thành
@@ -77,14 +122,40 @@ Browser assertions dùng DOM/network, không screenshot. API mock kiểm FE, kh�
 
 Ước lượng để chia buổi: **1–2 giờ**, tùy lỗi phát sinh khi kiểm tra; không phải cam kết thời gian. Nếu chưa đạt gate thì tiếp tục xử lý việc 01 trước khi chuyển việc 02.
 
-## 8. Kết quả triển khai 03/11/2026
+## 8. Ghi chú triển khai
 
 - AuthScreen dùng chung refresh cho initial/focus/visibility/realtime/retry; nút có disabled/status/focus, không reload document. Unmount/đổi mode abort request và bỏ phản hồi cũ. Role/next/cookie/CSRF giữ nguyên.
-- Web lint/typecheck pass; Docker Web build/up healthy, gateway đã restart và phục vụ build mới ở http://localhost:8080.
-- 43 kịch bản Chromium được kiểm: 15 Account + 15 Customers + 13 Session. Lượt đầu 41 pass, 2 smoke login lỗi selector nhãn Password; sửa selector, chạy lại đúng 2 ca và cả hai pass. Code ứng dụng không cần sửa sau lượt đầu. Không ghi kết quả thành một lượt chạy 43/43 duy nhất.
 - Ca mới có timeout 15 giây thực, dedup các trigger đồng thời, abort request cũ khi đổi portal, chuyển role/401 và giữ query/hash/next. Tests dùng API/WebSocket synthetic mock; chưa phải E2E Core/DB.
 - test:browser:account hiện chạy cả staff-account.spec.mjs và staff-session.spec.mjs. Artifact kiểm thử được dọn sau khi đọc kết quả; không screenshot/commit.
 
-Tối ưu tiếp ngày 03/11: [kiểm phiên khi quay lại tab](../01-auth-contract.md#kiểm-phiên-khi-quay-lại-tab) dùng freshness 30 giây cho focus/visibility/ready, vẫn bypass initial/retry/invalidate/expiry. Suite Session hiện 22 ca, bộ browser liên quan 78 ca pass; không thay các số liệu của lượt triển khai ban đầu ở trên.
+Tối ưu tiếp ngày 03/11: [kiểm phiên khi quay lại tab](../01-auth-contract.md#kiểm-phiên-khi-quay-lại-tab) dùng freshness 30 giây cho focus/visibility/ready, vẫn bypass initial/retry/invalidate/expiry.
 
 Việc 01 đã đạt gate. Trạng thái các việc tiếp theo được cập nhật tại [phạm vi hôm nay](../../../../next-steps.md#kế-hoạch-hôm-nay--03112026).
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Session boundary
+    participant C as Core Auth
+    U->>W: Mở route hoặc retry phiên
+    W->>C: GET /auth/me, single flight
+    alt Network hoặc timeout
+        C--xW: Không có kết luận session
+        W-->>U: Retry tại chỗ, không F5
+    else Phiên không hợp lệ (401)
+        C-->>W: Session không hợp lệ
+        W-->>U: Login với safe next
+    else Actor hợp lệ
+        C-->>W: Actor và CSRF hiện hành
+        W-->>U: Route đúng role
+    end
+    opt Actor hoặc portal đổi khi request pending
+        W->>W: Abort và tăng generation
+        C-->>W: Response cũ về muộn
+        W->>W: Bỏ response cũ
+    end
+```

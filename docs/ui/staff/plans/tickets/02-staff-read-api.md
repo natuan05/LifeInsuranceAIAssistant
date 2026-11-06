@@ -18,7 +18,7 @@ Prefix /api/v1; A21/A22 **E**, cookie session hiện hành, Cache-Control: no-st
 | --- | --- |
 | search | Optional, trim, 0–100 ký tự, không control characters; literal case-insensitive tên/mã Customer hoặc ticketCode. Không tìm title/aiSummary/chat/CCCD/email/phone |
 | status | Optional, đúng OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED |
-| customerId | Optional UUID, chỉ thu hẹp scope. Không assignment hiện hành trả404; có assignment nhưng không Ticket đúng recipient trả items rỗng |
+| customerId | Optional UUID, chỉ thu hẹp scope. Không assignment hiện hành trả 404; có assignment nhưng không Ticket đúng recipient trả items rỗng |
 | limit | Số nguyên1–50, default20 |
 | cursor | Opaque HMAC cursor gắn actor/search/status/customerId/limit |
 
@@ -38,7 +38,7 @@ Response:
 
 createdAt DESC,id DESC; lấy limit+1, không total/count/unread; trang cuối nextCursor=null. Mỗi trang kiểm quyền theo snapshot hiện hành, không đóng băng danh sách qua nhiều request. Ticket mới hơn boundary hiện khi đọc lại trang đầu.
 
-Cursor TTL15 phút, khóa random trong memory singleton Core. Restart làm cursor cũ invalid; trả400 INVALID_CURSOR và client bắt đầu lại trang đầu. Không lấy khóa từ cookie/DB password hoặc ghi file credential. Cơ chế hiện tại dành cho một Core process; nhiều replica cần khóa ký dùng chung trước triển khai. Cursor không cấp quyền; assignment thu hồi làm Ticket biến mất ở trang kế tiếp.
+Cursor TTL15 phút, khóa random trong memory singleton Core. Restart làm cursor cũ invalid; trả 400 INVALID_CURSOR và client bắt đầu lại trang đầu. Không lấy khóa từ cookie/DB password hoặc ghi file credential. Cơ chế hiện tại dành cho một Core process; nhiều replica cần khóa ký dùng chung trước triển khai. Cursor không cấp quyền; assignment thu hồi làm Ticket biến mất ở trang kế tiếp.
 
 ### A22 — GET /staff/tickets/:ticketId
 
@@ -83,15 +83,67 @@ flowchart TD
   H --> I
 ```
 
-## 4. Kiểm thử và kết quả
+## 4. Test cases
 
-apps/core/test/tickets-read.test.cjs: **15 test** HTTP/PostgreSQL thật và cursor unit, fixtures synthetic có teardown. Bao phủ auth/role/khóa/thu hồi, recipient+assignment, search literal/case/trim/code, trạng thái, DTO/query lặp, tied timestamps/keyset, cursor tamper/query/actor/expiry/restart, legacy projection, Direct/private/cross-customer chat, pending metadata/Accept transcript, policy lịch sử/FK khác Customer, revoke assignment giữa trang, quota chung/concurrent reads/Retry-After, gateway và Swagger.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-```powershell
-docker compose --profile tests run --rm --no-deps core-tests node --test test/tickets-read.test.cjs test/ticket-foundation.test.cjs test/conversation-permissions.test.cjs test/http-foundation.test.cjs test/realtime.test.cjs
-```
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-04/11: **44/44 pass** (15 TK02 +7 TK01 policy +16 Conversation +6 HTTP/WS). Core lint/typecheck, Docker build pass; Core healthy, list/detail gateway200. Teardown xóa fixture/session/bucket và kiểm users/Tickets còn0. Đây là HTTP/DB/unit/regression, không browser E2E; no-F5/browser thuộc TK04.
+### TK02-T01 — Search/filter/keyset toàn scope
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A có hơn20 Ticket, tên/mã khách synthetic; S-B có Ticket ngoài scope.
+
+**Các bước:**
+
+1. GET list, lấy trang sau rồi search ticketCode ở trang sau từ trang đầu.
+2. Lọc từng status và customerId hợp lệ.
+3. Đối chiếu items/pageInfo với fixture.
+
+**Kết quả mong đợi:** Search toàn tập đúng quyền; keyset createdAt/id ổn định, không thiếu/trùng hoặc counts/total.
+
+### TK02-T02 — Search literal và cursor bị đổi
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Tên Customer có %/_; cursor của S-A với limit 2/filter cố định.
+
+**Các bước:**
+
+1. Search literal và từ chỉ có trong title/aiSummary.
+2. Dùng cursor bằng S-B hoặc đổi search/status/limit.
+3. Sửa một byte cursor hoặc làm cursor hết hạn.
+
+**Kết quả mong đợi:** Chỉ tên/mã khách/ticketCode được tìm; cursor sai400, không lộ dữ liệu. Retry list từ trang đầu khi cursor invalid.
+
+### TK02-T03 — Detail legacy và policy/chat link
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** T-A có policy cùng Customer và liên kết AI riêng; T-D có Direct đủ grant.
+
+**Các bước:**
+
+1. GET detail T-A/T-D.
+2. Đối chiếu allowlist, confirmation, version/actions.
+3. Gọi chat đích bằng quyền đã mất trong biến thể riêng.
+
+**Kết quả mong đợi:** Không raw extractedDetails; legacy snapshot null; policy chỉ id/number; AI riêng chatLink=null, Direct có link nhưng API chat vẫn recheck.
+
+### TK02-T04 — Revoke, session và input
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A đọc được T-A; có Customer session, UUID thiếu và bucket quota riêng.
+
+**Các bước:**
+
+1. Revoke assignment giữa hai trang rồi GET detail/list.
+2. Thử Customer/no session, query lạ, UUID/limit sai.
+3. Vượt quota read chung list/detail.
+
+**Kết quả mong đợi:** Sau revoke không trả Ticket; lỗi401/403/404/400 đúng loại;429 Retry-After, không trả stale entity.
+
+**Suite tham khảo:** [tickets-read.test.cjs](../../../../../apps/core/test/tickets-read.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 5. Checklist và bước tiếp
 
@@ -102,3 +154,26 @@ docker compose --profile tests run --rm --no-deps core-tests node --test test/ti
 - [x] TK03 Accept/version/CAS/reconcile; TK04 UI đã nối; TK05 consumer events đã có; I07 producer riêng.
 
 Nguồn tạo/xác nhận Ticket thật tiếp tục thuộc I07 và Customer T01/T02.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/tickets hoặc detail
+    C->>D: Kiểm session, role và recipient và active assignment
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

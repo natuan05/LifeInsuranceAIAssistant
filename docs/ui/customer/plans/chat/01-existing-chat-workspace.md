@@ -36,15 +36,100 @@ flowchart TD
   F --> G
 ```
 
-## 4. Test và hoàn tất
+## 4. Test cases
 
-Đã kiểm chứng toàn bộ qua suite `apps/web/tests/browser/customer-conversations.spec.mjs`:
-- `handoff cancel/Escape restores focus and never records consent`: Pass
-- `routing conflict refreshes Staff and requires a new explicit confirmation`: Pass
-- `unavailable Staff blocks Direct confirmation; legacy chat has no composer`: Pass
-- `unknown create retries same UUID/payload, disables cancellation and does not duplicate intent`: Pass
-- `mobile chat and consent dialog fit viewport and trap keyboard focus`: Pass
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### CH01-T01 — AI riêng và Direct đúng routing
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** C-A được gán S-A khả dụng; có cuộc AI riêng và Direct.
+
+**Các bước:**
+
+1. Mở Conversations, chọn AI rồi Direct.
+2. Gửi tin synthetic vào Direct.
+3. Kiểm bên Staff theo scope.
+
+**Kết quả mong đợi:** Cuộc/id/nháp tách biệt; Direct gửi đúng Staff, AI riêng không tự lộ cho Staff; không giả Agent trả lời.
+
+### CH01-T02 — Cancel không ghi consent
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** C-A có AI_ACTIVE, dialog handoff mở từ control hiện có.
+
+**Các bước:**
+
+1. Tab qua dialog rồi Escape/Cancel.
+2. Kiểm không POST handoff.
+3. Mở lại và Confirm chia sẻ toàn lịch sử.
+
+**Kết quả mong đợi:** Cancel trả focus, không consent; Confirm gửi version/scope server hợp lệ, không tự tạo Ticket.
+
+### CH01-T03 — Routing conflict cần xác nhận lại
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Dialog hiển thị S-A, assignmentVersion=v0; fixture chuyển sang S-B.
+
+**Các bước:**
+
+1. Confirm bằng v0 và trả ROUTING_CHANGED.
+2. Tải availability mới.
+3. Kiểm chưa có handoff trước khi Customer xác nhận lại.
+
+**Kết quả mong đợi:** Không tự chuyển đồng ý sang S-B; UI yêu cầu review/xác nhận mới và giữ state an toàn.
+
+### CH01-T04 — Unknown create, unavailable và mobile
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ ACK tạo Direct; biến thể khác Staff unavailable và legacy cuộc không grant.
+
+**Các bước:**
+
+1. Tạo Direct rồi ngắt ACK, kiểm/retry cùng key.
+2. Thử Message Staff khi unavailable.
+3. Dùng consent dialog 375px bằng Tab/Escape.
+
+**Kết quả mong đợi:** Không key mới/cuộc trùng, không hủy intent chưa rõ kết quả; unavailable/legacy không có composer trái quyền; dialog nằm trong viewport.
+
+**Suite tham khảo:** [customer-conversations.spec.mjs](../../../../../apps/web/tests/browser/customer-conversations.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 
 - [x] CH01 tích hợp hoàn tất vào shell Customer, giao diện tiếng Anh chuẩn.
 - [x] Đã bỏ nút refresh và đơn giản hóa footer composer theo phản hồi người dùng.
-- [x] 5/5 browser tests pass không flaky.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Xác nhận thao tác
+    W->>C: POST create Direct hoặc handoff theo action
+    C->>D: Kiểm session, CSRF và khóa owner và assignment/routing version; handoff cần consent
+    D-->>C: Quyền, version và state hiện hành
+    alt Không đủ quyền hoặc version stale
+        C-->>W: 401, 403, 404 hoặc409 an toàn
+        W-->>U: Giữ nháp phù hợp và review trạng thái
+    else Hợp lệ
+        C->>D: Conversation hoặc request và receipt/outbox atomic
+        D-->>C: COMMIT
+        C-->>W: 201 lần đầu hoặc200 replay, không tạo Ticket
+        W-->>U: Cập nhật sau ACK
+    end
+    opt Timeout hoặc mất ACK
+        W->>C: GET current state hoặc receipt theo contract
+        C->>D: Kiểm lại quyền và đọc kết quả
+        C-->>W: Current state, không tự cấp quyền mới
+        W-->>U: Review trước khi ghi lại
+    end
+```

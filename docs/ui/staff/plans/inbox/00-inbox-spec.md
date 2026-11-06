@@ -220,17 +220,65 @@ Form Ticket thủ công từng được đề xuất trong MVP là backlog cũ, 
 
 Account/Customers/Policy giữ nguyên; không viết code Inbox trước tài liệu triển khai và review phần phụ thuộc.
 
-## 11. Ma trận kiểm thử/nghiệm thu
+## 11. Test cases
 
-- Quyền: AI riêng biến mất khỏi group/list/detail/messages/search/events; assignment hoặc UUID/cursor/Ticket không cấp quyền. Pending không transcript/preview/summary/lastSequence/số tin, kể cả gọi API trực tiếp.
-- Accept: xác nhận chia sẻ đầy đủ, khóa/version/idempotency; chưa commit không được đọc. Sau commit Staff hiện hành đọc được cả các tin Customer–AI **trước requestedAt/acceptedAt**, đúng một cuộc; không Copilot/tool/internal payload.
-- Direct: chỉ cuộc Customer thực sự gửi tới Staff đúng quyền; đổi flag của AI cũ không bypass gate. Reassignment không kế thừa grant tự động.
-- Counts: không badge/tổng số/response fields counts/total/statusCounts/matchingConversationCount hoặc endpoint A07. hasMore/nextCursor chính xác khi 0/1/nhiều trang, không group ở FE.
-- Closed legacy: không filter/action chat mới, không map cấp quyền; migration không làm mất dữ liệu, TicketStatus.CLOSED giữ nguyên.
-- Search/accordion/cursor: tên-mã/literal/IME/abort, keyboard/deep link/Back–Forward, nhiều khách/cuộc, không lấy subject riêng tư trước Accept.
-- Scroll: batch mới nhất, prepend giữ anchor, tải hết được lịch sử trước handoff, dedup/catch-up/retry và không F5.
-- Ghi/realtime: timeout/reconcile, Agent muộn, hai bên nhận/gửi, sự kiện đúng recipient/gate, Ticket không tự xuất hiện khi chuyển Staff.
-- Chỉ synthetic; Core/browser/E2E tách biệt; DOM/network, không screenshot hoặc Markdown report mới.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### INBOX-T01 — Không lộ chat AI riêng
+
+**Lớp kiểm thử:** Browser + API.
+**Điều kiện và dữ liệu:** C-A thuộc S-A có AI_PRIVATE, Direct và một handoff pending; C-B thuộc S-B.
+
+**Các bước:**
+
+1. S-A mở All, Requests, Active và tìm mã C-A.
+2. Thử URL detail/messages AI_PRIVATE và cuộc C-B.
+3. Mở request pending.
+
+**Kết quả mong đợi:** Không thấy AI_PRIVATE/C-B ở group/list/detail/messages; pending chỉ shared metadata, không preview/sequence/transcript.
+
+### INBOX-T02 — Customer chia sẻ, Staff Accept rồi đọc lịch sử
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** C-A có cuộc AI với lịch sử Customer-visible synthetic trước yêu cầu; S-A đang phụ trách.
+
+**Các bước:**
+
+1. Customer yêu cầu Staff và xác nhận chia sẻ toàn cuộc.
+2. S-A mở Requests rồi Accept.
+3. Cuộn lên lịch sử trước lúc handoff và kiểm Customer tab.
+
+**Kết quả mong đợi:** Chưa Accept không transcript; sau commit có lịch sử Customer-visible đúng cuộc và một SYSTEM tiếp nhận; không lộ tool/Copilot/internal.
+
+### INBOX-T03 — Nhóm khách, search và lịch sử cuộn
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** C-A có nhiều cuộc đủ quyền; C-B có một cuộc; lịch sử một cuộc dài hơn2 batch.
+
+**Các bước:**
+
+1. Tìm tên/mã bằng Enter, mở hai accordion.
+2. Chọn cuộc, tải tin cũ bằng cuộn.
+3. Back/Forward rồi đổi filter.
+
+**Kết quả mong đợi:** Nhóm độc lập, URL/state đúng, prepend giữ anchor và không trùng; không counts/Closed chat/Search/Clear hoặc F5.
+
+### INBOX-T04 — Gửi hai chiều, mất mạng rồi thu hồi quyền
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** Hai context C-A/S-A cùng một Direct; harness ngắt ACK sau commit.
+
+**Các bước:**
+
+1. Customer gửi, Staff trả lời.
+2. Ngắt ACK một lần rồi kiểm/retry cùng intent.
+3. Thu hồi assignment và gửi thêm bằng S-A.
+
+**Kết quả mong đợi:** Hai phía thấy đúng một tin mỗi intent; mất quyền clear composer/transcript, gửi tiếp bị chặn; không tự tạo Ticket.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 12. Checklist trước khi viết code lại
 
@@ -245,16 +293,39 @@ Account/Customers/Policy giữ nguyên; không viết code Inbox trước tài l
 
 ## Bổ sung đã chốt sau test tay 04/11/2026
 
-- Người dùng xác nhận các chức năng I04/I05 còn lại pass; giữ runtime hiện hành.
 - Sau Staff Accept, Customer và Staff phải thấy một tin hệ thống trong transcript về việc đã tiếp nhận/sẽ phản hồi sớm nhất. Lưu SYSTEM Customer-visible cùng transaction Accept, sequence/dedup theo handoff, không toast-only hoặc worker tạo muộn. Đã triển khai; chi tiết [I06-A](06-realtime-routing.md).
 - Staff có AI Copilot trong panel bên phải của màn chat: hỏi, tóm tắt và gợi ý trả lời/citations đúng quyền. Thread STAFF_COPILOT nội bộ, không lẫn lịch sử Customer; Staff duyệt rồi chủ động gửi nháp. Chưa triển khai; [C01](../08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff) sở hữu kế hoạch/contract/gate/test, không sửa thêm UI Customer hoặc tự tạo Ticket.
 
 ## Runtime và UX đã nghiệm thu — 04/11/2026
 
-I01–I06 đã E: model/gate/metadata/consent/Accept/full transcript, send/reconcile, SYSTEM, outbox/realtime/handoff notification. I07 và Copilot còn P. User đã test tay I04/I05 pass; kết quả đó không nghiệm thu Copilot hoặc Agent.
+I01–I06 đã E: model/gate/metadata/consent/Accept/full transcript, send/reconcile, SYSTEM, outbox/realtime/handoff notification. I07 và Copilot còn P.
 
 Inbox không Refresh inbox/conversation/messages hoặc Message saved; ACK hiển thị tin đã commit. Pending/unknown/retry vẫn rõ. Search debounce300ms/Enter/IME, All/Requests/Active, không counts. Direct hoặc Customer consent+Staff Accept mới transcript; có grant thì cả lịch sử Customer-facing trước/sau trong chính cuộc, không Copilot/internal.
 
-Realtime cập nhật nền không đưa revision vào key remount directory. Giữ accordion/DOM/focus/nháp/scroll và các trang cursor đã tải; refetch từng page rồi thay kết quả đồng nhất, xóa hàng đã bị gỡ. Scope/actor/phiên đổi xóa dữ liệu ngay. 32 browser Inbox/send/realtime regression đã pass ở đợt sửa này, mock không thay Core authorization.
+Realtime cập nhật nền không đưa revision vào key remount directory. Giữ accordion/DOM/focus/nháp/scroll và các trang cursor đã tải; refetch từng page rồi thay kết quả đồng nhất, xóa hàng đã bị gỡ. Scope/actor/phiên đổi xóa dữ liệu ngay.
 
 Panel phụ đóng mặc định; mobile list→chat/back. Customers không nhúng chat/Ticket. Request/Accept không tạo Ticket, Ticket read/accept không mở transcript. Copilot theo contract08 và CP01–CP04; không từ UI mẫu suy thêm Agent/citation/checkpoint đã có.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant CW as Customer Web
+    participant C as Core
+    participant D as PostgreSQL
+    participant SW as Staff Web
+    U->>CW: Yêu cầu hỗ trợ và xác nhận chia sẻ
+    CW->>C: POST handoff, consent và routing version
+    C->>D: Validate owner, consent, assignment; commit pending và outbox
+    C-->>SW: Invalidation cho recipient đủ quyền
+    SW->>C: GET request metadata
+    C-->>SW: Pending, chưa transcript
+    SW->>C: POST Accept với version và intent key
+    C->>D: Recheck, commit acceptance, SYSTEM và outbox
+    SW->>C: GET transcript đúng gate
+    C-->>SW: Toàn bộ lịch sử Customer-visible của chính cuộc
+    Note over C,D: Handoff và Accept không tự tạo Ticket
+```

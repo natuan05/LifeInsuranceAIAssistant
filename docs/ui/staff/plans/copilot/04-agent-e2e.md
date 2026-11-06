@@ -29,9 +29,52 @@ flowchart TD
   E --> F[Retry hoặc reconcile theo contract]
 ```
 
-## 5. Test cần có
+## 5. Test cases
 
-Đề xuất copilot-flow.integration.spec.mjs; assert source/version/citation IDs, task replay không duplicate, Customer không thấy internal, revoke không trả Private. Báo runtime/provider/model used không secret, phân biệt benchmark transport/LLM/storage. Không ảnh/report.md tự tạo.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### CP04-T01 — PUBLIC, PRIVATE và thiếu bằng chứng
+
+**Lớp kiểm thử:** Agent E2E dự kiến.
+**Điều kiện và dữ liệu:** Agent thật đã cấu hình theo contract; corpus synthetic Public và policyA applied v1; S-A đủ grant.
+
+**Các bước:**
+
+1. Hỏi câu Public rồi câu chỉ có trong policyA.
+2. Hỏi dữ liệu policyB ngoài quyền.
+3. Hỏi một dữ kiện không có trong corpus.
+
+**Kết quả mong đợi:** Source/version đúng, deny Private khác; thiếu căn cứ được thừa nhận, không bịa citation/Claim/payment.
+
+### CP04-T02 — Staff review rồi mới gửi Customer
+
+**Lớp kiểm thử:** Browser + Agent E2E dự kiến.
+**Điều kiện và dữ liệu:** Hai context S-A/C-A có cuộc accepted; Agent thật trả draft.
+
+**Các bước:**
+
+1. Staff hỏi Copilot, Use draft rồi sửa.
+2. Quan sát Customer trước khi Send.
+3. Staff Send và kiểm cả hai phía.
+
+**Kết quả mong đợi:** Customer không thấy tác vụ/draft internal; chỉ một tin Staff sau Send, không mất nháp hoặc duplicate do callback.
+
+### CP04-T03 — Revoke và provider outage
+
+**Lớp kiểm thử:** Agent E2E barrier dự kiến.
+**Điều kiện và dữ liệu:** Agent task đang chạy, result được giữ; có fixture provider timeout.
+
+**Các bước:**
+
+1. Revoke source trong lúc inference.
+2. Cho result/tool callback tiếp tục.
+3. Ở task khác mô phỏng timeout rồi reconcile/retry.
+
+**Kết quả mong đợi:** Không trả result Private muộn; durable task không mất/trùng; kết quả test thật phân biệt adapter giả, không ghi prompt/secret.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Gate hoàn tất
 
@@ -42,3 +85,32 @@ flowchart TD
 
 Chỉ đánh dấu FR-007/012/Agent boundary sau E2E thật có scope. Không gộp checkpoint write và Ticket commit.
 
+## Sequence diagram
+
+**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    participant A as Agent
+    U->>W: Gửi câu hỏi theo channel
+    W->>C: A25 theo contract đã chốt
+    C->>D: Session, source grant và durable intent
+    D-->>C: Turn hoặc task identity theo contract đã chốt
+    C->>A: Trusted service envelope và context version
+    A->>C: Business API hoặc retrieval scope
+    C->>D: Recheck actor, owner và exact source version
+    D-->>C: Dữ liệu đúng quyền
+    C-->>A: Context allowlist
+    A->>C: Result gắn turn, attempt và watermark
+    C->>D: Recheck fence và quyền trước lưu hoặc trả result
+    alt Scope hoặc control version đã đổi
+        C-->>W: Result không khả dụng, không Private muộn
+    else Hợp lệ
+        C-->>W: Draft hoặc answer đúng channel
+        W-->>U: Review hoặc message đã commit
+    end
+```

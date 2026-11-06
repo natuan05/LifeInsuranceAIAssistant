@@ -21,7 +21,7 @@ Thêm một mục **Products** trong Tools, độc lập Policy Lookup, theo FR-
 
 Chỉ A17/P01 và A19/access P02. Không thêm Web API proxy riêng hoặc gọi MinIO bằng credential. API client abort theo actor/query/selected product; sequence/generation guard bỏ response cũ sau logout/đổi selection. Không `location.reload`, form document submit hoặc navigation ép hard reload. Quota429 tôn trọng thời gian retry; không retry vô hạn.
 
-State cần có: loading đầu; catalog rỗng/search không kết quả; detail404; summary null; không tài liệu; object/storage lỗi; link hết hạn; session401. Lỗi PDF không che summary/catalog. Mất phiên xóa private memory; PUBLIC trong app vẫn phải qua session. Link đã tải có TTL residual như contract P02.
+State cần có: loading đầu; catalog rỗng/search không kết quả; detail 404; summary null; không tài liệu; object/storage lỗi; link hết hạn; session 401. Lỗi PDF không che summary/catalog. Mất phiên xóa private memory; PUBLIC trong app vẫn phải qua session. Link đã tải có TTL residual như contract P02.
 
 ## 4. Luồng
 
@@ -44,30 +44,100 @@ flowchart TD
 3. Document chooser/viewer/download; keyboard/mobile/refresh lifecycle.
 4. Kiểm DOM/network, hồi quy workspace hiện có, rồi E2E gateway Core thật.
 
-## 6. Test plan
+## 6. Test cases
 
-Đã có `apps/web/tests/browser/staff-products.spec.mjs` cho route/mock behavior và `product-flow.integration.spec.mjs` cho Core thật. Screenshot/video/trace tắt; PDF kiểm metadata/hash.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Thao tác tay/automation | Kỳ vọng |
-| --- | --- | --- |
-| P03-T01 | Mở Products, tìm code/name, sang page2 rồi mở/Back | Kết quả/URL/page giữ đúng, không F5 |
-| P03-T02 | Đổi sản phẩm nhanh, response thứ nhất về muộn | Detail/PDF không bị nội dung cũ ghi đè |
-| P03-T03 | Mở PDF, refresh metadata cùng version rồi tải | src/scroll không reset; tải đúng version |
-| P03-T04 | Current đổi; tài liệu bị gỡ; product inactive/401 | Current đổi: giữ bản đọc và chủ động chuyển; bị gỡ/mất quyền: xóa preview |
-| P03-T05 | Keyboard/375px/zoom200%/thu gọn list | Focus không mất, thao tác đủ, không tràn workspace |
-| P03-T06 | Storage503/429/offline | Retry vùng lỗi, summary/list còn dùng được |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-- [x] P01/P02 và browser tests pass; E2E thật ghi riêng, không nhầm với mock.
+### P03-T01 — Danh sách, search và mở giải pháp
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Catalog có hơn10 sản phẩm, P11 có mã riêng.
+
+**Các bước:**
+
+1. Tìm mã P11 bằng Enter.
+2. Mở sản phẩm, Back; bỏ search và chuyển trang.
+3. Quan sát URL và main-frame navigation.
+
+**Kết quả mong đợi:** Filter/page giữ đúng, không F5; chỉ render sản phẩm được API cấp; không nút Search/Clear.
+
+### P03-T02 — Tự mở PDF và tải đúng bản
+
+**Lớp kiểm thử:** Browser + E2E Storage.
+**Điều kiện và dữ liệu:** P1 có ít nhất2 tài liệu PUBLIC; có hash từng PDF synthetic.
+
+**Các bước:**
+
+1. Chọn P1 và chờ preview tự hiển thị.
+2. Đổi tài liệu trong selector.
+3. Download bản đang chọn.
+
+**Kết quả mong đợi:** Không cần View PDF/Refresh thường trực; label/version/src đúng tài liệu; file tải có bytes/hash tương ứng.
+
+### P03-T03 — Cập nhật publication và request về muộn
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Preview P1/v1 đang mở; giữ chậm detail/PDF P1 rồi chọn P2.
+
+**Các bước:**
+
+1. Trả response P1 sau khi P2 được chọn.
+2. Phát metadata refresh cùng version cho P2.
+3. Đổi current của P2 rồi vô hiệu tài liệu đang mở.
+
+**Kết quả mong đợi:** Response cũ không ghi đè P2; cùng version giữ iframe/src; có bản mới không ép reset, mất publication xóa preview.
+
+### P03-T04 — Retry và thao tác bàn phím
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** PDF503/429 và session 401 là các biến thể riêng; viewport 375px.
+
+**Các bước:**
+
+1. Mở sản phẩm rồi cho PDF503 và retry.
+2. Kiểm cooldown 429.
+3. Tab qua selector/download ở zoom 200%, sau đó giả lập401.
+
+**Kết quả mong đợi:** Summary/list không bị lỗi PDF che mất; retry không F5; controls không tràn;401 xóa vùng dữ liệu theo session.
+
+**Suite tham khảo:** [staff-products.spec.mjs](../../../../../apps/web/tests/browser/staff-products.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+
 - [x] Account/Customers/Policy/Inbox/notification không hồi quy.
 - [x] Cập nhật Staff routes/API/checklist; Customer catalog UI vẫn ở phase riêng.
 
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
-## 7. Verification
+## 7. Ghi chú triển khai
 
-Bản tự hiển thị PDF: **45 test pass**, gồm18 Products browser mock,26 Policy/PDF regression và1 E2E thật qua gateway/Core/PostgreSQL/MinIO. Kiểm tự mở PDF không cần View, chọn tài liệu qua Document, tải đúng SHA256, giữ iframe khi cùng version hoặc chờ chuyển version mới, xóa khi bị gỡ/mất quyền, expiry/retry, mobile và keyboard. Lint và Docker build/typecheck pass; fixture/artifact đã dọn. Không thêm dependency/schema/bootstrap. Các số111/88 bên dưới là kết quả của các mốc trước, không phải số ca chạy lại ở đợt này.
 
-Điều chỉnh UI tiếp theo: bỏ Search/Clear search ở Products, xóa nội dung rồi Enter để bỏ lọc. Thu gọn header Staff và khoảng cách mô tả sản phẩm. Lint, Docker build/typecheck và 88 browser regression Products/Account/Customers/Policy/Inbox pass; không screenshot, đã dọn artifact kiểm thử.
+Điều chỉnh UI tiếp theo: bỏ Search/Clear search ở Products, xóa nội dung rồi Enter để bỏ lọc. Thu gọn header Staff và khoảng cách mô tả sản phẩm.
 
-17 Products browser tests with mocked APIs + 1 real gateway/Core/PostgreSQL/MinIO browser E2E passed. PDF SHA256, publication v1/v2, private document exclusion and role authorization verified. 93 Account/Session/Customers/Policies/Inbox regressions passed: total 111 passed, zero skipped/flaky. DOM/network checks cover keyboard,375px,zoom200%, focus, iframe identity and no document reload. Fixtures cleaned after E2E.
 
 Shared use-authorized-read.ts and signed-pdf-preview.tsx preserve Policies lifecycle. Product grants reuse session CSRF; separate view/download, expiry, abort and Retry-After handling. No schema/dependency/env/bootstrap changes. Customer UI remains separate; issued signed URLs retain residual TTL per P02.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /products và product documents
+    C->>D: Kiểm session, role và active PUBLIC current version
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

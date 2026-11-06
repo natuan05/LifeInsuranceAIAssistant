@@ -27,7 +27,7 @@ Core AppModule import TicketsModule khi triển khai. Agent không truy cập tr
 
 ### 3.1. TicketDraft
 
-Bảng mới lưu draft server-side: id, conversationId/customerId, source=AGENT, version, payload, payloadHash, createdAt, expiresAt, state DRAFT/CONFIRMED/SUPERSEDED. payload allowlist `{title,description,policyId?,sourceMessageIds?}`. Title1–255, description1–4000 code points, source tối đa20 message ids thuộc đúng cuộc/Customer-facing; Core validate linkedPolicy ownership.
+Bảng mới lưu draft server-side: id, conversationId/customerId, source=AGENT, version, payload, payloadHash, createdAt, expiresAt, state DRAFT/CONFIRMED/SUPERSEDED. payload allowlist `{title,description,policyId?,sourceMessageIds?}`. Title 1–255, description 1–4000 code points, source tối đa20 message ids thuộc đúng cuộc/Customer-facing; Core validate linkedPolicy ownership.
 
 Agent chỉ đề xuất, không được gán confirmedAt/actor/ticketCode/status. Internal service interface đề xuất `proposeDraft(trustedServiceContext,conversationId,payload)`; chưa định nghĩa public/service HTTP endpoint khi service auth chưa được review. Không chấp nhận body browser `{source:"AGENT"}` làm chứng cứ trusted.
 
@@ -78,9 +78,9 @@ Không nhận confirmedContent/actor/customerId/status từ body để thay draf
 
 `{ticket:{id,ticketCode,status,confirmedAt},replayed:boolean}`.
 
-Có Staff hợp lệ hiện hành → status ASSIGNED và assignedStaffId; chưa có/Staff không khả dụng → OPEN/assignedStaffId null, Ticket vẫn được tạo thành công và event chờ routing. Không báo thất bại chỉ vì thông báo chưa giao. Đây là đề xuất routing Ticket riêng, khác việc Direct/request chat chưa có Staff trả409; cần review trước code.
+Có Staff hợp lệ hiện hành → status ASSIGNED và assignedStaffId; chưa có/Staff không khả dụng → OPEN/assignedStaffId null, Ticket vẫn được tạo thành công và event chờ routing. Không báo thất bại chỉ vì thông báo chưa giao. Đây là đề xuất routing Ticket riêng, khác việc Direct/request chat chưa có Staff trả 409; cần review trước code.
 
-Reconcile `GET /api/v1/customers/me/tickets/by-client-request-id/:clientRequestId`: chỉ Ticket của actor; 200 minimal receipt hoặc safe404, không có kết quả chưa chứng minh chưa commit. Replay cùng POST/key/payload an toàn. Cùng draft/key mới trả409 DRAFT_ALREADY_CONFIRMED, không tạo Ticket thứ hai; GET draft của owner khi state CONFIRMED trả confirmedTicket={id,ticketCode} để mở kết quả đã tạo. Replay key gốc vẫn200. Không tạo receipt giả cho key mới.
+Reconcile `GET /api/v1/customers/me/tickets/by-client-request-id/:clientRequestId`: chỉ Ticket của actor; 200 minimal receipt hoặc safe 404, không có kết quả chưa chứng minh chưa commit. Replay cùng POST/key/payload an toàn. Cùng draft/key mới trả 409 DRAFT_ALREADY_CONFIRMED, không tạo Ticket thứ hai; GET draft của owner khi state CONFIRMED trả confirmedTicket={id,ticketCode} để mở kết quả đã tạo. Replay key gốc vẫn200. Không tạo receipt giả cho key mới.
 
 Customer detail `GET /api/v1/customers/me/tickets/:ticketId`: snapshot đã xác nhận/status/ticketCode và link cuộc của mình nếu còn quyền; không Staff Copilot/note. Chưa mở Customer Ticket list lớn ngoài phần cần để theo dõi kết quả tạo.
 
@@ -125,24 +125,65 @@ Concurrent key khác cùng draft có unique sourceDraftId chặn duplicate. Cùn
 5. Màn Staff Tickets riêng, trạng thái/nhận Ticket, no F5. Không thay Inbox chat bằng Ticket table.
 6. Khi Agent thật có contract auth/checkpoint: nối proposal vào cùng flow, kiểm E2E thật. Trước đó báo nguồn test, không endpoint public giả Agent.
 
-## 8. Test plan
+## 8. Test cases
 
-Test **cần thêm**: `apps/core/test/ticket-confirmation.test.cjs`, `tickets.test.cjs`; browser `apps/web/tests/browser/tickets.spec.mjs`, `customer-ticket-confirmation.spec.mjs`; E2E `ticket-flow.integration.spec.mjs`. Fixtures synthetic riêng, không bootstrap/personal seed/report.md.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
 
-| ID | Kiểm tra | Kết quả |
-| --- | --- | --- |
-| I07-T01 | Handoff/Direct/Accept chat không Ticket | Ticket count trong DB không đổi; không UI badge count |
-| I07-T02 | Agent đề xuất/chưa Customer confirm | Không Ticket/outbox Ticket |
-| I07-T03 | Confirm false/thiếu/sai version/hash/expired/Customer | 400/404/409 đúng, không side effect |
-| I07-T04 | Confirm hợp lệ/ACK mất/retry đồng thời | Một Ticket/snapshot/code/outbox, không duplicate |
-| I07-T05 | Key khác cùng draft, key cũ khác payload | Unique draft/idempotency xử lý đúng contract |
-| I07-T06 | Notification fail sau Ticket commit | Ticket vẫn tồn tại/thành công, retry không tạo lại |
-| I07-T07 | Ticket có link cuộc AI private | Staff thấy confirmed Ticket content, A10 vẫn404/chatLink null |
-| I07-T08 | Accept/RESOLVED/CLOSED Ticket | Không thay trạng thái/grant chat; enum CLOSED giữ nguyên |
-| I07-T09 | Staff khác/reassignment/OPEN routing | Scope list/detail/accept/notification đúng, không global queue ngầm |
-| I07-T10 | Legacy aiSummary thiếu snapshot | Không trình bày như nội dung Customer đã duyệt |
-| I07-T11 | Dialog keyboard/cancel/unknown outcome | Explicit confirm, focus đúng, same-key retry, no F5 |
-| I07-T12 | Agent fake browser/source field/direct DB | Không trusted draft, không lấy danh tính từ LLM |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### I07-T01 — Cancel và xác nhận phải gắn draft server
+
+**Lớp kiểm thử:** API + DB dự kiến.
+**Điều kiện và dữ liệu:** Sau khi I07 có trusted draft D-A thuộc C-A, version n, chưa hết hạn.
+
+**Các bước:**
+
+1. GET draft bằng owner.
+2. Gửi confirm=false, textVersion sai hoặc bỏ confirmation.
+3. Cancel review và kiểm DB.
+
+**Kết quả mong đợi:** Không tạo Ticket/receipt/outbox từ các biến thể chưa xác nhận; không dùng confirmedAt/client text làm bằng chứng.
+
+### I07-T02 — Owner, version và draft đã đổi
+
+**Lớp kiểm thử:** API + DB dự kiến.
+**Điều kiện và dữ liệu:** D-A của C-A; C-B/Staff có session khác; có bản draft n+1.
+
+**Các bước:**
+
+1. Đọc/xác nhận D-A bằng C-B hoặc Staff.
+2. C-A confirm bằng expectedDraftVersion=n sau khi n+1 tồn tại.
+3. Lặp với draft hết hạn.
+
+**Kết quả mong đợi:** Cross-owner/role bị chặn; stale/expired conflict, không tạo Ticket hoặc tự nâng version để xác nhận.
+
+### I07-T03 — Idempotency và transaction
+
+**Lớp kiểm thử:** API + DB barrier dự kiến.
+**Điều kiện và dữ liệu:** C-A xác nhận D-A bằng key K; harness điều khiển insert/outbox/ACK.
+
+**Các bước:**
+
+1. Gửi đồng thời cùng K và hai K khác nhau cho cùng draft.
+2. Replay K với payload khác.
+3. Inject failure trước commit và ngắt ACK sau commit ở hai fixture.
+
+**Kết quả mong đợi:** Một Ticket cho draft, replay đúng receipt hoặc conflict; rollback atomic; ACK mất tra receipt, không nhân Ticket do delivery lỗi.
+
+### I07-T04 — Agent không thay Customer xác nhận
+
+**Lớp kiểm thử:** Agent integration dự kiến.
+**Điều kiện và dữ liệu:** Trusted Agent/service auth đã được chốt; chỉ corpus synthetic, source version đúng quyền.
+
+**Các bước:**
+
+1. Agent tạo đề xuất Ticket.
+2. Không thao tác Confirm, chờ worker hoàn tất.
+3. Customer review/xác nhận rồi Staff mở Ticket và thử chat AI riêng.
+
+**Kết quả mong đợi:** Đề xuất không tự ghi Ticket; chỉ xác nhận hợp lệ tạo business record; Ticket không cấp transcript grant. Chưa Agent thật thì không nghiệm thu full E2E.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 9. Điều kiện hoàn tất
 

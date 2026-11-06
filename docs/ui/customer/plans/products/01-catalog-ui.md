@@ -43,3 +43,63 @@ sequenceDiagram
 - [x] Không ép luồng chat khi xem sản phẩm; cho phép khách hàng xem chi tiết đầy đủ tại chỗ.
 - [x] Hỗ trợ tìm kiếm, chuyển đổi list/detail mượt mà không reload trang.
 - [x] Giao diện responsive từ mobile 375px đến desktop.
+
+## Test cases
+
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### PR01-T01 — Search và View Details
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Catalog có nhiều sản phẩm active, mã sản phẩm ở trang sau.
+
+**Các bước:**
+
+1. Mở Products, nhập tên/mã vào search và đợi debounce hiện hành.
+2. Bấm View Details.
+3. Back to Solutions.
+
+**Kết quả mong đợi:** Kết quả đúng toàn catalog theo API, details đúng sản phẩm; không ép chat, giữ danh sách/query khi Back.
+
+### PR01-T02 — Response về muộn không đổi sản phẩm
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ response sản phẩm P1; P2 có metadata khác.
+
+**Các bước:**
+
+1. Mở P1 rồi nhanh chóng chọn P2.
+2. Trả P2 trước và P1 sau.
+3. Quan sát title/documents.
+
+**Kết quả mong đợi:** P1 không ghi đè P2; request cũ bị abort/bỏ và không reset selection.
+
+### PR01-T03 — Empty, inactive và retry
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Biến thể search không kết quả, detail 404 và catalog 503.
+
+**Các bước:**
+
+1. Search token không tồn tại.
+2. Mở deep link sản phẩm inactive.
+3. Cho catalog lỗi rồi Try again.
+
+**Kết quả mong đợi:** Empty/404/network có trạng thái khác nhau; không thẻ sản phẩm giả; retry tại chỗ, không F5.
+
+### PR01-T04 — Customer scope và responsive
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** Customer session hợp lệ, viewport 375px.
+
+**Các bước:**
+
+1. Kiểm chỉ gọi shared Products APIs, không Staff customer APIs.
+2. Dùng Tab qua card/details/back ở zoom 200%.
+3. Logout khi detail pending.
+
+**Kết quả mong đợi:** Controls không tràn, focus hợp lệ; response cũ không khôi phục state sau logout.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.

@@ -10,7 +10,7 @@ Không Customer notification center, transcript read receipt, chat grant, Agent 
 
 ## 2. Model, migration và code
 
-19 model giữ nguyên; migration thứ9 **202611050001_ticket_notifications** mở rộng CHECK kind thành NULL legacy/HANDOFF_REQUESTED/TICKET_CREATED/TICKET_ACCEPTED. Typed handoff bắt buộc conversationId, không ticketId; typed Ticket bắt buộc ticketId, không conversationId. Không sửa cột/bảng hoặc dữ liệu legacy kind=NULL. Typed legacy không hợp lệ khiến migration rollback, không tự sửa dữ liệu. Readiness/operator compatibility cùng baseline mới.
+19 model giữ nguyên; migration thứ 9 **202611050001_ticket_notifications** mở rộng CHECK kind thành NULL legacy/HANDOFF_REQUESTED/TICKET_CREATED/TICKET_ACCEPTED. Typed handoff bắt buộc conversationId, không ticketId; typed Ticket bắt buộc ticketId, không conversationId. Không sửa cột/bảng hoặc dữ liệu legacy kind=NULL. Typed legacy không hợp lệ khiến migration rollback, không tự sửa dữ liệu. Readiness/operator compatibility cùng baseline mới.
 
 Core:
 - tickets/services/ticket-event.service.ts: source validation, recipient gate, notification upsert.
@@ -42,7 +42,7 @@ Notification dedupKey=eventId:recipient:kind, DB unique/upsert. Title generic: N
 
 Prefix /api/v1, no-store, session Staff; không endpoint mới.
 
-GET /staff/notifications?limit=20&cursor=... → items/pageInfo. limit1–50; actor-bound keyset createdAt DESC,id DESC; áp recipient và target scope **trước pagination**, không counts.
+GET /staff/notifications?limit=20&cursor=... → items/pageInfo. limit 1–50; actor-bound keyset createdAt DESC,id DESC; áp recipient và target scope **trước pagination**, không counts.
 
 ```json
 {
@@ -57,7 +57,7 @@ GET /staff/notifications?limit=20&cursor=... → items/pageInfo. limit1–50; ac
 
 kind HANDOFF_REQUESTED dùng target CONVERSATION và gate metadata I01; hai kind Ticket dùng TICKET và gate TK01, không transcript gate. Legacy kind=NULL không public.
 
-POST /staff/notifications/:notificationId/read body{} + session/Origin/X-Auth-Request/CSRF → {id,isRead:true}. Khóa target theo thứ tự chung, kiểm lại quyền trước update; idempotent. Không Accept Ticket/chat và không tạo transcript grant. Mất scope404, sai role403, session401, input400, quota429 Retry-After. Quota reuse INBOX_READ240/phút và NOTIFICATION_READ120/phút/actor; không thêm bucket mới.
+POST /staff/notifications/:notificationId/read body{} + session/Origin/X-Auth-Request/CSRF → {id,isRead:true}. Khóa target theo thứ tự chung, kiểm lại quyền trước update; idempotent. Không Accept Ticket/chat và không tạo transcript grant. Mất scope 404, sai role403, session 401, input 400, quota 429 Retry-After. Quota reuse INBOX_READ240/phút và NOTIFICATION_READ120/phút/actor; không thêm bucket mới.
 
 Click notification chỉ điều hướng sau A28 thành công: TICKET → /staff/tickets/:id; CONVERSATION → /staff/inbox/:id?filter=requests. REST target vẫn kiểm quyền khi mở. Không dựng link từ title/AI text.
 
@@ -87,21 +87,80 @@ flowchart TD
   D --> I[REST catch-up khi offline]
 ```
 
-## 6. Tests và kết quả
+## 6. Test cases
 
-- apps/core/test/tickets-read.test.cjs: thêm5 TK05 tests, tổng27 Ticket tests. Concurrent dedup, source/version validation, wrong recipient/locked/revoked scope, list/read/CSRF, read không Accept, worker failure sau notification commit/restart/lease ownership/DLQ, real WS isolation/minimal frames/recheck.
-- apps/core/test/ticket-notification-migration.test.cjs:2 isolated-schema tests bảo toàn legacy/handoff, kind/target constraints và rollback. Teardown schema riêng.
-- Core regression gồm Conversation permissions/realtime, Ticket foundation, HTTP/WS: **67/67 pass**; cộng2 migration tests riêng pass.
-- staff-tickets.spec.mjs thêm2 TK05 browser mock tests: keyboard/CSRF/target route/Escape và Ticket invalidation giữ pages/focus/draft.
-- ticket-flow.integration.spec.mjs: real browser hai tab → gateway/Core/PostgreSQL/worker/WS → trạng thái tự cập nhật + thông báo + A28 read; fixture teardown notifications/audit/outbox/quota/session/assignment/Ticket/users.
-- Kiểm DOM/accessibility/network, không screenshot/trace/video. Đo một event synthetic khoảng1,1s; không chứng nhận NFR5s hoặc workload/SLA.
-- Lint/typecheck/build và runtime healthy; không credential/env mới, không seed/bootstrap/Agent producer.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-```powershell
-node --test apps/core/test/ticket-notification-migration.test.cjs
-docker compose --profile tests run --rm --no-deps core-tests node --test test/tickets-read.test.cjs test/conversation-realtime.test.cjs test/conversation-permissions.test.cjs test/ticket-foundation.test.cjs test/http-foundation.test.cjs test/realtime.test.cjs
-npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.integration.spec.mjs --reporter=list
-```
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### TK05-T01 — Consumer tạo đúng recipient và chống trùng
+
+**Lớp kiểm thử:** Worker + DB.
+**Điều kiện và dữ liệu:** Event TICKET_CREATED synthetic hợp lệ và T-A đúng scope S-A; chưa có producer Agent.
+
+**Các bước:**
+
+1. Route cùng event đồng thời ba lần.
+2. Retry bằng worker instance mới.
+3. GET notifications bằng S-A và S-B.
+
+**Kết quả mong đợi:** Một Notification theo event/recipient/kind; S-A có target Ticket, S-B không thấy; không suy fixture là Agent E2E.
+
+### TK05-T02 — Nguồn event và current scope
+
+**Lớp kiểm thử:** Worker + DB barrier.
+**Điều kiện và dữ liệu:** Có event/version đúng, event giả sai source/schema; barrier trước routing/send.
+
+**Các bước:**
+
+1. Route event sai schema hoặc khác aggregate/type.
+2. Revoke assignment hoặc khóa S-A trước route.
+3. Cho recipient resolve rồi revoke trước WS send.
+
+**Kết quả mong đợi:** Nguồn sai không tạo notification/grant; schema lỗi đi retry/DLQ theo contract; revoke không phát frame tài nguyên hoặc trả notification qua API.
+
+### TK05-T03 — Failure sau notification commit
+
+**Lớp kiểm thử:** Worker + DB.
+**Điều kiện và dữ liệu:** Giữ lease synthetic, inject publishTicket failure sau upsert Notification.
+
+**Các bước:**
+
+1. Process event và kiểm pending retry.
+2. Cho lease hết hạn, worker khác claim lại.
+3. Lặp đến ngưỡng lỗi ở fixture khác.
+
+**Kết quả mong đợi:** Notification không nhân đôi; Ticket committed còn nguyên; chỉ owner hiện hành ACK; exhausted vào FAILED_DLQ, không raw exception.
+
+### TK05-T04 — Status change qua WS và REST
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** Hai tab S-A, T-A; events ACCEPTED/STATUS_CHANGED do Core thật.
+
+**Các bước:**
+
+1. Tab1 đổi IN_PROGRESS→RESOLVED→CLOSED→IN_PROGRESS.
+2. Quan sát tab 2 và frames.
+3. Mở notification, mark read và truy cập detail.
+
+**Kết quả mong đợi:** Tab2 current/version theo REST, frame chỉ type/eventId; không content/ID tài nguyên; mỗi event tạo thông báo đúng loại.
+
+### TK05-T05 — A28 không tạo quyền hoặc tiếp nhận
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A có notification chưa đọc của T-A; S-B không quyền.
+
+**Các bước:**
+
+1. S-B POST read notification của S-A.
+2. S-A mark read hai lần bằng CSRF hợp lệ.
+3. GET Ticket và thử transcript AI riêng.
+
+**Kết quả mong đợi:** S-B404; read idempotent, không đổi Ticket/status/chat grant; AI riêng vẫn deny.
+
+**Suite tham khảo:** [tickets-read.test.cjs](../../../../../apps/core/test/tickets-read.test.cjs), [ticket-notification-migration.test.cjs](../../../../../apps/core/test/ticket-notification-migration.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 7. Checklist
 
@@ -112,8 +171,36 @@ npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.
 - [ ] I07 producer tạo Ticket bằng xác nhận hợp lệ và snapshot thật.
 - [ ] Benchmark/SLA/multi-replica/cloud nếu được chọn sau này.
 
-Kết quả browser: **18 Ticket tests pass** (17 mock/1 real hai-tab E2E), thêm **7 handoff/realtime browser regression pass**. Fixture cleanup khóa users theo thứ tự chung trước khi xóa Notification/outbox/Ticket để không đua với worker đang chạy. Không để dữ liệu test hoặc artifact cho thành viên tự dọn.
 
 ## Mở rộng status notification — 05/11/2026
 
-Ticket status command phát thêm TICKET_STATUS_CHANGED; consumer/outbox allowlist, A27 DTO/target và WS adapter hỗ trợ cùng quyền/dedup như Ticket hiện có. Title generic Support ticket status updated; không đưa nội dung/status vào WS frame. Migration thứ10 202611050002_ticket_status_notifications mở CHECK kind/typed target, giữ các kind cũ. Browser E2E hai tab đã kiểm resolve/close/reopen và3 thông báo cập nhật, không tạo chat grant.
+Ticket status command phát thêm TICKET_STATUS_CHANGED; consumer/outbox allowlist, A27 DTO/target và WS adapter hỗ trợ cùng quyền/dedup như Ticket hiện có. Title generic Support ticket status updated; không đưa nội dung/status vào WS frame. Migration thứ 10 202611050002_ticket_status_notifications mở CHECK kind/typed target, giữ các kind cũ. Browser E2E hai tab đã kiểm resolve/close/reopen và 3 thông báo cập nhật, không tạo chat grant.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    participant C as Core command
+    participant D as PostgreSQL
+    participant K as Outbox worker
+    participant W as Staff Web
+    C->>D: Business update và outbox cùng transaction
+    D-->>C: COMMIT
+    K->>D: Claim với lease và đọc current recipient scope
+    alt Không còn quyền hoặc loại event không hợp lệ
+        K->>D: Không tạo notification trái scope; xử lý lỗi theo contract
+    else Đúng quyền
+        K->>D: Upsert notification theo event và recipient
+        D-->>K: Notification persisted
+        K->>D: Recheck session và target gate trước WS
+        K-->>W: Invalidation tối thiểu, không Private content
+        W->>C: GET notifications và resource hiện hành
+        C->>D: Reauthorize trước projection và pagination
+        C-->>W: Safe DTO
+    end
+    opt Publish lỗi hoặc worker crash
+        K->>D: Retry hoặc reclaim lease; dedup notification
+    end
+```

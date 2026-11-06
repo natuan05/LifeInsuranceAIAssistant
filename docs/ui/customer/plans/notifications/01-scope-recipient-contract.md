@@ -24,10 +24,76 @@ flowchart TD
   D --> E[Chốt N02 API/producer/UI/tests]
 ```
 
-## 4. Review/tests và điều kiện hoàn tất
+## 4. Test cases
 
-Review bảng quyền: Customer A/B, Staff A/B, resource đã xóa/mất quyền, payload pending không lộ history, dedup retries. Nếu chọn mở rộng bảng, migration test giữ nguyên A27/A28 và unique recipient; nếu tách bảng, kiểm writer không gửi sai loại. Đây là test plan, chưa kết quả pass.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### N01-T01 — Review owner và loại sự kiện
+
+**Lớp kiểm thử:** Contract review dự kiến.
+**Điều kiện và dữ liệu:** Danh sách event/recipient/retention phải được chốt trước N02; dùng C-A/C-B/S-A synthetic.
+
+**Các bước:**
+
+1. Lập bảng mỗi event với recipient và target.
+2. Thử truy vết case CustomerB đọc mục A hoặc Staff giả recipient.
+3. Review target đã xóa/mất quyền.
+
+**Kết quả mong đợi:** Mỗi loại có owner/gate rõ; không lấy client/LLM quyết recipient; không public API E chỉ từ proposal.
+
+### N01-T02 — Không làm center khi chưa được chọn
+
+**Lớp kiểm thử:** Contract review dự kiến.
+**Điều kiện và dữ liệu:** N01 chưa có quyết định triển khai hoặc quyết định không cần center.
+
+**Các bước:**
+
+1. Kiểm routes/menu/badge dự kiến.
+2. Đối chiếu yêu cầu nguồn và khả năng I06 hiện có.
+3. Đánh dấu gate N02 theo quyết định.
+
+**Kết quả mong đợi:** Không tạo endpoint/UI chết hoặc bắt FR-013 phải có Customer center; N02 chỉ mở khi dependency đã chốt.
+
+### N01-T03 — Migration không phá Staff notifications
+
+**Lớp kiểm thử:** Migration harness dự kiến.
+**Điều kiện và dữ liệu:** Nếu chọn model mới, có snapshot Staff A27/A28 với handoff/Ticket fixtures.
+
+**Các bước:**
+
+1. Apply migration trên schema riêng.
+2. Chạy lại recipient/dedup/read Staff bằng API harness.
+3. Thử payload pending chứa private preview trong fixture.
+
+**Kết quả mong đợi:** Không mất bảng/quyền/unique Staff; typed recipient không chồng lẫn; preview/private history không được public cho Customer sai scope.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 
 - [ ] Có quyết định cần/không cần center, event tối thiểu và source truy vết.
 - [ ] Nếu làm: model/constraints/retention/error/producer được ghi cụ thể trước N02.
 - [ ] Nếu không làm: đánh dấu N02 deferred, không tạo route/badge/UI chết.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
+
+```mermaid
+sequenceDiagram
+    actor U as Người phụ trách yêu cầu
+    participant R as Review N01
+    participant M as Model và permission contract
+    participant P as Plan N02
+    U->>R: Nêu nhu cầu notification ngoài chat
+    R->>M: Đối chiếu event, recipient, owner, retention
+    alt Không chọn center hoặc chưa chốt scope
+        M-->>R: Điểm còn mở
+        R-->>P: Deferred, không tạo UI hoặc API giả
+    else Chọn triển khai và đã chốt model
+        M-->>R: Contract và migration requirements
+        R->>P: Chốt API, producer, test data và cases
+    end
+```

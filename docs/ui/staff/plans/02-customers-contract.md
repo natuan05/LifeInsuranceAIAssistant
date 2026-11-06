@@ -40,11 +40,67 @@ Hợp đồng dùng [contract Policies](05-policies-contract.md), có loading/em
 
 List/hồ sơ không refetch theo focus/visibility; realtime ready/invalidate kích hoạt refetch nền cho cùng actor/query. Đổi khách/trang tải mới và hủy request cũ. Vòng đời preview PDF đã tách khỏi metadata refetch: giữ iframe/src khi cùng file/version, vẫn kiểm quyền/binding; xem [Policies](05-policies-contract.md#giao-diện-hiện-tại).
 
-## Kiểm thử và giới hạn
+## Test cases
 
-Các đợt trước ghi nhận 7 Core integration tests cho scope/role, search ngoài trang đầu/count/phân trang, ký tự literal và thay đổi phân công. Regression browser 03/11 có 15 ca cho search/clear/URL/deep link/breadcrumb/Back–Forward, bàn phím, retry mạng, realtime giữ filter/draft/focus/sidebar, response cũ, 401/403/404 và responsive 375/768/1600px.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-Bộ `apps/web/tests/browser/staff-customers.spec.mjs` tạo fixture trong bộ nhớ, không phụ thuộc số khách trên máy/không seed hoặc sửa DB. HTTP/WebSocket được Playwright giả lập trên Web Docker. Đây là browser regression FE; Core authorization là lớp riêng, chưa phải E2E browser/Core/DB và chưa tự động kiểm nội dung PDF tải về. Việc 02 ngày 03/11 đã chạy lại 15 ca Customers cùng các suite Account/Session/Policies; giới hạn mock vẫn giữ nguyên.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### S03-T01 — Scope trước search và phân trang
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A được gán C-A1…C-A12; S-B được gán C-B; tên đều synthetic.
+
+**Các bước:**
+
+1. GET /staff/customers?page=1&pageSize=10 bằng S-A.
+2. Lấy page 2 rồi search tên một khách chỉ có ở page 2.
+3. GET lại bằng S-B.
+
+**Kết quả mong đợi:** S-A có tổng12, trang10/2; search tìm trên toàn bộ scope; không có khách S-B trong items hoặc total.
+
+### S03-T02 — Search và Back giữ context
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có hơn10 khách; biết mã một khách ở trang2.
+
+**Các bước:**
+
+1. Mở Customers, sang trang2.
+2. Tìm mã khách bằng Enter, mở hồ sơ.
+3. Bấm Back, xóa search rồi Enter.
+
+**Kết quả mong đợi:** Search đúng toàn tập; URL/selection/page khôi phục theo thao tác; không Search/Clear buttons, không F5.
+
+### S03-T03 — Detail và thu hồi phân công
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A được gán C-A, không được gán C-B; harness có thao tác revoke riêng.
+
+**Các bước:**
+
+1. GET detail C-A và C-B bằng S-A.
+2. Thu hồi assignment C-A trong fixture.
+3. GET lại detail C-A và list.
+
+**Kết quả mong đợi:** C-A ban đầu có allowlist profile, không KYC/citizenId; C-B404; sau revoke C-A404 và không còn trong list.
+
+### S03-T04 — Lỗi vùng, focus và responsive
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Mock list 503 trước, sau đó detail 503; viewport 375px.
+
+**Các bước:**
+
+1. Retry list rồi mở một khách.
+2. Retry detail mà không đổi trang.
+3. Dùng Tab và zoom 200%.
+
+**Kết quả mong đợi:** Lỗi được phục hồi theo vùng, không navigation document mới; tên dài/email/controls không tràn; focus vẫn thao tác được.
+
+**Suite tham khảo:** [staff-customers.spec.mjs](../../../../apps/web/tests/browser/staff-customers.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## Chạy browser regression
 
@@ -80,3 +136,26 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | --- | --- |
 | /staff/customers | Search Enter/list/page — CU01/CU02 |
 | /staff/customers/:customerId | Hồ sơ readonly và policies; không nhúng chat/Tickets |
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/customers, search và page
+    C->>D: Kiểm session, role và active assignment trước search và count
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

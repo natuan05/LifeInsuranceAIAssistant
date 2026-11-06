@@ -32,9 +32,65 @@ flowchart LR
   C --> E[Lỗi an toàn và retry có kiểm soát]
 ```
 
-## 5. Kiểm thử
+## 5. Test cases
 
-`npm run test:policies`: scope, nullable/large decimal, date-only, invalid snapshot, inactive product, search/status/page/unknown params, assignment revoke. Storage mock trong suite policy không chứng minh MinIO.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### PL01-T01 — Danh sách theo khách và lookup toàn scope
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A phụ trách C-A có 12 policy; C-B ngoài scope có policyB.
+
+**Các bước:**
+
+1. GET /staff/customers/C-A/policies hai trang.
+2. GET /staff/policies?search=mã-policy-trang2.
+3. Tìm policyB bằng S-A.
+
+**Kết quả mong đợi:** Count/page và search đúng tập được gán; policyB không có trong list hoặc total.
+
+### PL01-T02 — Filter và detail projection
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** C-A có đủ ACTIVE/LAPSED/MATURED/PENDING, có decimal/null/date-only.
+
+**Các bước:**
+
+1. Lọc từng status trên /staff/policies.
+2. GET detail một policy mỗi biến thể.
+3. Đối chiếu các field với fixture.
+
+**Kết quả mong đợi:** Không lẫn status; decimal giữ chính xác, null không thành0; ngày không lệch; nextDueDate không được gán là đã thanh toán.
+
+### PL01-T03 — Revoke và 404 parity
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A ban đầu đọc được policyA; policyB ngoài scope; UUID khác không tồn tại.
+
+**Các bước:**
+
+1. GET detail policyB và UUID không tồn tại.
+2. Thu hồi assignment của policyA bằng harness.
+3. GET detail/list lại policyA.
+
+**Kết quả mong đợi:** Các detail ngoài quyền cùng safe 404; list không trả policyA sau revoke; không leak qua Customer/product summary.
+
+### PL01-T04 — Input và session
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Chạy từng request với session Staff và Customer riêng.
+
+**Các bước:**
+
+1. Gửi status lạ, pageSize=51, search quá 100/query lạ.
+2. Thử search chỉ khớp phone/CCCD synthetic.
+3. Gọi Staff endpoint bằng Customer/không session.
+
+**Kết quả mong đợi:** Input400; phone/CCCD không mở rộng search; Customer 403 và thiếu session 401.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 
@@ -44,3 +100,25 @@ flowchart LR
 
 Không thêm payment/claims/contract edit; Customer owner API PO01 riêng. Không trả raw benefitsSnapshot hoặc metadata file trong response detail.
 
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/policies hoặc policies theo Customer
+    C->>D: Kiểm session, role và active assignment trước filter và page
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

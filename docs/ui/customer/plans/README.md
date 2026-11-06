@@ -4,6 +4,8 @@
 
 ## 1. Phạm vi và cách dùng
 
+Các phase có test case với dữ liệu, bước làm và kỳ vọng cụ thể, kèm sequence diagram; áp dụng [quy ước chung](../../README.md#quy-ước-test-case-và-sequence-diagram). Phase còn đề xuất chỉ mô tả kịch bản dự kiến, không ghi kết quả chưa được chạy.
+
 Mỗi chức năng có một contract giống cấu trúc Staff Inbox; bên trong là các file phase riêng có vị trí code, API, model, flow, kiểm thử và gate. Không chạy một lần toàn bộ. Khi bắt đầu phase, rà lại runtime/schema, chốt các đề xuất kỹ thuật của phase đó, triển khai và cập nhật checkbox trong chính file phase. Không tạo report khác.
 
 Baseline hiện tại:

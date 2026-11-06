@@ -12,7 +12,7 @@ Chỉ ASSIGNED trả allowedActions.accept=true cho TK03 sau này. OPEN/IN_PROGR
 
 ## 2. Schema và migration đã triển khai
 
-SupportTicket giữ các trường/quan hệ hiện có và thêm **version Int NOT NULL default0**, CHECK version>=0 qua migration mới 202611040003_ticket_foundation. Đây là migration thứ8, không thêm bảng; dữ liệu cũ backfill0. Không sửa migration đã apply, xóa Ticket, đổi status/recipient/confirmedAt/AI content hoặc tạo confirmation evidence.
+SupportTicket giữ các trường/quan hệ hiện có và thêm **version Int NOT NULL default0**, CHECK version>=0 qua migration mới 202611040003_ticket_foundation. Đây là migration thứ 8, không thêm bảng; dữ liệu cũ backfill0. Không sửa migration đã apply, xóa Ticket, đổi status/recipient/confirmedAt/AI content hoặc tạo confirmation evidence.
 
 Chưa có updatedAt/confirmedContent/sourceDraftId hay TicketDraft. Quyết định thêm snapshot/draft thuộc I07; không backfill từ aiSummary/extractedDetails. Hiện projection trả confirmationSource=LEGACY_UNVERIFIED và confirmedContent=null; confirmedAt không chứng minh nội dung nào đã được duyệt.
 
@@ -22,7 +22,7 @@ Chưa có updatedAt/confirmedContent/sourceDraftId hay TicketDraft. Quyết đ�
 | --- | --- |
 | apps/core/prisma/schema.prisma | SupportTicket.version |
 | prisma/migrations/202611040003_ticket_foundation/migration.sql | Default/backfill/check, DDL transaction |
-| src/tickets/services/ticket-access.service.ts | staffScope áp trước query, requireTicket safe404 + projection nhỏ |
+| src/tickets/services/ticket-access.service.ts | staffScope áp trước query, requireTicket safe 404 + projection nhỏ |
 | src/tickets/dto/ticket-confirmation.ts | Legacy confirmation label, không suy content từ AI |
 | src/tickets/tickets.module.ts và AppModule | Provider nội bộ; chưa controller/public API |
 | src/database/database.service.ts, src/admin/main.ts | Compatibility/readiness theo migration mới |
@@ -46,26 +46,67 @@ flowchart TD
 
 Read hiện chỉ là policy nội bộ. Quyền HTTP/session/CSRF ở TK02/TK03, UI/late responses ở TK04; TK01 không tuyên bố đã kiểm browser/no-F5 cho Ticket chưa có UI.
 
-## 5. Kiểm thử và lệnh
+## 5. Test cases
 
-```powershell
-node --test apps/core/test/ticket-model-migration.test.cjs
-docker compose --profile tests build core-tests
-docker compose --profile tests run --rm --no-deps core-tests node --test test/ticket-foundation.test.cjs test/conversation-permissions.test.cjs
-```
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-App/PostgreSQL chạy Docker theo Getting Started. Migration test chỉ dùng psql qua Docker trên schema UUID cô lập, không host Core/Web server. Policy tests trong explicit core-tests container dùng role Core thật và fixture runId riêng; cleanup chỉ dữ liệu fixture. Không đổi bootstrap/env/volumes hoặc seed chat/Ticket dùng chung.
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-| Nhóm | Kết quả04/11 |
-| --- | --- |
-| Migration PostgreSQL thật | 3 pass: upgrade/default/check, bảo toàn legacy, rollback DDL khi lỗi |
-| Ticket policy PostgreSQL thật | 7 pass: recipient+assignment, OPEN unassigned, capabilities/status, revoke/reassignment, locked Staff/Customer, AI private link, confirmation/projection |
-| Conversation permission regression | 16 pass: gate/sequence/idempotency/fence/reassignment, không hồi quy |
-| HTTP/realtime foundation regression | 6 pass: public module graph, DTO/error/Swagger/CORS và WS session/scope/revoke |
-| Source/build | Core lint/typecheck, admin build và Docker Core/core-tests/migrator build pass |
-| Runtime | Migration deploy, Core healthy và gateway readiness200; chưa endpoint Ticket (404) |
+### TK01-T01 — Recipient và assignment đều bắt buộc
 
-Tổng32 test pass; không browser E2E vì TK01 chưa HTTP/UI. Fixture assertions xác nhận users/Tickets đã dọn; migration test dọn schema riêng. Host/generated Prisma và build admin là artifact chuẩn của quy trình, không script dùng một lần.
+**Lớp kiểm thử:** Service + DB.
+**Điều kiện và dữ liệu:** Ticket T-A assigned S-A/C-A; T-B assigned S-B nhưng C-A; OPEN không recipient.
+
+**Các bước:**
+
+1. Gọi requireTicket bằng S-A/S-B cho từng Ticket.
+2. Chỉ thêm assignment mà không đổi recipient.
+3. Gọi lại scope.
+
+**Kết quả mong đợi:** Chỉ actor đồng thời đúng recipient+active assignment đọc được; OPEN unassigned không thành queue/claim.
+
+### TK01-T02 — Khóa Staff khác khóa Customer
+
+**Lớp kiểm thử:** Service + DB.
+**Điều kiện và dữ liệu:** T-A đúng scope S-A; fixture có status/lockedUntil riêng.
+
+**Các bước:**
+
+1. Khóa Customer C-A rồi requireTicket bằng S-A.
+2. Khóa S-A hoặc đặt lockedUntil tương lai.
+3. Khôi phục Staff trong fixture rồi đọc lại.
+
+**Kết quả mong đợi:** Customer khóa vẫn được Staff phục vụ; Staff khóa mất quyền; không thay assignment/password để né lỗi.
+
+### TK01-T03 — Ticket không mở chat AI
+
+**Lớp kiểm thử:** Service + DB.
+**Điều kiện và dữ liệu:** T-A liên kết cuộc AI riêng; confirmedAt có nhưng chưa immutable snapshot.
+
+**Các bước:**
+
+1. Đọc Ticket metadata.
+2. Gọi metadata/transcript của chat qua gate I01.
+3. Kiểm projection confirmation.
+
+**Kết quả mong đợi:** Đọc Ticket không tạo grant hoặc sửa chat; AI riêng vẫn404; confirmationSource legacy và confirmedContent=null.
+
+### TK01-T04 — Migration version giữ dữ liệu
+
+**Lớp kiểm thử:** Migration harness.
+**Điều kiện và dữ liệu:** Schema riêng có Ticket ở nhiều status và field cũ đã hash.
+
+**Các bước:**
+
+1. Apply TK01 migration.
+2. Thử version âm/null và increment hợp lệ.
+3. Inject lỗi migration trên schema riêng khác.
+
+**Kết quả mong đợi:** Backfill version 0, dữ liệu cũ giữ nguyên; CHECK từ chối âm/null; failure rollback và không tạo confirmation evidence.
+
+**Suite tham khảo:** [ticket-model-migration.test.cjs](../../../../../apps/core/test/ticket-model-migration.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và phần tiếp
 
@@ -78,3 +119,27 @@ Tổng32 test pass; không browser E2E vì TK01 chưa HTTP/UI. Fixture assertion
 - [ ] TK04 UI rồi TK05 notification; Agent producer/confirmation I07 để riêng.
 
 Khi triển khai TK02, chatLink chỉ tính sau kiểm conversation.customerId khớp Ticket.customerId và gate I01; biết raw conversationId trong DB không đủ. Khi I07 thêm confirmed snapshot thật, mở rộng projection với bằng chứng server hợp lệ; không giả nhãn CONFIRMED_SNAPSHOT từ trường AI hoặc timestamp.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    participant H as Test hoặc Migration runner
+    participant D as PostgreSQL
+    participant C as Core policy
+    H->>D: Tạo schema riêng và legacy synthetic fixtures
+    H->>D: Ghi hash dữ liệu cần bảo toàn
+    H->>D: BEGIN, apply migration và constraints
+    alt Validation hoặc DDL lỗi
+        D-->>H: ROLLBACK, dữ liệu cũ giữ nguyên
+    else Hợp lệ
+        D-->>H: COMMIT
+        H->>C: Kiểm predicate quyền trên fixtures cũ và mới
+        C->>D: Query scope, không suy grant từ legacy status
+        D-->>C: Chỉ dữ liệu đủ gate
+        C-->>H: Grant hoặc deny theo contract
+    end
+    H->>D: Dọn đúng schema test, không đụng DB người dùng
+```

@@ -49,19 +49,67 @@ sequenceDiagram
   C-->>W: Invalidation, REST lấy message committed
 ```
 
-## 5. Test và điều kiện hoàn tất
+## 5. Test cases
 
-Đề xuất Core `agent-turns.test.cjs`, Agent contract/checkpoint tests theo framework được chọn; adapter giả trong harness rồi integration với Agent thật riêng.
+Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| CH02-T01 | Service giả/role từ LLM/tool injection | Deny, không business SQL/context ngoài quyền |
-| CH02-T02 | Private doc/owner khác/current v2 thay applied v1 | Chỉ authorized exact version trước prompt/citation |
-| CH02-T03 | Worker crash/retry/callback trùng/trigger đồng thời | Durable resume, một answer/trigger, sequence đúng |
-| CH02-T04 | Handoff/reassign/expiry trước result | Fence loại result muộn, không leak hoặc duplicate |
-| CH02-T05 | LLM/retrieval lỗi/câu trả lời chưa chắc | Lỗi an toàn/fallback, không quyết định Claim/chi trả |
-| CH02-T06 | Draft/suggestion chưa Customer xác nhận | Không Ticket hoặc handoff tự ghi |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### CH02-T01 — Service identity và nguồn đúng owner
+
+**Lớp kiểm thử:** Service/Agent contract dự kiến.
+**Điều kiện và dữ liệu:** CH02 transport/auth đã chốt; turn của C-A dùng policyA applied v1, product current v2.
+
+**Các bước:**
+
+1. Gọi readContext/retrieveSources bằng service hợp lệ.
+2. Thử fake service, actor/role từ payload LLM và policy C-B.
+3. Đối chiếu context/citations trước prompt.
+
+**Kết quả mong đợi:** Chỉ trusted turn/owner/applied v1 được cấp; deny nguồn ngoài quyền trước retrieval/prompt, không business DB trực tiếp từ Agent.
+
+### CH02-T02 — Durable turn, crash và callback trùng
+
+**Lớp kiểm thử:** Worker + DB dự kiến.
+**Điều kiện và dữ liệu:** Hai Customer messages với sequence khác nhau; trigger/turn ID bền vững.
+
+**Các bước:**
+
+1. Dispatch cùng turnId hai lần.
+2. Crash worker rồi resume từ checkpoint.
+3. Gửi appendAnswer callback lặp cho một trigger.
+
+**Kết quả mong đợi:** Không mất turn, không hai answer cho cùng trigger; sequence/idempotency nhất quán, không lấy checkpoint làm business commit.
+
+### CH02-T03 — Fence khi handoff/reassign
+
+**Lớp kiểm thử:** Agent integration dự kiến.
+**Điều kiện và dữ liệu:** Agent đang chạy ở controlVersion n; result bị giữ tại barrier.
+
+**Các bước:**
+
+1. Commit handoff hoặc đổi assignment/control.
+2. Trả result/attempt n muộn.
+3. Đọc Customer-visible messages và task state.
+
+**Kết quả mong đợi:** Result cũ bị fence, không append answer/trả Private theo scope cũ; không chỉ dựa hủy UI.
+
+### CH02-T04 — Suggestion không thay xác nhận
+
+**Lớp kiểm thử:** Agent integration dự kiến.
+**Điều kiện và dữ liệu:** Trusted Agent có thể proposeHandoff/proposeTicketDraft; Customer chưa xác nhận.
+
+**Các bước:**
+
+1. Tạo suggestion/draft.
+2. Kết thúc Agent turn mà không Customer action.
+3. Kiểm handoff/Ticket business tables.
+
+**Kết quả mong đợi:** Không consent hoặc Ticket tự tạo; lỗi provider/retrieval an toàn, không cam kết Claim/chi trả hoặc citation giả.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 
 - [ ] Identity/transport/checkpoint/schema/turn discovery được ghi cụ thể và review; ADR đề xuất không tự thành mặc định.
-- [ ] Durable/fence/security tests pass; logs không prompt/raw Private/secret.
 - [ ] Actual Agent test phân biệt fake adapter; CH03 chỉ bắt đầu khi API discovery/status stable.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.

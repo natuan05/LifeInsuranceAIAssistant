@@ -102,7 +102,7 @@ Pending đọc messages bằng URL trực tiếp luôn404. Sau I03, A10 đã là
 
 Dùng parameterized SQL nếu Prisma group/union/keyset không biểu diễn gọn. Không N+1 theo khách hoặc tải tất cả vào JS để group. Escape LIKE `%`, `_`, `\` thành literal; ORDER BY cố định, không input SQL.
 
-Cursor group bind actor/filter/normalized search/customerId/endpoint kind/keyset; cursor list bind actor/customerId/filter/kind. Format/size theo contract chung. Đổi actor/query hoặc dùng sai endpoint: 400, FE reset danh sách. Revoke giữa pages không trả data cũ, resource ngoài quyền safe404/rỗng theo contract endpoint.
+Cursor group bind actor/filter/normalized search/customerId/endpoint kind/keyset; cursor list bind actor/customerId/filter/kind. Format/size theo contract chung. Đổi actor/query hoặc dùng sai endpoint: 400, FE reset danh sách. Revoke giữa pages không trả data cũ, resource ngoài quyền safe 404/rỗng theo contract endpoint.
 
 Tập live có thể đổi thứ tự, keyset không là snapshot dài hạn. FE dedup/reset đầu danh sách khi invalidation. Performance kiểm query count bounded, EXPLAIN/index và không scan nội dung messages; không hứa số ms mọi máy.
 
@@ -135,23 +135,67 @@ sequenceDiagram
 4. A09 safe metadata/404/no-store; recursive forbidden field assertions.
 5. Regression auth/Customers/Policies; chỉ chuyển A08/A09 thành E khi controller và tests thật có.
 
-## 7. Test plan
+## 7. Test cases
 
-File **đã thêm/chạy**: `apps/core/test/inbox-read.test.cjs`. Test container/PostgreSQL Docker, fixtures runId tự dọn. X có pending/accepted/Direct/AI riêng/Copilot; Y chỉ AI riêng; Z thuộc Staff khác. Tên/mã chứa dấu/space/`%_\`, nhiều hơn hai batch, timestamps trùng. Không sửa bootstrap.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Kiểm tra | Kết quả |
-| --- | --- | --- |
-| I02-T01 | All/Requests/Active | Hợp/tập con đúng gate, không AI/Copilot/legacy |
-| I02-T02 | Customer chỉ AI riêng, search đúng mã | Không group hoặc xác nhận cuộc riêng tồn tại |
-| I02-T03 | Trim/case/literal; search email/phone/message | Chỉ tên/mã match, wildcard không mở rộng |
-| I02-T04 | Nhiều batch/tie/limit=1 | Tập tĩnh đủ/không trùng, cursor đúng query |
-| I02-T05 | Cursor sai actor/customer/filter/query/endpoint | 400/safe404 đúng contract, không data lộ |
-| I02-T06 | Recursive payload/OpenAPI scan | Không count/total/preview/summary/sequence pending |
-| I02-T07 | Tin AI riêng mới sau request | Pending time/order không đổi do tin riêng |
-| I02-T08 | A09/A10 trước Accept qua UUID/Ticket link | Chỉ safe metadata, A10 404 |
-| I02-T09 | Reassignment giữa pages | Mỗi request recheck, Staff cũ không data |
-| I02-T10 | 401/role/UUID/query/DB error | Safe envelope/no-store/requestId, không SQL |
-| I02-T11 | Nhiều nhóm/cuộc | Bounded query count, không N+1/COUNT badge |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### I02-T01 — Groups và lazy list lọc đúng gate
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** C-A có Direct/pending/accepted/AI riêng; C-Z chỉ AI riêng; C-B thuộc S-B.
+
+**Các bước:**
+
+1. S-A GET /staff/inbox/customers với all/requests/active.
+2. GET lazy conversations của C-A và C-Z.
+3. GET lazy C-B.
+
+**Kết quả mong đợi:** Groups/lazy đúng filter; C-Z không lộ chat riêng; C-B404; không COUNT/preview/summary/sequence pending.
+
+### I02-T02 — Search tên/mã literal
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** C-A có tên chứa dấu/%/_ và mã synthetic; email/phone khác token tìm.
+
+**Các bước:**
+
+1. Search tên/mã bằng case khác, có khoảng trắng đầu/cuối.
+2. Search %/_ như ký tự literal.
+3. Search token chỉ có trong email/phone/message.
+
+**Kết quả mong đợi:** Chỉ fullName/accountCode được tìm, trim/case đúng; wildcard không mở rộng; không suy ra nội dung chat.
+
+### I02-T03 — Cursor không mang quyền
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Hơn2 batch groups/cuộc, timestamps tie; lưu cursor của S-A/filter requests.
+
+**Các bước:**
+
+1. Đi hết các trang với limit=1, đối chiếu fixture tĩnh.
+2. Dùng cursor bằng S-B hoặc đổi filter/endpoint/customer.
+3. Revoke assignment rồi gọi trang sau.
+
+**Kết quả mong đợi:** Tập tĩnh không thiếu/trùng; cursor sai400; trang sau không trả dữ liệu đã mất quyền.
+
+### I02-T04 — A09 không thay A10
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Request pending đúng S-A, AI riêng và UUID không tồn tại.
+
+**Các bước:**
+
+1. GET /staff/conversations/:id cho từng loại.
+2. GET messages của pending với UUID/cursor biết trước.
+3. Gửi query lạ/limit 51/UUID sai.
+
+**Kết quả mong đợi:** A09 pending chỉ metadata/actions an toàn; A10 trước Accept 404; input 400 và lỗi safe envelope/no-store.
+
+**Suite tham khảo:** [inbox-read.test.cjs](../../../../../apps/core/test/inbox-read.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 8. Điều kiện hoàn tất
 
@@ -163,9 +207,9 @@ File **đã thêm/chạy**: `apps/core/test/inbox-read.test.cjs`. Test container
 **Checkpoint:** I02 đã qua HTTP/Swagger và gateway/Core/DB integration. I03 tạo AI/Direct/request/Accept/transcript hiện đã hoàn tất; tiếp theo UI ở I04. Dữ liệu legacy không tự có grant, không seed tạm hoặc bật composer từ read capability.
 
 
-## 9. Kết quả và contract thực tế 04/11/2026
+## 9. Ghi chú triển khai
 
-Đã thêm `services/inbox-cursor.ts` và `http/safe-api.exception.ts` cho cursor/public error allowlist; API dùng DTO/Swagger riêng, không serialize raw entity. Ba GET đã deploy trong Core Docker qua gateway: groups, lazy list theo khách và A09 metadata. Không migration/schema/dependency mới; giữ19 bảng/6 migrations I01. UI Inbox vẫn khung cũ, chưa nối FE ở phase này. Tại mốc I02 chưa có workflow; I03 hiện đã thêm A10/Accept/Customer entry, public send/UI còn ở phase sau.
+Đã thêm `services/inbox-cursor.ts` và `http/safe-api.exception.ts` cho cursor/public error allowlist; API dùng DTO/Swagger riêng, không serialize raw entity. Ba GET đã deploy trong Core Docker qua gateway: groups, lazy list theo khách và A09 metadata. Không migration/schema/dependency mới; giữ 19 bảng/6 migrations I01. UI Inbox vẫn khung cũ, chưa nối FE ở phase này. Tại mốc I02 chưa có workflow; I03 hiện đã thêm A10/Accept/Customer entry, public send/UI còn ở phase sau.
 
 Read identity được kiểm trước quota, rồi session/assignment/resource đọc trong cùng RepeatableRead snapshot. Quota INBOX_READ riêng, 240/phút/actor trong RateLimitBucket; upsert autocommit ngoài snapshot để tránh serialization conflicts khi nhiều request đọc đồng thời. Không gọi HTTP auth/me thêm từ FE. SQL representation của policy đặt trong ConversationAccessService và có parity test với Prisma scope I01 trên hai actor/ba filter.
 
@@ -175,7 +219,6 @@ A09 thực tế có thêm activityAt an toàn theo cùng item projection; reques
 
 Error giữ foundation hiện có: 400 VALIDATION_ERROR cho DTO và BAD_REQUEST cho UUID/query A09, 401 UNAUTHORIZED, 403 FORBIDDEN, 404 NOT_FOUND, 500 INTERNAL_SERVER_ERROR cho lỗi bất ngờ (thông điệp an toàn). Hai code mới allowlist trong SafeApiException: 400 INVALID_CURSOR và 429 RATE_LIMITED + Retry-After1–60 giây. Không phát lại arbitrary HttpException body, SQL hoặc input. Cursor chỉ nhận ISO UTC chuẩn năm0001–9999, exact keyset shape/version/query/actor binding, tối đa2 KB; không là credential hoặc token cấp quyền.
 
-19 ca I02 pass, có HTTP controller/auth/session/DB thật, gateway deployment và regression auth/Customers/Policies. 16 ca I01 và5 HTTP foundation cũng pass: **40 ca được kiểm chứng**. Có kiểm pagination timestamp tie, search dấu/literal/wildcard, forged cursor, scope revoke giữa pages, pending AI activity không leak, rate limit, unknown fields/duplicate query, no mutation từ GET và OpenAPI không counts. Đây là HTTP/DB tests, không browser E2E.
 
 Lệnh chạy lại từ root (PostgreSQL/migration I01 và stack Docker hiện hành đã sẵn sàng):
 

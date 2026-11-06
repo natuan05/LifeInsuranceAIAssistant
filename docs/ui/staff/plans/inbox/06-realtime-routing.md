@@ -83,7 +83,7 @@ Recheck session/resource ngay trước send, nhưng không thể thu hồi byte 
 
 ## 5. WebSocket spec
 
-Giữ `WS /api/v1/realtime` cookie + exact Origin, receive-only, frame client gửi đóng1008, session revoked4001, lỗi dịch vụ1013, heartbeat/backoff/limits hiện có. Không tin X-Forwarded-For để nhận diện người dùng hoặc cho client chọn recipient.
+Giữ `WS /api/v1/realtime` cookie + exact Origin, receive-only, frame client gửi đóng1008, session revoked4001, lỗi dịch vụ 1013, heartbeat/backoff/limits hiện có. Không tin X-Forwarded-For để nhận diện người dùng hoặc cho client chọn recipient.
 
 Frame mới:
 
@@ -149,28 +149,78 @@ Nếu chưa có afterCursor, fetch latest; nếu đang có history cũ giữ anc
 
 Hiển thị mất kết nối ngắn, retry/backoff không F5. Có thể gửi REST khi WS mất và phiên/quyền còn xác minh; UI không giả “đã giao”. Không polling transcript toàn bộ theo fingerprint2 giây.
 
-## 8. Test plan
+## 8. Test cases
 
-File **cần thêm**: `apps/core/test/conversation-outbox.test.cjs`, `conversation-realtime.test.cjs`, `notifications.test.cjs`; browser `conversation-realtime.spec.mjs`; E2E hai contexts và socket thật trong `conversation-flow.integration.spec.mjs`. Tests clock/barrier kiểm soát, không sleep dài mong event.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Kiểm tra | Kết quả |
-| --- | --- | --- |
-| I06-T01 | Commit/rollback message hoặc request | Chỉ commit sinh event/notification |
-| I06-T02 | Hai workers claim/crash lease/restart | Recover, không xử lý song song cùng lease hợp lệ |
-| I06-T03 | Crash sau notification/send trước mark | Một notification dedup, event trùng client xử lý an toàn |
-| I06-T04 | AI riêng/pending/accepted/Direct recipients | Không frame transcript/sequence tới Staff chưa grant |
-| I06-T05 | Reassignment trước worker send hoặc đang online | Event cũ không grant, Staff cũ clear, Staff mới không history |
-| I06-T06 | WS offline/mất frame/out-of-order | REST after catch-up tới hết, không mất/trùng bubble |
-| I06-T07 | Event tới khi fetch đang chạy | Dirty flag tạo lần resync tiếp, không bỏ update cuối |
-| I06-T08 | Notification read actor khác/link revoked | Safe404 hoặc list loại đúng trước page; không Accept/read messages |
-| I06-T09 | Burst message events/focus/ready | Không auth request mỗi message, không F5/remount/PDF src reset |
-| I06-T10 | Retry/quota/FAILED_DLQ/shutdown | Bounded backoff, không secret/content logs, không mất request committed |
-| I06-T11 | WS Origin/cookie/frame client/revoked session | Giữ1008/4001/1013 và limits hiện có |
-| I06-T12 | 130 tin backlog sau reconnect | hasMoreAfter tải hết, scroll/focus/draft ổn định |
-| I06-T13 | Accept thành công; Customer/Staff refresh hoặc reconnect | Có đúng một SYSTEM trong cùng cuộc, đúng tên Staff/nội dung/thứ tự; lưu bền vững |
-| I06-T14 | Accept retry/cùng key/hai intent cạnh tranh và phát lại event | Một acceptance hợp lệ chỉ một SYSTEM; không bubble do Web tự sinh |
-| I06-T15 | Inject lỗi khi append SYSTEM/outbox; Customer gửi đồng thời | Rollback acceptance/message/sequence/receipt cùng nhau; không trùng sequence hoặc báo nhận giả |
-| I06-T16 | Pending/Direct/AI riêng, revoke rồi consent/Accept mới | Không báo nhận khi chưa commit hoặc không có Accept; gate đúng, handoff mới có sự kiện riêng |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### I06-T01 — Recipient và frame tối thiểu
+
+**Lớp kiểm thử:** WS + API integration.
+**Điều kiện và dữ liệu:** Ba sockets C-A/S-A/S-B; cuộc AI riêng, pending và accepted riêng biệt.
+
+**Các bước:**
+
+1. Commit message/event ở từng trạng thái.
+2. Quan sát frame từng socket rồi REST recheck.
+3. Gửi thử client mutation qua WS.
+
+**Kết quả mong đợi:** Không phát dữ liệu transcript cho S-A chưa grant/S-B; frame không content/tool payload; WS receive-only từ chối mutation.
+
+### I06-T02 — Worker crash, lease và dedup
+
+**Lớp kiểm thử:** DB + Worker harness.
+**Điều kiện và dữ liệu:** Outbox synthetic pending; hai worker test, lease clock/barrier điều khiển được.
+
+**Các bước:**
+
+1. Claim đồng thời bằng hai worker.
+2. Inject crash sau notification commit, trước publish ACK.
+3. Cho lease hết hạn và retry bằng worker mới.
+
+**Kết quả mong đợi:** Không hai owner giữ lease hợp lệ; recover được, notification unique; event trùng không tạo bubble/thông báo trùng.
+
+### I06-T03 — Mất mạng và catch-up nhiều trang
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** Cuộc Staff-active, tab Customer offline; hơn100 tin được commit trong lúc offline.
+
+**Các bước:**
+
+1. Kết nối lại tab Customer.
+2. Đợi REST after tải tới hasMoreAfter=false.
+3. Đối chiếu tập message IDs và draft/focus.
+
+**Kết quả mong đợi:** Không thiếu/trùng, drain hết backlog; draft/anchor đúng và không document reload.
+
+### I06-T04 — Event tới trong lúc đang fetch
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ chậm metadata/transcript request đầu.
+
+**Các bước:**
+
+1. Phát invalidation thứ nhất.
+2. Trong lúc fetch chưa xong commit tin mới/phát event thứ hai.
+3. Thả response đầu rồi quan sát resync tiếp.
+
+**Kết quả mong đợi:** Dirty flag giữ update cuối; dữ liệu cuối có cả tin mới, không gọi auth/me theo từng message.
+
+### I06-T05 — Revoke trước send và SYSTEM sau Accept
+
+**Lớp kiểm thử:** WS + DB barrier.
+**Điều kiện và dữ liệu:** Pending có consent; recipient resolve xong nhưng publish chưa chạy.
+
+**Các bước:**
+
+1. Accept và kiểm SYSTEM chỉ xuất hiện sau commit.
+2. Revoke assignment trước bước WS send.
+3. Inject append SYSTEM/outbox failure cho request fixture khác.
+
+**Kết quả mong đợi:** SYSTEM một lần cho acceptance hợp lệ; WS recheck không gửi Private sau revoke; failure rollback acceptance/SYSTEM/sequence chung.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 9. Điều kiện hoàn tất
 
@@ -184,16 +234,13 @@ File **cần thêm**: `apps/core/test/conversation-outbox.test.cjs`, `conversati
 **Checkpoint:** Đây là mốc Inbox local hoạt động liên tục. Không vì I06 hoàn tất mà đánh dấu Agent/checkpoint/Copilot/Ticket workflow đã có.
 
 
-## 10. Implementation và kiểm chứng 04/11/2026
+## 10. Ghi chú triển khai
 
-- Migration `202611040002_inbox_realtime`: OutboxEvent leaseOwner/leaseExpiresAt + index; Notification.kind nullable, allowlist HANDOFF_REQUESTED/null. Giữ19 bảng, dữ liệu/credential/volumes hiện hữu, không seed hoặc backfill SYSTEM cũ.
+- Migration `202611040002_inbox_realtime`: OutboxEvent leaseOwner/leaseExpiresAt + index; Notification.kind nullable, allowlist HANDOFF_REQUESTED/null. Giữ 19 bảng, dữ liệu/credential/volumes hiện hữu, không seed hoặc backfill SYSTEM cũ.
 - Accept append SYSTEM Customer-visible cùng transaction bằng `ConversationMessageService.acceptedSystemMessage`, key `internalMessageId=handoffId` dưới unique conversation/internal key; counter/sequence/receipt/outbox rollback chung. Tin hiện qua history, không bubble do FE tự sinh.
 - `ConversationEventService` chọn recipient từ scope hiện hành, không dùng LLM/payload cũ làm quyền. Handoff notification generic/body null, dedup eventId+Staff+kind; Bước cuối tạo notification dùng cùng thứ tự khóa user/customer/assignment/conversation với Accept/reassignment rồi kiểm pending lại; request đã được Accept không tạo notification chờ muộn. A27/A28 trong NotificationsModule lọc scope trước phân trang, read chỉ recipient/target scope và không Accept.
-- OutboxModule/Dispatcher: claim batch20 bằng SKIP LOCKED, lease30s renew mỗi10s, một vòng500ms/process, retry1–60s+jitter/8attempts/DLQ, lastError chỉ DISPATCH_FAILED. Reclaim PROCESSING lease hết hạn/null; update/mark phải đúng owner. Không claim sự kiện Ticket hoặc event type chưa hỗ trợ. Không giữ row lock trong khi gửi WS; graceful shutdown chờ giới hạn5s.
+- OutboxModule/Dispatcher: claim batch20 bằng SKIP LOCKED, lease30s renew mỗi10s, một vòng500ms/process, retry 1–60s+jitter/8attempts/DLQ, lastError chỉ DISPATCH_FAILED. Reclaim PROCESSING lease hết hạn/null; update/mark phải đúng owner. Không claim sự kiện Ticket hoặc event type chưa hỗ trợ. Không giữ row lock trong khi gửi WS; graceful shutdown chờ giới hạn5s.
 - RealtimeModule dùng đúng server/socket hiện có. Mỗi lần publish recheck session và grant trước frame; pending không nhận MESSAGE_COMMITTED của Customer. ACCESS_REVOKED gửi scope frame không conversationId tới Staff cũ. Giữ Origin/receive-only1008/revocation4001/service1013/heartbeat/peer limits và giới hạn buffered bytes. Không tạo socket server song song.
 - Web `lib/chat-realtime.ts` debounce100ms/single-flight/dirty flag, scope change abort cả request khởi tạo và live response trước clear, kèm permission generation để chặn phản hồi cũ khôi phục Private; reconnect/online/visible resync. Transcript nhận refreshToken sau metadata recheck, drain after tới hết, merge BigInt/dedup/giữ anchor/Jump to latest; không remount composer hoặc auth request cho mỗi message. Notifications button trong Inbox, list/read/open request/Escape và no counts.
-- Tests Core trong `test/conversation-realtime.test.cjs` (11 ca: SYSTEM/rollback/new handoff, recipient, notifications/cursor/read, lease/retry/DLQ, WS minimal/receive-only/revoke) cùng72 ca hồi quy: tổng83. Browser realtime mock (7) và gateway E2E thật (1) bổ sung bộ108 hiện có: tổng116. Báo kết quả HTTP/service riêng với browser E2E.
+- Tests Core trong `test/conversation-realtime.test.cjs` (11 ca: SYSTEM/rollback/new handoff, recipient, notifications/cursor/read, lease/retry/DLQ, WS minimal/receive-only/revoke) cùng72 ca hồi quy: tổng83. Browser realtime mock (7) và gateway E2E thật (1) bổ sung bộ 108 hiện có: tổng116. Báo kết quả HTTP/service riêng với browser E2E.
 - E2E thật chứng minh: notification → pending không transcript → Accept xuất hiện SYSTEM ở cả hai đầu → tin nhận tự động không Refresh → offline/reconnect tải130 tin theo nhiều trang → không trùng/mất nháp/F5 → reassignment thu hồi composer/transcript Staff cũ. Fixture synthetic tự dọn, không bootstrap riêng hoặc credential file/screenshot/report Markdown.
-- Lint/typecheck Core/Web, Docker build Core/Web/core-tests/migrate và migration deploy pass. Chỉ dùng Docker qua gateway. Cloud/broker/đa replica, Copilot C01, Ticket I07, Agent/checkpoint và delivered/read vẫn ngoài I06. DLQ cần operator review; chưa thêm public endpoint requeue.
-
-Sau bước chặn phản hồi metadata cũ bằng abort + permission generation và sửa debounce Back/Forward, đã chạy lại60 ca browser liên quan (Inbox/realtime/send/Customer/session) trên Docker mới: pass;56 ca còn lại của bộ116 đã pass và không có thay đổi source trong phạm vi đó. Không đổi giao diện Customer ngoài hành vi nhận cập nhật/thu hồi quyền của chat hiện có.
