@@ -14,20 +14,20 @@
 - [x] Icon thu gọn trong đầu cột tìm kiếm, icon mở lại ở mép; giữ bản nhập/bộ lọc/trang/lựa chọn khi đóng cột.
 - [x] Lookup độc lập bỏ Back to Inbox/Customer profile, CCCD/phone và filter mẫu.
 - [x] Core kiểm session/role/assignment/ownership/phiên bản, cấp signed URL có hạn và audit ý định xem/tải.
-- [ ] Product API A17/A19; quick lookup Inbox và đổi linkedPolicy chat; citation theo trang.
+- [x] Product API A17/A19 đã có; quick lookup Inbox (PL05) đã có; đổi linkedPolicy chat và citation theo trang còn P.
 - [ ] Customer list/detail/catalog/view/download theo ownership.
 - [x] Realtime refetch giữ iframe/src cùng file/version, disclosure/focus/parent scroll; có 26 regression browser Policy/PDF.
 - [ ] E2E tích hợp Core/DB/MinIO và hai vai trò đầy đủ.
 
 ## Quan hệ dữ liệu và phiên bản
 
-| Đối tượng | Vai trò |
-| --- | --- |
-| CustomerProfile | Chủ sở hữu nhiều InsurancePolicy; Staff đọc qua active assignment |
-| InsuranceProduct | Sản phẩm có nhiều policy và tài liệu chung |
-| InsurancePolicy | Mã/trạng thái/phí/ngày hiệu lực và benefitsSnapshot của hợp đồng cá nhân |
-| Document | Metadata/phạm vi PUBLIC hoặc PRIVATE_POLICY, product/policy/owner và currentVersion |
-| DocumentVersion | Version cụ thể, object bucket/key, checksum SHA-256 và isActive |
+| Đối tượng        | Vai trò                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| CustomerProfile  | Chủ sở hữu nhiều InsurancePolicy; Staff đọc qua active assignment                   |
+| InsuranceProduct | Sản phẩm có nhiều policy và tài liệu chung                                          |
+| InsurancePolicy  | Mã/trạng thái/phí/ngày hiệu lực và benefitsSnapshot của hợp đồng cá nhân            |
+| Document         | Metadata/phạm vi PUBLIC hoặc PRIVATE_POLICY, product/policy/owner và currentVersion |
+| DocumentVersion  | Version cụ thể, object bucket/key, checksum SHA-256 và isActive                     |
 
 Một hợp đồng có thể có Document hợp đồng chính và các Document phụ lục; điều khoản chung có thể thuộc sản phẩm. Một Document có nhiều version. Số Document khác số phiên bản, không có quy tắc bắt buộc một policy chỉ có một file. UI ưu tiên một PDF chính, không trộn toàn bộ tài liệu vào dropdown mặc định.
 
@@ -45,30 +45,30 @@ Cấu trúc trên được giữ cho implementation hiện tại; chuẩn hóa s
 
 Prefix `/api/v1`, cookie phiên; Core không nhận actor/role do client cấp. Session/trạng thái Staff/assignment/dữ liệu trong cùng transaction RepeatableRead. Request kế tiếp thấy thay đổi quyền đã commit; request đang chạy có thể hoàn tất theo snapshot cũ.
 
-| ID / API | Contract |
-| --- | --- |
+| ID / API                                      | Contract                                                                                                                    |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | A14 GET /staff/customers/:customerId/policies | page/pageSize; `{items,total,page,pageSize}`. Khách hợp lệ không có policy: list rỗng; khách ngoài quyền/không tồn tại: 404 |
-| A15 GET /staff/policies | search/status/page/pageSize; `{items,total,page,pageSize}`. Mỗi item thêm customer `{id,fullName,accountCode}` |
-| A16 GET /staff/policies/:policyId | `{policy}` gồm summary, product.summary, customer summary, benefitsSnapshot và benefitsSnapshotStatus |
-| A18 GET /staff/policies/:policyId/documents | `{policyId,items,total,availability,mainDocumentStatus,issues}`; metadata đúng version, không bucket/key/checksum/URL |
+| A15 GET /staff/policies                       | search/status/page/pageSize; `{items,total,page,pageSize}`. Mỗi item thêm customer `{id,fullName,accountCode}`              |
+| A16 GET /staff/policies/:policyId             | `{policy}` gồm summary, product.summary, customer summary, benefitsSnapshot và benefitsSnapshotStatus                       |
+| A18 GET /staff/policies/:policyId/documents   | `{policyId,items,total,availability,mainDocumentStatus,issues}`; metadata đúng version, không bucket/key/checksum/URL       |
 
 Summary: id/policyNumber/customerId, product `{id,productCode,name,isActive}`, status, premiumAmount/paymentFrequency/nextDueDate/effectiveDate/expiryDate/sumAssured/currency. Ngày `YYYY-MM-DD`; tiền decimal string hai chữ số thập phân; thiếu giữ null. Premium là phí mỗi kỳ, không tự gọi là phí năm. Sản phẩm ngừng bán vẫn xuất hiện trong hợp đồng đã có; không suy ra số dư/hạn mức đã dùng/lịch sử thanh toán.
 
 A14/A15: page default 1, 1–100000; pageSize default 10, 1–50; sort createdAt DESC/id ASC; vượt trang trả list rỗng và giữ total. **Chỉ A15** nhận search/status; A14 không nhận hai filter này. Detail/catalog không nhận query. Query lạ/lặp/sai kiểu hoặc UUID sai: 400.
 
-A15 search trim/tối đa 100 ký tự/không control chars, literal substring không phân biệt hoa thường: policyNumber, Customer fullName/accountCode, Product name/productCode. Không tìm CCCD/phone; %, _ và backslash là ký tự thường. status chỉ ACTIVE/LAPSED/MATURED/PENDING; vắng là All. Scope/search/status áp trước count/phân trang.
+A15 search trim/tối đa 100 ký tự/không control chars, literal substring không phân biệt hoa thường: policyNumber, Customer fullName/accountCode, Product name/productCode. Không tìm CCCD/phone; %, \_ và backslash là ký tự thường. status chỉ ACTIVE/LAPSED/MATURED/PENDING; vắng là All. Scope/search/status áp trước count/phân trang.
 
 A16 chỉ allowlist snapshot tài chính: currency/snapshotAsOf/insuranceTermYears/premiumTermYears/annualPremium và benefits `[{code,name,amount,unit,maxDays}]`. Không trả raw JSON, bindings hoặc KYC/metadata nội bộ. benefitsSnapshotStatus AVAILABLE/NOT_PROVIDED/INVALID; dữ liệu không hợp lệ không được diễn giải thành quyền lợi chắc chắn.
 
 A18 item: documentId/title/kind/accessScope/versionId/versionNumber/versionCreatedAt. issues chỉ kind và BINDINGS_NOT_PROVIDED/INVALID_BINDING/DOCUMENT_UNAVAILABLE/DUPLICATE_BINDING, không lộ tên/ID tài liệu ngoài quyền.
 
-| Trạng thái catalog | Ý nghĩa |
-| --- | --- |
-| availability=AVAILABLE | Các binding cung cấp đều hợp lệ và có item |
-| PARTIAL | Có item nhưng có binding lỗi/không khả dụng |
-| EMPTY | Bộ binding khai báo rỗng |
-| UNAVAILABLE | Thiếu binding hoặc không có item khả dụng khi có lỗi |
-| mainDocumentStatus | AVAILABLE/NOT_PROVIDED/UNAVAILABLE, độc lập việc có terms/guide |
+| Trạng thái catalog     | Ý nghĩa                                                         |
+| ---------------------- | --------------------------------------------------------------- |
+| availability=AVAILABLE | Các binding cung cấp đều hợp lệ và có item                      |
+| PARTIAL                | Có item nhưng có binding lỗi/không khả dụng                     |
+| EMPTY                  | Bộ binding khai báo rỗng                                        |
+| UNAVAILABLE            | Thiếu binding hoặc không có item khả dụng khi có lỗi            |
+| mainDocumentStatus     | AVAILABLE/NOT_PROVIDED/UNAVAILABLE, độc lập việc có terms/guide |
 
 Catalog chỉ kiểm metadata DB, không truy vấn MinIO. AVAILABLE không chứng minh object đọc được; bước cấp access bên dưới mới kiểm storage.
 
@@ -123,17 +123,18 @@ Dữ liệu/bootstrap synthetic và cách chuẩn bị môi trường theo [Gett
 - [x] Product A19/access P02 Core/MinIO/gateway đã có, vẫn tách product current version với policy applied version.
 - [x] UI Products P03 đã có theo [contract](04-products-contract.md); citation/context Agent thuộc nhánh riêng.
 - [ ] Customer ownership APIs/UI; không dùng Staff API thay quyền Customer.
-- [ ] Quick lookup Inbox và contract thay linkedPolicy/context; mở xem hiện tại không cập nhật chat.
+- [x] Quick lookup Inbox tại chỗ qua tab mới độc lập đã triển khai (PL05); xem hồ sơ không làm mất ngữ cảnh chat hoặc đổi linkedPolicy.
 - [ ] Khi thay schema/luồng ghi tài liệu: review mapping kind/applied version, bất biến/checksum và migration an toàn.
 
 ## Phase triển khai
 
-| Phase | Scope | Trạng thái |
-| --- | --- | --- |
-| [PL01](policies/01-read-lookup-api.md) | A14/A15/A16 read và lookup | E |
-| [PL02](policies/02-applied-documents-access.md) | A18/A20 applied catalog/access | E |
-| [PL03](policies/03-lookup-dossier-ui.md) | Customers policies + Lookup/dossier/PDF | E |
-| [PL04](policies/04-viewer-lifecycle.md) | Giữ iframe/src qua refresh, expiry/revoke | E |
+| Phase                                               | Scope                                          | Trạng thái |
+| --------------------------------------------------- | ---------------------------------------------- | ---------- |
+| [PL01](policies/01-read-lookup-api.md)              | A14/A15/A16 read và lookup                     | E          |
+| [PL02](policies/02-applied-documents-access.md)     | A18/A20 applied catalog/access                 | E          |
+| [PL03](policies/03-lookup-dossier-ui.md)            | Customers policies + Lookup/dossier/PDF        | E          |
+| [PL04](policies/04-viewer-lifecycle.md)             | Giữ iframe/src qua refresh, expiry/revoke      | E          |
+| [PL05](policies/05-inbox-customer-policy-lookup.md) | Quick Policy Lookup cho khách hàng trong Inbox | E          |
 
 Product PUBLIC current version theo P01–P03, không gộp policy applied binding. PL02/PL03 còn cần bổ sung browser E2E policy thật; tests mock/storage riêng không thay thế.
 
@@ -141,21 +142,22 @@ Product PUBLIC current version theo P01–P03, không gộp policy applied bindi
 
 Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ theo runtime, DTO/quyền/luồng/test chi tiết do các phase của chức năng sở hữu. Không thêm endpoint từ việc gom tài liệu.
 
-| ID | Method/path | Phạm vi |
-| --- | --- | --- |
-| A14 E | GET /staff/customers/:customerId/policies | List/page/pageSize theo một khách; FE đã nối |
-| A15 E | GET /staff/policies | Lookup toàn tập assignment: search số policy/tên-mã khách/tên-mã sản phẩm, status/page/pageSize; FE đã nối |
-| A16 E | GET /staff/policies/:policyId | Summary/customer/product và snapshot tài chính allowlist; không đổi context chat |
-| A18 E | GET /staff/policies/:policyId/documents | Catalog exact applied version, availability/issues; không signed URL/storage key |
-| A20 E | POST /staff/documents/:documentId/versions/:versionId/view; POST /staff/documents/:documentId/versions/:versionId/download | Body `{policyId}`, session/CSRF/assignment/exact version; signed URL/expiresAt, audit cấp link; FE đã nối |
+| ID    | Method/path                                                                                                                | Phạm vi                                                                                                    |
+| ----- | -------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| A14 E | GET /staff/customers/:customerId/policies                                                                                  | List/page/pageSize theo một khách; FE đã nối                                                               |
+| A15 E | GET /staff/policies                                                                                                        | Lookup toàn tập assignment: search số policy/tên-mã khách/tên-mã sản phẩm, status/page/pageSize; FE đã nối |
+| A16 E | GET /staff/policies/:policyId                                                                                              | Summary/customer/product và snapshot tài chính allowlist; không đổi context chat                           |
+| A18 E | GET /staff/policies/:policyId/documents                                                                                    | Catalog exact applied version, availability/issues; không signed URL/storage key                           |
+| A20 E | POST /staff/documents/:documentId/versions/:versionId/view; POST /staff/documents/:documentId/versions/:versionId/download | Body `{policyId}`, session/CSRF/assignment/exact version; signed URL/expiresAt, audit cấp link; FE đã nối  |
 
-| Route | Trạng thái |
-| --- | --- |
-| /staff/policies | Policy Lookup search/status/page — PL01/PL03 |
-| /staff/policies/:policyId | Dossier/main PDF/related docs — PL02/PL03 |
+| Route                     | Trạng thái                                   |
+| ------------------------- | -------------------------------------------- |
+| /staff/policies           | Policy Lookup search/status/page — PL01/PL03 |
+| /staff/policies/:policyId | Dossier/main PDF/related docs — PL02/PL03    |
 
 ## Phần còn lại theo chức năng
 
-| ID | Phần còn lại | Phase sở hữu |
-| --- | --- | --- |
+| ID  | Phần còn lại                              | Phase sở hữu                                                                                                    |
+| --- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | G01 | Staff policy read E; Customer ownership P | Customer PO01/PO02 trong [C04](../../customer/plans/04-policies-contract.md); bổ sung Staff real E2E trong PL03 |
+| G02 | Quick Policy Lookup trong Inbox (E); context chat P | [PL05](policies/05-inbox-customer-policy-lookup.md) đã triển khai in-place modal/tab mới; liên kết context chat thuộc Copilot CP05 |

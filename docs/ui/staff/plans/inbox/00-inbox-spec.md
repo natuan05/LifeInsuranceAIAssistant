@@ -247,7 +247,7 @@ Account/Customers/Policy giữ nguyên; không viết code Inbox trước tài l
 
 - Người dùng xác nhận các chức năng I04/I05 còn lại pass; giữ runtime hiện hành.
 - Sau Staff Accept, Customer và Staff phải thấy một tin hệ thống trong transcript về việc đã tiếp nhận/sẽ phản hồi sớm nhất. Lưu SYSTEM Customer-visible cùng transaction Accept, sequence/dedup theo handoff, không toast-only hoặc worker tạo muộn. Đã triển khai; chi tiết [I06-A](06-realtime-routing.md).
-- Staff có AI Copilot trong panel bên phải của màn chat: hỏi, tóm tắt và gợi ý trả lời/citations đúng quyền. Thread STAFF_COPILOT nội bộ, không lẫn lịch sử Customer; Staff duyệt rồi chủ động gửi nháp. Chưa triển khai; [C01](../08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff) sở hữu kế hoạch/contract/gate/test, không sửa thêm UI Customer hoặc tự tạo Ticket.
+- Staff có AI Copilot trong panel bên phải của màn chat: tra cứu, giải thích, tóm tắt và citations đúng quyền. Thread STAFF_COPILOT nội bộ, không lẫn lịch sử Customer; MVP không soạn nháp câu trả lời hoặc có Use draft, theo Agent Design và xác nhận 06/11. Chưa triển khai; [C01](../08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff) sở hữu kế hoạch/contract/gate/test, không sửa thêm UI Customer hoặc tự tạo Ticket.
 
 ## Runtime và UX đã nghiệm thu — 04/11/2026
 

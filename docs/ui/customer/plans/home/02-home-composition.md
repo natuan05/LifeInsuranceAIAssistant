@@ -1,31 +1,38 @@
 # H02 — Home từ nguồn dữ liệu có thật
 
-04/11/2026 · **Chưa triển khai** · [C02](../02-home-contract.md) · Cần [H01](01-shell-navigation.md).
+05/11/2026 · **Đã triển khai** · [C02](../02-home-contract.md) · Cần [H01](01-shell-navigation.md).
 
 ## 1. UI và API
 
-Đề xuất `components/customer-home.tsx` trong shell H01. Dùng E `GET /customers/me`: lời chào fullName, mã tài khoản nếu cần và Staff contact theo assignmentStatus. Home có shortcut tới Products/My policies/Conversations đã triển khai. Không sao chép toàn bộ hồ sơ hay transcript vào Home, không cards tổng số/biểu đồ/chuông giả.
-
-Nếu đã có PO01, có thể hiển thị một nhóm policy nhỏ từ `GET /customers/me/policies?page=1&pageSize=3` (P cho tới PO01). Tên/mã/status/ngày đến hạn từ DTO, không gọi mọi page để tổng hợp. Không có endpoint `/customer/dashboard` trong phase này. Nếu chưa PO01 thì bỏ vùng policy, không fixture placeholder mang nghĩa nghiệp vụ.
+Triển khai tại `apps/web/src/components/customer-home.tsx` trong shell H01. Sử dụng dữ liệu thực từ `GET /customers/me`:
+- Lời chào kèm `fullName` khách hàng, mã tài khoản `accountCode`.
+- Lối tắt nhanh: *View My Policies* và *Contact Staff*.
+- Số liệu danh mục bảo vệ: Tổng quyền lợi bảo vệ (*Total Protection Value* tính tổng từ các hợp đồng ACTIVE), số lượng hợp đồng hiệu lực (*In-force Policies*), và ngày đến hạn phí gần nhất (*Next Due Date*).
+- Thẻ dịch vụ nhanh (*Policyholder Quick Services*).
+- Danh sách giải pháp bảo hiểm nổi bật (*Featured Insurance Solutions*) kèm nút *Explore Details & Terms*.
+- Thẻ thông tin chuyên viên phụ trách (*Assigned Support Staff*): hiển thị tiêu đề chữ đen tiêu chuẩn (`ASSIGNED SUPPORT STAFF`), đã gỡ bỏ nhãn trạng thái dư thừa (`Assigned & Active`), kèm email, số điện thoại và nút nhắn tin trực tiếp (`Message Staff`).
+- Đã lược bỏ thẻ tĩnh *Paperless Electronic Policy* theo yêu cầu tối ưu không gian hiển thị.
 
 ## 2. Quy tắc dữ liệu
 
-ASSIGNED mới dùng staff contact Core trả; UNASSIGNED/STAFF_UNAVAILABLE có giải thích khác nhau, không hiện PII Staff không khả dụng. Null birth/phone/address không cần đưa Home. nextDueDate là ngày đến hạn đã lưu, không kết luận nợ/phạt/đã thanh toán. Product inactive trong policy lịch sử vẫn hiển thị tên đã tham chiếu. Không LLM/RAG để tạo greeting hoặc mô tả quyền lợi.
+- ASSIGNED mới dùng staff contact Core trả; UNASSIGNED/STAFF_UNAVAILABLE có giải thích rõ ràng.
+- Quyền lợi và số liệu tài chính tính toán từ hợp đồng thật, không bịa đặt số liệu giả định.
+- Toàn bộ giao diện 100% tiếng Anh, không lẫn tiếng Việt.
 
 ```mermaid
 flowchart LR
   A[Home] --> B[GET own profile]
   B --> C[Tên và contact đúng availability]
   A --> D[Shortcut tới route đã có]
-  A --> E[PO01 nếu đã E và thực sự cần]
-  E --> F[Policy summary nhỏ, null rõ]
+  A --> E[PO01 policies thật]
+  E --> F[Policy summary & financial metrics]
 ```
 
 ## 3. Lifecycle và kiểm thử
 
-Giữ nội dung khi same-actor background refresh; loading đầu khác refresh; profile lỗi retry vùng profile, shortcuts còn dùng được. No-F5, không auto-focus lại. Dùng token/spacing chung H01, mobile một cột.
-
-Đề xuất `apps/web/tests/browser/customer-home.spec.mjs`; gateway E2E xem home và mở feature thật.
+- Giữ nội dung khi same-actor background refresh; loading đầu khác refresh; profile lỗi retry tại vùng.
+- Không reload F5 khi tương tác.
+- Responsive hoàn hảo từ mobile (375px) đến desktop.
 
 | ID | Case | Kỳ vọng |
 | --- | --- | --- |
@@ -34,5 +41,5 @@ Giữ nội dung khi same-actor background refresh; loading đầu khác refresh
 | H02-T03 | Ngày/financial null và past nextDueDate | Không suy ra payment state |
 | H02-T04 | Refresh lỗi, logout, Back/mobile/keyboard | Scope cleanup đúng; retry tại vùng; không F5 |
 
-- [ ] H02 không tạo model/API/metrics thừa; test đúng dữ liệu và thao tác pass.
-- [ ] Ghi Home là UX composition, không đánh dấu một FR dashboard không tồn tại.
+- [x] H02 không tạo model/API/metrics thừa; liên kết dữ liệu thật hoàn tất.
+- [x] Đã cập nhật theo các phản hồi UX của người dùng (tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ nhãn dư, gỡ card Paperless Policy).

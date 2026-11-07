@@ -7,7 +7,7 @@
 | Thông tin | Cách lưu đã chốt |
 | --- | --- |
 | Mã hợp đồng, Customer sở hữu | Giữ `policyNumber`, `customerId` hiện có |
-| Sản phẩm chính | Giữ `InsuranceContract.productId` |
+| Sản phẩm chính | Giữ `InsurancePolicy.productId` |
 | Các sản phẩm bổ trợ đã tham gia | Bổ sung danh sách mã sản phẩm trong `benefitsSnapshot` JSONB hiện có |
 | Danh sách bổ trợ đã được kiểm tra đầy đủ chưa | Một cờ `ridersComplete` trong cùng JSON; mặc định chưa xác nhận |
 
@@ -31,6 +31,8 @@ Thông tin trên PDF phản ánh tài liệu tại thời điểm của nó. RAG
 
 ## Dữ liệu thử và bước tiếp theo
 
-[Fixture hiện có](../../data/synthetic/manulife-demo-v1/README.md) được sinh hoàn toàn giả lập, chưa seed. Hai quyền lợi demo chưa ánh xạ danh mục thương mại; không tự coi chúng là sản phẩm MVP đã chọn. Hợp đồng thật đã che thông tin chỉ là tham khảo local ngoài Git, không dùng làm dữ liệu ứng dụng/RAG.
+[Fixture hiện có](../../data/synthetic/manulife-demo-v1/README.md) được sinh hoàn toàn giả lập, chưa seed. Hai quyền lợi demo chưa ánh xạ danh mục thương mại; không tự coi chúng là sản phẩm MVP đã chọn.
+
+Ngoại lệ 03/11/2026 cho phép lưu Git [bản Private đầy đủ đã khử định danh có dữ liệu demo](../../data/private/manulife-demo-full-v1/README.md). Nguồn vẫn `synthetic=false`, chưa human/RAG approval; không tự seed/chunk/embed. PDF/bản thô/ảnh/định danh thật không thuộc ngoại lệ; ô chưa điền vẫn là thiếu dữ liệu. Đáp án fixture synthetic không áp cho bản đầy đủ.
 
 Bước tiếp theo: ánh xạ danh sách sản phẩm trong fixture synthetic theo cấu trúc đã chốt, rồi thiết kế API đọc hợp đồng. Hai Business Tools đã chốt là [`list_contracts` và `get_contract_overview`](Agent_Design.md#contract-read-tools); còn schema input/output và lỗi chi tiết. Chỉ sửa code/seed khi được yêu cầu triển khai.

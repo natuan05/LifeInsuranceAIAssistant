@@ -6,7 +6,7 @@ Ngày 03/11/2026 · **Kế hoạch đề xuất, chưa implement; mở sau Inbox
 
 Ticket là yêu cầu nghiệp vụ: Agent đề xuất nội dung → Customer xem và xác nhận → Core tạo Ticket + outbox atomic. Nó không là trạng thái cuộc chat. Handoff/Direct/Accept chat không tự tạo Ticket. Xem/nhận/đóng Ticket không cho Staff đọc AI chat riêng hoặc thay Accept chat.
 
-I07 là nhánh tiếp theo, không chặn nghiệm thu Inbox I06. Không ghép Copilot, attachments, Claim/payment, close/resolve hoặc form Staff tự tạo Ticket vào phase này. Agent runtime/transport/service identity/checkpoint chưa được chốt; **không tích hợp draft thật trước contract Agent riêng**. Có thể kiểm Core confirmation/Ticket với draft fixture trusted trong test container, phải báo đó là integration test, không AI thật.
+I07 là nhánh tiếp theo, không chặn nghiệm thu Inbox I06. Không ghép Copilot, attachments, Claim/payment, close/resolve hoặc form Staff tự tạo Ticket vào phase này. Agent dùng custom LangGraph, HTTP + callback JSON và tạm chốt HMAC theo Agent Design; profile xác thực, runtime store/checkpointer và G2/G3 còn phải review; **không tích hợp draft thật trước contract Agent riêng**. Có thể kiểm Core confirmation/Ticket với draft fixture trusted trong test container, phải báo đó là integration test, không AI thật.
 
 ## 2. File triển khai
 
@@ -28,6 +28,8 @@ Core AppModule import TicketsModule khi triển khai. Agent không truy cập tr
 ### 3.1. TicketDraft
 
 Bảng mới lưu draft server-side: id, conversationId/customerId, source=AGENT, version, payload, payloadHash, createdAt, expiresAt, state DRAFT/CONFIRMED/SUPERSEDED. payload allowlist `{title,description,policyId?,sourceMessageIds?}`. Title1–255, description1–4000 code points, source tối đa20 message ids thuộc đúng cuộc/Customer-facing; Core validate linkedPolicy ownership.
+
+**Ánh xạ bắt buộc theo Agent Design/plan:** đầu vào Agent là `AgentResult.actions.PROPOSE_TICKET.summary` với sáu nhóm `request`, `context`, `customer_statements`, `verified_findings`, `attempted_steps`, `pending_issues`. G6 phải đặc tả cách Core lưu/hiển thị đủ sáu nhóm và source refs trong draft/confirmedContent; payload title/description ở trên chỉ là đề xuất App, chưa đủ để bỏ hoặc ép mất summary. Không tự rút còn một description, biến lời khách thành verified finding hoặc dùng history summary thay bản Customer đã xem. Nếu vướng giới hạn độ dài phải yêu cầu bản đề xuất phù hợp và cho xem lại trước xác nhận, không cắt ngầm. Tên trường wire/DDL/hash cuối vẫn chờ G1/G6; không thêm tool LLM ghi Ticket.
 
 Agent chỉ đề xuất, không được gán confirmedAt/actor/ticketCode/status. Internal service interface đề xuất `proposeDraft(trustedServiceContext,conversationId,payload)`; chưa định nghĩa public/service HTTP endpoint khi service auth chưa được review. Không chấp nhận body browser `{source:"AGENT"}` làm chứng cứ trusted.
 
@@ -88,7 +90,7 @@ Customer detail `GET /api/v1/customers/me/tickets/:ticketId`: snapshot đã xác
 
 Contract Staff được tách thành [TK01 scope/model](01-scope-model-contract.md), [TK02 read](02-staff-read-api.md), [TK03 accept](03-accept-command.md), [TK04 UI](04-list-detail-ui.md), [TK05 notifications](05-notification-events.md). Nhánh Staff có thể làm trước Agent; không một module Ticket thứ hai.
 
-TK01 đề xuất scope mặc định active assignment + Ticket recipient chính actor; không global/unassigned OPEN queue. Chốt quyền/version/legacy trước code, review lại routing khi nối producer I07. Schema hiện chưa version/confirmed snapshot; version migration TK01 và snapshot/draft I07 không được giả là E. Read/accept không mở chat grant; Customer confirmation/trusted draft ở mục4 vẫn thuộc I07.
+TK01 đề xuất scope mặc định active assignment + Ticket recipient chính actor; không global/unassigned OPEN queue. Chốt quyền/version/legacy trước code, review lại routing khi nối producer I07. TK01 đã có version/policy nội bộ; confirmed snapshot/draft I07 chưa triển khai, không được giả là E. Read/accept không mở chat grant; Customer confirmation/trusted draft ở mục4 vẫn thuộc I07.
 
 ## 6. Luồng và transaction
 

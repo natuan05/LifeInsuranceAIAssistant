@@ -14,11 +14,11 @@ Test harness provider/Agent/Core/Web qua Docker; fixtures synthetic approved, tr
 
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-Dùng APIs thật và trusted task identity. Case hỏi kiến thức PUBLIC, policy PRIVATE đúng quyền, thiếu bằng chứng, summary watermark, Use draft, revoke giữa execution, provider timeout. Ticket draft/confirmation theo I07 và Customer T01/T02, không tự tạo từ Copilot.
+Dùng APIs thật và trusted task identity. Case hỏi kiến thức PUBLIC, policy PRIVATE đúng quyền, thiếu bằng chứng, summary watermark, từ chối yêu cầu soạn nháp Customer, revoke giữa execution, provider timeout. Ticket draft/confirmation theo I07 và Customer T01/T02, không tự tạo từ Copilot.
 
 ## 4. Luồng thực hiện
 
-Staff → Core → Agent → scoped tools/retrieval → internal answer → Staff review/send. Customer AI transcript/citation boundary độc lập; aiSummary không tự thành confirmedContent.
+Staff → Core → Agent → scoped tools/retrieval → internal answer → Staff đọc kết quả. Không thay composer hoặc thêm tin Customer. Customer AI transcript/citation boundary độc lập; aiSummary không tự thành confirmedContent.
 
 ```mermaid
 flowchart TD
@@ -41,4 +41,3 @@ flowchart TD
 - [ ] Cập nhật API map/checklist theo code thật, cleanup fixture/artifact; không tự commit.
 
 Chỉ đánh dấu FR-007/012/Agent boundary sau E2E thật có scope. Không gộp checkpoint write và Ticket commit.
-

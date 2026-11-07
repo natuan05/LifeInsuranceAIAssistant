@@ -1,6 +1,6 @@
 # NO01 — Notification recipient/read
 
-04/11/2026 · **Đã triển khai cho handoff; Ticket chưa nối** · [Contract](../06-notifications-contract.md) · [Chung](../00-staff-contract.md).
+04/11/2026 · **Đã triển khai handoff; Ticket mở rộng bởi TK05** · [Contract](../06-notifications-contract.md) · [Chung](../00-staff-contract.md).
 
 ## 1. Phạm vi và model
 
@@ -30,7 +30,7 @@ flowchart LR
 
 ## 5. Kiểm thử
 
-I06 Core tests + `conversation-realtime.spec.mjs` và integration suite: dedup/reassignment/revoke, notification read/cursor/safe payload, restart/reconnect/catch-up. Test Ticket riêng TK05 sau producer/read scope thực.
+I06 Core tests + `conversation-realtime.spec.mjs` và integration suite: dedup/reassignment/revoke, notification read/cursor/safe payload, restart/reconnect/catch-up. Test Ticket TK05 đã có Core/WS/browser hai tab, chưa producer Agent.
 
 ## 6. Checklist và giới hạn
 
@@ -38,5 +38,4 @@ I06 Core tests + `conversation-realtime.spec.mjs` và integration suite: dedup/r
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
 - [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
 
-Không duplicate worker/notification module. Không thêm Customer center hoặc unread badge Inbox; Ticket event contract còn TK05.
-
+Không duplicate worker/notification module. Không thêm Customer center hoặc unread badge Inbox; Ticket event contract đã có ở TK05; producer I07 riêng.

@@ -4,7 +4,7 @@
 
 ## 1. Phạm vi và điều kiện bắt đầu
 
-Panel bên chat đúng mẫu repo UI; hỏi/tóm tắt/Use draft/citations, không độc lập thay Inbox.
+Panel bên chat đúng mẫu repo UI; tra cứu/giải thích/tóm tắt/citations. Phạm vi xác nhận 06/11/2026 không có soạn nháp câu trả lời hoặc Use draft.
 
 ## 2. Model và vị trí thay đổi
 
@@ -14,11 +14,11 @@ Panel bên chat đúng mẫu repo UI; hỏi/tóm tắt/Use draft/citations, khô
 
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-Dùng A24–26/task lookup đã chốt. Mở citations qua Core exact version, không URL do LLM tự cấp. Use draft là FE action, không A12; Staff tự Send sau review. Có nháp cũ phải confirm overwrite hoặc append lựa chọn rõ.
+Dùng A24–26/task lookup sau khi CP01 chốt contract. Mở citations qua Core exact version, không URL do LLM tự cấp. Kết quả chỉ ở panel nội bộ; không đưa vào composer hoặc gọi A12.
 
 ## 4. Luồng thực hiện
 
-Rail mở panel → source header → history/quick prompts/task state → answer+watermark+citation. Pending source không enable. Đóng/mở/chuyển cuộc giữ đúng scope, không lẫn context; loading/Agent outage/retry/quota/expired/cancel có UI. Revoke xóa panel và draft gợi ý, không tự gửi Customer.
+Rail mở panel → source header → history/quick prompts/task state → answer+watermark+citation. Pending source không enable. Đóng/mở/chuyển cuộc giữ đúng scope, không lẫn context; loading/Agent outage/retry/quota/cancel có UI. Revoke xóa nội dung ngoài quyền; không tự gửi Customer. Chính sách task khi logout/hết phiên chờ G3.
 
 ```mermaid
 flowchart TD
@@ -31,7 +31,7 @@ flowchart TD
 
 ## 5. Test cần có
 
-Browser DOM tests keyboard/Escape/focus375px/200%, no-F5, use draft preserves existing text, never auto-send, stale source/late task, citations denied. E2E thật đủ grant hỏi AI→review/use/edit→Staff Send; Customer chỉ nhận tin Staff Send. Không screenshot.
+Browser DOM tests keyboard/Escape/focus375px/200%, no-F5, không có Use draft, composer giữ nguyên, stale source/late task, citations denied. E2E thật đủ grant hỏi AI → đọc kết quả nội bộ; assert không thêm tin vào chat Customer. Không screenshot.
 
 ## 6. Gate hoàn tất
 
@@ -41,4 +41,3 @@ Browser DOM tests keyboard/Escape/focus375px/200%, no-F5, use draft preserves ex
 - [ ] Cập nhật API map/checklist theo code thật, cleanup fixture/artifact; không tự commit.
 
 CP03 không làm trong đợt Staff trước Agent. Sau CP03 mới nghiệm thu CP04/Agent E2E; mock UI không thay chứng cứ AI.
-

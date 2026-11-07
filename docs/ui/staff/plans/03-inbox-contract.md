@@ -72,7 +72,7 @@ Yêu cầu Staff và sự kiện thông báo lưu bền vững riêng; không t�
 
 ## 7. Những điểm kỹ thuật còn mở
 
-Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI dừng từ request commit; chưa có Staff/Staff khóa trả409 không tạo request vô chủ; reassignment thu hồi grant cũ và cần Customer xác nhận mới; Direct cũ ngừng gửi, có thể tạo Direct mới hoặc xin chuyển lịch sử qua request mới; legacy chưa chứng minh giữ LEGACY_REVIEW. I04 Staff UI và I05 send/Customer UI đã nối; I06 realtime đã có; Ticket theo TK01–TK05/I07 còn P.
+Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI dừng từ request commit; chưa có Staff/Staff khóa trả409 không tạo request vô chủ; reassignment thu hồi grant cũ và cần Customer xác nhận mới; Direct cũ ngừng gửi, có thể tạo Direct mới hoặc xin chuyển lịch sử qua request mới; legacy chưa chứng minh giữ LEGACY_REVIEW. I04 Staff UI và I05 send/Customer UI đã nối; I06 realtime đã có; Ticket TK01–TK05 read/Accept/UI/consumer đã có; I07 producer còn P.
 
 ## 8. Checklist
 
@@ -89,7 +89,7 @@ Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI d
 - [x] I05 send/reconcile và Customer UI qua REST thật.
 - [x] I06-A: tin SYSTEM tiếp nhận lưu cùng transaction Accept; retry không trùng, không báo thành công trước commit.
 - [x] I06-B: realtime/outbox/notification/catch-up và thu hồi quyền.
-- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel hỏi/tóm tắt/gợi ý trả lời.
+- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel tra cứu/giải thích/tóm tắt; không soạn nháp Customer hoặc Use draft.
 - [ ] Mở phạm vi/nghiệm thu I07 riêng, không chờ Ticket để dùng chat Staff.
 
 ## 9. Contract kỹ thuật dùng chung — đề xuất

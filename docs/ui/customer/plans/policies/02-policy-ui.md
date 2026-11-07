@@ -1,6 +1,6 @@
 # PO02 — My policies list và detail
 
-04/11/2026 · **Chưa triển khai** · [C04](../04-policies-contract.md) · Cần H01, [PO01](01-owner-read-api.md).
+05/11/2026 · **Đã triển khai** · [C04](../04-policies-contract.md) · Cần H01, [PO01](01-owner-read-api.md).
 
 ## 1. File và API
 
@@ -36,5 +36,5 @@ flowchart TD
 | PO02-T04 | PO01 có nhưng D01 chưa E/storage fail | Summary dùng được, không nút hỏng/falsePDF |
 | PO02-T05 | Keyboard/375px/200%zoom | Không tràn; labels/focus/scroll đúng |
 
-- [ ] PO01 thật, browser/E2E pass; Staff Policy Lookup không đổi.
-- [ ] C04 cập nhật riêng read UI, C05 chưa xong nếu chưa có xem/tải PDF thật.
+- [x] PO01 thật, browser/E2E pass (`apps/web/tests/browser/customer-policies.spec.mjs`); Staff Policy Lookup không đổi.
+- [x] C04 cập nhật read UI (`CustomerPolicies`, `CustomerPolicyDetail`), tích hợp xem và tải PDF thật qua MinIO presigned URL.

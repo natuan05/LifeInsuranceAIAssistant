@@ -2,7 +2,7 @@
 
 Ứng dụng hỗ trợ bảo hiểm nhân thọ, gồm Next.js frontend, NestJS Core, PostgreSQL/pgvector, Nginx gateway, DbGate và tool quản trị tài khoản local.
 
-Cập nhật 04/11/2026: Staff đã có tài khoản/hồ sơ, Customers search/phân trang, Policy Lookup/PDF, Products/PDF và Inbox I01–I06 với Direct/consent/Accept/chat hai đầu/realtime/handoff notifications. Customer có login/profile readonly/chat tối thiểu; UI mới còn kế hoạch. Ticket APIs/UI nghiệp vụ chưa triển khai. Xem [Staff plans](docs/ui/staff/plans/README.md), [Customer plans](docs/ui/customer/plans/README.md), [tiến độ](docs/ui/implementation-status.md).
+Đối chiếu 06/11/2026 theo application main 05/11: Staff có tài khoản/hồ sơ, Customers search/phân trang, Policy Lookup/PDF, Products/PDF và Inbox I01–I06 với Direct/consent/Accept/chat hai đầu/realtime/handoff notifications. Customer có Home/Products/Policies/PDF, hồ sơ chỉ đọc và chat hai đầu. Staff Ticket TK01–TK05 có read/Accept/UI/status/notification; nguồn tạo/xác nhận Ticket từ Agent còn I07. Agent/Copilot chưa được nghiệm thu từ baseline App. Xem [Staff plans](docs/ui/staff/plans/README.md), [Customer plans](docs/ui/customer/plans/README.md), [tiến độ](docs/ui/implementation-status.md).
 
 MVP dùng **7 sản phẩm Manulife: 4 chính và 3 bổ trợ**; xem [danh sách và phạm vi dữ liệu](docs/specifications/Agent_Design.md#mvp-products).
 

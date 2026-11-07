@@ -1,12 +1,14 @@
 # Staff — contract chung và ranh giới nghiệm thu
 
+UI Staff không hiển thị các hướng dẫn thao tác thừa như “Press Enter to search”, giới hạn tìm kiếm hoặc nhắc phím tắt chat. Giữ nhãn trường, trạng thái và lỗi cần thiết; thao tác bàn phím vẫn hoạt động.
+
 04/11/2026 · [Chỉ mục phase](README.md) · [API E/P](00-staff-contract.md#api-theo-chức-năng) · [Routes](00-staff-contract.md#điều-hướng) · [Customer chung](../../customer/plans/00-customer-contract.md).
 
 ## 1. Nguồn và trạng thái
 
 Requirement FR-001/002/003/006/007/008/010/011/012/013, NFR-001–008; [SRS](../../../specifications/Requirement.md), [Data Model](../../../specifications/Data_Model.md), [kiến trúc](../../../architecture.md), [quyết định local](../../../source-review.md). Prisma trong apps/core/prisma/schema.prisma và controller/service hiện hành dùng để xác minh runtime; UI mẫu không là nguồn quyền/nghiệp vụ.
 
-**E** là code đã có, **P** là đề xuất/chưa implement. Các AU/CU/PL/NO bổ sung mô tả cho code đã làm, không phải code mới hoặc test vừa chạy. I01–I06/P01–P03 đã có; Ticket/Copilot và phần nghiệm thu còn mở được ghi đúng phase. Không đánh dấu trọn FR-001 cho đăng ký chưa có, FR-007/012 cho Agent chưa chạy, FR-010 cho route Ticket còn khung.
+**E** là code đã có, **P** là đề xuất/chưa implement. Các AU/CU/PL/NO bổ sung mô tả cho code đã làm, không phải code mới hoặc test vừa chạy. I01–I06/P01–P03 và TK01–TK05 đã có; producer Ticket I07/Copilot và phần nghiệm thu còn mở ghi đúng phase. FR-007/012 chưa hoàn tất từ Agent chưa chạy; không suy toàn MVP đã đạt từ route hoặc fixture.
 
 ## 2. Model và quyền
 
@@ -17,7 +19,7 @@ Requirement FR-001/002/003/006/007/008/010/011/012/013, NFR-001–008; [SRS](../
 | InsurancePolicy/InsuranceProduct | Hợp đồng theo khách; sản phẩm inactive không ẩn policy lịch sử; financials/null/date-only theo DTO |
 | Document/DocumentVersion | PUBLIC/PRIVATE_POLICY; product current published version khác policy exact applied version; không PRIVATE_CUSTOMER/Document.kind |
 | Conversation/ConversationHandoff/Message (consent/acceptance trong handoff) | AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; Direct hợp lệ hoặc consent+Accept mới transcript, sau Accept toàn lịch sử Customer-facing |
-| SupportTicket | TicketStatus giữ OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED; không chat Closed. Version/snapshot mới trong TK01/I07 chỉ P |
+| SupportTicket | TicketStatus giữ OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED; không chat Closed. TK01 version/policy nội bộ đã có; confirmed snapshot I07 còn P |
 | Notification/OutboxEvent | Recipient Staff, dedup/retry/outbox sau commit; không Customer recipient hoặc delivered/read ACK chat |
 
 Assignment, chat controller, Ticket assignee và notification recipient là những quan hệ khác nhau. Biết UUID/link/Ticket không mở transcript. Copilot/internal/tool traces không lọt Customer-facing APIs/events.
@@ -38,7 +40,7 @@ Không F5/document navigation cho search/filter/page/save/retry/selection. Query
 
 Products tự mở PDF đầu tiên, nhiều file dùng Document select; không View/Refresh documents/Close thường trực. Cùng version giữ iframe/src; published version mới chỉ hiện nút chuyển, link mới vẫn reauthorize current. Policy main PDF theo binding, tài liệu phụ riêng. Native iframe không chứng minh zoom/page nội bộ qua DOM. Signed URL đã cấp còn residual TTL, không hứa thu hồi tức thì.
 
-Inbox không Refresh inbox/conversation/messages hoặc Message saved; ACK hiện tin đã commit. Pending/unknown/error/reconcile vẫn có trạng thái và Retry đúng chỗ. Notification Refresh riêng nếu runtime còn có không được tự ghi là đã loại toàn app.
+Inbox không Refresh inbox/conversation/messages hoặc Message saved; ACK hiện tin đã commit. Pending/unknown/error/reconcile vẫn có trạng thái và Retry đúng chỗ. Notification cũng không có Refresh thường trực; Try again chỉ xuất hiện khi lỗi.
 
 ## 5. Cấu trúc và cách cập nhật
 
@@ -51,9 +53,9 @@ Nguồn state hiện tại: [chỉ mục phase](README.md) và [tiến độ](..
 1. Giữ và nghiệm thu Auth/Customers/Policy/PDF/Products/Inbox/handoff notification đang E.
 2. TK01–TK05: Staff đọc/tiếp nhận Ticket độc lập nguồn tạo; mỗi phase có gate. Test fixture không tạo API fake Agent hoặc thay bootstrap.
 3. Test Core/browser/E2E thuộc từng phase code của chức năng; không có nhóm Release hoặc chuẩn bị commit trong plans.
-4. Hoãn CP01–CP04, Agent draft/confirmation I07 và Customer UI mới. Việc này là tách mốc, không xóa requirement/plan tương lai.
+4. CP01–CP04 và Agent draft/confirmation I07 là đợt Agent theo design/plan. Customer Home/Products/Policies/PDF đã có; chỉ phần còn lại theo phase Customer, không hoãn toàn bộ UI.
 
-Không resolve/close Ticket workflow, Claim/payment/upload/manual Ticket/read receipts/global search/template/attachment chỉ vì enum/icon có sẵn. Những mục chưa được chọn không tự thành Must hoặc phase bắt buộc. Đổi linkedPolicy/context nếu được chọn nằm trong nhóm Copilot, không chức năng app độc lập; Customer notification center có N01/N02 riêng.
+Resolve/close/reopen Ticket đã được người dùng chọn05/11 và triển khai trong TK03/TK04. Không thêm Claim/payment/upload/manual Ticket/read receipts/global search/template/attachment chỉ vì enum/icon có sẵn. Những mục chưa được chọn không tự thành Must hoặc phase bắt buộc. Đổi linkedPolicy/context nếu được chọn nằm trong nhóm Copilot, không chức năng app độc lập; Customer notification center có N01/N02 riêng.
 
 
 ## API theo chức năng
@@ -68,20 +70,20 @@ Mã Axx chỉ để truy vết, không phải mã FR. Bảng endpoint và E/P n�
 | Products | [A17/A19/access](04-products-contract.md#api-và-routes-của-chức-năng) |
 | Policies/PDF | [A14/A15/A16/A18/A20](05-policies-contract.md#api-và-routes-của-chức-năng) |
 | Notifications | [A27/A28](06-notifications-contract.md#api-và-routes-của-chức-năng) |
-| Tickets | [A21–A23 P](07-tickets-contract.md#api-và-routes-của-chức-năng) |
+| Tickets | [A21–A23 E](07-tickets-contract.md#api-và-routes-của-chức-năng) |
 | Copilot | [A24–A26 P](08-copilot-contract.md#api-và-routes-của-chức-năng) |
 
-Customer APIs có baseline và owner tại [Customer plans](../../customer/plans/00-customer-contract.md); không gọi Staff API thay quyền owner. Health/Swagger là vận hành, operator /ops/v1 không phải Staff API. Chưa có endpoint linkedPolicy/resolve Ticket/return-to-AI/Claim/payment/upload/global search/templates; không suy endpoint từ icon hoặc enum.
+Customer APIs có baseline và owner tại [Customer plans](../../customer/plans/00-customer-contract.md); không gọi Staff API thay quyền owner. Health/Swagger là vận hành, operator /ops/v1 không phải Staff API. Đã có PATCH Ticket status resolve/close/reopen; chưa có endpoint linkedPolicy/return-to-AI/Claim/payment/upload/global search/templates; không suy endpoint từ icon hoặc enum.
 
 ## Điều hướng
 
-Route của Auth/Account, Customers, Inbox, Products, Policies và Tickets nằm trong bảng API/routes của từng contract bên trên. /staff chuyển /staff/customers; /account dùng shared auth boundary theo role. Copilot là panel trong Inbox, chưa có route riêng. Tickets có route nhưng API/UI còn P. Không thêm chat/Ticket lồng dưới customer detail.
+Route của Auth/Account, Customers, Inbox, Products, Policies và Tickets nằm trong bảng API/routes của từng contract bên trên. /staff chuyển /staff/customers; /account dùng shared auth boundary theo role. Copilot là panel trong Inbox, chưa có route riêng. Tickets có A21/A22 read API TK02; TK03 Accept/PATCH status resolve/close/reopen và TK04 list→detail riêng đã có; consumer notification TK05 đã có; producer tạo từ Agent còn I07. Không thêm chat/Ticket lồng dưới customer detail.
 
 Query dùng History API, đổi route dùng Next Link/router; shared layout không gọi auth/me ở mọi page marker. Back/Forward giữ filter/selection đúng scope. Legacy Inbox request→requests, recent→active, new/AI/Closed→All rồi Core recheck. Cursor transcript/signed URL không đưa vào URL app. Link Ticket không bỏ Direct/Accept gate.
 
 ## WebSocket local hiện có
 
-`WS /api/v1/realtime` (WSS khi HTTPS): cookie, exact Origin, AuthService.me; ready/invalidate/session-expired và I06 chat/scope/notification invalidations, không nội dung Private hoặc client subscription/mutation. Snapshot account/profile/assignment và outbox local dẫn Web REST resync/catch-up. Không tokenstream LLM, read receipts hoặc xác nhận delivered/read.
+`WS /api/v1/realtime` (WSS khi HTTPS): cookie, exact Origin, AuthService.me; ready/invalidate/session-expired và I06 chat/scope/notification và TK05 Ticket invalidations, không nội dung Private hoặc client subscription/mutation. Snapshot account/profile/assignment và outbox local dẫn Web REST resync/catch-up. Không tokenstream LLM, read receipts hoặc xác nhận delivered/read.
 
 Frame client gửi bị đóng 1008; phiên thu hồi đóng 4001; DB lỗi đóng 1013 để reconnect/backoff. Giới hạn local: 128 kết nối/process, 4/actor, 60 handshake/phút/socket IP; qua gateway là IP gateway, không tin X-Forwarded-For. Đây không là sizing/SLA production.
 
@@ -90,6 +92,6 @@ Frame client gửi bị đóng 1008; phiên thu hồi đóng 4001; DB lỗi đó
 
 | ID | Phần còn lại | Phase sở hữu |
 | --- | --- | --- |
-| G08 | Customer runtime có login/profile readonly/chat tối thiểu, UI mới chưa làm | [Customer plans](../../customer/plans/README.md), hoãn đợt sau; không lẫn scope Staff |
+| G08 | Customer Home/Products/Policies/PDF/chat shell đã có; profile edit, Agent/confirmation và phạm vi mở rộng theo phase | [Customer plans](../../customer/plans/README.md); không lẫn scope Staff |
 | G09 | Core/mock/browser và một số real E2E đã có; chưa đủ Account/Policy/browser matrix/benchmark | Bổ sung test ngay trong phase Auth/Customers/Policies tương ứng; Products/Inbox đã có suite thật |
 | G10 | Global search/templates/attachments/read marker/complete Ticket workflow chưa chọn | [Extensions](00-staff-contract.md); không tự thành Must từ UI mẫu/enum |

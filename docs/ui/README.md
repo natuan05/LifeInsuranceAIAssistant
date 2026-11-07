@@ -6,8 +6,8 @@
 
 1. [Tiến độ](implementation-status.md): runtime E, phần P và mức chứng cứ.
 2. [Menu/phạm vi](menu.md): các màn đích, không biến placeholder thành yêu cầu.
-3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Mốc tiếp là Staff Tickets và nghiệm thu không Agent.
-4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): để đợt Customer sau, chưa triển khai UI mới.
+3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Tickets TK01–TK05 đã có; Agent/Copilot và I07 là phần tiếp theo.
+4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): Home/Products/Policies/PDF đã có; đọc trạng thái từng phase, không coi toàn bộ Customer còn là kế hoạch.
 5. [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng), [routes](staff/plans/00-staff-contract.md#điều-hướng), [gap](staff/plans/README.md#phần-còn-lại-theo-chức-năng): tham chiếu dùng chung, không lặp contract chức năng.
 6. [Requirement](../specifications/Requirement.md), [Data Model](../specifications/Data_Model.md), [architecture](../architecture.md), [source review](../source-review.md): nguồn và quyết định local.
 
