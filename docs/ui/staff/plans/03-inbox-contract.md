@@ -89,7 +89,7 @@ Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI d
 - [x] I05 send/reconcile và Customer UI qua REST thật.
 - [x] I06-A: tin SYSTEM tiếp nhận lưu cùng transaction Accept; retry không trùng, không báo thành công trước commit.
 - [x] I06-B: realtime/outbox/notification/catch-up và thu hồi quyền.
-- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel hỏi/tóm tắt/gợi ý trả lời.
+- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel tra cứu/giải thích/tóm tắt; không soạn nháp Customer hoặc Use draft.
 - [ ] Mở phạm vi/nghiệm thu I07 riêng, không chờ Ticket để dùng chat Staff.
 
 ## 9. Contract kỹ thuật dùng chung — đề xuất

@@ -2,6 +2,7 @@
 
 05/11/2026 · **Đã triển khai** · C05 · [Chung](00-customer-contract.md).
 
+<a id="hướng-triển-khai-policypdf-đã-thống-nhất--31102026"></a>
 ## 1. Căn cứ và baseline
 
 FR-008/UC-007/NFR-007. MinIO private, reader credential, SDK, signed link và Staff catalog/view/download đã chạy; Customer sử dụng các endpoint owner riêng được kiểm soát quyền chặt chẽ.

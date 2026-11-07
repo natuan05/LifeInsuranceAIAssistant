@@ -43,7 +43,7 @@ Xem [bộ Private được phép lưu Git](../data/private/manulife-demo-full-v1
 
 ## Đồng bộ UI và dữ liệu local — 04/11/2026
 
-[Checklist UI/gap](ui/implementation-status.md) theo dõi phần đã nối API và placeholder. UI không giữ fixture policy/Ticket/Claim như kết quả thật; dữ liệu thiếu không biến thành 0 hoặc xác nhận chi trả. Customer/Staff dev fixtures ở `apps/core/src/cli/dev-accounts.ts`; bootstrap đã có policy/PDF synthetic và corpus Markdown đã chuẩn bị riêng. Chat hai đầu I01–I06 và handoff notification đã có runtime; Ticket nghiệp vụ chưa có. Dữ liệu/RAG do nhánh riêng phụ trách, không coi fixture app là bằng chứng retrieval.
+[Checklist UI/gap](ui/implementation-status.md) theo dõi phần đã nối API và placeholder. UI không giữ fixture policy/Ticket/Claim như kết quả thật; dữ liệu thiếu không biến thành 0 hoặc xác nhận chi trả. Customer/Staff dev fixtures ở `apps/core/src/cli/dev-accounts.ts`; bootstrap đã có policy/PDF synthetic và corpus Markdown đã chuẩn bị riêng. Chat hai đầu I01–I06, handoff notification và Staff Ticket TK01–TK05 đã có; producer/xác nhận Ticket từ Agent I07 còn kế hoạch. Dữ liệu/RAG do nhánh riêng phụ trách, không coi fixture app là bằng chứng retrieval.
 
 Policy dùng model InsurancePolicy/bảng insurance_policies; không sửa tên trong migration lịch sử. WebSocket local gửi invalidation account/profile/assignment và I06 chat/scope/notification, không payload Private; Web đọc lại REST theo quyền. Không ghi cookie/CSRF/URL xem tài liệu vào log sự kiện hay browser storage. Các artifact kiểm tra local không thay test suite được quản lý trong repo.
 

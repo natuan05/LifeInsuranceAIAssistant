@@ -14,11 +14,11 @@ Test harness provider/Agent/Core/Web qua Docker; fixtures synthetic approved, tr
 
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-Dùng APIs thật và trusted task identity. Case hỏi kiến thức PUBLIC, policy PRIVATE đúng quyền, thiếu bằng chứng, summary watermark, Use draft, revoke giữa execution, provider timeout. Ticket draft/confirmation theo I07 và Customer T01/T02, không tự tạo từ Copilot.
+Dùng APIs thật và trusted task identity. Case hỏi kiến thức PUBLIC, policy PRIVATE đúng quyền, thiếu bằng chứng, summary watermark, từ chối yêu cầu soạn nháp Customer, revoke giữa execution, provider timeout. Ticket draft/confirmation theo I07 và Customer T01/T02, không tự tạo từ Copilot.
 
 ## 4. Luồng thực hiện
 
-Staff → Core → Agent → scoped tools/retrieval → internal answer → Staff review/send. Customer AI transcript/citation boundary độc lập; aiSummary không tự thành confirmedContent.
+Staff → Core → Agent → scoped tools/retrieval → internal answer → Staff đọc kết quả. Không thay composer hoặc thêm tin Customer. Customer AI transcript/citation boundary độc lập; aiSummary không tự thành confirmedContent.
 
 ```mermaid
 flowchart TD
@@ -48,18 +48,18 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 
 **Kết quả mong đợi:** Source/version đúng, deny Private khác; thiếu căn cứ được thừa nhận, không bịa citation/Claim/payment.
 
-### CP04-T02 — Staff review rồi mới gửi Customer
+### CP04-T02 — Kết quả Copilot chỉ nội bộ
 
 **Lớp kiểm thử:** Browser + Agent E2E dự kiến.
-**Điều kiện và dữ liệu:** Hai context S-A/C-A có cuộc accepted; Agent thật trả draft.
+**Điều kiện và dữ liệu:** S-A có quyền transcript của cuộc C-A đã Accept; Agent thật trả kết quả tra cứu/giải thích/tóm tắt. Composer Staff có nháp D0.
 
 **Các bước:**
 
-1. Staff hỏi Copilot, Use draft rồi sửa.
-2. Quan sát Customer trước khi Send.
-3. Staff Send và kiểm cả hai phía.
+1. Staff hỏi Copilot và nhận kết quả nội bộ.
+2. Kiểm panel không có Use draft, composer vẫn là D0.
+3. Gửi lại callback cùng event và quan sát lịch sử/event hai phía.
 
-**Kết quả mong đợi:** Customer không thấy tác vụ/draft internal; chỉ một tin Staff sau Send, không mất nháp hoặc duplicate do callback.
+**Kết quả mong đợi:** Customer không thấy nội dung/tác vụ Copilot; không gọi A12 hoặc thêm tin Customer-facing. D0 giữ nguyên, callback không tạo kết quả trùng; không có luồng soạn nháp Customer trong MVP.
 
 ### CP04-T03 — Revoke và provider outage
 
@@ -99,18 +99,18 @@ sequenceDiagram
     U->>W: Gửi câu hỏi theo channel
     W->>C: A25 theo contract đã chốt
     C->>D: Session, source grant và durable intent
-    D-->>C: Turn hoặc task identity theo contract đã chốt
+    D-->>C: Run/attempt theo contract đã chốt
     C->>A: Trusted service envelope và context version
     A->>C: Business API hoặc retrieval scope
     C->>D: Recheck actor, owner và exact source version
     D-->>C: Dữ liệu đúng quyền
     C-->>A: Context allowlist
-    A->>C: Result gắn turn, attempt và watermark
+    A->>C: Result gắn run, attempt và watermark
     C->>D: Recheck fence và quyền trước lưu hoặc trả result
     alt Scope hoặc control version đã đổi
         C-->>W: Result không khả dụng, không Private muộn
     else Hợp lệ
-        C-->>W: Draft hoặc answer đúng channel
-        W-->>U: Review hoặc message đã commit
+        C-->>W: Kết quả tra cứu/giải thích/tóm tắt nội bộ
+        W-->>U: Đọc kết quả; không sửa composer hoặc gửi Customer
     end
 ```

@@ -10,7 +10,7 @@ Customer Portal cập nhật 05/11/2026: Đã hoàn tất triển khai UI Custom
 
 [Thứ tự đọc](README.md) · [Menu đích](menu.md) · [Chỉ mục Staff](staff/README.md) · [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng) · [Gap G01–G10](staff/plans/README.md#phần-còn-lại-theo-chức-năng)
 
-Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff UI đã triển khai: [Staff Products](staff/plans/04-products-contract.md). [Customer theo chức năng và phase](customer/plans/README.md) vẫn chưa triển khai UI mới; dùng chung A17/A19/access. Tách phần không Agent khỏi Agent/Ticket và đề xuất notification center Customer.
+Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff UI đã triển khai: [Staff Products](staff/plans/04-products-contract.md). [Customer plans](customer/plans/README.md) có H01/H02, PR01/PR02 và PO01/PO02/D01/D02 đã triển khai; profile edit, Agent/Ticket confirmation và notification center Customer còn theo phase riêng. Tài khoản cấp sẵn đã chốt 07/11, không còn registration backlog trong MVP.
 
 ## Quy ước
 
@@ -20,15 +20,15 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 
 | Mã | Trạng thái | Đã có | Còn thiếu |
 | --- | --- | --- | --- |
-| C01 | Một phần FR-001 | Login email/password/session/role | Registration A01/A02; reset/OTP/SSO không tự là Must |
+| C01 | Login/session đã có local | Tài khoản được cấp sẵn; email/password/session/role | Không yêu cầu tự đăng ký; reset/OTP/SSO không tự là Must. Chưa suy production/NFR đã đạt từ local |
 | C02 | Đã nối API local | H01 shell điều hướng, H02 Home hiển thị portfolio từ dữ liệu hợp đồng thực tế, lối tắt dịch vụ và Staff phụ trách | Đã tinh chỉnh tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ card tĩnh Paperless Policy |
 | C03 | Đã nối API local | PR01 catalog/search/detail tại chỗ, nút View Details, PR02 xem/tải PDF tài liệu PUBLIC qua SignedPdfPreview | Đã bỏ nút ép chat; khách hàng tự chủ động vào chat khi có nhu cầu |
 | C04 | Đã nối API local | PO01/PO02 danh sách/chi tiết hợp đồng, quyền lợi, lịch phí theo ownership | 5/5 browser tests pass |
 | C05 | Đã nối API local | D01/D02 xem/tải PDF hợp đồng sở hữu qua MinIO presigned URL | Tích hợp SignedPdfPreview |
-| C06 | I03–I06 đã nối nền | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM | CH01 layout mới; CH02/CH03 Agent trả lời thật/citations |
+| C06 | I03–I06 và CH01 đã nối | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM trong Customer shell | CH02/CH03 Agent trả lời thật/citations |
 | C07 | Chưa làm | Schema Ticket/outbox, plan I07 | Trusted draft/explicit confirmation/result/detail theo I07/T01/T02; manual/list tổng riêng |
 | C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Sửa hồ sơ theo PF01/02 |
-| C09 | Đã nối API local | Toolbar Notification Center popover: badge đếm chưa đọc, đánh dấu đọc từng mục/tất cả | N01/N02 push notification mở rộng |
+| C09 | UI shell/client state | Toolbar popover và thao tác đánh dấu đọc trong phiên; chưa Core Customer notification API | N01/N02 scope/recipient/persistence nếu được chọn; không coi UI là thông báo nghiệp vụ thật |
 | S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; 15 regression form + 22 phiên/retry không F5, focus freshness 30 giây | E2E/trình duyệt khác |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
 | S03 | Đã nối API local | Customers list/detail/search/page/retry, hợp đồng/PDF; 15 regression FE | Link theo khách là UX tùy scope; bổ sung E2E thật trong CU02 |
@@ -72,16 +72,16 @@ Mã gap/điều kiện đóng nằm duy nhất tại [G01–G10](staff/plans/REA
 
 | Yêu cầu | Độ phủ hiện tại |
 | --- | --- |
-| FR-001 | Local login/session/logout/password có; public registration/IdP chưa có, chưa hoàn tất toàn FR |
+| FR-001 | Local login/session/logout/password đã có cho tài khoản cấp sẵn; tự đăng ký không thuộc MVP theo quyết định 07/11. External IdP không là điều kiện hoàn tất chức năng login local |
 | FR-002 | Staff xem khách đúng assignment; Customer own profile chỉ đọc, chưa quản lý/sửa. Staff self-edit là yêu cầu bổ sung đã triển khai |
 | FR-003 / UC-003 | Staff list/detail/search/phân trang đúng assignment đã nối; có Core tests và regression FE, chưa E2E đầy đủ |
 | FR-005/006/007 | Chat Customer–Staff/consent/Accept/send/realtime đã có; AI trả lời/Copilot chưa có, không đánh dấu đủ FR-005/007 |
-| FR-008 / UC-007 | Staff policy/PDF và Core product catalog A17 hai role đã có; product documents/UI và Customer owner policy/PDF còn thiếu, chưa đủ toàn FR |
-| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history và Staff handoff notification đã có I03–I06; Ticket/draft confirmation/AI summary/Copilot còn thiếu, không đánh dấu đủ nhóm FR |
+| FR-008 / UC-007 | Staff/Customer policy/PDF và product catalog/documents/UI đã có. Retrieval AI và mapping nguồn áp dụng cho RAG là phần Agent riêng; không nghiệm thu từ UI đọc PDF |
+| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. I07 draft/confirmation/producer và AI summary/Copilot còn thiếu; không đánh dấu đủ nhóm FR |
 | NFR-001/002 | Baseline auth/assignment/CSRF/allowlist/synthetic ở API hiện có; retrieval/tool scope chưa làm |
 | NFR-003 | Staff đọc DB/snapshot và exact document version; AI safety/retrieval pipeline chưa làm |
 | NFR-005/006 | Handoff outbox/realtime local có I06; Ticket+outbox nghiệp vụ còn I07. Chưa đo workload/SLA thông báo5 giây, không suy từ test local |
-| NFR-007 | Staff signed PDF access/TTL/phiên bản có; Customer còn thiếu. Signed URL không thu hồi tức thì, audit cấp link không chứng minh tải thành công |
+| NFR-007 | Staff/Customer signed PDF access/TTL/phiên bản đã có. Signed URL không thu hồi tức thì, audit cấp link không chứng minh tải thành công |
 | NFR-004/008 | HTTP request metadata/audit local có một phần; chưa benchmark hoặc observability Agent/notification đầy đủ |
 
 Bảng FR nguồn không có FR-004. Ticket thủ công/notification center Customer là đề xuất mở rộng, không tự là Must; FR-013 chỉ System→Staff. Bản Data Model nguồn khác baseline local ở một số ràng buộc; xem [architecture](../architecture.md#local-data-model) và [Policies](staff/plans/05-policies-contract.md#quan-hệ-dữ-liệu-và-phiên-bản), không sửa nguồn/ADR chỉ từ tiến độ UI.

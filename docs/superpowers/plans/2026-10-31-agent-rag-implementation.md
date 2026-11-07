@@ -16,6 +16,7 @@
 
 - Bản này chỉ là kế hoạch; chưa cho phép chạy implementation, cài dependency, migration, seed, chunk/embedding hoặc cloud.
 - Core sở hữu danh tính, authorization, business, lịch sử, lifecycle run/attempt và takeover; Agent không truy cập business DB.
+- MVP dùng tài khoản được cấp sẵn, không có Customer tự đăng ký công khai theo quyết định 07/11/2026. Agent không provision tài khoản; không thêm signup hoặc tích hợp cấp tài khoản tự động từ plan này.
 - Private chỉ dữ liệu sinh hoàn toàn giả lập; không đọc `.local/private`, hợp đồng thật hoặc bản đã che danh tính để tạo fixture/prompt/log.
 - Retrieval chỉ đọc `rag`; indexer offline có quyền riêng; checkpoint có schema/role/pool/migration riêng, không quyền business hoặc ghi index.
 - Không FK/join/view/trigger/transaction từ checkpoint sang business/rag; ID chỉ để liên kết, quyền do Core kiểm tra.
@@ -58,9 +59,11 @@
 
 ## Baseline và thứ tự thực thi
 
-Baseline đã kiểm khi cập nhật kế hoạch: `apps/agent/` chỉ có README; Core có auth/customers/accounts/admin theo feature; AppModule chỉ import Database/Auth/Customers. `InsuranceContract`, `Document`, `DocumentVersion`, `Conversation`, `Message`, `SupportTicket`, `OutboxEvent`, `RagKnowledgeChunk` đã có; chưa có run/attempt/event/checkpoint, API hợp đồng hoặc API tạo/tìm/mở lại hội thoại/lịch sử cho Web. Không có conversation seed để thay seam này. Không dựng lại login/profile/assignment/Docker/17 bảng.
+Baseline application main 05/11/2026, đối chiếu 06/11: Core đã có Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications/Tickets; Staff và Customer policy/PDF, chat I01–I06, Staff Ticket TK01–TK05 đã có. Model dùng `InsurancePolicy`; có 19 model/10 migrations tới `202611050002_ticket_status_notifications`. Chưa có runtime Agent/checkpoint hoặc producer Ticket I07 trong baseline main; các nhánh Agent chưa được nghiệm thu chỉ từ việc tồn tại trên remote. Task 1 có contract/schema/fixtures/tests để review G1, chưa tự đóng gate.
 
-Tests Core hiện dùng `node:test` trong `apps/core/test/*.test.cjs`, đọc dist sau build; test DB chạy qua `scripts/dev-local.mjs` và truyền credential qua stdin. Chỉ `test:http` ở package Core; root hiện có `test:accounts`, `test:auth`, `test:customers`, `test:admin`. Các lệnh mới bên dưới chỉ tồn tại sau task đăng ký runner, không giả định có `npm test`.
+Tái dùng create/list/read/history/send, command receipts, consent/Accept, controlVersion/fence và outbox của App. Staff cần transcript grant hiện hành cho source chat Copilot, không chỉ assignment. Bản đồ file và user routes Task 3 là đề xuất G1; phải ánh xạ với module `conversations`/`policies` đang có trước khi tạo module/endpoint mới, không dựng lại nghiệp vụ chat hoặc cấp quyền từ Ticket. Thuật ngữ `Turn` ở CH02 ánh xạ sang cùng `Run` trong plan này, không thêm lifecycle thứ hai. Chi tiết mới phải theo Agent Design, không kế thừa Use draft hoặc tự chọn hợp đồng từ UI.
+
+Tests Core dùng `node:test` trong `apps/core/test/*.test.cjs`; test schema Task 1 không cần build/DB, các test đọc dist cần build trước. Test DB đi qua `scripts/local-tools.mjs` theo cơ chế truyền credential hiện có. Root đã có runner auth/customers/policies/account/admin; runner Agent mới chỉ tồn tại sau task đăng ký. Không giả định có `npm test`, env riêng Core/Web hoặc cần chạy app trên host.
 
 Một kế hoạch liên kết ba pha vì cùng state/contracts và failure semantics: **A** contracts/gates (1–2); **B** Core + Agent bền vững (3–6); **C** corpus/retrieval/evaluation/tích hợp (7–10). Không cần tách thành dịch vụ/package mới. Task 7 có thể chuẩn bị manifest/test synthetic sau Task 1; chưa cần provider. Thứ tự mặc định vẫn theo task để review giao diện.
 
@@ -95,7 +98,7 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 | `apps/core/src/agent/services/agent-transport.service.ts`, `apps/core/src/agent/hmac.ts` (Create) | Dispatch/reconcile/callback auth, Task 3/6 |
 | `apps/core/src/app.module.ts`, `apps/core/src/config.ts`, `apps/core/src/http/http-foundation.ts` (Modify) | Đăng ký module, config và tách service auth khỏi cookie/CSRF đúng route |
 | `apps/core/prisma/schema.prisma`, `apps/core/scripts/migrate.mjs`, `apps/core/scripts/verify-models.mjs` (Modify khi cần) | Run/attempt/event persistence sau G2; thêm migration mới, không sửa cũ |
-| `apps/core/prisma/migrations/202610310001_agent_runs/migration.sql` (Create khi thực thi) | Tên dự kiến; nếu ngày/thứ tự migration đổi, ghi tên thực vào execution log trước chạy |
+| `apps/core/prisma/migrations/<next-id>_agent_runs/migration.sql` (Create sau G2) | Chọn ID sau migrations đã có; cập nhật tên thực trong plan trước chạy, không sửa migration đã apply |
 | `apps/agent/pyproject.toml`, `apps/agent/src/life_agent/__init__.py` (Create) | Python app tại thư mục đã có; deps pin sau G2–G4; không thêm npm workspace |
 | `apps/agent/src/life_agent/{contracts,state,config}.py` (Create) | DTO, ba nhóm state, giới hạn/config bắt buộc |
 | `apps/agent/src/life_agent/store.py`, `apps/agent/migrations/001_durable_runtime.sql` (Create) | Checkpointer adapter, inbox/fencing/budget/outbound event; migration riêng Core |
@@ -105,8 +108,8 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 | `apps/agent/tests/test_*.py` (Create theo từng task) | Unit/contract và integration với DB/process thật khi phù hợp |
 | `apps/agent/tests/{test_prompts,test_handoff_summary,test_copilot}.py` (Create tại Task 5) | Cấu hình prompt, schema/provenance tóm tắt Ticket và context/scope Copilot; kiểm ngữ nghĩa model thật ở Task 9 |
 | `apps/core/test/{agent-contracts,agent-protocol,agent-runs,agent-access,agent-delivery}.test.cjs`, `apps/core/test/helpers/agent-protocol-model.cjs` (Create) | Contract/protocol model/DB/auth/concurrency/callback tests; reference model chỉ test, không framework mới |
-| `scripts/dev-local.mjs`, `package.json` (Modify khi thực thi) | Đăng ký runner test mới theo cách stdin hiện có, không in DB credential |
-| `apps/core/scripts/bootstrap-database.mjs`, `scripts/prepare-local.mjs`, `compose.yaml`, `.env.example`, `apps/core/.env.example` (Modify khi cần) | Role/volume/config riêng checkpoint/retrieval/indexer; không đổi role hiện có sang quyền rộng |
+| `scripts/local-tools.mjs`, `package.json` (Modify khi thực thi) | Đăng ký runner test mới theo cơ chế credential hiện có, không in DB credential |
+| `apps/core/scripts/bootstrap-database.mjs`, `scripts/prepare-local.mjs`, `compose.yaml`, `.env.example` (Modify khi cần) | Role/volume/config riêng checkpoint/retrieval/indexer; không đổi role hiện có sang quyền rộng; chỉ env root |
 | `data/synthetic/manulife-demo-v1/{contract.json,contract.md,manifest.json,expected-answers.json}` (Modify sau G5) | Mapping synthetic đồng bộ, không sửa corpus Public thay người duyệt |
 | `apps/agent/evaluation/cases.json`, `apps/agent/evaluation/evaluate.py` (Create) | Cases/expected IDs và CLI đo; output index/checkpoint/report local bị ignore |
 | `apps/web/src/lib/agent-api.ts`, `apps/web/src/components/agent-chat.tsx` (Create) | UI chat/status/full result tối thiểu sau API ổn định |
@@ -166,7 +169,7 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 
 ### Task 3: Core APIs, quyền hiện hành và FIFO durable dispatch
 
-**Files:** Create `apps/core/src/agent/` với từng file trong bản đồ; Create `apps/core/test/agent-runs.test.cjs`, `apps/core/test/agent-access.test.cjs`; Modify `apps/core/src/app.module.ts`, `apps/core/src/config.ts`, `apps/core/src/http/http-foundation.ts`, `apps/core/prisma/schema.prisma`, migration mới trong bản đồ, `apps/core/scripts/verify-models.mjs`, `scripts/dev-local.mjs`, root `package.json`.
+**Files:** Create `apps/core/src/agent/` với từng file trong bản đồ; Create `apps/core/test/agent-runs.test.cjs`, `apps/core/test/agent-access.test.cjs`; Modify `apps/core/src/app.module.ts`, `apps/core/src/config.ts`, `apps/core/src/http/http-foundation.ts`, `apps/core/prisma/schema.prisma`, migration mới trong bản đồ, `apps/core/scripts/verify-models.mjs`, `scripts/local-tools.mjs`, root `package.json`.
 
 **Interfaces:**
 - Consumes: Task 1 types; G2 approved protocol. Tái dùng `DatabaseService.prisma`, kiểm user/assignment hiện hành trong transaction; tách helper nếu tái sử dụng thật, không tin session cookie từ Agent.
@@ -183,11 +186,11 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 - [ ] **Step 5:** Implement internal Agent history view riêng user-history; persist linked view lúc Core nhận Staff question trong run, paginate theo mốc đó và reauthorize mỗi lần đọc. Chat liên kết cùng Customer được phép, channel do Core xác minh; không share checkpoint. Scope lấy trọn Document thuộc policy/owner, tài liệu kèm và phiên bản đã xác minh; nguồn Public theo mapping áp dụng. Không thay bản cũ bằng `currentVersion` mới nhất; thiếu mapping trả lý do thiếu nguồn, không đoán. Không join business tại Agent.
 - [ ] **Step 6:** Implement accept/claim/state transition theo G2 bằng transactions/constraints thật; quyền kiểm lại lúc bắt đầu tin. Persist enqueue/order/idempotency key; nhiều dispatcher đồng thời chỉ một claim hợp lệ/hội thoại; dispatch receipt/reconcile survives restart. Không reset RUNNING chỉ vì browser disconnect.
 - [ ] **Step 7:** Test enqueue B khi A đang chạy, A result commit sau B createdAt: B history có A accepted result và B current input, không có C queued. Hai hội thoại độc lập tiến được; duplicate message cùng key không thêm run; khác payload conflict.
-- [ ] **Step 8:** Run `npm run test:agent-core`, `npm run test:customers`, `npm run test:auth`, `npm run test:http --workspace @life-insurance/core`, `npm run typecheck --workspace @life-insurance/core`. PASS đúng số test; cập nhật verifier theo bảng mới thay assertion cố định 17. Review schema/grants/claims thật, không dùng mock chứng minh quyền/FIFO.
+- [ ] **Step 8:** Run `npm run test:agent-core`, `npm run test:customers`, `npm run test:auth`, `npm run test:http --workspace @life-insurance/core`, `npm run typecheck --workspace @life-insurance/core`. PASS đúng số test; cập nhật verifier theo baseline thật và bảng mới, không giữ số bảng cố định từ snapshot cũ. Review schema/grants/claims thật, không dùng mock chứng minh quyền/FIFO.
 
 ### Task 4: Agent durable receipt, checkpointer fencing và ledger phục hồi
 
-**Files:** Create `apps/agent/pyproject.toml`, `src/life_agent/{__init__,contracts,state,config,store}.py`, `migrations/001_durable_runtime.sql`, `tests/test_store.py`, `tests/test_contracts.py` (base Agent như quy ước); Modify `apps/core/scripts/bootstrap-database.mjs`, `scripts/prepare-local.mjs`, `compose.yaml`, `.env.example`, `apps/core/.env.example`, `.gitignore` đúng nhu cầu role/volume.
+**Files:** Create `apps/agent/pyproject.toml`, `src/life_agent/{__init__,contracts,state,config,store}.py`, `migrations/001_durable_runtime.sql`, `tests/test_store.py`, `tests/test_contracts.py` (base Agent như quy ước); Modify `apps/core/scripts/bootstrap-database.mjs`, `scripts/prepare-local.mjs`, `compose.yaml`, `.env.example`, `.gitignore` đúng nhu cầu role/volume.
 
 **Interfaces:**
 - Consumes: G2/G3 được duyệt, Task 1 contracts; không nhập Prisma/entity Core.
@@ -232,7 +235,7 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 
 ### Task 6: HTTP/HMAC, ACK durable và giao lại kết quả qua restart
 
-**Files:** Create `src/life_agent/http.py`, `tests/test_delivery.py`; Modify `src/life_agent/core_client.py` (base Agent); Modify `apps/core/src/agent/services/agent-transport.service.ts`, `apps/core/src/agent/hmac.ts`, `apps/core/src/agent/controllers/agent.controller.ts`, `apps/core/src/agent/services/run.service.ts`; Create `apps/core/test/agent-delivery.test.cjs`; Modify `scripts/dev-local.mjs`, root `package.json`, env/docs cấu hình trong bản đồ khi cần.
+**Files:** Create `src/life_agent/http.py`, `tests/test_delivery.py`; Modify `src/life_agent/core_client.py` (base Agent); Modify `apps/core/src/agent/services/agent-transport.service.ts`, `apps/core/src/agent/hmac.ts`, `apps/core/src/agent/controllers/agent.controller.ts`, `apps/core/src/agent/services/run.service.ts`; Create `apps/core/test/agent-delivery.test.cjs`; Modify `scripts/local-tools.mjs`, root `package.json`, env/docs cấu hình trong bản đồ khi cần.
 
 **Interfaces:**
 - Consumes: G3 profile được duyệt, RuntimeStore Task 4, Core event transaction Task 3, graph Task 5.
@@ -269,7 +272,7 @@ Mọi lệnh `npm`/`node --test apps/core/...` chạy từ root; mọi lệnh `p
 
 ### Task 8: Hybrid retrieval đúng scope và fallback có trạng thái riêng
 
-**Files:** Create `src/life_agent/retrieval.py`, `tests/test_retrieval.py`, `tests/test_retrieval_db.py`; Modify `src/life_agent/corpus.py`, `src/life_agent/config.py` (base Agent), `apps/core/scripts/bootstrap-database.mjs`; thêm migration rag mới trong `apps/core/prisma/migrations/` chỉ nếu index/schema cần sau review, đặt tên thật trong execution log trước chạy.
+**Files:** Create `src/life_agent/retrieval.py`, `tests/test_retrieval.py`, `tests/test_retrieval_db.py`; Modify `src/life_agent/corpus.py`, `src/life_agent/config.py` (base Agent), `apps/core/scripts/bootstrap-database.mjs`; thêm migration rag mới trong `apps/core/prisma/migrations/` chỉ nếu index/schema cần sau review, cập nhật tên thật trong plan trước chạy.
 
 **Interfaces:**
 - Consumes: Core `DocumentScope` Task 3 qua adapter, `PreparedChunk` Task 7, model/dims/search config G4; query embedding qua `EmbeddingAdapter` protocol Task 5, implementation thật Task 9. Test engine trước đó dùng fake có identity/dims tương thích.

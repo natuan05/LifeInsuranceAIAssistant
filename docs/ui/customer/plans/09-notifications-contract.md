@@ -15,7 +15,7 @@ FR-013 là System→Staff khi có conversation/Request mới, không quy định
 
 Đã triển khai thành phần Toolbar Notification Center popover trong `apps/web/src/components/customer-workspace.tsx`:
 - Nút chuông thông báo trên thanh toolbar với badge đếm số lượng chưa đọc.
-- Popover hiển thị các thông báo nghiệp vụ và bảo mật (khuyến nghị đổi mật khẩu, lịch đóng phí, tiến độ bồi thường).
+- Popover có các mục hiển thị trong phiên client. Mục mẫu về lịch phí/Claim không là dữ liệu nghiệp vụ đã được Core xác minh hoặc bằng chứng đã triển khai workflow đó.
 - Nút "Mark all as read" và đánh dấu đã đọc trực tiếp trên từng mục.
 - Toàn bộ giao diện popover thông báo sử dụng 100% tiếng Anh.
 

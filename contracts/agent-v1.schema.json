@@ -1,0 +1,3089 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:life-insurance:contracts:agent-v1",
+  "title": "Agent contracts v1",
+  "description": "Wire, tool and state contracts for Web/Core/Agent. Proposal for G1 review; see contracts/agent-v1.md.",
+  "$defs": {
+    "Uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "Timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]{1,6})?(Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "Cursor": {
+      "description": "Opaque Core-issued cursor (same shape as existing Core cursors). Clients and Agent never parse it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2731,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "HistoryPosition": {
+      "description": "Core processing order as a decimal string (BigInt-safe).",
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,18})$"
+    },
+    "PolicyNumber": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$"
+    },
+    "ProductCode": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,49}$"
+    },
+    "DocumentVersionNumber": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,19}$"
+    },
+    "ThreadId": {
+      "description": "Code-derived from trusted conversation mapping; format still open (Agent_Design #conversation-thread-mapping).",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9:_-]{1,128}$"
+    },
+    "OperationId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "EvidenceId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9_-]{1,64}$"
+    },
+    "SafeText": {
+      "description": "Text without control characters other than tab/newline/carriage return.",
+      "type": "string",
+      "pattern": "^[^\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\u007F]*$"
+    },
+    "SourceRef": {
+      "description": "Reference into the code-built source registry of the current message.",
+      "type": "string",
+      "pattern": "^(evidence|core|message):[A-Za-z0-9_-]{1,128}$"
+    },
+    "VerifiedSourceRef": {
+      "description": "Only retrieval evidence or Core results may back a verified finding; customer messages may not.",
+      "type": "string",
+      "pattern": "^(evidence|core):[A-Za-z0-9_-]{1,128}$"
+    },
+    "SchemaVersion": {
+      "const": "agent-v1"
+    },
+    "ChannelType": {
+      "type": "string",
+      "enum": [
+        "CUSTOMER_SUPPORT",
+        "STAFF_COPILOT"
+      ]
+    },
+    "ConversationStatus": {
+      "description": "Mirrors business.ConversationStatus at the time of writing.",
+      "type": "string",
+      "enum": [
+        "AI_ACTIVE",
+        "PENDING_HANDOFF",
+        "STAFF_ACTIVE"
+      ]
+    },
+    "RunStatus": {
+      "type": "string",
+      "enum": [
+        "QUEUED",
+        "RUNNING",
+        "COMPLETED",
+        "FAILED",
+        "CANCELLED"
+      ]
+    },
+    "ActorRole": {
+      "type": "string",
+      "enum": [
+        "CUSTOMER",
+        "STAFF"
+      ]
+    },
+    "ResponseType": {
+      "type": "string",
+      "enum": [
+        "ANSWER",
+        "CLARIFICATION",
+        "REFUSAL"
+      ]
+    },
+    "RetrievalStatus": {
+      "type": "string",
+      "enum": [
+        "OK",
+        "NO_MATCH",
+        "NO_SOURCE",
+        "DENIED",
+        "ERROR"
+      ]
+    },
+    "DocumentType": {
+      "type": "string",
+      "enum": [
+        "TERMS",
+        "TERMS_APPENDIX",
+        "NOTICE",
+        "BROCHURE",
+        "GUIDE",
+        "FUND_INFO",
+        "CONTRACT"
+      ]
+    },
+    "RetrievalIssueCode": {
+      "description": "Structural/source issues only; semantic sufficiency belongs to MessageWork.agent_assessment.",
+      "type": "string",
+      "enum": [
+        "UNRESOLVED_REFERENCE",
+        "REFERENCE_OUT_OF_SCOPE",
+        "REFERENCE_TARGET_MISSING",
+        "EXPANSION_CAP_REACHED",
+        "SOURCE_WARNING"
+      ]
+    },
+    "ConflictCode": {
+      "type": "string",
+      "enum": [
+        "SOURCE_CONFLICT_WARNING",
+        "VERSION_MISMATCH_WARNING"
+      ]
+    },
+    "RetrievalErrorCode": {
+      "type": "string",
+      "enum": [
+        "SCOPE_UNAVAILABLE",
+        "SEARCH_UNAVAILABLE",
+        "EMBEDDING_INCOMPATIBLE",
+        "TIMEOUT",
+        "INTERNAL"
+      ]
+    },
+    "BusinessReadErrorCode": {
+      "type": "string",
+      "enum": [
+        "NOT_AUTHORIZED",
+        "INVALID_ATTEMPT",
+        "TIMEOUT",
+        "UNAVAILABLE",
+        "INVALID_INPUT"
+      ]
+    },
+    "TechnicalFailureCode": {
+      "type": "string",
+      "enum": [
+        "DEADLINE_EXCEEDED",
+        "BUDGET_EXHAUSTED",
+        "MODEL_ERROR",
+        "OUTPUT_INVALID",
+        "PERMISSION_DENIED",
+        "ATTEMPT_INVALID",
+        "SOURCE_UNAVAILABLE",
+        "INTERNAL"
+      ]
+    },
+    "RunOutcomeCode": {
+      "type": "string",
+      "enum": [
+        "DEADLINE_EXCEEDED",
+        "BUDGET_EXHAUSTED",
+        "MODEL_ERROR",
+        "OUTPUT_INVALID",
+        "PERMISSION_DENIED",
+        "SOURCE_UNAVAILABLE",
+        "INTERNAL",
+        "STAFF_TAKEOVER",
+        "CANCELLED_BY_CORE"
+      ]
+    },
+    "ProgressStage": {
+      "type": "string",
+      "enum": [
+        "PREPARING",
+        "LOOKING_UP",
+        "COMPOSING"
+      ]
+    },
+    "AckReason": {
+      "type": "string",
+      "enum": [
+        "SCHEMA_INVALID",
+        "AUTH_FAILED",
+        "REPLAY_REJECTED",
+        "UNKNOWN_RUN",
+        "ATTEMPT_NOT_CURRENT",
+        "PAYLOAD_MISMATCH",
+        "SEQUENCE_CONFLICT"
+      ]
+    },
+    "ToolName": {
+      "type": "string",
+      "enum": [
+        "list_contracts",
+        "get_contract_overview",
+        "retrieve_public",
+        "retrieve_private"
+      ]
+    },
+    "ConversationCreateCustomer": {
+      "description": "Customer create payload. Target customer and role come from the Core session, never from the body.",
+      "type": "object",
+      "properties": {
+        "clientConversationId": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "clientConversationId"
+      ],
+      "additionalProperties": false
+    },
+    "ConversationCreateStaff": {
+      "description": "Staff Copilot create payload. Fields are requests only; Core checks assignment and that the linked chat belongs to the same customer.",
+      "type": "object",
+      "properties": {
+        "clientConversationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "targetCustomerId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "linkedContextConversationId": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "clientConversationId",
+        "targetCustomerId"
+      ],
+      "additionalProperties": false
+    },
+    "ConversationCreate": {
+      "description": "Core selects the variant from the authenticated role; the client key only deduplicates the create command.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ConversationCreateCustomer"
+        },
+        {
+          "$ref": "#/$defs/ConversationCreateStaff"
+        }
+      ]
+    },
+    "RunSummary": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "status": {
+              "const": "COMPLETED"
+            },
+            "result": {
+              "$ref": "#/$defs/AgentResult"
+            }
+          },
+          "required": [
+            "id",
+            "messageId",
+            "status",
+            "result"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "status": {
+              "enum": [
+                "QUEUED",
+                "RUNNING",
+                "FAILED",
+                "CANCELLED"
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "messageId",
+            "status"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ConversationSummary": {
+      "description": "currentRun = RUNNING run, else next QUEUED run, else null.",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "channelType": {
+          "$ref": "#/$defs/ChannelType"
+        },
+        "targetCustomerId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "linkedContextConversationId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ConversationStatus"
+        },
+        "currentRun": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunSummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "conversationId",
+        "channelType",
+        "targetCustomerId",
+        "linkedContextConversationId",
+        "status",
+        "currentRun"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "channelType": {
+                "const": "CUSTOMER_SUPPORT"
+              }
+            },
+            "required": [
+              "channelType"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "linkedContextConversationId": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ConversationListPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConversationSummary"
+          },
+          "maxItems": 50
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "MessageSubmit": {
+      "type": "object",
+      "properties": {
+        "clientMessageId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "content": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "clientMessageId",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "MessageSubmitAck": {
+      "description": "Returned only after the message and run are durably stored.",
+      "type": "object",
+      "properties": {
+        "conversationId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "messageId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "runId": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "runStatus": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "replayed": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "conversationId",
+        "messageId",
+        "runId",
+        "runStatus",
+        "replayed"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryRunRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        }
+      },
+      "required": [
+        "id",
+        "status"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryItem": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "USER_MESSAGE"
+            },
+            "position": {
+              "$ref": "#/$defs/HistoryPosition"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "senderType": {
+              "enum": [
+                "CUSTOMER",
+                "STAFF"
+              ]
+            },
+            "content": {
+              "type": "string",
+              "$ref": "#/$defs/SafeText",
+              "minLength": 1,
+              "maxLength": 4000
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Timestamp"
+            },
+            "run": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/HistoryRunRef"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "messageId",
+            "senderType",
+            "content",
+            "createdAt",
+            "run"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "AGENT_RESULT"
+            },
+            "position": {
+              "$ref": "#/$defs/HistoryPosition"
+            },
+            "runId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "result": {
+              "$ref": "#/$defs/AgentResult"
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "runId",
+            "messageId",
+            "result",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "const": "RUN_OUTCOME"
+            },
+            "position": {
+              "$ref": "#/$defs/HistoryPosition"
+            },
+            "runId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "messageId": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "status": {
+              "enum": [
+                "FAILED",
+                "CANCELLED"
+              ]
+            },
+            "code": {
+              "$ref": "#/$defs/RunOutcomeCode"
+            },
+            "createdAt": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "kind",
+            "position",
+            "runId",
+            "messageId",
+            "status",
+            "code",
+            "createdAt"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "ConversationHistoryPage": {
+      "description": "User-facing history: user messages, accepted Agent results and filtered technical run outcomes. Not the Agent HistoryView.",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HistoryItem"
+          },
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "HistoryView": {
+      "description": "Sequential view for the Agent: everything Core processed (including accepted results/outcomes) before current_message_id, never later queued messages.",
+      "type": "object",
+      "properties": {
+        "conversation_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "through_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "current_message_id": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "conversation_id",
+        "through_cursor",
+        "current_message_id"
+      ],
+      "additionalProperties": false
+    },
+    "LinkedHistoryView": {
+      "description": "Copilot source-chat snapshot frozen by Core when it accepted the Staff question; same view on every page/retry of that run.",
+      "type": "object",
+      "properties": {
+        "conversation_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "through_cursor": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "conversation_id",
+        "through_cursor"
+      ],
+      "additionalProperties": false
+    },
+    "ActorRef": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "role": {
+          "$ref": "#/$defs/ActorRole"
+        }
+      },
+      "required": [
+        "id",
+        "role"
+      ],
+      "additionalProperties": false
+    },
+    "ExecutionLimits": {
+      "description": "null = value not chosen yet (G4); the Agent must refuse to start a run whose required limit is null once G4 fixes it.",
+      "type": "object",
+      "properties": {
+        "deadline_at": {
+          "$ref": "#/$defs/Timestamp"
+        },
+        "retrieval_calls_max": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "core_read_requests_max": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 20
+        },
+        "core_request_timeout_ms": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "core_retry_per_call": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3
+        },
+        "model_calls_max": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "graph_steps_max": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "turn_token_budget": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "finish_reserve_tokens": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 10000000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "deadline_at",
+        "retrieval_calls_max",
+        "core_read_requests_max",
+        "core_request_timeout_ms",
+        "core_retry_per_call",
+        "model_calls_max",
+        "graph_steps_max",
+        "turn_token_budget",
+        "finish_reserve_tokens"
+      ],
+      "additionalProperties": false
+    },
+    "RunRequest": {
+      "description": "Core -> Agent start/redeliver request. Trusted only after service authentication.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "conversation_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "message_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "message_text": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "channel_type": {
+          "$ref": "#/$defs/ChannelType"
+        },
+        "actor": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "target_customer_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "history_view": {
+          "$ref": "#/$defs/HistoryView"
+        },
+        "linked_history_view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinkedHistoryView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt_id",
+        "conversation_id",
+        "message_id",
+        "message_text",
+        "channel_type",
+        "actor",
+        "target_customer_id",
+        "history_view",
+        "linked_history_view",
+        "limits"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "channel_type": {
+                "const": "CUSTOMER_SUPPORT"
+              }
+            },
+            "required": [
+              "channel_type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "const": "CUSTOMER"
+                  }
+                }
+              },
+              "linked_history_view": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "channel_type": {
+                "const": "STAFF_COPILOT"
+              }
+            },
+            "required": [
+              "channel_type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "const": "STAFF"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ExecutionContext": {
+      "description": "Trusted runtime context for adapters only. Never sent to the model; holds no credentials.",
+      "type": "object",
+      "properties": {
+        "schema_version": {
+          "$ref": "#/$defs/SchemaVersion"
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "thread_id": {
+          "$ref": "#/$defs/ThreadId"
+        },
+        "conversation_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "message_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "channel_type": {
+          "$ref": "#/$defs/ChannelType"
+        },
+        "actor": {
+          "$ref": "#/$defs/ActorRef"
+        },
+        "target_customer_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "history_view": {
+          "$ref": "#/$defs/HistoryView"
+        },
+        "linked_history_view": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinkedHistoryView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limits": {
+          "$ref": "#/$defs/ExecutionLimits"
+        }
+      },
+      "required": [
+        "schema_version",
+        "run_id",
+        "attempt_id",
+        "thread_id",
+        "conversation_id",
+        "message_id",
+        "channel_type",
+        "actor",
+        "target_customer_id",
+        "history_view",
+        "linked_history_view",
+        "limits"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "channel_type": {
+                "const": "CUSTOMER_SUPPORT"
+              }
+            },
+            "required": [
+              "channel_type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "const": "CUSTOMER"
+                  }
+                }
+              },
+              "linked_history_view": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "channel_type": {
+                "const": "STAFF_COPILOT"
+              }
+            },
+            "required": [
+              "channel_type"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "actor": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "const": "STAFF"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "TechnicalFailure": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/TechnicalFailureCode"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "AgentEvent": {
+      "description": "Agent -> Core callback envelope. sequence is per attempt and unchanged on redelivery.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "$ref": "#/$defs/SchemaVersion"
+            },
+            "run_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "attempt_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "event_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "kind": {
+              "const": "PROGRESS"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "stage": {
+                  "$ref": "#/$defs/ProgressStage"
+                }
+              },
+              "required": [
+                "stage"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt_id",
+            "event_id",
+            "sequence",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "$ref": "#/$defs/SchemaVersion"
+            },
+            "run_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "attempt_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "event_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "kind": {
+              "const": "RESULT"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "result": {
+                  "$ref": "#/$defs/AgentResult"
+                }
+              },
+              "required": [
+                "result"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt_id",
+            "event_id",
+            "sequence",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "schema_version": {
+              "$ref": "#/$defs/SchemaVersion"
+            },
+            "run_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "attempt_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "event_id": {
+              "$ref": "#/$defs/Uuid"
+            },
+            "sequence": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000
+            },
+            "kind": {
+              "const": "ERROR"
+            },
+            "payload": {
+              "type": "object",
+              "properties": {
+                "failure": {
+                  "$ref": "#/$defs/TechnicalFailure"
+                }
+              },
+              "required": [
+                "failure"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "schema_version",
+            "run_id",
+            "attempt_id",
+            "event_id",
+            "sequence",
+            "kind",
+            "payload"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "DurableAck": {
+      "description": "Sent only after the receiver durably stored (or recognised) the request/event. event_id null for run receipts.",
+      "type": "object",
+      "properties": {
+        "outcome": {
+          "type": "string",
+          "enum": [
+            "ACCEPTED",
+            "DUPLICATE",
+            "IGNORED_STALE",
+            "CONFLICT",
+            "REJECTED"
+          ]
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "attempt_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "event_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AckReason"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "outcome",
+        "run_id",
+        "attempt_id",
+        "event_id",
+        "reason"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "ACCEPTED",
+                  "DUPLICATE"
+                ]
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "enum": [
+                  "IGNORED_STALE",
+                  "CONFLICT",
+                  "REJECTED"
+                ]
+              }
+            },
+            "required": [
+              "outcome"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "reason": {
+                "$ref": "#/$defs/AckReason"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ScopedDocument": {
+      "type": "object",
+      "properties": {
+        "document_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "document_version": {
+          "$ref": "#/$defs/DocumentVersionNumber"
+        },
+        "policy_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "document_id",
+        "document_version",
+        "policy_id"
+      ],
+      "additionalProperties": false
+    },
+    "DocumentScope": {
+      "description": "Core answer to a scope request. Valid-empty = GRANTED with no documents; timeouts are transport errors, not a scope.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "const": "GRANTED"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "PUBLIC",
+                "PRIVATE"
+              ]
+            },
+            "policy_number": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PolicyNumber"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "documents": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScopedDocument"
+              },
+              "maxItems": 500
+            },
+            "scope_version": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+            },
+            "expires_at": {
+              "$ref": "#/$defs/Timestamp"
+            }
+          },
+          "required": [
+            "decision",
+            "kind",
+            "policy_number",
+            "documents",
+            "scope_version",
+            "expires_at"
+          ],
+          "additionalProperties": false,
+          "allOf": [
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "PRIVATE"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "policy_number": {
+                    "$ref": "#/$defs/PolicyNumber"
+                  },
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "policy_id": {
+                          "$ref": "#/$defs/Uuid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "type": "object",
+                "properties": {
+                  "kind": {
+                    "const": "PUBLIC"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              "then": {
+                "type": "object",
+                "properties": {
+                  "policy_number": {
+                    "type": "null"
+                  },
+                  "documents": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "policy_id": {
+                          "type": "null"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "decision": {
+              "const": "DENIED"
+            },
+            "kind": {
+              "type": "string",
+              "enum": [
+                "PUBLIC",
+                "PRIVATE"
+              ]
+            },
+            "policy_number": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PolicyNumber"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "reason": {
+              "type": "string",
+              "enum": [
+                "NOT_AUTHORIZED",
+                "ATTEMPT_INVALID"
+              ]
+            }
+          },
+          "required": [
+            "decision",
+            "kind",
+            "policy_number",
+            "reason"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "EvidenceLocation": {
+      "description": "Real source position. Markdown fixtures use anchor only; no invented page numbers.",
+      "type": "object",
+      "properties": {
+        "pages": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 10000
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "clause": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "anchor": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 200
+        }
+      },
+      "required": [],
+      "additionalProperties": false,
+      "minProperties": 1
+    },
+    "Evidence": {
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/EvidenceId"
+        },
+        "document_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "document_version": {
+          "$ref": "#/$defs/DocumentVersionNumber"
+        },
+        "title": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "document_type": {
+          "$ref": "#/$defs/DocumentType"
+        },
+        "location": {
+          "$ref": "#/$defs/EvidenceLocation"
+        },
+        "content": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 8000
+        }
+      },
+      "required": [
+        "evidence_id",
+        "document_id",
+        "document_version",
+        "title",
+        "document_type",
+        "location",
+        "content"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievalIssue": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/RetrievalIssueCode"
+        },
+        "document_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "document_version": {
+          "$ref": "#/$defs/DocumentVersionNumber"
+        },
+        "location": {
+          "$ref": "#/$defs/EvidenceLocation"
+        },
+        "reference": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "reason": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "code",
+        "document_id",
+        "document_version",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievalConflict": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ConflictCode"
+        },
+        "evidence_ids": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EvidenceId"
+          },
+          "maxItems": 10,
+          "minItems": 2,
+          "uniqueItems": true
+        },
+        "reason": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 300
+        }
+      },
+      "required": [
+        "code",
+        "evidence_ids",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievalError": {
+      "description": "Filtered error: code only, never SQL, payloads or out-of-scope identifiers.",
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/RetrievalErrorCode"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievalResult": {
+      "description": "Exactly six fields. status describes retrieval only, not answer sufficiency.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/RetrievalStatus"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "maxItems": 20
+        },
+        "missing": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RetrievalIssue"
+          },
+          "maxItems": 20
+        },
+        "conflicts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RetrievalConflict"
+          },
+          "maxItems": 20
+        },
+        "degraded": {
+          "type": "boolean"
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RetrievalError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "evidence",
+        "missing",
+        "conflicts",
+        "degraded",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "OK"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "minItems": 1
+              },
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "NO_MATCH",
+                  "NO_SOURCE",
+                  "DENIED"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "missing": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "conflicts": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "ERROR"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "missing": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "conflicts": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "error": {
+                "$ref": "#/$defs/RetrievalError"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "enum": [
+                  "NO_SOURCE",
+                  "DENIED",
+                  "ERROR"
+                ]
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "degraded": {
+                "const": false
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ContractProductRef": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ProductCode"
+        },
+        "name": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "code",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ContractSummary": {
+      "type": "object",
+      "properties": {
+        "policy_number": {
+          "$ref": "#/$defs/PolicyNumber"
+        },
+        "main_product": {
+          "$ref": "#/$defs/ContractProductRef"
+        }
+      },
+      "required": [
+        "policy_number",
+        "main_product"
+      ],
+      "additionalProperties": false
+    },
+    "ContractOverview": {
+      "description": "riders_complete is required: legacy/missing flags are normalised to false by Core, never true.",
+      "type": "object",
+      "properties": {
+        "policy_number": {
+          "$ref": "#/$defs/PolicyNumber"
+        },
+        "main_product": {
+          "$ref": "#/$defs/ContractProductRef"
+        },
+        "riders": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContractProductRef"
+          },
+          "maxItems": 50
+        },
+        "riders_complete": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "policy_number",
+        "main_product",
+        "riders",
+        "riders_complete"
+      ],
+      "additionalProperties": false
+    },
+    "BusinessReadError": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/BusinessReadErrorCode"
+        },
+        "retryable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "code",
+        "retryable"
+      ],
+      "additionalProperties": false
+    },
+    "ContractListResult": {
+      "description": "Empty contracts with OK is a valid result.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "OK",
+            "DENIED",
+            "ERROR"
+          ]
+        },
+        "contracts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContractSummary"
+          },
+          "maxItems": 100
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BusinessReadError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "contracts",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "OK"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "DENIED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "contracts": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "NOT_AUTHORIZED",
+                      "INVALID_ATTEMPT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "ERROR"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "contracts": {
+                "type": "array",
+                "maxItems": 0
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "TIMEOUT",
+                      "UNAVAILABLE",
+                      "INVALID_INPUT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ContractOverviewResult": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "OK",
+            "NOT_FOUND",
+            "DENIED",
+            "ERROR"
+          ]
+        },
+        "overview": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ContractOverview"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BusinessReadError"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status",
+        "overview",
+        "error"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "OK"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "overview": {
+                "$ref": "#/$defs/ContractOverview"
+              },
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "NOT_FOUND"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "overview": {
+                "type": "null"
+              },
+              "error": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "DENIED"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "overview": {
+                "type": "null"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "NOT_AUTHORIZED",
+                      "INVALID_ATTEMPT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "properties": {
+              "status": {
+                "const": "ERROR"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "overview": {
+                "type": "null"
+              },
+              "error": {
+                "type": "object",
+                "properties": {
+                  "code": {
+                    "enum": [
+                      "TIMEOUT",
+                      "UNAVAILABLE",
+                      "INVALID_INPUT"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "ListContractsArgs": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    },
+    "ContractOverviewArgs": {
+      "type": "object",
+      "properties": {
+        "policy_number": {
+          "$ref": "#/$defs/PolicyNumber"
+        }
+      },
+      "required": [
+        "policy_number"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievePublicArgs": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false
+    },
+    "RetrievePrivateArgs": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "policy_number": {
+          "$ref": "#/$defs/PolicyNumber"
+        }
+      },
+      "required": [
+        "query",
+        "policy_number"
+      ],
+      "additionalProperties": false
+    },
+    "ToolDecision": {
+      "description": "Exactly one tool per Agent cycle.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "const": "list_contracts"
+            },
+            "arguments": {
+              "$ref": "#/$defs/ListContractsArgs"
+            }
+          },
+          "required": [
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "const": "get_contract_overview"
+            },
+            "arguments": {
+              "$ref": "#/$defs/ContractOverviewArgs"
+            }
+          },
+          "required": [
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "const": "retrieve_public"
+            },
+            "arguments": {
+              "$ref": "#/$defs/RetrievePublicArgs"
+            }
+          },
+          "required": [
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tool": {
+              "const": "retrieve_private"
+            },
+            "arguments": {
+              "$ref": "#/$defs/RetrievePrivateArgs"
+            }
+          },
+          "required": [
+            "tool",
+            "arguments"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "TicketHandoffSummary": {
+      "description": "Six handoff groups. Empty is allowed when nothing is known; never filled with invented facts.",
+      "type": "object",
+      "properties": {
+        "request": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "context": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 0,
+          "maxLength": 1000
+        },
+        "customer_statements": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "$ref": "#/$defs/SafeText",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 20
+        },
+        "verified_findings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "$ref": "#/$defs/SafeText",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "source_refs": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/VerifiedSourceRef"
+                },
+                "maxItems": 10,
+                "minItems": 1,
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "text",
+              "source_refs"
+            ],
+            "additionalProperties": false
+          },
+          "maxItems": 20
+        },
+        "attempted_steps": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "$ref": "#/$defs/SafeText",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 20
+        },
+        "pending_issues": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "$ref": "#/$defs/SafeText",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "request",
+        "context",
+        "customer_statements",
+        "verified_findings",
+        "attempted_steps",
+        "pending_issues"
+      ],
+      "additionalProperties": false
+    },
+    "TicketProposalAction": {
+      "description": "Proposal only. Core creates a Ticket after valid Customer confirmation (G6).",
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "PROPOSE_TICKET"
+        },
+        "summary": {
+          "$ref": "#/$defs/TicketHandoffSummary"
+        }
+      },
+      "required": [
+        "type",
+        "summary"
+      ],
+      "additionalProperties": false
+    },
+    "HandoffProposalAction": {
+      "description": "Proposal to talk to Staff; Core's existing handoff flow still requires Customer consent.",
+      "type": "object",
+      "properties": {
+        "type": {
+          "const": "PROPOSE_HANDOFF"
+        },
+        "subject": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 180
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "$ref": "#/$defs/SafeText",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "type",
+        "subject",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "Action": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TicketProposalAction"
+        },
+        {
+          "$ref": "#/$defs/HandoffProposalAction"
+        }
+      ]
+    },
+    "Citation": {
+      "description": "Filled by code from the cited evidence; the model only chooses evidence_id.",
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/EvidenceId"
+        },
+        "document_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "document_version": {
+          "$ref": "#/$defs/DocumentVersionNumber"
+        },
+        "title": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "document_type": {
+          "$ref": "#/$defs/DocumentType"
+        },
+        "location": {
+          "$ref": "#/$defs/EvidenceLocation"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "document_id",
+        "document_version",
+        "title",
+        "document_type",
+        "location"
+      ],
+      "additionalProperties": false
+    },
+    "CitationRef": {
+      "type": "object",
+      "properties": {
+        "evidence_id": {
+          "$ref": "#/$defs/EvidenceId"
+        }
+      },
+      "required": [
+        "evidence_id"
+      ],
+      "additionalProperties": false
+    },
+    "AgentResult": {
+      "description": "Final, validated result. Exactly four fields.",
+      "type": "object",
+      "properties": {
+        "response_type": {
+          "$ref": "#/$defs/ResponseType"
+        },
+        "message": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          },
+          "maxItems": 20
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "response_type",
+        "message",
+        "citations",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "AnswerDraft": {
+      "description": "Agent node output before Finalize fills citation metadata.",
+      "type": "object",
+      "properties": {
+        "response_type": {
+          "$ref": "#/$defs/ResponseType"
+        },
+        "message": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 8000
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CitationRef"
+          },
+          "maxItems": 20,
+          "uniqueItems": true
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Action"
+          },
+          "maxItems": 2
+        }
+      },
+      "required": [
+        "response_type",
+        "message",
+        "citations",
+        "actions"
+      ],
+      "additionalProperties": false
+    },
+    "AgentDecision": {
+      "description": "Agent node union output: one tool request or one answer draft.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/ToolDecision"
+        },
+        {
+          "$ref": "#/$defs/AnswerDraft"
+        }
+      ]
+    },
+    "ClarificationOption": {
+      "type": "object",
+      "properties": {
+        "ordinal": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20
+        },
+        "label": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "policy_number": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PolicyNumber"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "ordinal",
+        "label",
+        "policy_number"
+      ],
+      "additionalProperties": false
+    },
+    "PendingClarification": {
+      "description": "PROPOSED until Core accepts the CLARIFICATION result; only ASKED is used to interpret the next message.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "PROPOSED",
+            "ASKED"
+          ]
+        },
+        "question": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ClarificationOption"
+          },
+          "maxItems": 20
+        },
+        "asked_in_run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "asked_in_message_id": {
+          "$ref": "#/$defs/Uuid"
+        }
+      },
+      "required": [
+        "status",
+        "question",
+        "options",
+        "asked_in_run_id",
+        "asked_in_message_id"
+      ],
+      "additionalProperties": false
+    },
+    "HistorySummary": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "covers_through": {
+          "$ref": "#/$defs/Cursor"
+        }
+      },
+      "required": [
+        "text",
+        "covers_through"
+      ],
+      "additionalProperties": false
+    },
+    "ConversationContext": {
+      "description": "Kept across messages of one conversation/thread. Never proves permissions.",
+      "type": "object",
+      "properties": {
+        "state_schema_version": {
+          "const": "agent-state-v1"
+        },
+        "graph_version": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]{1,32}$"
+        },
+        "topic": {
+          "anyOf": [
+            {
+              "type": "string",
+              "$ref": "#/$defs/SafeText",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "active_policy_number": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PolicyNumber"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending_clarification": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PendingClarification"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "history_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/HistorySummary"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "history_synced_through": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Cursor"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "linked_sync": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LinkedHistoryView"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "state_schema_version",
+        "graph_version",
+        "topic",
+        "active_policy_number",
+        "pending_clarification",
+        "history_summary",
+        "history_synced_through",
+        "linked_sync"
+      ],
+      "additionalProperties": false
+    },
+    "SourceOutput": {
+      "description": "Raw tool outcome recorded by code; replaced=true keeps provenance but removes it from model context.",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "$ref": "#/$defs/OperationId"
+            },
+            "tool": {
+              "const": "list_contracts"
+            },
+            "arguments": {
+              "$ref": "#/$defs/ListContractsArgs"
+            },
+            "result": {
+              "$ref": "#/$defs/ContractListResult"
+            },
+            "replaced": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation_id",
+            "tool",
+            "arguments",
+            "result",
+            "replaced"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "$ref": "#/$defs/OperationId"
+            },
+            "tool": {
+              "const": "get_contract_overview"
+            },
+            "arguments": {
+              "$ref": "#/$defs/ContractOverviewArgs"
+            },
+            "result": {
+              "$ref": "#/$defs/ContractOverviewResult"
+            },
+            "replaced": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation_id",
+            "tool",
+            "arguments",
+            "result",
+            "replaced"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "$ref": "#/$defs/OperationId"
+            },
+            "tool": {
+              "const": "retrieve_public"
+            },
+            "arguments": {
+              "$ref": "#/$defs/RetrievePublicArgs"
+            },
+            "result": {
+              "$ref": "#/$defs/RetrievalResult"
+            },
+            "replaced": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation_id",
+            "tool",
+            "arguments",
+            "result",
+            "replaced"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "operation_id": {
+              "$ref": "#/$defs/OperationId"
+            },
+            "tool": {
+              "const": "retrieve_private"
+            },
+            "arguments": {
+              "$ref": "#/$defs/RetrievePrivateArgs"
+            },
+            "result": {
+              "$ref": "#/$defs/RetrievalResult"
+            },
+            "replaced": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "operation_id",
+            "tool",
+            "arguments",
+            "result",
+            "replaced"
+          ],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "AgentAssessment": {
+      "description": "LLM interpretation inside the Agent node; separate from tool output and never a permission decision.",
+      "type": "object",
+      "properties": {
+        "sufficiency": {
+          "type": "string",
+          "enum": [
+            "SUFFICIENT",
+            "PARTIAL",
+            "INSUFFICIENT"
+          ]
+        },
+        "notes": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 0,
+          "maxLength": 1000
+        }
+      },
+      "required": [
+        "sufficiency",
+        "notes"
+      ],
+      "additionalProperties": false
+    },
+    "UnverifiedCondition": {
+      "description": "Condition identified from a real source but not yet checked; basis_refs prevents invented conditions.",
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "basis_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceRef"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "reason": {
+          "type": "string",
+          "enum": [
+            "NOT_SEARCHED",
+            "FINISH_RESERVE",
+            "SOURCE_ERROR",
+            "NEEDS_CUSTOMER_INFO",
+            "NEEDS_STAFF"
+          ]
+        }
+      },
+      "required": [
+        "text",
+        "basis_refs",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "WorkCounters": {
+      "description": "Mirror for context/trace. The durable ledger (Task 2/4) is authoritative for budgets.",
+      "type": "object",
+      "properties": {
+        "retrieval_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "core_read_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "model_calls": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "graph_steps": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "repair_attempts": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "input_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "output_tokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "thinking_tokens": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "retrieval_calls",
+        "core_read_requests",
+        "model_calls",
+        "graph_steps",
+        "repair_attempts",
+        "input_tokens",
+        "output_tokens",
+        "thinking_tokens"
+      ],
+      "additionalProperties": false
+    },
+    "WorkError": {
+      "type": "object",
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "TOOL",
+            "MODEL",
+            "FINALIZE",
+            "CORE"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,39}$"
+        },
+        "operation_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/OperationId"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source",
+        "code",
+        "operation_id"
+      ],
+      "additionalProperties": false
+    },
+    "MessageWork": {
+      "description": "Per-message work. New message = new work and budget; same message/new attempt keeps it (ledger rules in Task 2).",
+      "type": "object",
+      "properties": {
+        "message_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "run_id": {
+          "$ref": "#/$defs/Uuid"
+        },
+        "original_question": {
+          "type": "string",
+          "$ref": "#/$defs/SafeText",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "source_outputs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceOutput"
+          },
+          "maxItems": 40
+        },
+        "agent_assessment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AgentAssessment"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unverified_conditions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UnverifiedCondition"
+          },
+          "maxItems": 20
+        },
+        "counters": {
+          "$ref": "#/$defs/WorkCounters"
+        },
+        "progress": {
+          "$ref": "#/$defs/ProgressStage"
+        },
+        "errors": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/WorkError"
+          },
+          "maxItems": 20
+        }
+      },
+      "required": [
+        "message_id",
+        "run_id",
+        "original_question",
+        "source_outputs",
+        "agent_assessment",
+        "unverified_conditions",
+        "counters",
+        "progress",
+        "errors"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

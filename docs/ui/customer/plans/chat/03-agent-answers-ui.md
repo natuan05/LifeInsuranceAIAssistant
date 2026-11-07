@@ -4,11 +4,11 @@
 
 ## 1. API/file
 
-Mở rộng `customer-conversations.tsx`, `conversation-transcript.tsx`, `lib/conversation-api.ts`; dùng Message REST I05 làm nguồn answer committed và trạng thái turn/discovery **P** do CH02 chốt trước code. Không browser gọi Agent/provider hoặc tự append answer như server đã lưu. Không đọc Copilot Staff. Nếu cần SSE/tokenstream phải contract riêng, không suy ra từ WS invalidation.
+Mở rộng `customer-conversations.tsx`, `conversation-transcript.tsx`, `lib/conversation-api.ts`; dùng Message REST I05 làm nguồn answer committed và trạng thái run/discovery **P** do CH02 chốt trước code. Không browser gọi Agent/provider hoặc tự append answer như server đã lưu. Không đọc Copilot Staff. Nếu cần SSE/tokenstream phải contract riêng, không suy ra từ WS invalidation.
 
 ## 2. Trải nghiệm
 
-AI thinking/queued/error gắn đúng trigger/turn, không chiếm ConversationStatus. Retry inference nếu có phải cùng lệnh turn do CH02 quy định; không gửi lại message Customer bằng key mới. Chỉ render content đã xử lý an toàn; Markdown nếu cần phải có sanitizer và allowlist link theo dependency được review. Answer cuối lấy qua REST có sequence, không nhân đôi nội dung khi nhận lại message đã commit.
+AI thinking/queued/error gắn đúng trigger/run, không chiếm ConversationStatus. Retry inference nếu có phải cùng lệnh run do CH02 quy định; không gửi lại message Customer bằng key mới. Chỉ render content đã xử lý an toàn; Markdown nếu cần phải có sanitizer và allowlist link theo dependency được review. Answer cuối lấy qua REST có sequence, không nhân đôi nội dung khi nhận lại message đã commit.
 
 Citation có title/version/page rõ từ DTO authorized, bấm mở D01/D02 exact version và page hợp lệ; không URL ký trong Message. Quyền mất/tài liệu thiếu hiển thị unavailable, không mở bản newest. Không có nguồn hoặc câu trả lời chưa chắc nói rõ hạn chế, không hứa claim/chi trả.
 
@@ -16,7 +16,7 @@ Gợi ý Staff chỉ mở consent dialog I03, Customer Cancel không tạo reque
 
 ```mermaid
 flowchart TD
-  A[Customer message đã commit] --> B[Turn progress theo Core]
+  A[Customer message đã commit] --> B[Run progress theo Core]
   B --> C[AI answer committed qua REST]
   C --> D[Citation → authorized PDF]
   C --> E[Gợi ý Staff → dialog consent → I03]
@@ -30,14 +30,14 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 
 **Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-### CH03-T01 — Turn state và answer committed
+### CH03-T01 — Run state và answer committed
 
 **Lớp kiểm thử:** Browser dự kiến.
-**Điều kiện và dữ liệu:** CH02 đã có stable turn discovery/status; một trigger Customer synthetic.
+**Điều kiện và dữ liệu:** CH02 đã có stable run discovery/status; một trigger Customer synthetic.
 
 **Các bước:**
 
-1. Cho turn QUEUED→RUNNING→COMPLETED.
+1. Cho run QUEUED→RUNNING→COMPLETED.
 2. Ngắt WS/reconnect trước khi answer về.
 3. REST resync messages và task.
 
@@ -100,15 +100,15 @@ sequenceDiagram
     participant D as PostgreSQL
     participant A as Agent
     U->>W: Gửi câu hỏi theo channel
-    W->>C: Message và turn status/discovery sau khi CH02 chốt
+    W->>C: Message và run status/discovery sau khi CH02 chốt
     C->>D: Session, source grant và durable intent
-    D-->>C: Turn hoặc task identity theo contract đã chốt
+    D-->>C: Run hoặc task identity theo contract đã chốt
     C->>A: Trusted service envelope và context version
     A->>C: Business API hoặc retrieval scope
     C->>D: Recheck actor, owner và exact source version
     D-->>C: Dữ liệu đúng quyền
     C-->>A: Context allowlist
-    A->>C: Result gắn turn, attempt và watermark
+    A->>C: Result gắn run, attempt và watermark
     C->>D: Recheck fence và quyền trước lưu hoặc trả result
     alt Scope hoặc control version đã đổi
         C-->>W: Result không khả dụng, không Private muộn

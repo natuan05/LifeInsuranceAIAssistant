@@ -63,6 +63,10 @@ Retry hai tool đọc: code adapter chỉ thử lại tối đa một lần khi 
 - Mẫu request/response chỉ chứa định danh và dữ liệu giả lập; không chứa token hay URL đã ký.
 
 
+## Agent contracts v1 — đề xuất chờ review G1
+
+[`agent-v1.md`](agent-v1.md), [`agent-v1.schema.json`](agent-v1.schema.json) và [`fixtures/agent-v1.json`](fixtures/agent-v1.json) đặc tả các kiểu Web ↔ Core, Core ↔ Agent, tool, kết quả truy xuất/kết quả Agent và state checkpoint theo Task 1 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md). Kiểm bằng `node --test apps/core/test/agent-contracts.test.cjs`. Đây là đề xuất, chưa duyệt; chưa có API, bảng hoặc runtime dùng các contract này. Các điểm cần chốt nằm ở [mục 11](agent-v1.md#11-cần-chốt-ở-review-g1).
+
 ## Trạng thái 30/10/2026
 
 API local hiện đã có controller/DTO và Swagger cho auth/profile/assigned customers; native WebSocket `/api/v1/realtime` chỉ invalidation account/profile/assignment. Thư mục này chưa có schema giao tiếp được version hoặc generated client riêng, không có nghĩa toàn bộ dự án chưa có API.

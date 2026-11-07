@@ -99,18 +99,18 @@ sequenceDiagram
     U->>W: Gửi câu hỏi theo channel
     W->>C: Copilot request và task lookup theo CP01
     C->>D: Session, source grant và durable intent
-    D-->>C: Turn hoặc task identity theo contract đã chốt
+    D-->>C: Run/attempt theo contract đã chốt
     C->>A: Trusted service envelope và context version
     A->>C: Business API hoặc retrieval scope
     C->>D: Recheck actor, owner và exact source version
     D-->>C: Dữ liệu đúng quyền
     C-->>A: Context allowlist
-    A->>C: Result gắn turn, attempt và watermark
+    A->>C: Result gắn run, attempt và watermark
     C->>D: Recheck fence và quyền trước lưu hoặc trả result
     alt Scope hoặc control version đã đổi
         C-->>W: Result không khả dụng, không Private muộn
     else Hợp lệ
-        C-->>W: Draft hoặc answer đúng channel
-        W-->>U: Review hoặc message đã commit
+        C-->>W: Kết quả tra cứu/giải thích/tóm tắt nội bộ
+        W-->>U: Đọc kết quả; không sửa composer hoặc gửi Customer
     end
 ```

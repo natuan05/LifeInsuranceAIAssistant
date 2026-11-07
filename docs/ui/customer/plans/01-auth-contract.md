@@ -1,10 +1,10 @@
 # C01 — Đăng nhập và xác thực tài khoản Customer
 
-05/11/2026 · **Đã hoàn tất theo kiến trúc cấp tài khoản** · [Chung](00-customer-contract.md) · C01.
+07/11/2026 · **Phạm vi đã xác nhận: tài khoản được cấp sẵn; login/session đã có** · [Chung](00-customer-contract.md) · C01.
 
 ## 1. Yêu cầu và nguyên tắc xác thực
 
-- **Không có tính năng khách hàng tự đăng ký tài khoản (No public self-registration)**: Trong nghiệp vụ bảo hiểm nhân thọ, tài khoản khách hàng (`Customer`) được cấp thông qua quy trình phát hành hợp đồng bảo hiểm và quản trị vận hành nội bộ (`Staff`/hệ thống cấp kèm mã khách hàng `CUS-xxxxxx`).
+- **Không có Customer tự đăng ký công khai:** MVP dùng tài khoản được cấp sẵn theo xác nhận 07/11/2026 và FR-001. Không yêu cầu triển khai tích hợp phát hành hợp đồng hoặc quy trình cấp tài khoản tự động; tài khoản dev synthetic được chuẩn bị theo Getting Started.
 - Mật khẩu ban đầu được hệ thống cấp (`passwordChangeRecommended = true`).
 - Khách hàng đăng nhập qua cổng `/login` bằng email được cấp và được khuyến nghị đổi mật khẩu tại `/account` sau lần đăng nhập đầu tiên.
 - Không triển khai luồng tự đăng ký công khai (`/register`), OTP kích hoạt tự do, SSO bên ngoài hoặc reset mật khẩu tự động mà không qua quy trình định danh hợp đồng.
@@ -21,7 +21,7 @@
 - [x] Khôi phục phiên, điều hướng theo actor; phiên hết hạn về login.
 - [x] Form disabled khi gửi, hiện/ẩn password, lỗi công khai và xử lý 429 theo API.
 - [x] Đăng xuất/đổi password dùng API thật, xem [C08](08-profile-contract.md).
-- [x] Chốt chính sách tài khoản được cấp từ nghiệp vụ hợp đồng; không có luồng tự đăng ký công khai.
+- [x] Chốt dùng tài khoản được cấp sẵn; không có luồng tự đăng ký công khai hoặc yêu cầu cấp tự động trong MVP.
 - [x] Điều hướng vào shell H01 (`CustomerWorkspace`) tràn viền toàn màn hình.
 
 ## Test cases

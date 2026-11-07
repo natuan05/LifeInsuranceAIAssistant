@@ -13,7 +13,7 @@
 
 > **Tài liệu chuyển đổi từ:** `Data Model.pdf`  
 > **Hệ thống:** Enterprise Customer Service AI Agent — Bảo hiểm Nhân thọ (SRS-BHNT)  
-> **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector (Tách 2 schema: `business` và `rag`)
+> **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector. Baseline application có `business` và `rag`; checkpoint/runtime Agent dự kiến có schema, role, pool và migration riêng, tên/cấu trúc chờ G2.
 
 > Bổ sung local 03/11/2026: ERD và từ điển CONVERSATIONS dưới đây đã bỏ CLOSED theo Prisma/migration mới; nguồn online cũ từng có giá trị này, không sửa nguồn online.
 
@@ -534,22 +534,22 @@ erDiagram
 ---
 
 ### Bảng 16: `RAG_KNOWLEDGE_CHUNKS`
-> **Mục đích:** Kho tri thức Vector RAG (Schema: `rag`), lưu trữ các mẩu văn bản kèm vector embedding 768 chiều phục vụ tìm kiếm ngữ nghĩa (ADR-DATA-001, ADR-DATA-003, NFR-002).
+> **Mục đích:** Kho tri thức RAG (schema `rag`) cho PostgreSQL full-text search + pgvector + RRF. Model/phiên bản embedding, số chiều và cấu hình index chưa chốt ở G4; không mặc định 768 chiều. Bảng đã có, pipeline/indexer/retrieval chưa được nghiệm thu từ baseline application.
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh đoạn chunk vector. |
 | **document_id** | UUID | Logic FK, NOT NULL | Khóa ngoại logic sang `business.documents(id)`. Không dùng FK vật lý để bảo đảm độc lập giữa 2 schema. |
-| **document_version** | VARCHAR(20) | NULLable | Phiên bản của file tài liệu lúc cắt chunk (vd: `'v1.0'`). |
+| **document_version** | VARCHAR(20) | NOT NULL | Phiên bản của tài liệu lúc cắt chunk; luôn truy xuất theo cặp document/version Core cấp, không tự đổi sang current version. |
 | **chunk_index** | INT | NOT NULL | Số thứ tự đoạn trong tài liệu (0, 1, 2...) để ghép lại văn bản khi cần. |
-| **content** | TEXT | NOT NULL | Nội dung văn bản thuần của đoạn chunk (500 - 1000 ký tự) đưa vào prompt cho LLM đọc. |
+| **content** | TEXT | NOT NULL | Nội dung nguồn của chunk; cỡ chunk/overlap cần đo, không cố định từ ví dụ nguồn. Metadata prefix phục vụ tìm kiếm được giữ riêng, không coi là nguyên văn trích dẫn. |
 | **embedding** | VECTOR | Index | Tọa độ không gian (vector) để đo tương đồng Cosine. |
 | **access_scope** | VARCHAR(50) | CHECK | Phạm vi bảo mật: `'PUBLIC'`, `'PRIVATE_POLICY'`. Dùng để Pre-filter trước khi tìm vector (NFR-002). |
 | **product_id** | UUID | NULLable | Mã sản phẩm nếu là chunk của tài liệu sản phẩm chung. |
 | **policy_id** | UUID | NULLable | Mã hợp đồng nếu là chunk của hợp đồng cá nhân. |
 | **owner_customer_id** | UUID | NULLable | ID khách hàng sở hữu (Core Backend lọc chỉ khách này hoặc Staff phụ trách mới được tìm kiếm). |
 | **page_number** | INT | NULLable | Trang số mấy trong file PDF gốc, dùng để AI đính kèm trích dẫn citations. |
-| **metadata** | JSONB | NULLable | Thông tin bổ sung (tiêu đề mục, tiêu đề chương, từ khóa chính). |
+| **metadata** | JSONB | NULLable | Baseline chưa ép schema JSON. Task 7 đặc tả parent/child, section key, vị trí trang/anchor, explicit references/trạng thái phân giải, cảnh báo nguồn và corpus/model/config version; xem phần III. |
 
 ---
 
@@ -626,3 +626,17 @@ Local I01, Prisma `ConversationCommandReceipt`, bảng `business.conversation_co
 Không lưu response Private nguyên khối. Cùng key/hash replay sau reauthorize; khác payload409. Receipt không cấp quyền, không phát lại dữ liệu sau revoke. Chưa TTL/xóa tự động. Message/receipt/audit/outbox commit cùng transaction; không thêm Ticket/read marker hoặc counts.
 
 Bổ sung I06 04/11/2026: migration `202611040002_inbox_realtime` chỉ thêm lease/index và Notification.kind; không thêm bảng. SYSTEM sau Accept dùng Message hiện có, internalMessageId gắn handoffId, audience CUSTOMER_VISIBLE và sequence atomic. Inbox không có counts, notification.isRead không là transcript read receipt hoặc Accept.
+
+## III. Mở rộng Agent/RAG dự kiến — chưa là schema đã triển khai
+
+Đồng bộ 06/11/2026 theo [Agent Design](Agent_Design.md), [plan Tasks 2–4, 6–8](../superpowers/plans/2026-10-31-agent-rag-implementation.md) và [contract Task 1 đề xuất G1](../../contracts/agent-v1.md). Phần này không tăng số bảng baseline hoặc tự cấp quyền migration. Tên bảng/cột, DDL/constraints và ownership cuối cùng chờ review G2; metadata index chờ Task 7/G4/G5.
+
+| Nhóm lưu trữ | Owner / yêu cầu dữ liệu | Phần phải đặc tả trước code |
+| --- | --- | --- |
+| Lượt xử lý, attempt và sự kiện nhận ở Core | Gắn conversation/tin nguồn, trạng thái QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED, attempt hiện hành, thứ tự, dispatch và dedup/fingerprint. Lưu linked-history view Copilot tại lúc Core nhận câu hỏi. | Ánh xạ `Turn` trong CH02 và `Run` trong plan Agent thành cùng một khái niệm; không tạo hai lifecycle độc lập. Kết nối Conversation/Message/receipt/outbox đã có; unique một lượt hoạt động/hội thoại và event dedup theo protocol G2. |
+| Receipt nhận việc và quyền ghi Agent | Nhận run bền vững trước ACK; claim/lease, thread/attempt/writer epoch để chặn writer cũ. | Schema/role/pool/migration riêng; mọi đường ghi checkpoint, kể cả pending writes của thư viện, phải qua fence. Không FK/join/transaction chung sang business/rag. |
+| Checkpoint graph và ledger ngân sách | Checkpoint lưu context/work có version. Ledger theo tin nhắn lưu reservation trước external call; retry/attempt mới không cấp lại budget đã tiêu hoặc chưa rõ kết quả. | Chọn thư viện/checkpointer version, schema payload và quy trình rebuild. `ConversationContext`/`MessageWork` là payload state, không mặc định thành bảng/cột business riêng. Counters trong checkpoint không thay ledger. |
+| Kết quả cuối và sự kiện chờ giao ở Agent | Final record, immutable event, sequence/completion và ACK để gửi lại sau restart mà không chạy lại model/tool. | Tính nguyên tử, fingerprint, recovery và retention; không dùng outbox business hiện có như checkpoint store hoặc transaction chung giữa Core và Agent. |
+| Corpus/metadata RAG | Stable child/parent/section keys, document/version, pages/anchor, raw reference/đích/trạng thái, cảnh báo nguồn; checksum, dataset/model/config version và số chiều. | Đặc tả cách lưu parent content/reference và metadata trong cấu trúc hiện có trước khi quyết định thêm bảng/cột. Nạp atomic theo document/version/profile; không trộn vector khác model. Chọn FTS/vector indexes sau đo, chưa mặc định HNSW/BM25. |
+
+Core là nguồn lịch sử nghiệp vụ và quyền hiện hành. Summary/pending trong checkpoint không thay lịch sử gốc hoặc cấp quyền; `ExecutionContext` được code dựng từ request tin cậy, không lưu nguyên khối vào checkpoint hay gửi model. Dữ liệu Private trong state/index vẫn chịu kiểm quyền và chính sách lưu/xóa; Git approval không đồng nghĩa RAG approval.

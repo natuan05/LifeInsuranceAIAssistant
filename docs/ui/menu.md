@@ -8,7 +8,7 @@ UI đơn giản: menu, danh sách, trang chi tiết và khung chat. Trên điệ
 
 Mỗi màn hình bên dưới liên kết tới một file khung trong `customer/` hoặc `staff/`, gồm: mục đích, thành phần hiển thị, chức năng/thao tác, trạng thái và checklist.
 
-**Tiến độ:** Auth/account/profile local, Staff Products/Customers/Policy Lookup/PDF và Inbox I01–I06 đã nối; Customer có chat tối thiểu nhưng chưa menu mới. Handoff notification Staff đã có, Ticket/Agent/Copilot còn kế hoạch. Staff Products đã có. Mốc tiếp: [Staff Tickets và nghiệm thu](staff/plans/README.md), Customer mới làm đợt sau. Menu dưới là phạm vi đích; chỉ dựng mục khi feature thật sẵn sàng. App Web dùng tiếng Anh.
+**Tiến độ theo application main 05/11:** Staff Auth/Customers/Products/Policies/Inbox I01–I06 và Ticket TK01–TK05 đã có; Customer Home/Products/Policies/PDF và chat shell đã có. Agent/Copilot và producer Ticket I07 còn phần triển khai/nghiệm thu riêng theo Agent Design + plan. Menu dưới là phạm vi chức năng; không suy toàn MVP hoàn tất từ UI. App Web dùng tiếng Anh.
 
 ## A. Customer
 
@@ -25,7 +25,7 @@ Yêu cầu hỗ trợ
 Hồ sơ và tài khoản
 ```
 
-Đăng nhập trước khi vào ứng dụng. Hiện dùng tài khoản được cấp local; đăng ký Customer theo FR-001 còn kế hoạch A01/A02. Chuông Customer là đề xuất cần chốt N01, không yêu cầu mặc định hoặc badge chưa đọc.
+Đăng nhập bằng tài khoản được cấp sẵn trước khi vào ứng dụng; Customer không tự đăng ký trong MVP theo FR-001 và quyết định 07/11/2026. Chuông Customer có UI/client state; Core recipient/persistence theo N01/N02 nếu được chọn, không suy thông báo nghiệp vụ thật từ badge.
 
 ### Các màn hình
 

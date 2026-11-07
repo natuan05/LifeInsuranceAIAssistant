@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; nguồn tạo/xác nhận Ticket từ Agent, Copilot/Agent và Customer UI mới còn kế hoạch. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
+Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; Customer Home/Products/Policies/PDF/chat shell đã có; nguồn tạo/xác nhận Ticket I07 và Copilot/Agent còn phần triển khai/nghiệm thu riêng. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -289,7 +289,7 @@ Try it out login cần `X-Auth-Request: 1`, email/password mục 7 và đúng en
 | Customer B | customer.b@dev.example.invalid | CUS-000002 | Staff B |
 | Customer chưa phân công | customer.unassigned@dev.example.invalid | CUS-000003 | Chưa có Staff |
 
-Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; không public tự đăng ký. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
+Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; MVP dùng tài khoản được cấp sẵn và không tự đăng ký công khai theo quyết định 07/11/2026. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
 
 ### 7.2. Khi nào seed chạy?
 
@@ -351,7 +351,7 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs đã có; Customer owner policy/PDF APIs còn kế hoạch. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
+Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff và Customer owner policy/PDF APIs đã có trong main 05/11. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 
 Người sửa backend có thể chạy `npm run db:validate --workspace @life-insurance/core` và `npm run db:generate --workspace @life-insurance/core`. Generate không sửa DB. Thay schema cần migration mới và giữ CHECK/partial indexes; không sửa migration đã apply hoặc dùng db push/migrate reset trên DB cần giữ.
 
