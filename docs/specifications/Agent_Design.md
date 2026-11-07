@@ -1,6 +1,6 @@
 # Thiết kế Agent
 
-**Tài liệu chuẩn cho thiết kế Agent**, thay ba bản Agent trên Google Docs từ **27/10/2026**. Tổng hợp **31/10/2026**, bổ sung yêu cầu đã thống nhất **01/11/2026**: quyết định đã chốt; đặc tả/lựa chọn còn mở ở mục 9. Chưa triển khai Agent/retrieval/checkpoint. Link Google Docs ghi xuất xứ, không cần mở để hiểu thiết kế hiện hành.
+**Tài liệu chuẩn cho thiết kế Agent**, thay ba bản Agent trên Google Docs từ **27/10/2026**. Tổng hợp **31/10/2026**, bổ sung yêu cầu đã thống nhất **01/11/2026**: quyết định đã chốt; đặc tả/lựa chọn còn mở ở mục 9. Cập nhật 07/11: Task 5 có graph và unit tests với fake model/Core/retrieval/store; chưa nghiệm thu Agent tích hợp thật, retrieval/provider hoặc checkpoint bền vững. Link Google Docs ghi xuất xứ, không cần mở để hiểu thiết kế hiện hành.
 
 <a id="design-overview"></a>
 ## Bản thiết kế tổng thể

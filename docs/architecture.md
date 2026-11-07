@@ -17,7 +17,7 @@ Quyết định ngày 27/10/2026: Agent dùng Python + custom LangGraph; loại 
 
 Chi tiết chức năng, luồng điều phối và RAG dùng [bản tổng thể Agent/RAG ngày 31/10/2026](specifications/Agent_Design.md#design-overview) làm điểm bắt đầu trong tài liệu chuẩn thay thế ba bản Agent trên Google Docs; architecture chỉ giữ baseline chung của hệ thống. [Phần việc còn lại](specifications/Agent_Design.md#remaining-work) tách quyết định cần chọn, đặc tả thực thi và tham số cần đo; không mở lại lựa chọn đã chốt.
 
-Khung graph đã chốt ngày 30/10/2026 gồm [Prepare, Agent, Execute tools và Finalize](specifications/Agent_Design.md#initial-agent-graph), có vòng đánh giá lại sau kết quả tool. Đây là bốn node logic, không phải bốn dịch vụ hoặc số lần gọi model cố định; chưa triển khai.
+Khung graph đã chốt ngày 30/10/2026 gồm [Prepare, Agent, Execute tools và Finalize](specifications/Agent_Design.md#initial-agent-graph), có vòng đánh giá lại sau kết quả tool. Mốc Task 5 ngày 07/11 đã có code/test với fake model/Core/retrieval/store; chưa tích hợp Core thật, provider, HTTP hoặc checkpoint PostgreSQL. Đây là bốn node logic, không phải bốn dịch vụ hoặc số lần gọi model cố định.
 
 Thống nhất thuật ngữ ngày 31/10/2026: [Agentic RAG](specifications/Agent_Design.md#rag-terminology) là toàn bộ luồng truy xuất–tạo context–sinh câu trả lời. Hai tool truy xuất Public/Private chỉ trả bằng chứng; code dựng context và LLM trong node Agent tổng hợp câu trả lời. Không đóng gói thêm một Agent sinh câu trả lời riêng trong mỗi tool.
 

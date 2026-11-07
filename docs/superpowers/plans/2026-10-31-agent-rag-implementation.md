@@ -14,7 +14,7 @@
 
 ## Global Constraints
 
-- Bản này chỉ là kế hoạch; chưa cho phép chạy implementation, cài dependency, migration, seed, chunk/embedding hoặc cloud.
+- Bản kế hoạch không tự cho phép implementation/dependencies/migration/seed/chunk/embedding/cloud; phạm vi được thực hiện theo yêu cầu từng đợt. Ngày 07/11 đã review/sửa graph Task 5 với fake model/Core/retrieval/store theo yêu cầu review và merge tuần tự. Không từ mốc này tự mở phần tích hợp thật hoặc gates G2–G6.
 - Core sở hữu danh tính, authorization, business, lịch sử, lifecycle run/attempt và takeover; Agent không truy cập business DB.
 - MVP dùng tài khoản được cấp sẵn, không có Customer tự đăng ký công khai theo quyết định 07/11/2026. Agent không provision tài khoản; không thêm signup hoặc tích hợp cấp tài khoản tự động từ plan này.
 - Private chỉ dữ liệu sinh hoàn toàn giả lập; không đọc `.local/private`, hợp đồng thật hoặc bản đã che danh tính để tạo fixture/prompt/log.

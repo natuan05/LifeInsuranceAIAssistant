@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "life-agent"
+version = "0.1.0"
+description = "Agent/RAG service (custom LangGraph). Milestone 2: graph runs with fake model/tools only."
+requires-python = ">=3.13"
+# Pinned for the graph milestone. Checkpointer library, HTTP framework and model provider are chosen at G2-G4.
+dependencies = [
+  "langgraph==1.2.20",
+  "jsonschema==4.26.0",
+]
+
+[dependency-groups]
+dev = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

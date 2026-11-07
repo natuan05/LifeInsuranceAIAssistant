@@ -2660,14 +2660,15 @@
           "maxLength": 4000
         },
         "covers_through": {
-          "$ref": "#/$defs/Cursor"
+          "$ref": "#/$defs/HistoryPosition"
         }
       },
       "required": [
         "text",
         "covers_through"
       ],
-      "additionalProperties": false
+      "additionalProperties": false,
+      "description": "Summary of older own-conversation history; covers_through is the last Core position it replaces."
     },
     "ConversationContext": {
       "description": "Kept across messages of one conversation/thread. Never proves permissions.",

@@ -8,7 +8,7 @@
 - Staff Policies/Products/PDF, Inbox I01–I06: Direct, Customer consent, Staff Accept, lịch sử/gửi tin/realtime/handoff notification.
 - Customer Home, Products, Policies/PDF theo ownership và nền chat hai đầu; dùng tài khoản được cấp sẵn, không tự đăng ký. Profile edit/Customer notification center giữ trạng thái trong phase sở hữu.
 - Staff Ticket TK01–TK05: read/Accept/status/UI/notification. Chưa có producer I07 từ đề xuất Agent + xác nhận Customer; không coi Ticket UI là E2E tạo Ticket.
-- Corpus Markdown và thiết kế Agent đã có; Task 1 có contracts/schema/fixtures/tests để review G1. Chưa nghiệm thu runtime/retrieval/embedding từ baseline application hoặc từ contract tests.
+- Corpus Markdown và thiết kế Agent đã có; Task 1 có contracts/schema/fixtures/tests để review G1. Task 5 có graph và unit tests với fake model/Core/retrieval/store sau review 07/11; chưa nghiệm thu HTTP/Core/provider/retrieval/checkpoint thật từ các test này.
 
 ## Thứ tự tiếp theo
 
