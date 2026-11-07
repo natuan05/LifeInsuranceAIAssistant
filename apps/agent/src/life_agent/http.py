@@ -160,14 +160,17 @@ def _opener() -> urllib.request.OpenerDirector:
     return urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 
-def signed_post(opener: urllib.request.OpenerDirector, keyring: Keyring, url: str, payload: Mapping[str, Any], *,
-                timeout: float) -> tuple[int, Any]:
-    """POST JSON with LI-HMAC-SHA256-v1 headers (new timestamp/nonce per call). Returns (status, parsed body or None)."""
-    body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+def signed_request(opener: urllib.request.OpenerDirector, keyring: Keyring, method: str, url: str,
+                   payload: Mapping[str, Any] | None = None, *, timeout: float) -> tuple[int, Any]:
+    """One LI-HMAC-SHA256-v1 signed request (new timestamp/nonce per call; a GET signs the empty body).
+    Returns (status, parsed JSON body or None)."""
+    body = b"" if payload is None else json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     parts = urlsplit(url)
     target = parts.path + ("?" + parts.query if parts.query else "")
-    headers = {"Content-Type": "application/json", **sign(keyring, "POST", target, body)}
-    request = urllib.request.Request(url, data=body, headers=headers, method="POST")
+    headers = sign(keyring, method, target, body)
+    if payload is not None:
+        headers["Content-Type"] = "application/json"
+    request = urllib.request.Request(url, data=body if payload is not None else None, headers=headers, method=method)
     try:
         with opener.open(request, timeout=timeout) as response:
             status, raw = response.status, response.read(MAX_BODY_BYTES + 1)
@@ -183,6 +186,11 @@ def signed_post(opener: urllib.request.OpenerDirector, keyring: Keyring, url: st
         return status, json.loads(raw.decode("utf-8")) if raw and len(raw) <= MAX_BODY_BYTES else None
     except (UnicodeDecodeError, ValueError):
         return status, None
+
+
+def signed_post(opener: urllib.request.OpenerDirector, keyring: Keyring, url: str, payload: Mapping[str, Any], *,
+                timeout: float) -> tuple[int, Any]:
+    return signed_request(opener, keyring, "POST", url, payload, timeout=timeout)
 
 
 class HttpEventTransport:

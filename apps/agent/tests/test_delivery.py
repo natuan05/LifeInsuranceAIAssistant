@@ -295,13 +295,19 @@ class CoreHttpDouble(ThreadingHTTPServer):
             def log_message(self, *args):
                 pass
 
-            def do_POST(handler):
-                body = handler.rfile.read(int(handler.headers["Content-Length"]))
+            def handle_any(handler, method):
+                from urllib.parse import parse_qs, urlsplit
+
+                length = int(handler.headers.get("Content-Length") or 0)
+                body = handler.rfile.read(length) if length else b""
+                parts = urlsplit(handler.path)
                 try:
-                    verify(self.ring, self.nonces, "POST", handler.path, dict(handler.headers), body)
-                    payload = json.loads(body)
-                    self.seen.append((handler.path, payload))
-                    status, answer = self.answers[handler.path](payload)
+                    verify(self.ring, self.nonces, method, handler.path, dict(handler.headers), body)
+                    payload = json.loads(body) if body else None
+                    query = {k: v[0] for k, v in parse_qs(parts.query).items()}
+                    self.seen.append((method, parts.path, query, payload))
+                    key = next(k for k in self.answers if parts.path.endswith(k))
+                    status, answer = self.answers[key](payload)
                 except AuthFailed:
                     status, answer = 401, {"error": {"code": "AUTH_FAILED"}}
                 data = json.dumps(answer).encode() if answer is not None else b"not json"
@@ -316,6 +322,12 @@ class CoreHttpDouble(ThreadingHTTPServer):
                 except BrokenPipeError:
                     pass  # the client gave up (timeout case)
 
+            def do_POST(handler):
+                handler.handle_any("POST")
+
+            def do_GET(handler):
+                handler.handle_any("GET")
+
         super().__init__(("127.0.0.1", 0), Handler)
         self.base = f"http://127.0.0.1:{self.server_address[1]}"
         threading.Thread(target=self.serve_forever, daemon=True).start()
@@ -328,33 +340,38 @@ def ctx():
     return execution_context(run_request("ctx", "?"))
 
 
-def test_core_reads_are_signed_carry_the_attempt_and_map_errors():
+def test_core_reads_use_the_plan_paths_are_signed_and_map_errors():
     ring = keyring("a2c-1")
     page = {"items": [], "nextCursor": None}
-    overview = {"policy_number": "SYN-POL-2024-0001", "main_product": {"code": "PUB-HTHP-GTBV-V2", "name": "HTHP"},
+    overview = {"policy_number": "SYN-POL/2024-0001", "main_product": {"code": "PUB-HTHP-GTBV-V2", "name": "HTHP"},
                 "riders": [], "riders_complete": False}
-    answers = {"/api/v1/internal/agent/history": lambda p: (200, page),
-               "/api/v1/internal/agent/linked-history": lambda p: (403, {"error": {"code": "NOT_AUTHORIZED"}}),
-               "/api/v1/internal/agent/contracts": lambda p: (200, {"contracts": [{"policy_number": "x"}]}),
-               "/api/v1/internal/agent/contract-overview": lambda p: (200, overview),
-               "/api/v1/internal/agent/scope": lambda p: (409, None)}
+    answers = {"/history": lambda p: (200, page),
+               "/linked-history": lambda p: (403, {"error": {"code": "NOT_AUTHORIZED"}}),
+               "/contracts": lambda p: (200, {"contracts": [{"policy_number": "x"}]}),
+               "/contracts/SYN-POL%2F2024-0001": lambda p: (200, overview),
+               "/scope": lambda p: (409, None)}
     server = CoreHttpDouble(ring, answers)
     try:
         client = HttpCoreClient(server.base, ring)
         context = ctx()
         view = context["history_view"]
-        assert client.history(context, view, None, timeout=2) == page
-        assert client.get_contract_overview(context, "SYN-POL-2024-0001", timeout=2) == overview
+        run = f"/api/v1/internal/agent/runs/{context['run_id']}"
+        assert client.history(context, view, "p7", timeout=2) == page
+        assert client.get_contract_overview(context, "SYN-POL/2024-0001", timeout=2) == overview
         for call_, code in ((lambda: client.linked_history(context, view, None, timeout=2), "NOT_AUTHORIZED"),
-                            (lambda: client.scope(context, "PUBLIC", None, timeout=2), "INVALID_ATTEMPT"),
+                            (lambda: client.scope(context, "PRIVATE", "SYN-POL-2024-0001", timeout=2), "INVALID_ATTEMPT"),
                             (lambda: client.list_contracts(context, timeout=2), "UNAVAILABLE")):  # malformed summary
             with pytest.raises(CoreError) as raised:
                 call_()
             assert raised.value.code == code
-        path, body = server.seen[0]
-        assert (body["run_id"], body["attempt_id"], body["view"], body["cursor"]) == (context["run_id"],
-                                                                                      context["attempt_id"], view, None)
-        assert "message_text" not in json.dumps(server.seen)  # only ids, view, cursor or policy number are sent
+        attempt = {"attemptId": context["attempt_id"]}
+        assert server.seen == [
+            ("GET", f"{run}/history", {**attempt, "cursor": "p7"}, None),
+            ("GET", f"{run}/contracts/SYN-POL%2F2024-0001", attempt, None),
+            ("GET", f"{run}/linked-history", attempt, None),  # Core pages by the views it stored for the run
+            ("POST", f"{run}/scope", attempt, {"attempt_id": context["attempt_id"], "kind": "PRIVATE",
+                                               "policy_number": "SYN-POL-2024-0001"}),
+            ("GET", f"{run}/contracts", attempt, None)]
         wrong = HttpCoreClient(server.base, keyring("a2c-1"))
         with pytest.raises(CoreError) as raised:
             wrong.history(context, view, None, timeout=2)
@@ -365,7 +382,7 @@ def test_core_reads_are_signed_carry_the_attempt_and_map_errors():
 
 def test_core_read_timeout_and_unreachable_core_are_transient_codes():
     ring = keyring("a2c-1")
-    server = CoreHttpDouble(ring, {"/api/v1/internal/agent/history": lambda p: ("sleep", {"items": []})})
+    server = CoreHttpDouble(ring, {"/history": lambda p: ("sleep", {"items": []})})
     try:
         with pytest.raises(CoreError) as raised:
             HttpCoreClient(server.base, ring).history(ctx(), ctx()["history_view"], None, timeout=0.3)
@@ -389,7 +406,7 @@ def test_event_transport_returns_core_ack_and_classifies_failures():
             with pytest.raises(TransportError) as raised:
                 transport.post_event(event)
             assert raised.value.code == code
-        assert server.seen[0] == ("/api/v1/internal/agent/events", event)
+        assert server.seen[0] == ("POST", "/api/v1/internal/agent/events", {}, event)
     finally:
         server.shutdown()
 

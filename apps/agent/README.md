@@ -156,13 +156,13 @@ Tài liệu Public đã nạp ở mốc 3 được bỏ qua nhờ fingerprint; c
 
 ## Trạng thái: Task 6 phía Agent — HTTP/HMAC và giao lại kết quả
 
-Người dùng chọn ngày 06/11/2026 làm phần Agent của Task 6 trước, vì GitHub chưa có API Core của Task 3. Phần Core của Task 6 (`apps/core/src/agent/…`, `npm run test:agent-delivery`) và E2E Task 10 chờ Task 3. Core trong test là double; không chứng minh transaction, quyền hay HMAC của Core.
+Người dùng chọn ngày 06/11/2026 làm phần Agent của Task 6 trước, vì GitHub chưa có API Core của Task 3. Phần Core của Task 6 (`apps/core/src/agent/…`, `npm run test:agent-delivery`) và E2E Task 10 chờ Task 3; việc của đội application ở [handoff](../../docs/superpowers/plans/2026-11-07-agent-core-handoff.md). Core trong test là double; không chứng minh transaction, quyền hay HMAC của Core.
 
 | Thành phần | Nội dung |
 | --- | --- |
 | `signing.py` | Profile `LI-HMAC-SHA256-v1` bằng thư viện chuẩn: ký/kiểm trên byte body thô, ±120 giây, nonce bền 10 phút (`request_nonces`, chỉ ghi sau khi chữ ký đúng), body ≤ 1 MiB, keyring theo `key_id` để xoay khóa; lỗi chỉ trả `AUTH_FAILED`/`REPLAY_REJECTED` |
 | `http.py` | `AgentService` (xác thực → lưu receipt/revoke → ACK; graph không chạy trong request), app Starlette, `deliver_pending` (gửi nguyên event đã lưu, ký lại mỗi lần, backoff, bỏ cuộc sau hạn tối đa), `Worker` (chạy receipt `ACCEPTED` đọc từ DB, cũng là đường phục hồi sau restart), `serve` |
-| `core_client.HttpCoreClient` | Đọc Core có ký, luôn gửi `run_id`/`attempt_id`; endpoint là đề xuất cho Task 3 ([contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3)) |
+| `core_client.HttpCoreClient` | Đọc Core có ký theo đường dẫn nội bộ của kế hoạch Task 3 (`/api/v1/internal/agent/runs/{runId}/…`), luôn kèm `attemptId`; phần query/body chưa có trong kế hoạch là đề xuất ([contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3)) |
 | `migrations/002_delivery.sql` | `gave_up_at`, `last_failure` cho `outbound_events`; index nonce theo thời gian |
 
 Lịch gửi lại (1 → 60 giây, jitter 0,2, bỏ cuộc sau 24 giờ) và hạn lưu vẫn là đề xuất của 12.10, đặt qua `.env`. Lease không gia hạn trong lúc chạy nên `LIFE_AGENT_LEASE_S` phải lớn hơn deadline Core gửi. Pin `starlette` 1.10.0 (thay 1.9.0 dự kiến) và `uvicorn` 0.54.0.
