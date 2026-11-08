@@ -9,6 +9,7 @@ import { ConversationRateLimitService } from './services/conversation-rate-limit
 import { StaffInboxService } from './services/staff-inbox.service';
 import { PoliciesModule } from '../policies/policies.module';
 import { CustomerConversationController } from './controllers/customer-conversation.controller';
+import { CommonConversationController } from './controllers/common-conversation.controller';
 import { ConversationSessionService } from './services/conversation-session.service';
 import { ConversationEntryService } from './services/conversation-entry.service';
 import { ConversationHandoffService } from './services/conversation-handoff.service';
@@ -18,7 +19,7 @@ import { ConversationCommandService } from './services/conversation-command.serv
 import { ConversationMessageService } from './services/conversation-message.service';
 
 // Customer/Staff messaging; no Agent impersonation endpoint.
-@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController],
+@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController, CommonConversationController],
   providers: [ConversationEventService, ConversationSendingService, ConversationAccessService, ConversationCommandService, ConversationMessageService, ConversationRateLimitService, StaffInboxService,
     ConversationSessionService, ConversationEntryService, ConversationHandoffService, ConversationTranscriptService],
   exports: [ConversationSessionService, ConversationRateLimitService, ConversationEventService, ConversationAccessService, ConversationCommandService, ConversationMessageService] })

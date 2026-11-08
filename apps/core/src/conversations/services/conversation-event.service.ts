@@ -14,7 +14,64 @@ export class ConversationEventService {
         select: { customerId: true, channelType: true, supportOrigin: true, status: true,
           directAssignment: { select: { staffId: true } }, handoffs: { select: { id: true, recipientStaffId: true, state: true } } } });
       if (!conversation || conversation.channelType !== 'CUSTOMER_SUPPORT' || conversation.supportOrigin === 'LEGACY_UNKNOWN') return [];
-      const recipients: ChatRecipient[] = [{ actorId: conversation.customerId, role: 'CUSTOMER' }];
+      let customerNotification = false;
+      let lastMessage: { senderType: string; readAt: Date | null } | null = null;
+      if (event.eventType === 'HANDOFF_ACCEPTED') {
+        const dedupKey = `${event.id}:${conversation.customerId}:STAFF_ACCEPTED_HANDOFF`;
+        await tx.notification.upsert({
+          where: { dedupKey },
+          create: {
+            dedupKey,
+            kind: 'STAFF_ACCEPTED_HANDOFF',
+            recipientCustomerId: conversation.customerId,
+            conversationId: event.aggregateId,
+            title: 'Nhân viên đã tiếp nhận yêu cầu chat',
+          },
+          update: {},
+        });
+        customerNotification = true;
+      } else if (event.eventType === 'MESSAGE_COMMITTED') {
+        lastMessage = await tx.message.findFirst({
+          where: { conversationId: event.aggregateId, audience: 'CUSTOMER_VISIBLE' },
+          orderBy: { sequence: 'desc' },
+          select: { senderType: true, readAt: true },
+        });
+        if (lastMessage?.senderType === 'STAFF' && lastMessage.readAt === null) {
+          const existingCustomerNoti = await tx.notification.findFirst({
+            where: {
+              recipientCustomerId: conversation.customerId,
+              conversationId: event.aggregateId,
+              kind: 'STAFF_MESSAGE_UNREAD',
+              isRead: false,
+            },
+            select: { id: true },
+          });
+          if (existingCustomerNoti) {
+            await tx.notification.update({
+              where: { id: existingCustomerNoti.id },
+              data: { createdAt: new Date() },
+            });
+          } else {
+            const dedupKey = `${event.id}:${conversation.customerId}:STAFF_MESSAGE_UNREAD`;
+            await tx.notification.create({
+              data: {
+                dedupKey,
+                kind: 'STAFF_MESSAGE_UNREAD',
+                recipientCustomerId: conversation.customerId,
+                conversationId: event.aggregateId,
+                title: 'Bạn có tin nhắn mới từ nhân viên hỗ trợ',
+              },
+            });
+          }
+          customerNotification = true;
+        }
+      }
+      const recipients: ChatRecipient[] = [{
+        actorId: conversation.customerId,
+        role: 'CUSTOMER',
+        transcript: event.eventType === 'MESSAGE_COMMITTED',
+        notification: customerNotification,
+      }];
       if (event.eventType === 'CONVERSATION_ACCESS_REVOKED') {
         const former = new Set(conversation.handoffs.map(h => h.recipientStaffId));
         if (conversation.directAssignment) former.add(conversation.directAssignment.staffId);
@@ -25,6 +82,35 @@ export class ConversationEventService {
       const allowed = await tx.conversation.findFirst({ where: { id: event.aggregateId, AND: [this.access.staffScope(assignment.staffId, event.eventType === 'MESSAGE_COMMITTED' ? 'active' : 'all')] }, select: { id: true } });
       if (!allowed) return recipients;
       let notification = false;
+      if (event.eventType === 'MESSAGE_COMMITTED' && lastMessage?.senderType === 'CUSTOMER' && lastMessage.readAt === null) {
+        const existingStaffNoti = await tx.notification.findFirst({
+          where: {
+            recipientStaffId: assignment.staffId,
+            conversationId: event.aggregateId,
+            kind: 'CUSTOMER_MESSAGE_UNREAD',
+            isRead: false,
+          },
+          select: { id: true },
+        });
+        if (existingStaffNoti) {
+          await tx.notification.update({
+            where: { id: existingStaffNoti.id },
+            data: { createdAt: new Date() },
+          });
+        } else {
+          const dedupKey = `${event.id}:${assignment.staffId}:CUSTOMER_MESSAGE_UNREAD`;
+          await tx.notification.create({
+            data: {
+              dedupKey,
+              kind: 'CUSTOMER_MESSAGE_UNREAD',
+              recipientStaffId: assignment.staffId,
+              conversationId: event.aggregateId,
+              title: 'Bạn có tin nhắn mới từ khách hàng',
+            },
+          });
+        }
+        notification = true;
+      }
       if (event.eventType === 'HANDOFF_REQUESTED' && conversation.status === 'PENDING_HANDOFF') {
         const pending = conversation.handoffs.find(h => h.state === 'PENDING' && h.recipientStaffId === assignment.staffId);
         // Only the event for the current pending request may create a notification.

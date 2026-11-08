@@ -29,8 +29,13 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
       try {
         await this.database.prisma.$transaction(async tx => {
           const { actor } = await this.auth.me(peer.request, tx);
-          if (actor.id !== peer.actorId || actor.role !== 'STAFF') throw new UnauthorizedException();
-          await this.ticketAccess.requireTicket(tx, actor.id, event.aggregateId);
+          if (actor.id !== peer.actorId) throw new UnauthorizedException();
+          if (actor.role === 'STAFF') {
+            await this.ticketAccess.requireTicket(tx, actor.id, event.aggregateId);
+          } else if (actor.role === 'CUSTOMER') {
+            const ticket = await tx.supportTicket.findFirst({ where: { id: event.aggregateId, customerId: actor.id }, select: { id: true } });
+            if (!ticket) throw new UnauthorizedException();
+          } else throw new UnauthorizedException();
         }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
         for (const type of ['tickets-invalidated', 'notifications-invalidated']) {
           if (ws.readyState !== WebSocket.OPEN) break;
