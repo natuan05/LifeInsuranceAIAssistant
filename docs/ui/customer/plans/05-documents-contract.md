@@ -2,6 +2,17 @@
 
 05/11/2026 · **Đã triển khai** · C05 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [D01 — Customer policy catalog và cấp quyền PDF](documents/01-owner-document-access.md) | insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (Đọc/ký, không upload/overwrite) | [apps/core/src/policies/controllers/customer-policy.controller.ts](<../../../../apps/core/src/policies/controllers/customer-policy.controller.ts>); [apps/core/src/policies/services/policy.service.ts](<../../../../apps/core/src/policies/services/policy.service.ts>) | Cao — Customer PDF access |
+| [D02 — Customer policy PDF và vòng đời viewer](documents/02-pdf-viewer-ui.md) | insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (Đọc/ký, không upload/overwrite) | [apps/web/src/components/customer-policies.tsx](<../../../../apps/web/src/components/customer-policies.tsx>); [apps/web/src/components/signed-pdf-preview.tsx](<../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Cao — Customer policy summary và document panel |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Căn cứ và baseline
 
 FR-008/UC-007/NFR-007. MinIO private, reader credential, SDK, signed link và Staff catalog/view/download đã chạy; Customer sử dụng các endpoint owner riêng được kiểm soát quyền chặt chẽ.

@@ -61,7 +61,14 @@ test('debounced search, Enter, empty search preserve document and focus', async 
 });
 test('IME waits until composition ends and late search cannot replace current results', async ({ page }) => {
   await setup(page, '/staff/inbox', { searchDelay: true });
-  await search(page).dispatchEvent('compositionstart'); await search(page).fill('old');
+  await search(page).focus();
+  await search(page).dispatchEvent('compositionstart', { data: '' });
+  // fill() ends native composition in Firefox. Emit an actual composing input
+  // instead, through the native setter so React observes the controlled value.
+  await search(page).evaluate(input => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'old');
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, data: 'old', inputType: 'insertCompositionText', isComposing: true }));
+  });
   await page.waitForTimeout(350); await expect(page).not.toHaveURL(/search=/);
   await search(page).dispatchEvent('compositionend'); await expect(page).toHaveURL(/search=old/);
   await search(page).fill('CUS-INBOX-02'); await search(page).press('Enter');

@@ -2,10 +2,33 @@
 
 05/11/2026 · **Đã triển khai** · [C05](../05-documents-contract.md) · Cần [PO01](../policies/01-owner-read-api.md); tiếp [D02](02-pdf-viewer-ui.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| MinIO/S3 — ngoài PostgreSQL | PDF object exact version/checksum, HEAD/GET/Range | Đọc/ký, không upload/overwrite | DB và object store không có transaction chung; URL còn TTL sau revoke | Cao — không lưu signed URL vào DB/URL navigation/log |
+
+**Schema/migration:** Không migration; reuse applied document bindings, không dùng publication current của Products thay policy version.
+
+**Nhất quán và hồi quy:** Owner filter customer_id=actor trước search/status/count/page; không lấy Staff assignment làm quyền Customer. Kiểm UUID khách khác/không tồn tại, decimal/null/ngày và late response sau đổi actor. Catalog không cấp URL; POST view/download kiểm binding và audit trước trả. Kiểm owner sai, version inactive, storage lỗi và rollback audit.
+
 ## 1. Vị trí
 
 Triển khai tại `apps/core/src/policies/controllers/customer-policy.controller.ts` và mở rộng `PolicyService` (`ownerDocuments`, `ownerAccess`).
 Sử dụng `PolicyStorageService` để xác thực binding và tạo link ký MinIO có thời hạn cho đúng phiên bản tài liệu áp dụng.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/policies/controllers/customer-policy.controller.ts](<../../../../../apps/core/src/policies/controllers/customer-policy.controller.ts>) | Hiện có | Own documents/view/download | Cao | Customer PDF access |
+| [apps/core/src/policies/services/policy.service.ts](<../../../../../apps/core/src/policies/services/policy.service.ts>) | Hiện có | ownerDocuments/ownerAccess exact binding | Cao | Staff catalog/access cùng service |
+| [apps/core/src/policies/services/policy-storage.service.ts](<../../../../../apps/core/src/policies/services/policy-storage.service.ts>) | Hiện có | HEAD/sign và disposition/TTL | Cao | Products viewer và Staff policy |
+| [apps/core/src/policies/dto/document-access.dto.ts](<../../../../../apps/core/src/policies/dto/document-access.dto.ts>) | Hiện có | policyId + url/expiresAt | Trung bình | Safe response, không bucket/key |
 
 ## 2. API spec đã triển khai
 

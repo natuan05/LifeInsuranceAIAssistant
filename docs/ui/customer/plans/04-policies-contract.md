@@ -2,6 +2,17 @@
 
 05/11/2026 · **Đã triển khai** · C04 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [PO01 — Customer policy list/detail Core](policies/01-owner-read-api.md) | insurance_policies + insurance_products (Đọc); users + customer_profiles (Đọc own profile) | [apps/core/src/policies/controllers/customer-policy.controller.ts](<../../../../apps/core/src/policies/controllers/customer-policy.controller.ts>); [apps/core/src/policies/services/policy.service.ts](<../../../../apps/core/src/policies/services/policy.service.ts>) | Cao — Customer My policies |
+| [PO02 — My policies list và detail](policies/02-policy-ui.md) | insurance_policies + insurance_products (Đọc) | [apps/web/src/components/customer-policies.tsx](<../../../../apps/web/src/components/customer-policies.tsx>); [apps/web/src/app/customer/policies/page.tsx](<../../../../apps/web/src/app/customer/policies/page.tsx>) | Trung bình — PDF tab và summary |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Căn cứ và baseline
 
 FR-008/UC-007; CustomerProfile 1–N InsurancePolicy N–1 InsuranceProduct. Staff read/PDF đã chạy; Customer chưa có policy controller. `PolicyService` hiện bọc read Staff-only, dù catalog nội bộ có role Customer cho citations; không coi helper này là Customer public API đã có.

@@ -92,6 +92,6 @@ Frame client gửi bị đóng 1008; phiên thu hồi đóng 4001; DB lỗi đó
 
 | ID | Phần còn lại | Phase sở hữu |
 | --- | --- | --- |
-| G08 | Customer runtime có login/profile readonly/chat tối thiểu, UI mới chưa làm | [Customer plans](../../customer/plans/README.md), hoãn đợt sau; không lẫn scope Staff |
-| G09 | Core/mock/browser và một số real E2E đã có; chưa đủ Account/Policy/browser matrix/benchmark | Bổ sung test ngay trong phase Auth/Customers/Policies tương ứng; Products/Inbox đã có suite thật |
+| G08 | Customer có shell/Home/Products/Policies/PDF/chat; self-edit và Agent/confirmation còn phase riêng | [Customer plans](../../customer/plans/README.md), không lẫn scope Staff |
+| G09 | Auth/Customers/Policy có regression và real gateway/Core/DB/MinIO E2E trên Chromium/Firefox/WebKit | AU01–AU03, CU01/CU02, PL01–PL04; runner test-staff.mjs. Benchmark/cloud không thuộc mốc Staff local |
 | G10 | Global search/templates/attachments/read marker/complete Ticket workflow chưa chọn | [Extensions](00-staff-contract.md); không tự thành Must từ UI mẫu/enum |

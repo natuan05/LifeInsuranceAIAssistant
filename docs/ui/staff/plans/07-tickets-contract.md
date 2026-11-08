@@ -4,6 +4,21 @@
 
 Đối chiếu **05/11/2026**. TK01 nền và TK02 A21/A22 read đã có; TK03 A23 Accept đã có; TK04 UI list/detail/Accept đã nối; TK05 consumer notification/realtime đã có; producer I07 còn P. Ticket tách rõ khỏi chat/handoff.
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [TK01 — Quyền, dữ liệu và version Ticket](tickets/01-scope-model-contract.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc) | [apps/core/prisma/schema.prisma](<../../../../apps/core/prisma/schema.prisma>); [apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql](<../../../../apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql>) | Cao — Generated client và mutations TK03 |
+| [TK02 — Staff Tickets list/detail](tickets/02-staff-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc) | [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>); [apps/core/src/tickets/services/ticket.service.ts](<../../../../apps/core/src/tickets/services/ticket.service.ts>) | Cao — Staff Ticket list/detail |
+| [TK03 — Nhận Ticket độc lập chat](tickets/03-accept-command.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); support_tickets (Ghi status và tăng version khi đổi hợp lệ); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>); [apps/core/src/tickets/services/ticket.service.ts](<../../../../apps/core/src/tickets/services/ticket.service.ts>) | Cao — Staff Ticket list/detail |
+| [TK04 — Staff Tickets UI](tickets/04-list-detail-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); support_tickets (Ghi gián tiếp qua TK03) | [apps/web/src/components/staff-tickets.tsx](<../../../../apps/web/src/components/staff-tickets.tsx>); [apps/web/src/lib/ticket-api.ts](<../../../../apps/web/src/lib/ticket-api.ts>) | Cao — Đổi view không reload trang |
+| [TK05 — Ticket notification và invalidation](tickets/05-notification-events.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); notifications (Đọc); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/tickets/services/ticket-event.service.ts](<../../../../apps/core/src/tickets/services/ticket-event.service.ts>); [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Cao — Ticket created/accepted/status notifications |
+| [I07 — Ticket riêng và liên kết với Inbox](tickets/06-agent-confirmation.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); TicketDraft / confirmed snapshot — P, chưa có bảng/cột (DDL + ghi dự kiến, chưa triển khai); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | `apps/core/src/tickets/controllers/customer-ticket.controller.ts` — P; `apps/core/src/tickets/services/ticket-draft.service.ts` — P | Cao — Customer review, service identity Agent |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## Ranh giới đã chốt
 
 - Ticket là nhánh **Agent gợi ý tạo → Customer xem/xác nhận → Core tạo**. Yêu cầu Staff/Direct/Accept chat không bắt buộc và không tự tạo Ticket.

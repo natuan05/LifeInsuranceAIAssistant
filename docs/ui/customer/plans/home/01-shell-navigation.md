@@ -2,9 +2,30 @@
 
 05/11/2026 · **Đã triển khai** · [C02](../02-home-contract.md) · [Chung](../00-customer-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + customer_profiles | users.id/account_code/email/phone/status/updated_at; customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc own profile | CustomerProfile.user_id/role → User.id/role; owner actor từ session, không nhận customerId tự chọn | Cao — Customer header/Home/profile và Staff customer projection dùng chung dữ liệu |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+
+**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng.
+
+**Nhất quán và hồi quy:** Session/actor lifecycle giữ cùng Auth boundary, route đổi không remount ứng dụng hay F5. Chỉ dữ liệu contact Core cho phép mới hiện; không tạo assignment khi click shortcut.
+
 ## 1. Kết quả và files
 
 Thiết kế Customer cùng hệ Staff nhưng trực quan, hiện đại, tone màu emerald/slate trang nhã. Đã triển khai `apps/web/src/components/customer-workspace.tsx`, `customer-header.tsx`, `customer-account-menu.tsx`; routes/layout dưới `app/customer/` (`layout.tsx`, `page.tsx`). Dùng chung auth session; quản lý tab mượt mà không reload F5.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/customer-workspace.tsx](<../../../../../apps/web/src/components/customer-workspace.tsx>) | Hiện có | Shell/tab/router và actor scope | Trung bình | Home/Products/Policies/Conversations/Tickets/Account |
+| [apps/web/src/components/customer-header.tsx](<../../../../../apps/web/src/components/customer-header.tsx>) | Hiện có | Profile/contact/navigation | Trung bình | Self projection và availability |
+| [apps/web/src/components/customer-account-menu.tsx](<../../../../../apps/web/src/components/customer-account-menu.tsx>) | Hiện có | Menu/logout/đổi password | Cao | Auth session hai portal |
+| [apps/web/src/app/customer/layout.tsx](<../../../../../apps/web/src/app/customer/layout.tsx>) | Hiện có | Route boundary Customer | Cao | Không mở Staff data bằng route |
 
 ## 2. Route contract
 

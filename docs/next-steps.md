@@ -30,7 +30,7 @@ A15 và FE Policy Lookup hai cột đã triển khai 02/11/2026. Phần đọc c
 - [x] **Thu gọn cột kết quả:** icon trong ô tìm kiếm, icon mở lại ở mép khi đóng; không chữ Hide results, giữ nội dung nhập/bộ lọc/trang/hợp đồng. Header dossier gọn, không có Customer profile; PDF vừa chiều ngang.
 - [x] **Điều hướng:** giữ search/status/page và lựa chọn hợp đồng khi mở/quay lại, hỗ trợ Back/Forward/deep link. Search/Clear/filter/phân trang/retry/chọn hợp đồng không reload document hay remount workspace. Không đưa returnTo dài hoặc signed URL lên URL ứng dụng.
 - [x] **Trạng thái và kiểm chứng đã có:** loading/empty/error/retry, 10 Policy integration + 6 HTTP/realtime tests; browser smoke search/filter/phân trang/PDF/URL/keyboard/mobile và thu gọn cột kết quả.
-- [ ] **QA còn lại:** browser E2E tự động trong repo/CI; lỗi mạng/storage/expiry và thu hồi quyền đầy đủ trên UI.
+- [x] **QA Staff local:** suite browser regression và gateway/Core/DB/MinIO E2E có trong repo cho Auth/Customers/Policies, Chromium/Firefox/WebKit; lỗi mạng/missing object/expiry/revoke theo test case phase. Runner tự dọn fixture/artifact; chưa tuyên bố cấu hình CI hoặc native PDF toolbar/zoom.
 
 Nguồn chi tiết: [Staff policies](ui/staff/plans/05-policies-contract.md#policy-lookup), [A15 trong API map](ui/staff/plans/00-staff-contract.md#api-theo-chức-năng), [checklist](ui/implementation-status.md). Chọn hợp đồng để xem không tự đổi linkedPolicy của chat; quick lookup trong Inbox và đổi ngữ cảnh chat làm sau khi có contract.
 
@@ -86,13 +86,13 @@ Nguồn kế hoạch chi tiết: [inbox-plan.md](ui/staff/plans/inbox/00-inbox-s
 ## Phần policy/PDF đã có và còn lại
 
 - [x] MinIO private local, credential reader/writer tách quyền; Core đã nối SDK để cấp signed URL view/download Staff sau kiểm session/CSRF/assignment/phiên bản áp dụng, TTL mặc định 15 phút. Chưa dựng S3/cloud.
-- [x] Bootstrap chung có 2 sản phẩm, 14 hợp đồng, 17 tài liệu/20 PDF version synthetic; chạy lại giữ dữ liệu đã sửa, kiểm checksum và phục hồi file fixture thiếu. Bộ mẫu riêng có sẵn được giữ.
+- [x] Bootstrap chung: bảy sản phẩm, 13 tài liệu Public và bốn hồ sơ hợp đồng riêng theo `policies.json`, tổng 17 tài liệu/PDF version. Không nhân bản hợp đồng để thử phân trang; kiểm checksum, chạy lại giữ chỉnh sửa và phục hồi file thiếu. Reset toàn bộ hoặc thay bộ hợp đồng mẫu cũ là các lệnh maintenance riêng.
 - [x] Staff Customers → danh sách/chi tiết hợp đồng/catalog; PDF chính làm nội dung trung tâm, thông tin DB thu gọn, điều khoản/phụ lục tách riêng, xem/tải không reload.
 - [x] Policy Lookup A15 và FE danh sách toàn tập assignment đã nối; browser regression tiếp tục ở mục QA.
 - [x] Product API A17/P01 list/detail Core/gateway; UI chưa làm.
 - [x] Product A19/access/P02 Core/MinIO/gateway; UI chưa làm.
 - [ ] Customer ownership APIs và My policies/view/download; Customer Products UI, citations theo trang; quick lookup/context chat theo contract riêng.
-- [ ] Browser regression có thể chạy lại cho search/filter/deep link, revoke/expiry, storage lỗi, Range/download, retry và keyboard/mobile. Không coi các kiểm thử API/file là nghiệm thu toàn bộ UI.
+**Quy tắc bảo trì:** Khi thay đổi search/filter/deep link, revoke/expiry, storage/Range/download, retry hoặc keyboard/mobile, chạy lại suite bị ảnh hưởng bằng test-staff.mjs. Đây không là chức năng còn thiếu; HTTP/file check không thay browser E2E.
 
 Đặc tả dùng chung ở [C05 Policy/PDF](ui/customer/plans/05-documents-contract.md#hướng-triển-khai-policypdf-đã-thống-nhất--31102026); trạng thái chính xác ở [Staff policies](ui/staff/plans/05-policies-contract.md) và [checklist](ui/implementation-status.md). Cloud/RDS, SLO/sizing/HA/DR vẫn cần phạm vi riêng. Giữ Core sở hữu quyền/nghiệp vụ, dữ liệu synthetic và lịch sử migration.
 
@@ -119,4 +119,4 @@ Chat chung cho Staff không gắn Customer **tạm hoãn theo người dùng ng�
 
 Đã chọn parent–child và tham chiếu chéo; cỡ chunk/giới hạn mở rộng/tham số ranking cần đo, không phải kiến trúc chưa chọn. Lỗi nguồn UL049 trang 29 và duyệt nghiệp vụ corpus vẫn được theo dõi tại báo cáo xử lý. Chưa tạo chunks/embeddings hoặc nạp database. RDS, triển khai cloud, sizing/HA–DR, tự host và queue mới để giai đoạn có yêu cầu tương ứng.
 
-Ngày **29/10/2026** đã có [hợp đồng synthetic](../data/synthetic/manulife-demo-v1/README.md) được viết mới theo bố cục trường thông tin đã tham khảo: Markdown, JSON, manifest và 15 đáp án đối chiếu. Đã kiểm tra nhất quán tĩnh; chưa seed, chunk, embedding hoặc chạy Agent/RAG. Phí/quyền lợi bổ trợ demo chỉ là dữ liệu thử, chưa ánh xạ sản phẩm thương mại hoặc kiểm định định phí.
+Ngày **29/10/2026** có fixture tham chiếu Markdown/JSON/15 đáp án; bootstrap hiện dùng [portfolio bốn hồ sơ riêng](../data/synthetic/manulife-demo-v1/README.md) từ `policies.json`, không nhân bản fixture cũ. Mỗi hồ sơ gắn đúng người/sản phẩm/điều khoản, không dùng bổ trợ DEMO-TITAN chưa ánh xạ. Chưa chunk, embedding hoặc chạy Agent/RAG từ bộ này; phí vẫn là dữ liệu thử chưa kiểm định thương mại.

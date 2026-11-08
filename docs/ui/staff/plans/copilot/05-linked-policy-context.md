@@ -2,6 +2,23 @@
 
 04/11/2026 · **P, mở rộng chưa được chọn; hoãn Agent** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| conversations | linked_policy_id/customer_id/control_version | P — context mutation, chọn xem policy hiện tại chỉ đọc | Composite FK (linked_policy_id,customer_id) → Policy(id,customer_id), expected control version và transcript grant | Cao — đổi context fence mọi task cũ; không xóa nội dung/draft Ticket đã xác nhận |
+| Copilot task/checkpoint — P, chưa có model task app | Dự kiến task id, owner, source, context watermark, state/attempt/lease/result | DDL/storage dự kiến, chưa chọn đầy đủ | Core giữ authorization/business fence; checkpoint Agent dùng store/credential riêng, không là transaction nghiệp vụ | Cao — retry/crash/revoke giữa enqueue/tool/return; không biến ConversationStatus thành task state |
+
+**Schema/migration:** P — không thêm cột context chỉ vì mở Lookup; nếu cần command receipt/task fence mới phải đặc tả migration riêng.
+
+**Nhất quán và hồi quy:** Mutation explicit theo actor/current owner/grant/version, không side effect từ GET. Kiểm foreign policy, stale context/attempt và không gắn lại Ticket snapshot.
+
 ## 1. Phạm vi và điều kiện bắt đầu
 
 G02, liên quan UC-006/context Agent; mở trang policy đã có FR-008 không cần mutate context. Không blocker Staff không Agent.
@@ -9,6 +26,13 @@ G02, liên quan UC-006/context Agent; mở trang policy đã có FR-008 không c
 ## 2. Model và vị trí thay đổi
 
 Conversation.linkedPolicyId/controlVersion, InsurancePolicy owner, access I01. Model/DTO/mutation contract chưa có endpoint, không suy từ action mở PDF.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Source grant trước đổi context | Cao | Staff/Customer source scope |
+| [apps/core/src/policies/services/policy.service.ts](<../../../../../apps/core/src/policies/services/policy.service.ts>) | Hiện có | Policy ownership/assignment lookup | Cao | Xem policy hiện có vẫn readonly |
+| `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
+| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read/cancel DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
@@ -105,7 +129,7 @@ sequenceDiagram
     else Hợp lệ
         C->>D: Update context, fence attempt cũ và audit
         D-->>C: COMMIT
-        C-->>W: Current context; GET Policy Lookup không mutation
+        C-->>W: Current context, GET Policy Lookup không mutation
         W-->>U: Cập nhật sau ACK
     end
     opt Timeout hoặc mất ACK

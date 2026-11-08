@@ -2,6 +2,21 @@
 
 05/11/2026 · **Kế hoạch triển khai** · [Contract](../05-policies-contract.md) · [Inbox Contract](../03-inbox-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
+
+**Schema/migration:** Không migration. Chọn/xem policy không ghi conversations.linked_policy_id; không cập nhật PDF/version/snapshot.
+
+**Nhất quán và hồi quy:** Web không ghi DB trực tiếp; audit access chỉ khi gọi POST cấp PDF, không theo mỗi invalidation. Core vẫn kiểm assignment riêng dù mở từ Inbox. Kiểm race đổi customer/actor, version/revoke và giữ viewer/focus khi refetch cùng tài nguyên.
+
 ## 1. Phạm vi và mục tiêu
 
 * **Mục tiêu**: Bổ sung tính năng tra cứu danh sách hợp đồng bảo hiểm của khách hàng đang tương tác (`visible.customer.id`) ngay tại panel bên phải của màn hình Staff Inbox (`rightPanelTab === 'lookup'`).
@@ -15,12 +30,13 @@
 
 ## 2. **Vị trí code và phân chia trách nhiệm**:
 
-| Vị trí file | Trách nhiệm |
-| --- | --- |
-| `apps/web/src/components/staff-inbox-policy-lookup.tsx` | Component tra cứu nhanh hợp đồng của khách hàng hiện tại: fetch dữ liệu, tìm kiếm/lọc client-side, render danh sách thẻ hợp đồng, trạng thái loading/empty/error, mở modal xem hồ sơ tại chỗ hoặc mở tab mới độc lập. |
-| `apps/web/src/components/staff-inbox.tsx` | Nhúng `StaffInboxPolicyLookup` vào tab `rightPanelTab === 'lookup'`, truyền `customerId={visible.customer.id}` và `customerName={visible.customer.fullName}`; nút chuyển tab nhanh từ Case Details. |
-| `apps/web/src/lib/policy-api.ts` | Tái sử dụng hàm `customerPolicies(id, page, signal)` đã được xây dựng sẵn để gọi API Core. |
-| `apps/core/src/policies/controllers/staff-policy.controller.ts` | Endpoint `GET /api/v1/staff/customers/:customerId/policies` đã hoạt động ổn định trong Core, không cần sửa đổi backend. |
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-inbox-policy-lookup.tsx](<../../../../../apps/web/src/components/staff-inbox-policy-lookup.tsx>) | Hiện có | Panel list policy cho visible customer | Trung bình | Selection/paging tại Inbox |
+| [apps/web/src/components/staff-inbox.tsx](<../../../../../apps/web/src/components/staff-inbox.tsx>) | Hiện có | Truyền customerId theo metadata đã cấp quyền | Cao | Không suy grant policy từ transcript |
+| [apps/web/src/lib/policy-api.ts](<../../../../../apps/web/src/lib/policy-api.ts>) | Hiện có | Reuse customerPolicies theo assignment | Trung bình | Policy directory và panel |
+| [apps/core/src/policies/controllers/staff-policy.controller.ts](<../../../../../apps/core/src/policies/controllers/staff-policy.controller.ts>) | Hiện có | A14/A15/A16 và document access Staff | Cao | Customers policies, Policy Lookup và Inbox panel |
+| [apps/core/src/policies/services/policy.service.ts](<../../../../../apps/core/src/policies/services/policy.service.ts>) | Hiện có | Scope/query/projection/catalog, dùng chung owner methods | Cao | Staff và Customer policies |
 
 ## 3. API và cấu trúc dữ liệu
 

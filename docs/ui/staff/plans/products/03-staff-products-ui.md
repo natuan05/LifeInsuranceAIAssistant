@@ -4,9 +4,33 @@
 
 Products đã có trong Staff Tools, gồm danh sách/chi tiết và tự hiển thị PDF PUBLIC gốc để xem/tải.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_products | id/product_code/name/summary/is_active | Đọc | Unique product_code; chỉ catalog active, không sửa hợp đồng đã tham gia khi sản phẩm inactive | Trung bình — catalog và tài liệu dùng chung hai role |
+| documents + document_versions | product_id/access_scope/policy_id/owner_customer_id/current_version, document_id/version_number/is_active | Đọc | PUBLIC, policy_id/owner_customer_id null; current FK (id,current_version) → (document_id,version_number) | Cao — công bố nhầm Private hoặc chọn version mới nhất bằng timestamp sẽ sai quyền |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| MinIO/S3 — ngoài PostgreSQL | Object PDF theo storage_bucket/storage_object_key, checksum SHA-256, Content-Type | HEAD + ký GET/Range, không upload từ viewer | Không FK xuyên DB/object store; exact version/checksum do Core đối chiếu | Cao — DB transaction không rollback storage; URL đã cấp còn residual TTL, không log URL/key |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không migration; UI không upload/sinh PDF hoặc sửa publication.
+
+**Nhất quán và hồi quy:** Mở sản phẩm tự cấp view đúng current file qua P02; download grant riêng. Realtime không liên tục đổi src, version thay phải revalidate. Kiểm Viewer dùng chung Customer/policies, search Enter và Back không F5.
+
 ## 1. Phạm vi và vị trí
 
 Thêm một mục **Products** trong Tools, độc lập Policy Lookup, theo FR-008. Route đề xuất `/staff/products` và `/staff/products/:productId`; files `apps/web/src/app/staff/(workspace)/products/page.tsx`, `products/[productId]/page.tsx`, `components/staff-products.tsx`, `lib/product-api.ts`. Tích hợp router/sidebar tại Staff portal hiện có; đọc Next docs cài trong repo trước code. Không đổi route policy/account/inbox hoặc tạo app mới.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-products.tsx](<../../../../../apps/web/src/components/staff-products.tsx>) | Hiện có | List/detail/document selection | Trung bình | Staff Tools và routes products |
+| [apps/web/src/lib/product-api.ts](<../../../../../apps/web/src/lib/product-api.ts>) | Hiện có | Catalog/document/access wrapper dùng hai role | Cao | Customer Products |
+| [apps/web/src/components/signed-pdf-preview.tsx](<../../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Hiện có | Auto view và version lifecycle | Cao | Policy viewer dùng chung |
+| [apps/web/src/app/staff/(workspace)/products/page.tsx](<../../../../../apps/web/src/app/staff/(workspace)/products/page.tsx>) | Hiện có | Route entry dưới Staff shell | Thấp | Không mount thêm auth boundary |
 
 ## 2. UI và state
 

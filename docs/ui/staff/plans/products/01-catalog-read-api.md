@@ -4,9 +4,30 @@
 
 Nghiệp vụ đã chốt tại contract P: active catalog, hai role đã đăng nhập, tên/mã/summary từ DB; nội dung đầy đủ trong PDF. A17/DTO/query bên dưới đã E; P02 tài liệu/access hiện cũng đã E theo phase riêng, UI P03 đã triển khai.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_products | id/product_code/name/summary/is_active | Đọc | Unique product_code; chỉ catalog active, không sửa hợp đồng đã tham gia khi sản phẩm inactive | Trung bình — catalog và tài liệu dùng chung hai role |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+
+**Schema/migration:** Không DDL; không thêm bảng benefit/pricing hoặc policy cá nhân vào catalog.
+
+**Nhất quán và hồi quy:** Quota ghi riêng; read count/page RepeatableRead, recheck session. Kiểm inactive/search/DTO hai role; không tự sửa các policy của sản phẩm inactive.
+
 ## 1. Kết quả và file
 
 FR-008: hai role tìm/chọn sản phẩm đang công bố, không cần Agent. Đã thêm `apps/core/src/products/products.module.ts`, `controllers/product.controller.ts`, `services/product.service.ts`, `dto/product-query.dto.ts`, `dto/product-response.dto.ts`; import ProductsModule tại `app.module.ts`. Dùng AuthService/DatabaseService và RepeatableRead, không thay schema hoặc dependency. Không đọc business DB từ Web/Agent.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/products/controllers/product.controller.ts](<../../../../../apps/core/src/products/controllers/product.controller.ts>) | Hiện có | Catalog/detail hai role | Trung bình | Staff/Customer Products |
+| [apps/core/src/products/services/product.service.ts](<../../../../../apps/core/src/products/services/product.service.ts>) | Hiện có | Active filter/search/count/page projection | Cao | Không kéo policies/customer relations vào DTO |
+| [apps/core/src/products/services/product-quota.ts](<../../../../../apps/core/src/products/services/product-quota.ts>) | Hiện có | Atomic actor quota dùng chung P01/P02 | Trung bình | Read và PDF access độc lập nhóm |
+| [apps/core/src/products/dto/product-query.dto.ts](<../../../../../apps/core/src/products/dto/product-query.dto.ts>) | Hiện có | Validate literal search/page | Trung bình | product-api.ts và browser search |
 
 ## 2. API spec đã triển khai — A17 E
 

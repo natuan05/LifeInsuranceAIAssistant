@@ -15,7 +15,11 @@ RUN npm run db:generate
 CMD ["node", "scripts/migrate.mjs"]
 
 FROM migrator AS test
+COPY data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json /app/data/synthetic/manulife-demo-v1/
+COPY data/public/manifest-manulife-text.json /app/data/public/manifest-manulife-text.json
+COPY data/public/manulife/text/ /app/data/public/manulife/text/
 RUN npm run build
+COPY apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf /app/apps/core/dist/cli/assets/
 CMD ["node", "--test", "test/conversation-permissions.test.cjs"]
 
 FROM migrator AS build
@@ -30,10 +34,15 @@ COPY --from=build --chown=node:node /app/apps/core/node_modules ./apps/core/node
 COPY --from=build --chown=node:node /app/apps/core/dist ./apps/core/dist
 COPY --from=build --chown=node:node /app/apps/core/package.json ./apps/core/package.json
 COPY --chown=node:node apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf apps/web/public/fonts/OFL-Lexend.txt ./apps/core/dist/cli/assets/
+COPY --chown=node:node data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json ./data/synthetic/manulife-demo-v1/
+COPY --chown=node:node data/public/manifest-manulife-text.json ./data/public/manifest-manulife-text.json
+COPY --chown=node:node data/public/manulife/text/ ./data/public/manulife/text/
 USER node
 WORKDIR /app/apps/core
 EXPOSE 4000
 CMD ["node", "dist/main.js"]
 
 FROM seed AS runtime
-RUN rm -rf /app/apps/core/dist/cli
+USER root
+RUN rm -rf /app/apps/core/dist/cli /app/data
+USER node

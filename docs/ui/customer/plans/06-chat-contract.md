@@ -2,6 +2,18 @@
 
 04/11/2026 · **CH01–CH03 là kế hoạch mới** · C06 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [CH01 — Ghép Conversations UI trên I03–I06](chat/01-existing-chat-workspace.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + messages + conversation_handoffs + conversation_command_receipts (Ghi gián tiếp qua I03/I05, không từ UI trực tiếp); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/customer-handoff-dialog.tsx](<../../../../apps/web/src/components/customer-handoff-dialog.tsx>) | Cao — Customer shell và Direct/AI tabs |
+| [CH02 — Contract Core–Agent, durable turns và tool scope](chat/02-agent-boundary.md) | conversations + conversation_handoffs (Đọc); messages (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../apps/core/src/conversations/services/conversation-message.service.ts>); [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Cao — SYSTEM/Customer/Staff append giữ semantics |
+| [CH03 — AI answers, citations và lời gợi ý có xác nhận](chat/03-agent-answers-ui.md) | messages (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/conversation-transcript.tsx](<../../../../apps/web/src/components/conversation-transcript.tsx>) | Cao — Customer shell và Direct/AI tabs |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Baseline và yêu cầu
 
 FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/history, Direct, consent/request/Accept, gửi chống trùng, realtime catch-up và SYSTEM tiếp nhận. `apps/agent` vẫn placeholder, chưa provider/transport/checkpoint/runtime. Không làm lại REST/chat từ đầu hoặc giả AI đã phản hồi.

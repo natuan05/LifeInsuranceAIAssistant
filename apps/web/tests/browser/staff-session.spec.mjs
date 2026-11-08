@@ -123,7 +123,7 @@ test('Customer session recovered on a Staff route goes to Customer home', async 
   const state = await setup(page, ({ attempt, json }) => attempt === 1 ? json({}, 500) : json(session(customer)), customer);
   await page.goto('/staff/customers'); await retry(page).press('Enter');
   await expect(page).toHaveURL(/\/customer$/);
-  await expect(page.getByRole('heading', { name: 'Your profile', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: `Welcome back, ${customer.fullName}`, exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit personal information' })).toHaveCount(0);
   expect(state.documents).toHaveLength(1);
 });
@@ -141,8 +141,8 @@ for (const path of ['/staff/login', '/login']) {
 test('Customer Account also recovers in place with its own role', async ({ page }) => {
   const state = await setup(page, ({ attempt, route, json }) => attempt === 1 ? route.abort('failed') : json(session(customer)), customer);
   await page.goto('/account'); await retry(page).press('Enter');
-  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
-  await expect(page.locator('dd').filter({ hasText: customer.fullName })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal Information & Account Security', exact: true })).toBeVisible();
+  await expect(page.getByText(customer.fullName, { exact: true }).first()).toBeVisible();
   expect(state.documents).toHaveLength(1);
 });
 
@@ -169,7 +169,7 @@ test('revalidation with a different actor removes the previous Staff Account', a
   await page.goto('/account');
   await expect(page.getByRole('button', { name: 'Edit personal information' })).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event('core:data-changed')));
-  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal Information & Account Security', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit personal information' })).toHaveCount(0);
   await expect(page.getByText(staff.fullName, { exact: true })).toHaveCount(0);
 });
@@ -276,7 +276,7 @@ test('passive events do not loop after failure; manual retry still bypasses fres
 test('Customer Account expiry still uses the Customer login portal', async ({ page }) => {
   const state = await setup(page, ({ attempt, json }) => attempt === 1 ? json(session(customer)) : json({}, 401), customer);
   await page.goto('/account');
-  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Personal Information & Account Security', exact: true })).toBeVisible();
   await socketSignal(page, state, 'session-expired');
   await expect(page).toHaveURL(/\/login$/);
   expect(new URL(page.url()).pathname).toBe('/login');

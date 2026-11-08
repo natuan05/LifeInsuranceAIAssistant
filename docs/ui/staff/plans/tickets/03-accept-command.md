@@ -2,6 +2,34 @@
 
 04/11/2026 · **E: A23 Core đã triển khai** · [Contract](../07-tickets-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| support_tickets | status/version; đọc assigned_staff_id/customer_id | Ghi status và tăng version khi đổi hợp lệ | Lock row + expectedVersion/CAS + current assignment; không tạo confirmation evidence | Cao — đủ TicketStatus theo transitions hiện hành, reopen riêng Ticket; ConversationStatus không CLOSED |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** Không DDL cho command; version TK01, outbox TK05. Không dùng ConversationCommandReceipt làm idempotency Ticket.
+
+**Nhất quán và hồi quy:** Lock/recheck/CAS và audit+event atomic; no-op/409 theo contract, không blind retry đổi token. Kiểm status/reopen/lost response/race reassignment và conversation không đổi.
+
+## Vị trí code và mức ảnh hưởng
+
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>) | Hiện có | List/detail/accept/status endpoints | Cao | Staff Ticket list/detail |
+| [apps/core/src/tickets/services/ticket.service.ts](<../../../../../apps/core/src/tickets/services/ticket.service.ts>) | Hiện có | Scope, lock, expectedVersion/CAS, audit/outbox | Cao | Status dropdown và notification source |
+| [apps/core/src/tickets/services/ticket-access.service.ts](<../../../../../apps/core/src/tickets/services/ticket-access.service.ts>) | Hiện có | Ticket scope và allowedActions | Cao | Notifications và deep link, không cấp chat grant |
+| [apps/core/src/tickets/dto/update-ticket-status.dto.ts](<../../../../../apps/core/src/tickets/dto/update-ticket-status.dto.ts>) | Hiện có | Enum/status/version allowlist | Trung bình | ticket-api.ts và Swagger |
+
 ## 1. Phạm vi và model
 
 FR-010 tiếp nhận; lifecycle status được người dùng bổ sung ở mục7, chưa có nghiệp vụ phản hồi/Claim/payment. Không A11 Accept chat/consent, không Agent producer. Dùng version từ TK01; không thêm migration/dependency. UI thuộc TK04, consumer notification thuộc TK05.
@@ -181,7 +209,7 @@ sequenceDiagram
     else Hợp lệ
         C->>D: CAS status/version, audit và outbox atomic
         D-->>C: COMMIT
-        C-->>W: 200 current detail; đủ 5 status được chọn trực tiếp
+        C-->>W: 200 current detail, đủ 5 status được chọn trực tiếp
         W-->>U: Cập nhật sau ACK
     end
     opt Timeout hoặc mất ACK

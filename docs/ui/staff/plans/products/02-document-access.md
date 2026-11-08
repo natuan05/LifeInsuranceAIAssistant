@@ -4,11 +4,35 @@
 
 Nghiệp vụ đã chốt tại contract P: PUBLIC cho hai role đã đăng nhập không cần assignment, dùng currentVersion công bố; hợp đồng cá nhân giữ applied version riêng. A19 và hai POST access bên dưới đã E; UI P03 đã triển khai.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_products | id/product_code/name/summary/is_active | Đọc | Unique product_code; chỉ catalog active, không sửa hợp đồng đã tham gia khi sản phẩm inactive | Trung bình — catalog và tài liệu dùng chung hai role |
+| documents + document_versions | product_id/access_scope/policy_id/owner_customer_id/current_version, document_id/version_number/is_active | Đọc | PUBLIC, policy_id/owner_customer_id null; current FK (id,current_version) → (document_id,version_number) | Cao — công bố nhầm Private hoặc chọn version mới nhất bằng timestamp sẽ sai quyền |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| MinIO/S3 — ngoài PostgreSQL | Object PDF theo storage_bucket/storage_object_key, checksum SHA-256, Content-Type | HEAD + ký GET/Range, không upload từ viewer | Không FK xuyên DB/object store; exact version/checksum do Core đối chiếu | Cao — DB transaction không rollback storage; URL đã cấp còn residual TTL, không log URL/key |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không migration, AccessScope giữ PUBLIC/PRIVATE_POLICY. Không thêm PRIVATE_CUSTOMER hay Document.kind.
+
+**Nhất quán và hồi quy:** Hai transaction kiểm publication trước/sau HEAD/sign; audit SUCCESS commit rồi trả URL. Không transaction DB kéo dài qua network storage. Kiểm current đổi trong lúc cấp, inactive/private, audit failure và cursor.
+
 ## 1. Kết quả và vị trí
 
 FR-008/NFR-007: hai role đọc tài liệu đang công bố của sản phẩm active. Bổ sung controller/service/DTO trong `apps/core/src/products/`; tái dùng `apps/core/src/policies/services/policy-storage.service.ts` qua DI/module export. Audit theo cách cấp link Staff hiện có, không chép SDK/credential loader vào controller mới.
 
 Đã thêm `controllers/product-document.controller.ts`, `services/product-document.service.ts`, `services/product-document-cursor.ts`, `dto/product-documents.dto.ts`; helper `services/product-quota.ts` dùng chung P01/P02. PoliciesModule export PolicyStorageService để ProductsModule dùng đúng một provider. Không đổi schema/dependency, không sinh lại PDF khi view/download.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/products/controllers/product-document.controller.ts](<../../../../../apps/core/src/products/controllers/product-document.controller.ts>) | Hiện có | Catalog/view/download PUBLIC | Cao | Hai role dùng cùng endpoint |
+| [apps/core/src/products/services/product-document.service.ts](<../../../../../apps/core/src/products/services/product-document.service.ts>) | Hiện có | Publication gate, hai lần recheck/audit | Cao | Không lộ policy private hoặc version khác current |
+| [apps/core/src/products/services/product-document-cursor.ts](<../../../../../apps/core/src/products/services/product-document-cursor.ts>) | Hiện có | Cursor bind actor/product/limit | Trung bình | Load more và cross-product cursor |
+| [apps/core/src/policies/services/policy-storage.service.ts](<../../../../../apps/core/src/policies/services/policy-storage.service.ts>) | Hiện có | Tái sử dụng HEAD/sign PDF | Cao | Không thay storage privilege policy |
 
 ## 2. Quy tắc publication và version
 

@@ -2,6 +2,20 @@
 
 04/11/2026 · **Đã triển khai; baseline FE** · [Contract](../02-customers-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| users + customer_profiles | users.id/account_code/email/phone/status, customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc projection | CustomerProfile.user_id/role → User.id/role; assignment filter trước total/page | Cao — tên/phone hiển thị ở Customers, Policy, Inbox và Ticket; không trả citizen_id/password |
+
+**Schema/migration:** Không migration; không cấp/sửa assignment hoặc profile từ trang Customers.
+
+**Nhất quán và hồi quy:** Lọc quyền và search trước count/page trong read transaction; API không cập nhật hồ sơ khách. Kiểm khách ngoài assignment, search trang sau và Back giữ query.
+
 ## 1. Phạm vi và model
 
 CU01 + PL01–PL03. Staff Customers độc lập Inbox/Tickets, không nhúng chat composer vào hồ sơ.
@@ -9,6 +23,15 @@ CU01 + PL01–PL03. Staff Customers độc lập Inbox/Tickets, không nhúng ch
 ## 2. Vị trí code
 
 `staff-customer-directory.tsx`, `staff-reference-workspace.tsx`, `lib/customer-api.ts` nếu runtime còn dùng auth-api thì giữ client thật; `staff-policies.tsx`. Không tạo module mới chỉ theo tên đề xuất.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-customer-directory.tsx](<../../../../../apps/web/src/components/staff-customer-directory.tsx>) | Hiện có | Directory/profile và URL search/page | Trung bình | Back/Forward, empty/error, không F5 |
+| [apps/web/src/lib/customer-api.ts](<../../../../../apps/web/src/lib/customer-api.ts>) | Hiện có | List/detail wrappers, AbortSignal | Trung bình | Staff directory và selection |
+| [apps/web/src/components/staff-policies.tsx](<../../../../../apps/web/src/components/staff-policies.tsx>) | Hiện có | Danh sách policy của khách được chọn | Trung bình | Không trộn list khách với policy toàn tập |
+| [apps/web/src/components/staff-inbox-directory.tsx](../../../../../apps/web/src/components/staff-inbox-directory.tsx) | Hiện có | Tự mở nhóm trùng customerId khi đi từ hồ sơ | Trung bình | Accordion/search/deep link và không lộ AI riêng |
+| [apps/web/tests/browser/staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Hiện có | E2E qua gateway/Core/DB/MinIO và quyền khi đi qua support links | Trung bình | Ba browser, Back, assignment revoke và no-F5 |
+| [apps/core/test/support/browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Hiện có — chỉ test Docker | Fixture UUID + fault/cleanup cô lập | Cao | Không thay bootstrap, dữ liệu đang dùng hoặc quyền runtime Core |
 
 ## 3. API và dữ liệu
 
@@ -92,9 +115,28 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
-- [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
 
-Account/Policy/Inbox không hồi quy. Link từ customer sang Inbox có thể bổ sung UX sau, không bắt buộc FR-003; không tự đưa pending transcript vào trang này.
+**Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
+
+Account/Policy/Inbox không hồi quy. Hồ sơ đã có nav **Customer support** với Conversations và Tickets: điều hướng client-side tới `/staff/inbox?customerId=<id>` hoặc `/staff/tickets?customerId=<id>`, không nhúng composer/Ticket detail trong Customers. Inbox tự mở nhóm của khách được lọc; query chỉ thu hẹp tập dữ liệu, không cấp quyền. Pending vẫn chỉ shared metadata; AI riêng không xuất hiện. Back trở về hồ sơ/list giữ query hiện có.
+
+## CU02-T05 — Từ hồ sơ mở hỗ trợ đúng khách, không mở rộng quyền
+
+**Lớp kiểm thử:** Browser → gateway/Core/DB thật; API đối chứng ngoài scope. Fixture synthetic cô lập, không sửa bootstrap.
+
+**Điều kiện và dữ liệu:** S-A phụ trách C-A cùng hơn 10 khách; C-A có Direct chat, một cuộc AI riêng và Ticket. S-B phụ trách khách khác, không có grant của C-A.
+
+**Các bước:**
+
+1. S-A tìm khách, chuyển trang 2 rồi quay lại; tìm mã C-A và mở hồ sơ.
+2. Dùng bàn phím chọn Conversations trong Customer support; kiểm URL customerId, nhóm tự mở và cuộc hiển thị.
+3. Back về hồ sơ, mở Tickets, chọn Ticket; Back và breadcrumb trở về bộ lọc khách.
+4. S-B gọi URL/API hồ sơ, conversation và Tickets với customerId C-A; thử list Inbox cùng customerId.
+5. Trong harness thu hồi assignment S-A/C-A, mở lại hồ sơ và kiểm nav hỗ trợ đã biến mất.
+
+**Kết quả mong đợi:** Điều hướng không reload document, Back giữ tìm kiếm. Chỉ Direct/handoff đã đủ grant hiển thị, không AI riêng. CustomerId không vượt assignment: resource/Ticket-filter ngoài quyền trả safe404, Inbox groups trả tập rỗng. Sau revoke không còn profile/nav/private data. Core không ghi handoff, Ticket hoặc linked_policy_id khi bấm các link.
+
+**Vị trí kiểm thử:** `apps/web/tests/browser/staff-foundation.integration.spec.mjs`, fixture `apps/core/test/support/browser-staff-fixture.cjs`; regression state/DOM tại `staff-customers.spec.mjs`. Chạy bằng `node apps/web/scripts/test-staff.mjs`, gồm Chromium/Firefox/WebKit; không screenshot hoặc kiểm native PDF zoom bằng DOM.
 
 ## Sequence diagram
 

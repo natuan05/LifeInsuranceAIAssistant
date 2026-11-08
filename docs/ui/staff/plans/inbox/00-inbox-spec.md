@@ -289,7 +289,7 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] Cập nhật spec/API map/routes và tài liệu liên quan; I01/I02 đã có Core, I04 UI Inbox đã nối.
 - [x] Viết bảy tài liệu phase chi tiết tại [chỉ mục triển khai](../03-inbox-contract.md).
 - [x] I01 model/quyền/migration/service tests hoàn tất; không backfill grant legacy.
-- [ ] Chốt schema/DTO/cursor/error/recipient/reassignment/Agent pending policy theo từng phần; migration model quyền I01 đã có, A08/A09 đã có; API transcript/Accept đã có từ I03; public send chưa triển khai.
+- [x] Nền schema/quyền I01, read A08/A09 I02, transcript/Accept I03, UI I04, public send I05 và realtime/recipient/reassignment I06 đã triển khai. Contract Agent khi pending thuộc CH02/Copilot riêng, không coi public send còn thiếu.
 
 ## Bổ sung đã chốt sau test tay 04/11/2026
 
@@ -319,7 +319,7 @@ sequenceDiagram
     participant SW as Staff Web
     U->>CW: Yêu cầu hỗ trợ và xác nhận chia sẻ
     CW->>C: POST handoff, consent và routing version
-    C->>D: Validate owner, consent, assignment; commit pending và outbox
+    C->>D: Validate owner, consent, assignment, commit pending và outbox
     C-->>SW: Invalidation cho recipient đủ quyền
     SW->>C: GET request metadata
     C-->>SW: Pending, chưa transcript

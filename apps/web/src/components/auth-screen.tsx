@@ -125,8 +125,10 @@ export function AuthScreen({ mode }: {
         };
     }, [mode, router, isLogin, loginPath]);
     useEffect(() => {
-        if (!refreshingSession) retryButton.current?.focus();
-    }, [refreshingSession]);
+        if (loading || refreshingSession || !error) return;
+        const frame = requestAnimationFrame(() => retryButton.current?.focus());
+        return () => cancelAnimationFrame(frame);
+    }, [loading, refreshingSession, error]);
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (pending)

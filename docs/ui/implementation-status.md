@@ -29,10 +29,10 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 | C07 | Chưa làm | Schema Ticket/outbox, plan I07 | Trusted draft/explicit confirmation/result/detail theo I07/T01/T02; manual/list tổng riêng |
 | C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Sửa hồ sơ theo PF01/02 |
 | C09 | Đã nối API local | Toolbar Notification Center popover: badge đếm chưa đọc, đánh dấu đọc từng mục/tất cả | N01/N02 push notification mở rộng |
-| S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; 15 regression form + 22 phiên/retry không F5, focus freshness 30 giây | E2E/trình duyệt khác |
+| S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; regression + gateway/Core/DB E2E trên Chromium/Firefox/WebKit | Auth mở rộng ngoài MVP theo yêu cầu riêng |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
-| S03 | Đã nối API local | Customers list/detail/search/page/retry, hợp đồng/PDF; 15 regression FE | Link theo khách là UX tùy scope; bổ sung E2E thật trong CU02 |
-| S04 | Một phần | A14/A15/A16/A18/A20 và FE list/lookup/detail/catalog/PDF/download; thu gọn cột kết quả, refresh giữ iframe/src, PL05 Quick Policy Lookup trong Inbox (modal overlay và tab mới) và 26 regression Policies | Products P01–P03 đã có riêng; Customer access/Agent citations/context còn P; bổ sung E2E policy thật trong PL03 |
+| S03 | Đã nối API local | Customers list/detail/search/page/retry, policies/PDF; Conversations/Tickets theo customerId, Back/no-F5, regression + real E2E ba browser | Phase CU01/CU02 sở hữu bảo trì và test cases |
+| S04 | Đã nối API local | A14/A15/A16/A18/A20, lookup/dossier/PDF/download, PL05 Inbox lookup; regression + real Core/DB/MinIO E2E hai role trên ba browser | Agent citations/context còn P; native PDF toolbar/zoom không thuộc kiểm DOM |
 | S05 | Chat hai đầu/realtime đã nối | Consent/handoff/Accept/history/send/SYSTEM/catch-up | Agent/Copilot/history nội bộ/summary/checkpoint |
 | S06 | TK01–TK05 Core/UI/consumer đã có | A21/A22 read; A23 Accept/version/audit/outbox; UI list→detail/status dropdown/reopen, Notifications toolbar/portal/no-F5;63 Core +3 migration tests trong đợt status;22 browser (14 Ticket mock/1 real hai-tab +7 handoff) | I07 draft/confirmation/producer riêng; benchmark/fanout còn mở |
 | S07 | Handoff I06/Ticket TK05 đã có | A27/A28 union target, recipient/outbox/dedup/reconnect, WS Ticket/catch-up, badge đếm chưa đọc trên toolbar, inline mark read/mark all read, tích hợp Security Notice đổi mật khẩu | Producer tạo I07 sau, Customer center/read receipt không tự thêm |

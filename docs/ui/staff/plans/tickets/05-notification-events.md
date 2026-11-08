@@ -2,6 +2,22 @@
 
 05/11/2026 · **E: consumer/API/UI/realtime đã triển khai** · [Contract](../07-tickets-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Consumer upsert thông báo; API đọc/mark-read theo NO01 | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — không có recipient Customer; lọc current target scope trước cursor |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** TK05 đã có SQL CHECK kind/target và status notification (202611050001/202611050002). Không đổi legacy kind=NULL thành bằng chứng xác nhận; không bảng mới.
+
+**Nhất quán và hồi quy:** TK03 commit source event rồi worker recheck Ticket recipient/scope, dedup notification. Kiểm lease crash/retry, old event/status, reassignment và consumer không tự mutate Ticket.
+
 ## 1. Phạm vi
 
 FR-013/NFR-005/006: Staff nhận thông báo Ticket trong phạm vi quyền hiện hành. TK03 đã emit TICKET_ACCEPTED; consumer TICKET_CREATED đã có nhưng **producer tạo Ticket từ Agent/Customer confirmation I07 chưa có**. Test event synthetic không chứng minh nguồn tạo nghiệp vụ hoàn tất.
@@ -23,6 +39,15 @@ Web:
 - lib/realtime.ts: tickets-invalidated → core:tickets-changed, dedup eventId/type.
 - components/use-authorized-read.ts hỗ trợ eventName riêng; StaffTickets list/detail resync mà không kích auth/me theo từng message.
 - staff-notifications.tsx dùng cả Inbox/Tickets: target route, CSRF mark read, Escape/focus, resync và chống late response sau scope change. Không Refresh thường trực, chỉ Try again tại lỗi.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/tickets/services/ticket-event.service.ts](<../../../../../apps/core/src/tickets/services/ticket-event.service.ts>) | Hiện có | Source validation/current recipient/upsert dedup | Cao | Ticket created/accepted/status notifications |
+| [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Hiện có | Claim/lease/retry dùng chung | Cao | Conversation event consumer |
+| [apps/core/src/notifications/notifications.service.ts](<../../../../../apps/core/src/notifications/notifications.service.ts>) | Hiện có | Current recipient+target scope, read mark | Cao | Handoff và Ticket notifications |
+| [apps/core/src/notifications/notifications.controller.ts](<../../../../../apps/core/src/notifications/notifications.controller.ts>) | Hiện có | A27/A28 DTO/CSRF/cursor | Cao | Staff bell |
+| [apps/core/src/realtime/realtime.service.ts](<../../../../../apps/core/src/realtime/realtime.service.ts>) | Hiện có | publishTicket qua session/recipient gate | Cao | Staff bell và Ticket revalidation |
+| [apps/web/src/lib/realtime.ts](<../../../../../apps/web/src/lib/realtime.ts>) | Hiện có | tickets-invalidated event/dedup | Trung bình | StaffTickets và notification UI |
 
 ## 3. Event contract và quyền
 
@@ -169,7 +194,7 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] WS minimal + session/Ticket recheck; UI routing/catch-up không F5.
 - [x] Core/migration/browser tests và fixture cleanup; docs/index đồng bộ.
 - [ ] I07 producer tạo Ticket bằng xác nhận hợp lệ và snapshot thật.
-- [ ] Benchmark/SLA/multi-replica/cloud nếu được chọn sau này.
+**Phần mở rộng chưa chọn:** Benchmark/SLA/multi-replica/cloud không thuộc checklist hoàn thiện Staff local.
 
 
 ## Mở rộng status notification — 05/11/2026
@@ -190,7 +215,7 @@ sequenceDiagram
     D-->>C: COMMIT
     K->>D: Claim với lease và đọc current recipient scope
     alt Không còn quyền hoặc loại event không hợp lệ
-        K->>D: Không tạo notification trái scope; xử lý lỗi theo contract
+        K->>D: Không tạo notification trái scope, xử lý lỗi theo contract
     else Đúng quyền
         K->>D: Upsert notification theo event và recipient
         D-->>K: Notification persisted
@@ -201,6 +226,6 @@ sequenceDiagram
         C-->>W: Safe DTO
     end
     opt Publish lỗi hoặc worker crash
-        K->>D: Retry hoặc reclaim lease; dedup notification
+        K->>D: Retry hoặc reclaim lease, dedup notification
     end
 ```

@@ -2,6 +2,10 @@
 
 04/11/2026 · [Contract chung](00-staff-contract.md) · [Staff](../README.md) · [Customer plans](../../customer/plans/README.md) · [API E/P](00-staff-contract.md#api-theo-chức-năng).
 
+## Cách đọc tác động dữ liệu và code
+
+Mỗi phase có bảng **Data model và phạm vi ảnh hưởng**: bảng/cột cụ thể, đọc/ghi/DDL, FK/unique/version, mức ảnh hưởng, schema/migration và transaction/hồi quy. Bảng **Vị trí code** dùng đường dẫn từ root repo, phân biệt file hiện có với file dự kiến, chỉ rõ trách nhiệm và caller/màn bị tác động. Mức Cao/Trung bình/Thấp theo [quy ước chung](../../README.md#quy-ước-data-model-vị-trí-code-và-mức-ảnh-hưởng); model/schema còn P chưa được triển khai chỉ vì có trong bảng. Contract chức năng trỏ về phase sở hữu, [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng) giữ bản đồ xuyên module.
+
 ## 1. Một chức năng, một contract
 
 Các phase có test case với dữ liệu, bước làm và kỳ vọng cụ thể, kèm sequence diagram; áp dụng [quy ước chung](../../README.md#quy-ước-test-case-và-sequence-diagram). Phần Agent/Copilot chưa làm giữ nhãn dự kiến, không biến danh sách test thành báo cáo pass.

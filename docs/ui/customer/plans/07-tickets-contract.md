@@ -2,6 +2,17 @@
 
 04/11/2026 · **Chưa triển khai** · C07 · [I07 owner](../../staff/plans/tickets/06-agent-confirmation.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [T01 — Customer contract trong Core Ticket I07](tickets/01-confirmation-core-contract.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); TicketDraft / confirmed snapshot — P, chưa có bảng/cột (DDL + ghi dự kiến, chưa triển khai); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | `apps/core/src/tickets/controllers/customer-ticket.controller.ts` — P; `apps/core/src/tickets/services/ticket-draft.service.ts` — P | Cao — Customer review, service identity Agent |
+| [T02 — Review Ticket và kết quả đã lưu](tickets/02-review-result-ui.md) | support_tickets (Đọc); TicketDraft / confirmed snapshot — P, chưa có bảng/cột (DDL + ghi dự kiến, chưa triển khai) | `apps/web/src/components/customer-ticket-confirmation.tsx` — P; [apps/web/src/components/customer-tickets.tsx](<../../../../apps/web/src/components/customer-tickets.tsx>) | Cao — Customer chat và Ticket creation |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Ranh giới
 
 FR-009/012, phía Staff FR-010; handoff không Ticket, Ticket không grant transcript. Model SupportTicket hiện có chưa lưu đủ draft/immutable confirmation. **Staff I07 là contract Core chung**, Customer không xây Ticket service/schema thứ hai. Nếu sửa contract I07 phải cập nhật phase sở hữu trước phần phụ thuộc.

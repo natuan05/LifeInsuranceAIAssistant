@@ -4,6 +4,18 @@
 
 Đối chiếu **03/11/2026**. Căn cứ: FR-001, NFR-001/002 và yêu cầu Staff tự sửa hồ sơ. Đã nối Core; chưa có public registration/SSO/OTP/reset password tự phục vụ.
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [AU01 — Auth và hồ sơ Staff Core](auth/01-session-account-api.md) | users + staff_profiles (PATCH ghi phone/full_name; đọc trường readonly) | [apps/core/src/auth/controllers/auth.controller.ts](<../../../../apps/core/src/auth/controllers/auth.controller.ts>); [apps/core/src/auth/controllers/staff-profile.controller.ts](<../../../../apps/core/src/auth/controllers/staff-profile.controller.ts>) | Cao — Staff và Customer dùng chung AuthService |
+| [AU02 — Tài khoản Staff và editor](auth/02-account-ui.md) | users + staff_profiles (PATCH ghi phone/full_name; đọc trường readonly) | [apps/web/src/components/staff-personal-information.tsx](<../../../../apps/web/src/components/staff-personal-information.tsx>); [apps/web/src/components/staff-profile-editor.tsx](<../../../../apps/web/src/components/staff-profile-editor.tsx>) | Trung bình — Account và actor header/sidebar |
+| [Việc 01 — Retry khôi phục phiên không tải lại trang](auth/03-session-lifecycle.md) | users/auth_sessions, quota/audit theo endpoint | [apps/web/src/components/auth-screen.tsx](<../../../../apps/web/src/components/auth-screen.tsx>); [apps/web/src/lib/auth-api.ts](<../../../../apps/web/src/lib/auth-api.ts>) | Cao — Cả hai portal, đổi tab/logout/late response |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## Hiện trạng
 
 - [x] `/staff/login`: email/password, hiện/ẩn, phản hồi lỗi và điều hướng theo role.
@@ -13,7 +25,7 @@
 - [x] Session/role/CSRF/version/rate limit và audit; đổi mật khẩu thu hồi phiên cũ/cấp phiên mới.
 - [x] Có 15 regression browser form hồ sơ và 22 regression phiên/retry Chromium, API giả lập.
 - [x] Retry khôi phục phiên gọi lại GET auth/me tại chỗ, không F5; pending/disabled/focus, chống request trùng và abort khi rời màn hình. Đã triển khai [việc 01](auth/03-session-lifecycle.md#8-ghi-chú-triển-khai).
-- [ ] E2E browser → Core → DB đầy đủ và Firefox/WebKit.
+- [x] E2E browser → gateway/Core/DB: login, sửa hồ sơ/audit/conflict, password/logout, mất phiên; browser regression Chromium/Firefox/WebKit theo AU01–AU03.
 
 ## Thành phần và điều hướng
 
@@ -207,7 +219,7 @@ sequenceDiagram
     else Hợp lệ
         C->>D: Update tên hoặc phone và audit
         D-->>C: COMMIT
-        C-->>W: 200 projection mới; Cancel không request
+        C-->>W: 200 projection mới, Cancel không request
         W-->>U: Cập nhật sau ACK
     end
     opt Timeout hoặc mất ACK

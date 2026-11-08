@@ -2,6 +2,21 @@
 
 04/11/2026 · **P, chưa triển khai/migration** · [C08](../08-profile-contract.md) · Tiếp: [PF02](02-profile-account-ui.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + customer_profiles | users.phone/updated_at; customer_profiles.full_name/birth/address; profile_version — P chưa có | PATCH ghi dự kiến, profile_version DDL mới | Unique phone; owner FK; expectedProfileVersion riêng, không dùng assignment_version/User.updated_at thay | Cao — mọi writer hồ sơ/operator phải tăng cùng profile_version; Staff Customers/Home/chat labels đọc dữ liệu này |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** P — thêm customer_profiles.profile_version default0 bằng migration mới sau chốt contract, không reset profile/assignment. Prisma hiện chưa có cột này.
+
+**Nhất quán và hồi quy:** Lock User/profile theo thứ tự writer hiện có, compare version, update phone/profile/version/audit atomic. Unique phone race rollback; rà account-management writer và realtime fingerprint. Kiểm conflict/no-op/timeout, không đổi PDF đã phát hành.
+
 ## 1. Vị trí và model đề xuất
 
 Sửa `apps/core/src/customers/controllers/customer.controller.ts`, `services/customer.service.ts`; DTO mới `update-customer-profile.dto.ts`, Swagger response. Migration **mới** thêm `CustomerProfile.profileVersion Int default0`; backfill0 không reset profile/assignment. Không dùng assignmentVersion để khóa hồ sơ, không suy User.updatedAt đại diện cho cả hai bảng. Chốt trường/profileVersion trước code; bổ sung [Data Model](../../../../specifications/Data_Model.md) khi migration được triển khai, chưa ghi field P thành E.
@@ -9,6 +24,14 @@ Sửa `apps/core/src/customers/controllers/customer.controller.ts`, `services/cu
 GET `/customers/me` giữ shape cũ, bổ sung `customer.profileVersion`. Core chỉ trả token, không để client tự set version. Khi fullName/phone/birth/address đổi từ tool/operator hoặc luồng khác, **mọi writer liên quan phải tăng cùng profileVersion**; rà account-management service và writer search trước apply. Nếu một writer chưa thể cập nhật, không tuyên bố chống ghi đè đầy đủ. Assignment update riêng không tăng profileVersion.
 
 Rà projection/types của Customer Web và fingerprint/invalidation profile trong `apps/core/src/realtime/realtime.service.ts`: thay đổi field được phép phải làm phiên đang mở đồng bộ lại đúng owner, không phát PII trên socket. Nếu thêm profileVersion vào fingerprint thì chỉ báo invalidate như nền hiện có, không coi nó là controlVersion của chat. PF02 vẫn giữ bản nháp dirty khi nhận dữ liệu mới để người dùng review.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/customers/controllers/customer.controller.ts](<../../../../../apps/core/src/customers/controllers/customer.controller.ts>) | Hiện có | Hiện có read, PATCH còn P | Cao | Customer own projection |
+| [apps/core/src/customers/services/customer.service.ts](<../../../../../apps/core/src/customers/services/customer.service.ts>) | Hiện có | P profile mutation với token riêng | Cao | Staff Customers query cùng profile |
+| `apps/core/src/customers/dto/update-customer-profile.dto.ts` | Dự kiến — chưa có file | P DTO editable + expectedProfileVersion | Trung bình | Customer editor/client types |
+| [apps/core/src/accounts/services/account-management.service.ts](<../../../../../apps/core/src/accounts/services/account-management.service.ts>) | Hiện có | Rà mọi writer/operator cập nhật profile version | Cao | Không bỏ sót nguồn ghi gây lost update |
+| [apps/core/src/realtime/realtime.service.ts](<../../../../../apps/core/src/realtime/realtime.service.ts>) | Hiện có | Rà profile fingerprint/invalidation | Cao | Không phát PII hoặc ghi đè dirty draft |
 
 ## 2. API spec đề xuất
 

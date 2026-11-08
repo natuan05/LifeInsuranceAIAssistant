@@ -2,6 +2,32 @@
 
 05/11/2026 · **Đã hoàn tất theo kiến trúc cấp tài khoản** · [Chung](00-customer-contract.md) · C01.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + auth_sessions | password_hash/password_changed_at/password_change_recommended/failed_login_attempts/locked_until; token_hash/csrf_token_hash/expires_at/revoked_at | Login/password/logout ghi | User lock khi login/đổi password, session rotation/revocation đúng actor | Cao — cả hai cổng dùng chung AuthService, không public signup/OTP |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không migration hoặc public registration; provisioning do account-management/operator. Bootstrap không tự reset password đã đổi.
+
+**Nhất quán và hồi quy:** Core kiểm role CUSTOMER trước cấp phiên, password change thu hồi phiên cũ và audit atomic. ProfileVersion/PATCH Customer là PF01 riêng còn P; không dùng login để tạo policy/assignment. Kiểm cổng sai role, CSRF/logout và phiên cũ sau password change.
+
+## Vị trí code và mức ảnh hưởng
+
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/auth/controllers/auth.controller.ts](<../../../../apps/core/src/auth/controllers/auth.controller.ts>) | Hiện có | POST login/me/change-password/logout dùng chung | Cao | Staff và Customer endpoints |
+| [apps/core/src/auth/services/auth.service.ts](<../../../../apps/core/src/auth/services/auth.service.ts>) | Hiện có | Session/password/role/quota/audit | Cao | Mọi Core caller và WS reauthorization |
+| [apps/web/src/components/auth-screen.tsx](<../../../../apps/web/src/components/auth-screen.tsx>) | Hiện có | Khôi phục phiên/actor/CSRF và route role | Cao | Cả hai portal và dirty UI state |
+| [apps/web/src/lib/auth-api.ts](<../../../../apps/web/src/lib/auth-api.ts>) | Hiện có | Login/me/password/logout wrapper | Cao | Shared auth lifecycle |
+| [apps/core/src/accounts/services/account-management.service.ts](<../../../../apps/core/src/accounts/services/account-management.service.ts>) | Hiện có | Provisioning/operator ngoài public API | Cao | Giữ hồ sơ/assignment khi reset password |
+
 ## 1. Yêu cầu và nguyên tắc xác thực
 
 - **Không có tính năng khách hàng tự đăng ký tài khoản (No public self-registration)**: Trong nghiệp vụ bảo hiểm nhân thọ, tài khoản khách hàng (`Customer`) được cấp thông qua quy trình phát hành hợp đồng bảo hiểm và quản trị vận hành nội bộ (`Staff`/hệ thống cấp kèm mã khách hàng `CUS-xxxxxx`).

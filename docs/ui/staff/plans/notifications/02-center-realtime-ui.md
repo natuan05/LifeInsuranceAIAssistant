@@ -2,6 +2,22 @@
 
 04/11/2026 · **Đã triển khai handoff; Ticket nối TK05** · [Contract](../06-notifications-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Đọc | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — không có recipient Customer; lọc current target scope trước cursor |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| notifications | id/recipient_staff_id/is_read | POST read cập nhật is_read | Recheck recipient và target, lặp lại idempotent; không sửa ticket/conversation | Trung bình — read notification không Accept Ticket/chat hoặc read receipt tin nhắn |
+
+**Schema/migration:** Không migration; không thêm unread counts hoặc Customer recipient.
+
+**Nhất quán và hồi quy:** UI gọi NO01, nhận WS invalidation rồi REST recheck. Không đổi delivered_at hoặc lifecycle Ticket/chat khi click. Kiểm fixed popover/focus/Escape/deep link và mất assignment.
+
 ## 1. Phạm vi và model
 
 NO01/I06; chuông hiện trong Inbox, không dashboard/count endpoint riêng.
@@ -9,6 +25,12 @@ NO01/I06; chuông hiện trong Inbox, không dashboard/count endpoint riêng.
 ## 2. Vị trí code
 
 `apps/web/src/components/staff-notifications.tsx`, `staff-inbox.tsx`, `lib/chat-realtime.ts`, `lib/realtime.ts`.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-notifications.tsx](<../../../../../apps/web/src/components/staff-notifications.tsx>) | Hiện có | Bell/popover/read/open route | Trung bình | Inbox và Tickets header |
+| [apps/web/src/lib/realtime.ts](<../../../../../apps/web/src/lib/realtime.ts>) | Hiện có | Notification invalidation/dedup | Cao | Scope/session lifecycle |
+| [apps/web/src/lib/chat-realtime.ts](<../../../../../apps/web/src/lib/chat-realtime.ts>) | Hiện có | Handoff-specific invalidation | Trung bình | Pending list và notification target |
 
 ## 3. API và dữ liệu
 
@@ -92,7 +114,8 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
-- [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
+
+**Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
 Các nút Refresh Inbox/chat đã bỏ; Retry lỗi giữ riêng. TK05 đã bỏ Refresh notification thường trực; Try again chỉ tại lỗi. Target TICKET mở Tickets sau A28, không đi Inbox.
 
