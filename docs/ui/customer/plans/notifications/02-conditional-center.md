@@ -1,18 +1,76 @@
-# N02 — Notification center tối thiểu, chỉ sau quyết định N01
+# N02 — Notification center tối thiểu và message read status
 
-04/11/2026 · **Có điều kiện, chưa triển khai** · [C09](../09-notifications-contract.md) · Cần [N01](01-scope-recipient-contract.md) chốt làm.
+Cập nhật **08/11/2026** · **Đã chốt thiết kế chi tiết theo N01** · [C09](../09-notifications-contract.md) · [N01](01-scope-recipient-contract.md).
 
 ## 1. API proposal
 
-GET `/api/v1/customers/me/notifications?limit=20&cursor=...` → `{items:[{id,kind,createdAt,isRead,link:{type,id}|null}],pageInfo:{hasMore,nextCursor}}`. limit 1–50, keyset createdAt DESC/id DESC, owner và visibility trước pagination, cursor bind actor/endpoint; không total/counts. Nội dung label từ kind allowlist, không raw event body/preview tin nhắn.
+### A. Notifications API
+- `GET /api/v1/customers/me/notifications?limit=20&cursor=...` → `{items:[{id,kind,createdAt,isRead,title,link:{type,id}|null}],pageInfo:{hasMore,nextCursor}}`.
+  - Limit 1–50, keyset `createdAt DESC, id DESC`.
+  - Lọc theo `recipient_customer_id = currentCustomer.id`.
+  - Nội dung title/label chuẩn hóa từ kind allowlist, đảm bảo định dạng generic:
+    - `STAFF_ACCEPTED_HANDOFF`: *"Nhân viên đã tiếp nhận yêu cầu chat"*
+    - `SUPPORT_TICKET_CREATED`: *"Phiếu hỗ trợ #[ticketCode] của bạn đã được tạo"*
+    - `STAFF_MESSAGE_UNREAD`: *"Bạn có tin nhắn mới từ nhân viên hỗ trợ"*
+  - Tuyệt đối cấm đưa chi tiết PII, nội dung raw chat, số tiền bồi thường hay hồ sơ y tế vào thông báo.
 
-POST `/api/v1/customers/me/notifications/:notificationId/read`, body `{}` → `{notification:{id,isRead:true}}`, idempotent khi đã đọc. Customer session/CSRF; read không Accept chat/Ticket hoặc mark messages read. UUID400, owner/resource ngoài quyền404, session 401/role403, quota 429. GET no-store; quota đề xuất120read/30mutation/phút/actor, phải chốt với N01. Links phải recheck owner ở đích, không tự mở scope từ notificationId.
+- `POST /api/v1/customers/me/notifications/:notificationId/read`, body `{}` → `{notification:{id,isRead:true}}`, idempotent khi đã đọc.
+  - Phân quyền: chỉ đánh dấu đọc nếu đúng `recipient_customer_id`.
+
+- `POST /api/v1/customers/me/notifications/read-all`, body `{}` → `{success:true, markedCount:number}`, đánh dấu đọc toàn bộ thông báo của khách hàng.
+
+### B. Message Read Status API
+- `POST /api/v1/conversations/:id/read`, body `{}` → `{success:true, readAt:string}`:
+  - Khi Customer hoặc Staff mở xem cuộc hội thoại, gọi endpoint này để cập nhật `messages.read_at = NOW()` cho toàn bộ các tin nhắn do đối phương gửi mà chưa đọc (`read_at IS NULL`).
+  - Hỗ trợ cả 2 vai trò:
+    - Customer gọi: `POST /api/v1/customers/me/conversations/:id/read` (đọc tin nhắn từ Staff/System/AI).
+    - Staff gọi: `POST /api/v1/staff/conversations/:id/read` (đọc tin nhắn từ Customer).
+  - Phục vụ tính năng hiển thị trạng thái "Đã xem" (read receipts) realtime hai chiều:
+    - Nếu có ít nhất 1 tin nhắn được cập nhật (`count > 0`), Core tự động ghi Outbox event để WebSocket push frame `chat-invalidated` tới bên đối phương (người gửi tin). Phía người gửi nhận sự kiện và refresh transcript, nhãn tin nhắn chuyển ngay từ *"Đã gửi"* sang *"Đã xem"* mà không cần reload trang.
+  - Đồng thời tự động đánh dấu đã đọc thông báo `STAFF_MESSAGE_UNREAD` tương ứng nếu có.
+
+### C. Realtime WebSocket Invalidation Contract
+- **Backend Outbox & Realtime**:
+  - Khi có sự kiện tạo hoặc thay đổi thông báo (Staff Accept, Ticket Created, Staff New Message), outbox dispatcher xử lý và `RealtimeService.publishChat` / `publishTicket` gửi frame WebSocket tới các peer kết nối của Customer:
+    `{ "type": "notifications-invalidated", "eventId": "<uuid>" }`
+  - Khi có tin nhắn mới hoặc có sự kiện đọc tin nhắn (`read_at` được cập nhật): Core phát sinh Outbox event và gửi frame WebSocket tới cả hai bên (Customer & Staff):
+    `{ "type": "chat-invalidated", "eventId": "<uuid>", "conversationId": "<uuid>" }`
+  - Tuân thủ nguyên tắc Generic Invalidation: WebSocket chỉ mang tín hiệu vô hại báo dữ liệu đã thay đổi, không bao giờ gửi nội dung thông báo, tin nhắn hay thông tin cá nhân (PII) qua WebSocket payload.
+- **Client Realtime Bridge** (`apps/web/src/lib/realtime.ts`):
+  - Nhận frame `notifications-invalidated`, dedup theo key `${type}:${eventId}` (tối đa 256 entries).
+  - Dispatch CustomEvent trên trình duyệt: `window.dispatchEvent(new CustomEvent('core:notifications-changed', { detail: message }))` (hằng số `notificationEvent`).
+  - Nhận frame `chat-invalidated`, dispatch CustomEvent: `window.dispatchEvent(new CustomEvent('core:chat-changed', { detail: message }))` (hằng số `chatEvent`).
+- **Customer Workspace Bell Component** (`apps/web/src/components/customer-workspace.tsx`):
+  - Lắng nghe sự kiện `notificationEvent` (`core:notifications-changed`).
+  - Khi nhận sự kiện, tự động gọi lại API `GET /api/v1/customers/me/notifications` (debounce/single-flight) để cập nhật danh sách thông báo và số lượng unread badge ngay lập tức trên giao diện mà không cần reload trang.
+- **Chat Transcript Realtime Sync (Customer & Staff)**:
+  - Khi nhận `chatEvent` (`chat-invalidated`), cả Customer (`customer-conversations.tsx`) và Staff (`staff-inbox.tsx`) kích hoạt resync transcript, đồng thời cập nhật realtime nhãn trạng thái "Đã xem" (Seen) khi đối phương đã đọc tin nhắn.
+
+### D. Single Active Notification per Conversation (Quy tắc gộp thông báo tin nhắn chưa đọc)
+- **Quy tắc cốt lõi**: Trong mỗi cuộc hội thoại, tại một thời điểm chỉ tồn tại tối đa **1 thông báo chưa đọc** (`isRead = false`) cho sự kiện tin nhắn mới. Dù đối phương có gửi bao nhiêu tin nhắn liên tiếp khi người nhận chưa đọc, hệ thống chỉ hiển thị đúng 1 thông báo và cập nhật lại thời gian mới nhất.
+- **Cơ chế cập nhật**:
+  - Khi nhận sự kiện tin nhắn mới từ đối phương, Core kiểm tra xem người nhận đã có thông báo tin nhắn chưa đọc (`isRead = false`) gắn với `conversation_id` này chưa.
+  - Nếu **đã tồn tại**: Cập nhật thời gian `createdAt = NOW()` của thông báo chưa đọc hiện có và gửi WebSocket invalidation. Không insert thêm row mới gây spam hoặc phình dữ liệu.
+  - Nếu **chưa tồn tại** (tin nhắn đầu tiên hoặc người nhận đã đọc hết các tin trước đó): Tạo 1 thông báo mới.
+- **Áp dụng đối xứng cho cả hai vai trò**:
+  - Phía Customer: nhận `STAFF_MESSAGE_UNREAD` (*"Bạn có tin nhắn mới từ nhân viên hỗ trợ"*).
+  - Phía Staff: nhận `CUSTOMER_MESSAGE_UNREAD` (*"Bạn có tin nhắn mới từ khách hàng"*).
+  - Khi người nhận mở cuộc trò chuyện (gọi `POST /conversations/:id/read`), hệ thống tự động đánh dấu đọc toàn bộ tin nhắn chưa đọc và chuyển thông báo chưa đọc tương ứng sang `isRead = true`.
 
 ## 2. Implementation và UI
 
-Model/constraints/migration dùng phương án N01 đã ghi, không code cả hai. Core recipient producer trong transaction nghiệp vụ + outbox, dedup/lease/retry theo nền I06; event generic báo cần resync, không websocket payload riêng tư. Không claim SLA ≤5s hoặc delivered/read nếu chưa đo/ACK contract. Cleanup retention không xóa Ticket/conversation.
-
-Files đề xuất Customer controller/service trong notifications module, tests `customer-notifications.test.cjs`; Web `components/customer-notifications.tsx`, client `lib/notification-api.ts` nếu chưa có phù hợp. Panel hoặc page trong shell H01, không unread badge. Load more, read/click/focus/errors; link tới own conversation/Ticket thật, không action chết. Mobile drawer/page có close/focus return, không F5. Giữ Staff A27/A28/UI hiện có.
+1. **Schema & Migration**:
+   - Mở rộng bảng `business.notifications`: thêm `recipient_customer_id UUID REFERENCES business.customer_profiles(id)`. CHECK constraint đảm bảo duy nhất 1 trong 2 (`recipient_staff_id`, `recipient_customer_id`) có giá trị.
+   - Bảng `business.messages`: thêm `read_at TIMESTAMPTZ NULL`.
+2. **Transactional Outbox & Worker**:
+   - Khi commit sự kiện Staff Accept, Ticket Create, hoặc Staff gửi tin nhắn mới, outbox event được ghi cùng transaction.
+   - Worker xử lý event, insert vào `business.notifications` và push realtime invalidation qua WebSocket `/api/v1/realtime`.
+3. **Scheduled Cleanup (Dọn rác 30 ngày)**:
+   - Worker chạy job định kỳ (cron daily) dọn dẹp các thông báo đã cũ hơn 30 ngày:
+     `DELETE FROM business.notifications WHERE created_at < NOW() - INTERVAL '30 days'`.
+4. **UI Integration**:
+   - Kết nối component `apps/web/src/components/customer-workspace.tsx` (popover chuông thông báo) với API REST `GET /customers/me/notifications` và mutation `POST /read`.
+   - Trong khung chat `customer-conversations.tsx`, hiển thị nhãn "Đã xem" (Seen / Read at ...) khi tin nhắn có `read_at != null`.
 
 ```mermaid
 sequenceDiagram

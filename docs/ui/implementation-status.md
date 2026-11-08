@@ -28,7 +28,7 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 | C06 | I03–I06 và CH01 đã nối | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM trong Customer shell | CH02/CH03 Agent trả lời thật/citations |
 | C07 | Chưa làm | Schema Ticket/outbox, plan I07 | Trusted draft/explicit confirmation/result/detail theo I07/T01/T02; manual/list tổng riêng |
 | C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Sửa hồ sơ theo PF01/02 |
-| C09 | UI shell/client state | Toolbar popover và thao tác đánh dấu đọc trong phiên; chưa Core Customer notification API | N01/N02 scope/recipient/persistence nếu được chọn; không coi UI là thông báo nghiệp vụ thật |
+| C09 | Đã chốt thiết kế N01/N02 | Toolbar popover trên Web; đã chốt 08/11/2026: giữ cả chat + quả chuông, 3 events tối thiểu, recipient customerId, retention 30 ngày, nội dung generic chống lộ PII và message read status | Triển khai Core migration (Notification/Message read_at), API read/read-all và scheduled cleanup 30 ngày |
 | S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; 15 regression form + 22 phiên/retry không F5, focus freshness 30 giây | E2E/trình duyệt khác |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
 | S03 | Đã nối API local | Customers list/detail/search/page/retry, hợp đồng/PDF; 15 regression FE | Link theo khách là UX tùy scope; bổ sung E2E thật trong CU02 |

@@ -1,27 +1,52 @@
 # N01 — Chốt Customer notification scope và recipient
 
-04/11/2026 · **Chưa quyết định triển khai center** · [C09](../09-notifications-contract.md).
+Cập nhật **08/11/2026** · **ĐÃ CHỐT TRIỂN KHAI THEO QUYẾT ĐỊNH NGÀY 08/11/2026** · [C09](../09-notifications-contract.md).
 
-## 1. Việc cần chốt trước code
+## 1. Quyết định đã chốt (08/11/2026)
 
-Xác định liệu chat realtime/SYSTEM I06 đã đủ hay cần một hộp thông báo bền vững ngoài chat. Nếu cần, chọn event tối thiểu (ví dụ Staff đã nhận hoặc Ticket đã tạo), ai nhận, lưu bao lâu và nội dung generic nào được phép hiển thị. Tin mới/unread là yêu cầu riêng, không tự thêm per-message Notification row hoặc counts.
+Hệ thống thống nhất **giữ cả hai phương án song song**:
+1. Giữ tin nhắn realtime/SYSTEM trong khung chat (I06) khi có sự kiện tương tác trực tiếp.
+2. Triển khai hộp thông báo bền vững (Quả chuông Notification Center) lưu trữ trên Database để khách hàng theo dõi sự kiện ngoài luồng chat.
+
+### Các tham số nghiệp vụ và kỹ thuật đã chốt:
+1. **Bộ 3 event tối thiểu phát sinh thông báo**:
+   - `STAFF_ACCEPTED_HANDOFF`: Staff đã tiếp nhận hội thoại chuyển giao từ khách hàng.
+   - `SUPPORT_TICKET_CREATED`: Support Ticket đã được tạo thành công cho khách hàng.
+   - `STAFF_MESSAGE_UNREAD`: Khi nhân viên đã gửi tin nhắn hỗ trợ mà khách hàng chưa đọc (chưa mở hội thoại).
+2. **Người nhận (Recipient)**: Xác định đúng `customerId` của khách hàng sở hữu sự kiện; truy vấn chỉ trả thông báo thuộc quyền sở hữu của chính khách hàng đó.
+3. **Thời hạn lưu trữ & dọn dẹp (Retention)**: Lưu trữ trong **30 ngày**, định kỳ tự động dọn rác DB các bản ghi thông báo cũ hơn 30 ngày (không ảnh hưởng tới bản ghi Ticket hay Message gốc).
+4. **Nội dung Generic (Không để lộ thông tin nhạy cảm / PII)**:
+   - **Đúng (Generic được phép)**: Hiển thị tiêu đề/thông điệp tóm lược chung:
+     - *"Phiếu hỗ trợ #TK-001 của bạn đã được tạo"*
+     - *"Nhân viên đã tiếp nhận yêu cầu chat"*
+     - *"Bạn có tin nhắn mới từ nhân viên hỗ trợ"*
+   - **Sai (Nghiêm cấm)**: Không bê nguyên nội dung tin nhắn chat riêng tư, số tiền bồi thường bảo hiểm, thông tin bệnh án, số CCCD/CMND vào thông báo.
+5. **Theo dõi trạng thái đã đọc tin nhắn (Message Read Status)**:
+   - Thêm trường theo dõi đã đọc trong database bảng tin nhắn (`messages.read_at` / `is_read`) để đối phương biết tin mình gửi đã được xem (read receipts).
+   - Khi có tin nhắn từ Staff mà khách hàng chưa xem (`read_at IS NULL`), phát sinh thông báo generic lên Quả chuông.
 
 ## 2. Model và vị trí dự kiến
 
-Rà `apps/core/src/notifications/`, `outbox/`, `realtime/`, Prisma Notification/OutboxEvent và producer I06/I07. Hai phương án để review: mở rộng Notification bằng recipientCustomerId với CHECK đúng một recipient theo role; hoặc bảng CustomerNotification riêng nếu lifecycle/quyền khác. **Chưa chọn phương án**, không migration trong lượt viết plan. Giữ rows/unique/dedup Staff đang dùng; không backfill người nhận Customer từ recipientStaffId.
-
-Contract event đề xuất nội bộ `{eventId,kind,recipientCustomerId,conversationId?,ticketId?,createdAt}` từ transaction Core, không từ browser/Agent. Resolve owner tại producer và consumer/read; links cùng actor, không raw chattext/PII. Retention/dedup unique theo recipient+event phải chốt, không xóa business Ticket khi dọn notification. Không reuse deliveredAt như user-read hoặc message-read acknowledgement.
+Rà `apps/core/src/notifications/`, `outbox/`, `realtime/`, Prisma `Notification`/`OutboxEvent` và `Message`:
+- Phương án mở rộng bảng `business.notifications`: Bổ sung `recipient_customer_id` (nullable, foreign key trỏ tới `CustomerProfile`) kèm CHECK constraint: chính xác một trong hai (`recipient_staff_id` HOẶC `recipient_customer_id`) có giá trị.
+- Bổ sung trường `read_at TIMESTAMPTZ NULL` vào bảng `business.messages`.
+- Producer: ghi nhận sự kiện qua Transactional Outbox trong cùng transaction nghiệp vụ, worker phát thông báo kèm dedup key `(event_id, recipient_customer_id)`.
+- Cron / Scheduled Job: Xóa `notifications` có `created_at < NOW() - INTERVAL '30 days'`.
 
 ## 3. API và flow
 
-Chưa có Customer Notification API E. Candidate P GET `/customers/me/notifications` và POST `.../:notificationId/read` chỉ được chốt ở N02 sau quyết định model. N01 không cần endpoint hoặc UI giả để “test center”. I06 chat REST/WS giữ nguyên.
+- Candidate P GET `/api/v1/customers/me/notifications?limit=20&cursor=...`
+- Candidate P POST `/api/v1/customers/me/notifications/:notificationId/read`
+- Candidate P POST `/api/v1/conversations/:id/read` (để cập nhật `read_at` cho các tin nhắn chưa đọc trong hội thoại, đồng thời xóa/đánh dấu đọc notification tin nhắn chưa đọc tương ứng).
 
 ```mermaid
 flowchart TD
-  A[Cần thông báo ngoài chat?] -->|Không| B[Giữ I06, dừng N02]
-  A -->|Có| C[Chốt event/recipient/retention]
-  C --> D[Chọn model + constraints + migration]
-  D --> E[Chốt N02 API/producer/UI/tests]
+  A[Quyết định 08/11/2026] --> B[Giữ cả Chat realtime + Quả chuông DB]
+  B --> C[3 Event: Staff Accept / Ticket Created / Message Unread]
+  C --> D[Recipient = customerId & Retention 30 ngày]
+  D --> E[Generic Content - Cấm lộ PII]
+  E --> F[Thêm read_at vào Message]
+  F --> G[Sẵn sàng triển khai N02]
 ```
 
 ## 4. Test cases

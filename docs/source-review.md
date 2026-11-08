@@ -16,6 +16,13 @@ Ngày **27/10/2026** đã đối chiếu văn bản ba phần AI Agent Module, O
 
 **Đã chốt 07/11/2026 — tài khoản:** MVP dùng tài khoản được cấp sẵn; Customer không tự đăng ký công khai. [FR-001/UC-001](specifications/Requirement.md) và [Customer auth](ui/customer/plans/01-auth-contract.md) đã đồng bộ; thiếu public registration không còn là gap MVP. Không tự mở rộng sang tích hợp quy trình phát hành hợp đồng/cấp tài khoản tự động hoặc đổi provider xác thực.
 
+**Đã chốt 08/11/2026 — Customer Notification Center và Message Read Status:**
+1. Thống nhất giữ cả hai phương án: vừa hiển thị realtime/SYSTEM trong chat, vừa lưu trữ và hiển thị trên Quả chuông Notification Center (Web popover).
+2. Ba sự kiện tối thiểu phát sinh thông báo lưu DB: Staff đã tiếp nhận hội thoại, Support Ticket đã được tạo thành công, và Nhân viên đã gửi tin nhắn hỗ trợ mà khách hàng chưa đọc.
+3. Người nhận xác định đúng `customerId` sở hữu sự kiện; thời hạn lưu trữ (retention) là 30 ngày, sau đó tự động dọn rác DB.
+4. Quy tắc nội dung Generic bắt buộc: chỉ hiển thị thông điệp tóm lược chung (ví dụ: *"Phiếu hỗ trợ #TK-001 của bạn đã được tạo"* hoặc *"Nhân viên đã tiếp nhận yêu cầu chat"*); nghiêm cấm đưa nội dung chat riêng tư, số tiền bồi thường, bệnh án hoặc số CCCD/CMND vào thông báo để tránh lộ PII.
+5. Thêm trường theo dõi đã đọc trong database tin nhắn (`messages.read_at`) để hiển thị trạng thái "Đã xem" (read receipts) giữa hai bên và kích hoạt thông báo khi có tin nhắn chưa đọc. Xem [C09](ui/customer/plans/09-notifications-contract.md), [N01](ui/customer/plans/notifications/01-scope-recipient-contract.md), [N02](ui/customer/plans/notifications/02-conditional-center.md).
+
 ## Nguồn
 
 | Nguồn | Phần đã dùng |
