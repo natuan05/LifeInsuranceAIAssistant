@@ -9,6 +9,7 @@ import {
   ConversationError,
   customerConversation,
   customerConversations,
+  markConversationRead,
   type ChatMessage,
   type CursorPage,
   type CustomerConversation,
@@ -112,6 +113,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
         if (!abort.signal.aborted && epoch === privacyEpoch.current) {
           setDetail(data.conversation);
           setDenied(false);
+          void markConversationRead('CUSTOMER', selected, csrfToken, abort.signal).catch(() => {});
         }
       })
       .catch(failure => {
@@ -166,6 +168,9 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
             setDetail(current.conversation);
             setDenied(false);
             setLiveRevision(value => value + 1);
+            if (current.conversation.allowedActions.readMessages) {
+              void markConversationRead('CUSTOMER', selected, csrfToken, signal).catch(() => {});
+            }
           }
         }
         const data = await customerConversations(undefined, signal);

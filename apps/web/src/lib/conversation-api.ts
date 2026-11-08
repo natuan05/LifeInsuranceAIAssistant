@@ -8,7 +8,7 @@ export type InboxCustomer = { id: string; fullName: string; accountCode: string 
 export type ConversationRow = { id: string; subject: string; status: 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; entryType: 'REQUEST' | 'DIRECT' | 'TRANSFERRED'; activityAt: string };
 export type Conversation = ConversationRow & { customer: InboxCustomer; controlVersion: number; request?: { id: string; sharedReason: string | null; requestedAt: string }; allowedActions: { readMessages: boolean; accept: boolean; send: boolean } };
 export type CursorPage<T> = { items: T[]; pageInfo: { hasMore: boolean; nextCursor: string | null } };
-export type ChatMessage = { id: string; sequence: string; senderType: 'CUSTOMER' | 'STAFF' | 'AI_AGENT' | 'SYSTEM'; sender: { displayName: string }; content: string; createdAt: string; citations: { documentId: string; versionId: string; page: number | null; label: string }[] };
+export type ChatMessage = { id: string; sequence: string; senderType: 'CUSTOMER' | 'STAFF' | 'AI_AGENT' | 'SYSTEM'; sender: { displayName: string }; content: string; createdAt: string; readAt?: string | null; citations: { documentId: string; versionId: string; page: number | null; label: string }[] };
 export type MessagePage = { items: ChatMessage[]; pageInfo: { beforeCursor: string | null; afterCursor: string; hasMoreBefore: boolean; hasMoreAfter: boolean } };
 export class ConversationError extends Error {
   constructor(public status: number, public code: string, public requestId?: string) {
@@ -63,6 +63,23 @@ export const createConversation = (intent: CreateIntent, csrf: string, signal: A
 export type HandoffIntent = { clientRequestId: string; expectedVersion: number; expectedAssignmentVersion: number; sharedSubject: string; sharedReason: string; consent: { confirmed: true; textVersion: string; scope: string } };
 export const requestHandoff = (id: string, intent: HandoffIntent, csrf: string, signal: AbortSignal) => request<{ conversation: { id: string } }>(`${conversationPath('CUSTOMER', id)}/handoff-requests`, signal, csrf, intent);
 
-export type StaffNotification = { id: string; kind: 'HANDOFF_REQUESTED' | 'TICKET_CREATED' | 'TICKET_ACCEPTED' | 'TICKET_STATUS_CHANGED'; title: string; isRead: boolean; createdAt: string; target: { type: 'CONVERSATION' | 'TICKET'; id: string } };
+export type StaffNotification = { id: string; kind: 'HANDOFF_REQUESTED' | 'TICKET_CREATED' | 'TICKET_ACCEPTED' | 'TICKET_STATUS_CHANGED' | 'CUSTOMER_MESSAGE_UNREAD'; title: string; isRead: boolean; createdAt: string; target: { type: 'CONVERSATION' | 'TICKET'; id: string } };
 export const staffNotifications = (cursor: string | undefined, signal: AbortSignal) => request<CursorPage<StaffNotification>>(`staff/notifications?${query({ cursor })}`, signal);
 export const readStaffNotification = (id: string, csrf: string, signal: AbortSignal) => request<{ id: string; isRead: boolean }>(`staff/notifications/${encodeURIComponent(id)}/read`, signal, csrf, {});
+
+export type CustomerNotification = {
+  id: string;
+  kind: 'STAFF_ACCEPTED_HANDOFF' | 'SUPPORT_TICKET_CREATED' | 'STAFF_MESSAGE_UNREAD';
+  title: string;
+  isRead: boolean;
+  createdAt: string;
+  link: { type: 'CONVERSATION' | 'TICKET'; id: string } | null;
+};
+export const customerNotifications = (cursor: string | undefined, signal: AbortSignal) =>
+  request<CursorPage<CustomerNotification>>(`customers/me/notifications?${query({ cursor })}`, signal);
+export const readCustomerNotification = (id: string, csrf: string, signal: AbortSignal) =>
+  request<{ notification: { id: string; isRead: boolean } }>(`customers/me/notifications/${encodeURIComponent(id)}/read`, signal, csrf, {});
+export const readAllCustomerNotifications = (csrf: string, signal: AbortSignal) =>
+  request<{ success: boolean; markedCount: number }>('customers/me/notifications/read-all', signal, csrf, {});
+export const markConversationRead = (role: 'STAFF' | 'CUSTOMER', id: string, csrf: string, signal: AbortSignal) =>
+  request<{ success: boolean; readAt: string }>(`${role === 'STAFF' ? 'staff' : 'customers/me'}/conversations/${encodeURIComponent(id)}/read`, signal, csrf, {});

@@ -7,6 +7,7 @@ import { ownProfile, type OwnProfile } from '@/lib/customer-api';
 import { ownPolicies, type Policy } from '@/lib/policy-api';
 import { listProducts, type Product } from '@/lib/product-api';
 import { realtimeEvent } from '@/lib/realtime';
+import { notificationEvent } from '@/lib/chat-realtime';
 import type { CustomerTab } from './customer-header';
 import { CustomerHome } from './customer-home';
 import { CustomerPolicies } from './customer-policies';
@@ -16,42 +17,12 @@ import { CustomerTickets } from './customer-tickets';
 import { CustomerAccount } from './customer-account';
 import { CustomerAccountMenu } from './customer-account-menu';
 import { CustomerConversations } from './customer-conversations';
-
-type NotificationItem = {
-  id: string;
-  title: string;
-  desc: string;
-  time: string;
-  targetTab: CustomerTab;
-  isRead: boolean;
-};
-
-const initialNotifications: NotificationItem[] = [
-  {
-    id: 'noti-1',
-    title: 'Account Security Recommendation',
-    desc: 'You are using your initial temporary password. Please update your password to safeguard your account.',
-    time: 'Today · AegisLife Security',
-    targetTab: 'profile',
-    isRead: false,
-  },
-  {
-    id: 'noti-2',
-    title: 'Upcoming Premium Due #DEV-POL-A-001',
-    desc: 'Periodic premium 1,000,000 VND due on Jan 15, 2025. 60-day grace period applies.',
-    time: '1 day ago · An Tam Tron Doi Policy',
-    targetTab: 'policies',
-    isRead: false,
-  },
-  {
-    id: 'noti-3',
-    title: 'Claim Review Progress #TK-7702',
-    desc: 'Hospitalization benefit claim is under medical assessment and disbursement review.',
-    time: '2 days ago · Hospital Benefit Claim',
-    targetTab: 'tickets',
-    isRead: false,
-  },
-];
+import {
+  customerNotifications,
+  readCustomerNotification,
+  readAllCustomerNotifications,
+  type CustomerNotification,
+} from '@/lib/notification-api';
 
 export function CustomerWorkspace({
   actor,
@@ -84,7 +55,7 @@ export function CustomerWorkspace({
 
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notiOpen, setNotiOpen] = useState(false);
-  const [notifications, setNotifications] = useState<NotificationItem[]>(initialNotifications);
+  const [notifications, setNotifications] = useState<CustomerNotification[]>([]);
 
   const [profile, setProfile] = useState<OwnProfile | null>(null);
   const [policies, setPolicies] = useState<Policy[]>([]);
@@ -147,10 +118,11 @@ export function CustomerWorkspace({
 
       try {
         const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]);
-        const [profileRes, policiesRes, productsRes] = await Promise.allSettled([
+        const [profileRes, policiesRes, productsRes, notifsRes] = await Promise.allSettled([
           ownProfile(signal),
           ownPolicies(1, signal),
           listProducts('', 1, signal),
+          customerNotifications(undefined, signal),
         ]);
 
         if (!active) return;
@@ -163,6 +135,9 @@ export function CustomerWorkspace({
         }
         if (productsRes.status === 'fulfilled' && Array.isArray(productsRes.value?.items)) {
           setProducts(productsRes.value.items);
+        }
+        if (notifsRes.status === 'fulfilled' && Array.isArray(notifsRes.value?.items)) {
+          setNotifications(notifsRes.value.items);
         }
       } catch {
         // Handled gracefully by individual views
@@ -179,8 +154,22 @@ export function CustomerWorkspace({
   // Realtime updates listener
   useEffect(() => {
     const onRealtime = () => setRevision(v => v + 1);
+    const onNotificationChange = async () => {
+      try {
+        const notifs = await customerNotifications(undefined, AbortSignal.timeout(10000));
+        if (Array.isArray(notifs?.items)) {
+          setNotifications(notifs.items);
+        }
+      } catch {
+        // Handled gracefully
+      }
+    };
     window.addEventListener(realtimeEvent, onRealtime);
-    return () => window.removeEventListener(realtimeEvent, onRealtime);
+    window.addEventListener(notificationEvent, onNotificationChange);
+    return () => {
+      window.removeEventListener(realtimeEvent, onRealtime);
+      window.removeEventListener(notificationEvent, onNotificationChange);
+    };
   }, []);
 
   // Active tab boolean helpers (for backward compatibility)
@@ -210,16 +199,35 @@ export function CustomerWorkspace({
   // Notification helpers
   const unreadCount = notifications.filter(n => !n.isRead).length;
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+  const markAllAsRead = async () => {
+    try {
+      await readAllCustomerNotifications(csrfToken, new AbortController().signal);
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch {
+      // ignore
+    }
   };
 
-  const handleNotificationClick = (item: NotificationItem) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === item.id ? { ...n, isRead: true } : n))
-    );
+  const handleNotificationClick = async (item: CustomerNotification) => {
+    if (!item.isRead) {
+      try {
+        await readCustomerNotification(item.id, csrfToken, new AbortController().signal);
+        setNotifications(prev =>
+          prev.map(n => (n.id === item.id ? { ...n, isRead: true } : n))
+        );
+      } catch {
+        // ignore
+      }
+    }
     setNotiOpen(false);
-    setActiveTab(item.targetTab);
+    if (item.link?.type === 'CONVERSATION') {
+      setActiveTab('chat');
+      if (item.link.id) {
+        router.push(`/customer?conversationId=${encodeURIComponent(item.link.id)}`);
+      }
+    } else if (item.link?.type === 'TICKET') {
+      setActiveTab('tickets');
+    }
   };
 
   const navBtnClass = (isActive: boolean) =>
@@ -511,35 +519,54 @@ export function CustomerWorkspace({
                   </div>
 
                   <div className="tw:max-h-80 tw:overflow-y-auto tw:divide-y tw:divide-slate-100">
-                    {notifications.map(item => (
-                      <div
-                        key={item.id}
-                        onClick={() => handleNotificationClick(item)}
-                        className={`tw:p-3.5 tw:flex tw:items-start tw:gap-3 tw:cursor-pointer tw:transition-all ${
-                          !item.isRead ? 'tw:bg-blue-50/40 tw:hover:bg-blue-50/70' : 'tw:hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="tw:w-7 tw:h-7 tw:rounded-lg tw:bg-blue-100/70 tw:text-blue-700 tw:flex tw:items-center tw:justify-center tw:shrink-0 tw:mt-0.5">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                          </svg>
-                        </div>
-                        <div className="tw:flex-1 tw:min-w-0">
-                          <div className="tw:text-xs tw:font-bold tw:text-slate-900 tw:truncate">
-                            {item.title}
-                          </div>
-                          <p className="tw:text-[11px] tw:text-slate-600 tw:line-clamp-2 tw:mt-0.5">
-                            {item.desc}
-                          </p>
-                          <div className="tw:text-[10px] tw:text-slate-400 tw:mt-1">
-                            {item.time}
-                          </div>
-                        </div>
-                        {!item.isRead && (
-                          <span className="tw:w-2 tw:h-2 tw:rounded-full tw:bg-emerald-500 tw:shrink-0 tw:mt-1.5" />
-                        )}
+                    {notifications.length === 0 ? (
+                      <div className="tw:p-6 tw:text-center tw:text-xs tw:text-slate-400">
+                        Không có thông báo mới
                       </div>
-                    ))}
+                    ) : (
+                      notifications.map(item => (
+                        <div
+                          key={item.id}
+                          onClick={() => void handleNotificationClick(item)}
+                          className={`tw:p-3.5 tw:flex tw:items-start tw:gap-3 tw:cursor-pointer tw:transition-all ${
+                            !item.isRead ? 'tw:bg-blue-50/40 tw:hover:bg-blue-50/70' : 'tw:hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className={`tw:w-7 tw:h-7 tw:rounded-lg tw:flex tw:items-center tw:justify-center tw:shrink-0 tw:mt-0.5 ${
+                            item.kind === 'STAFF_ACCEPTED_HANDOFF'
+                              ? 'tw:bg-emerald-100/70 tw:text-emerald-700'
+                              : item.kind === 'SUPPORT_TICKET_CREATED'
+                              ? 'tw:bg-amber-100/70 tw:text-amber-700'
+                              : 'tw:bg-blue-100/70 tw:text-blue-700'
+                          }`}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              {item.kind === 'SUPPORT_TICKET_CREATED' ? (
+                                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+                              ) : (
+                                <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+                              )}
+                            </svg>
+                          </div>
+                          <div className="tw:flex-1 tw:min-w-0">
+                            <div className="tw:text-xs tw:font-bold tw:text-slate-900 tw:truncate">
+                              {item.title}
+                            </div>
+                            <div className="tw:text-[10px] tw:text-slate-400 tw:mt-1">
+                              {new Date(item.createdAt).toLocaleString('vi-VN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                              })}
+                            </div>
+                          </div>
+                          {!item.isRead && (
+                            <span className="tw:w-2 tw:h-2 tw:rounded-full tw:bg-emerald-500 tw:shrink-0 tw:mt-1.5" />
+                          )}
+                        </div>
+                      ))
+                    )}
                   </div>
 
                   <div className="tw:p-2 tw:bg-slate-50 tw:border-t tw:border-slate-100 tw:text-center">
