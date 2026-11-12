@@ -5,8 +5,11 @@ checkpoint ownership, atomic final record) is Task 4 after the G2 protocol revie
 """
 from __future__ import annotations
 
+import uuid
 from dataclasses import dataclass
 from typing import Any, Mapping, Protocol
+
+from . import contracts
 
 
 class BudgetExhausted(Exception):
@@ -51,3 +54,49 @@ class RuntimeStore(Protocol):
     def persist_final(self, execution: Mapping[str, Any], outcome: Mapping[str, Any]) -> dict[str, Any]:
         """Store the final result or technical failure as an immutable AgentEvent before any callback.
         outcome is {"result": AgentResult} or {"failure": TechnicalFailure}."""
+
+
+class MemoryStore:
+    """Ledger semantics of the planned durable store, in memory only: for tests and local evaluation runs.
+    No durability, no fencing, no checkpoint ownership; never a substitute for the Task 4 store."""
+
+    def __init__(self) -> None:
+        self.caps: dict[str, dict[str, int]] = {}
+        self.used: dict[str, dict[str, int]] = {}
+        self.reservations: dict[tuple[str, str, str], int] = {}
+        self.events: list[dict] = []
+        self.sequences: dict[str, int] = {}
+
+    def open_message(self, message_id: str, caps: dict[str, int]) -> None:
+        if message_id not in self.caps:
+            self.caps[message_id] = dict(caps)
+            self.used[message_id] = {kind: 0 for kind in caps}
+
+    def reserve(self, message_id: str, kind: str, operation_id: str, amount: int = 1) -> Reservation:
+        key = (message_id, kind, operation_id)
+        if key in self.reservations:
+            return Reservation(message_id, kind, operation_id, self.reservations[key])
+        if self.used[message_id][kind] + amount > self.caps[message_id][kind]:
+            raise BudgetExhausted(kind)
+        self.used[message_id][kind] += amount
+        self.reservations[key] = amount
+        return Reservation(message_id, kind, operation_id, amount)
+
+    def settle(self, message_id: str, kind: str, operation_id: str, actual: int) -> None:
+        key = (message_id, kind, operation_id)
+        self.used[message_id][kind] += actual - self.reservations[key]
+        self.reservations[key] = actual
+
+    def usage(self, message_id: str) -> dict[str, int]:
+        return dict(self.used.get(message_id, {}))
+
+    def persist_final(self, execution: dict, outcome: dict) -> dict:
+        attempt = execution["attempt_id"]
+        self.sequences[attempt] = self.sequences.get(attempt, 0) + 1
+        kind = "RESULT" if "result" in outcome else "ERROR"
+        event = {"schema_version": "agent-v1", "run_id": execution["run_id"], "attempt_id": attempt,
+                 "event_id": str(uuid.uuid4()), "sequence": self.sequences[attempt], "kind": kind,
+                 "payload": {"result": outcome["result"]} if kind == "RESULT" else {"failure": outcome["failure"]}}
+        contracts.validate("AgentEvent", event)
+        self.events.append(event)
+        return event

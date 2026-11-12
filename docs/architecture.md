@@ -138,6 +138,8 @@ Các khác biệt/ràng buộc quan trọng so với nguồn:
 | core_runtime | DML business, đọc trạng thái migration; không DDL, không ghi migration history, không truy cập rag |
 | admin_runtime | DML business cho tool local, SELECT metadata migration để kiểm compatibility; không DDL/superuser/rag hoặc ghi migration history |
 | db_viewer | SELECT 19 bảng ứng dụng, không sửa/xóa dữ liệu |
+| rag_indexer | Indexer RAG offline: SELECT/INSERT/DELETE `rag`, không quyền business; không cấp cho Agent runtime |
+| rag_retriever | Retrieval Agent: chỉ SELECT `rag`, không quyền business/ghi index |
 
 
 Credential ở volumes riêng; không tự rotate role password đã tồn tại hoặc dùng local_owner cho Core/tool. Không DDL/superuser cho runtime. Migration runner cập nhật quyền metadata để Core/tool kiểm compatibility.

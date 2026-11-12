@@ -77,6 +77,8 @@ services:
       DB_CORE_PASSWORD: ${DB_CORE_PASSWORD:-}
       DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:-}
       DB_VIEWER_PASSWORD: ${DB_VIEWER_PASSWORD:-}
+      DB_RAG_INDEXER_PASSWORD: ${DB_RAG_INDEXER_PASSWORD:-}
+      DB_RAG_RETRIEVER_PASSWORD: ${DB_RAG_RETRIEVER_PASSWORD:-}
     volumes:
       - ./scripts/prepare-local.mjs:/prepare-local.mjs:ro
       - postgres_data:/existing-db:ro
@@ -85,6 +87,8 @@ services:
       - credential_core:/credentials/core
       - credential_admin:/credentials/admin
       - credential_viewer:/credentials/viewer
+      - credential_rag_indexer:/credentials/rag_indexer
+      - credential_rag_retriever:/credentials/rag_retriever
 
   postgres:
     image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
@@ -119,6 +123,8 @@ services:
       - credential_core:/credentials/core:ro
       - credential_admin:/credentials/admin:ro
       - credential_viewer:/credentials/viewer:ro
+      - credential_rag_indexer:/credentials/rag_indexer:ro
+      - credential_rag_retriever:/credentials/rag_retriever:ro
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -309,4 +315,6 @@ volumes:
   credential_core: { name: life-insurance-local-credential-core }
   credential_admin: { name: life-insurance-local-credential-admin }
   credential_viewer: { name: life-insurance-local-credential-viewer }
+  credential_rag_indexer: { name: life-insurance-local-credential-rag-indexer }
+  credential_rag_retriever: { name: life-insurance-local-credential-rag-retriever }
   database_ui_data: { name: life-insurance-local-database-ui-data }

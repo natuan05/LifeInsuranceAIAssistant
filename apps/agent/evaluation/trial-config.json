@@ -1,0 +1,87 @@
+{
+ "trial_id": "gemini-trial-1",
+ "status": "Cấu hình THỬ theo G4, người dùng cho phép gọi Gemini API ngày 05/11/2026 trên corpus Public chưa duyệt. Không phải mặc định, không phải lựa chọn chính; số liệu dưới là tham số thử cần review.",
+ "manifest": "data/public/manifest-manulife-text.json",
+ "corpus": {
+  "config_id": "structure-v1",
+  "dataset_version": "public-trial-2026-11-05",
+  "child_target_chars": 1000,
+  "child_max_chars": 1500,
+  "child_min_chars": 300,
+  "parent_max_chars": 6000,
+  "boilerplate_min_pages": 4,
+  "boilerplate_page_ratio": 0.6,
+  "boilerplate_max_line_chars": 80,
+  "allow_unapproved": true
+ },
+ "embedding": {
+  "config_id": "gemini-embedding-2.d1536.prefix-v1",
+  "provider": "gemini",
+  "model_id": "gemini-embedding-2",
+  "model_version": "gemini-embedding-2",
+  "dimensions": 1536,
+  "input_format": "gemini-embedding-2-prefix",
+  "normalize": true,
+  "timeout_s": 10,
+  "batch_size": 50
+ },
+ "search": {
+  "config_id": "hybrid-or-simple-v1",
+  "fts_config": "simple",
+  "fts_query_mode": "or",
+  "keyword_candidates": 40,
+  "vector_candidates": 40,
+  "fused_candidates": 20,
+  "max_evidence": 8,
+  "rrf_k": 60,
+  "parent_expansion": true,
+  "parent_max_chars": 6000,
+  "ref_expansion_depth": 1,
+  "ref_max_targets": 3,
+  "max_evidence_chars": 16000,
+  "statement_timeout_ms": 3000,
+  "scope_timeout_s": 2.0
+ },
+ "generation": {
+  "config_id": "gemini-3.8-flash.low.v1",
+  "provider": "gemini",
+  "model_id": "gemini-3.8-flash",
+  "thinking_level": "low",
+  "max_output_tokens": 4096,
+  "temperature": null,
+  "timeout_s": 45
+ },
+ "agent": {
+  "graph_version": "graph-0.1",
+  "max_context_chars": 60000,
+  "recent_turns": 6,
+  "history_summary_threshold_chars": 4000,
+  "copilot_recent_items": 6,
+  "max_output_tokens": 4096,
+  "core_retry_wait_s": 0.2,
+  "chars_per_token": 3.0
+ },
+ "limits": {
+  "retrieval_calls_max": 3,
+  "core_read_requests_max": 4,
+  "core_request_timeout_ms": 3000,
+  "core_retry_per_call": 1,
+  "model_calls_max": 6,
+  "graph_steps_max": 30,
+  "turn_token_budget": 120000,
+  "finish_reserve_tokens": 12000,
+  "deadline_s": 120
+ },
+ "pricing_usd_per_million": {
+  "gemini-3.8-flash": {
+   "input": 0.75,
+   "output": 3.75,
+   "source": "ai.google.dev/gemini-api/docs/pricing, giá đến 31/12/2026, đọc ngày 05/11/2026"
+  }
+ },
+ "notes": [
+  "Các trần 3 retrieval/4 request Core/3 giây/1 retry là quyết định đã chốt; model_calls_max, graph_steps_max, turn_token_budget, finish_reserve_tokens, deadline_s là giá trị thử G4.",
+  "Số chiều 1536 chọn để thử (khuyến nghị của provider, vừa giới hạn HNSW 2000 của pgvector); chưa so với cấu hình khác.",
+  "Embedding cùng hãng với model sinh không phải lý do chọn; cần phép so có kiểm soát (Task 9 Step 4a)."
+ ]
+}

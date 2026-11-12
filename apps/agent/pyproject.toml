@@ -5,12 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "life-agent"
 version = "0.1.0"
-description = "Agent/RAG service (custom LangGraph). Milestone 2: graph runs with fake model/tools only."
+description = "Agent/RAG service (custom LangGraph). Milestone 3: Public RAG trial (corpus, hybrid retrieval, evaluation)."
 requires-python = ">=3.13"
-# Pinned for the graph milestone. Checkpointer library, HTTP framework and model provider are chosen at G2-G4.
+# Checkpointer library and HTTP framework are chosen at G2-G3. The Gemini trial adapters use the REST API through the
+# standard library, so no provider SDK is pinned. psycopg is the PostgreSQL driver for the rag index (pgvector).
 dependencies = [
   "langgraph==1.2.20",
   "jsonschema==4.26.0",
+  "psycopg[binary]==3.3.6",
 ]
 
 [dependency-groups]
