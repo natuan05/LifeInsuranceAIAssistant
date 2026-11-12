@@ -50,6 +50,15 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 - [x] WebSocket receive-only invalidation account/profile/assignment, reconnect và REST resync; I06 đã có chat/notification handoff; Ticket riêng.
 - [x] Root .env/Compose, FE/BE chỉ Docker; runtime credentials trong volumes, tool host ngoài repo. Hướng dẫn vận hành tại [Getting Started](../getting-started.md).
 
+## Bảo vệ dữ liệu Customer — bổ sung 12/11/2026
+
+**P, chưa triển khai masking/redaction.** API hiện kiểm owner/assignment và loại citizenId/hash/token khỏi DTO hồ sơ, nhưng tên/email/phone trả nguyên; detail có ngày sinh/địa chỉ nguyên. UI chưa che một phần. Prompt Agent hạn chế dữ liệu nhạy cảm chưa thay lớp xử lý trước provider. Không coi dữ liệu seed synthetic là bằng chứng hệ thống đã che dữ liệu thật.
+
+- [ ] Chốt ma trận trường/role/mục đích, mức che, search email/phone và điều kiện xem đầy đủ theo [đặc tả dữ liệu](../configuration-and-data.md#customer-sensitive-data).
+- [ ] Core projection Staff/self riêng và UI Customers cùng các caller Policy/Inbox/Ticket theo CU01/CU02; không raw ở JSON/DOM/cache ngoài contract.
+- [ ] Agent xử lý inbound context và outbound answer/summary/Ticket/embedding, retry/resume; giữ provenance, quyền và nội dung xác nhận.
+- [ ] Tests synthetic API/network/DOM/Agent boundary và hồi quy gateway; chưa có test masking chạy hoặc xác nhận trạng thái cloud.
+
 ## Phần tiếp theo
 
 - [x] Gỡ API/UI/tests/routes lồng của bản thử Inbox/Ticket; giữ Account/Customers/Policy độc lập.

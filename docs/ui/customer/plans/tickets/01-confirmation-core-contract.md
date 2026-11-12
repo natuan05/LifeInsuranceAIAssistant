@@ -2,6 +2,14 @@
 
 04/11/2026 · **P, chưa triển khai** · [C07](../07-tickets-contract.md) · [I07 canonical](../../../staff/plans/tickets/06-agent-confirmation.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** I07 sở hữu giảm PII trước phát hành draft. Nội dung/hash/version Customer duyệt phải khớp immutable confirmedContent Core commit; đổi nội dung phải review lại, legacy vẫn UNVERIFIED.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Core/DB: confirmation cũ không dùng sau đổi draft, replay không trùng; receipt/outbox/audit không chép raw ngoài contract.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

@@ -2,6 +2,14 @@
 
 05/11/2026 · **Đã triển khai** · [C04](../04-policies-contract.md) · Cần H01, [PO01](01-owner-read-api.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** customer-policies chỉ render DTO PO01 đã được phép, không giữ raw dự phòng ở tooltip/copy/hidden DOM. Phân biệt thiếu dữ liệu với dữ liệu đã che; PDF là kênh riêng.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: các vùng người liên quan cùng projection, Back/đổi actor/revoke không phục hồi raw ngoài quyền.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

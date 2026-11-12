@@ -2,6 +2,14 @@
 
 06/11/2026 · **Đề xuất, chưa triển khai API Agent thật** · [C06](../06-chat-contract.md). Theo [Agent Design](../../../../specifications/Agent_Design.md) và [plan](../../../../superpowers/plans/2026-10-31-agent-rag-implementation.md): HTTP + callback JSON đã chọn; HMAC tạm chốt, profile/framework/provider/DDL còn gate review.
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Tách nguồn có quyền khỏi bản context đã giảm/che tại dispatch/history/tool/evidence và mọi model/embedding/summary/repair call, kể cả retry/resume. Alias không cấp quyền; mapping/retention và evidence/error schema phối hợp G1–G4.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Fake boundary/Core: canary mọi nguồn không tới provider ngoài allowlist; processor lỗi không fallback raw, stale attempt không phát output, checkpoint/callback không lộ mapping.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
