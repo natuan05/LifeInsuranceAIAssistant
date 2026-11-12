@@ -13,6 +13,7 @@ Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, t
 
 Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
+<a id="hướng-triển-khai-policypdf-đã-thống-nhất--31102026"></a>
 ## 1. Căn cứ và baseline
 
 FR-008/UC-007/NFR-007. MinIO private, reader credential, SDK, signed link và Staff catalog/view/download đã chạy; Customer sử dụng các endpoint owner riêng được kiểm soát quyền chặt chẽ.

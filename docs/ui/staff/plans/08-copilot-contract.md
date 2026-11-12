@@ -1,6 +1,8 @@
 # Staff — Copilot nội bộ
 
-04/11/2026 · **P, chờ Agent; chưa triển khai.** FR-007/012, UC-006/009.
+06/11/2026 · **P, chờ Agent; chưa triển khai.** FR-007/012, UC-006/009.
+
+**Phạm vi đã xác nhận 06/11/2026:** Copilot MVP chỉ tra cứu, giải thích và tóm tắt. Không soạn nháp câu trả lời Customer hoặc có thao tác Use draft. Xem [Agent Design](../../../specifications/Agent_Design.md#copilot-summary-scope).
 
 <a id="c01--kế-hoạch-ai-copilot-riêng-cho-staff"></a>
 ## Truy vết data model và vị trí code theo phase
@@ -31,8 +33,7 @@ Thứ tự chức năng tối thiểu:
 
 1. **Hỏi Copilot:** Staff tự nhập câu hỏi về cuộc đang hỗ trợ hoặc điều khoản/quyền lợi; hiển thị đang xử lý/lỗi/thử lại rõ ràng.
 2. **Tóm tắt cuộc chat:** nút thao tác nhanh tạo bản tóm tắt từ transcript Customer-facing mà Staff đang có quyền đọc; kết quả nêu mốc ngữ cảnh để nhận biết khi chat đã có tin mới.
-3. **Soạn gợi ý trả lời:** AI đưa bản nháp trong panel. Staff bấm “Use draft” để đưa vào composer Customer, xem/sửa rồi tự bấm Send qua A12. Không tự gửi, không ghi đè nháp đang có mà chưa xác nhận, không hiển thị gợi ý như lời Staff đã gửi.
-4. **Bằng chứng tài liệu:** câu trả lời dựa trên tài liệu phải có citation đúng quyền/phiên bản và link mở tài liệu qua Core. Chưa đủ dữ kiện hoặc retrieval lỗi phải nói rõ, không tạo trích dẫn/chi trả/hợp đồng giả.
+3. **Bằng chứng tài liệu:** câu trả lời dựa trên tài liệu phải có citation đúng quyền/phiên bản và link mở tài liệu qua Core. Chưa đủ dữ kiện hoặc retrieval lỗi phải nói rõ, không tạo trích dẫn/chi trả/hợp đồng giả.
 
 Quick prompts phải gọi các khả năng trên với context hiện hành; không dùng các chip để giả đã nối Agent. Khi runtime chưa được cấu hình, báo Copilot chưa khả dụng và giữ chat Staff–Customer hoạt động bình thường.
 
@@ -40,9 +41,9 @@ Quick prompts phải gọi các khả năng trên với context hiện hành; kh
 
 - Core lấy Staff từ session; cần grant transcript hiện hành của cuộc Direct/accepted đang chọn. Pending chưa Accept, AI riêng, legacy chưa review hoặc chỉ biết Customer/conversationId không đủ để mở Copilot với nội dung cuộc đó.
 - Luồng nội bộ dùng `Conversation.channelType=STAFF_COPILOT` và `linkedContextConvId` theo model hiện có, tách khỏi CUSTOMER_SUPPORT. Đề xuất thread riêng theo Staff và cuộc nguồn; ownership/unique key/checkpoint mapping phải được rà schema trước triển khai. Không kế thừa thread của Staff trước chỉ vì reassignment.
-- Hỏi/đáp/tóm tắt/nháp Copilot chỉ Staff được phép thấy, không trả trong Customer list/detail/A10, không phát sự kiện chat Customer hoặc lọt vào tin SYSTEM. Không cho browser tự chọn audience, sender hoặc grant.
+- Hỏi/đáp/tóm tắt Copilot chỉ Staff được phép thấy, không trả trong Customer list/detail/A10, không phát sự kiện chat Customer hoặc lọt vào tin SYSTEM. Không cho browser tự chọn audience, sender hoặc grant.
 - Ngữ cảnh chỉ gồm transcript đã được phép và catalog tài liệu Core cấp đúng scope/exact version; không đưa raw tool metadata hoặc các chat riêng khác của Customer vào prompt. Agent không đọc business DB trực tiếp, không suy quyền từ LLM.
-- Recheck quyền ở lịch sử, enqueue/chạy Agent, retrieval/tool và trước trả kết quả. Revoke/session hết hạn phải abort/clear panel, nháp gợi ý và context cache; tác vụ chạy dở không được trả Private theo quyền cũ.
+- Recheck quyền ở lịch sử, enqueue/chạy Agent, retrieval/tool và trước trả kết quả. Revoke phải abort/clear panel và context cache; tác vụ chạy dở không được trả Private theo quyền cũ. Xử lý task khi logout/hết phiên là chính sách còn mở ở G3, không tự chốt từ phase UI.
 - Lưu bền vững trạng thái Agent/checkpoint riêng với message/business write. Không lưu prompt/transcript/CSRF vào browser storage hoặc log không cần thiết. Không tự tạo/accept/close Ticket từ Copilot; Ticket vẫn theo I07 và xác nhận riêng.
 
 ### API và vị trí triển khai dự kiến
@@ -53,7 +54,7 @@ Quick prompts phải gọi các khả năng trên với context hiện hành; kh
 | A25 `POST /api/v1/staff/conversations/:conversationId/copilot/messages` | Câu hỏi, UUID intent và mốc context/version; session/CSRF/rate limit, chống trùng, kết quả hoặc tác vụ có reconcile |
 | A26 `POST /api/v1/staff/conversations/:conversationId/copilot/summary` | Tóm tắt theo mốc transcript; request idempotent, không ghi vào chat Customer/Ticket |
 
-Cần chốt DTO/error/async ACK/GET tra kết quả/streaming hoặc polling, timeout và giới hạn context tại bước contract; chưa công bố endpoint task mới hay response200/202 như code đã chạy. “Use draft” là thao tác FE vào composer; chỉ Send của Staff mới gọi A12, không tạo API gửi thay Staff từ Agent.
+Cần chốt DTO/error/async ACK/GET tra kết quả/streaming hoặc polling, timeout và giới hạn context tại bước contract; chưa công bố endpoint task mới hay response200/202 như code đã chạy. Copilot không đưa kết quả vào composer Customer; A12 thuộc luồng chat thủ công riêng của Staff.
 
 Core mở rộng module conversations và adapter Agent theo contract, tái dùng access gate và catalog Policy; không nới DTO/public send. Web dự kiến `staff-copilot-panel.tsx`, `lib/copilot-api.ts`, tích hợp tại `staff-inbox.tsx` và composer, giữ vòng đời transcript/PDF hiện có. Đây là các vị trí dự kiến, chưa tạo component/module/dependency ở lượt cập nhật tài liệu.
 
@@ -69,19 +70,17 @@ sequenceDiagram
   C->>A: Context và tools trong scope được cấp
   A->>C: Gọi Business/Retrieval API đúng quyền
   C-->>W: Kết quả nội bộ + citations/mốc context
-  S->>W: Use draft, xem và sửa
-  S->>C: Send qua A12 bằng ý định riêng
-  C-->>S: Tin Customer-visible sau commit
+  W-->>S: Hiển thị kết quả tra cứu/giải thích/tóm tắt nội bộ
 ```
 
 ### Chia bước và nghiệm thu
 
 1. **C01-A contract:** rà model STAFF_COPILOT/link/ownership, chốt Core–Agent/checkpoint, DTO/citations/reconcile và quota; cập nhật API map trước code phụ thuộc.
 2. **C01-B Core/Agent:** kiểm session/scope trước và sau tác vụ, history nội bộ bền vững, retry không trùng; integration bằng dữ liệu synthetic, không fake AI thành công khi chưa runtime.
-3. **C01-C Staff panel:** open/close, hỏi/tóm tắt/quick prompts/citations và Use draft; giữ composer/chat/PDF, keyboard/mobile/no-F5.
-4. **C01-D E2E:** Staff đủ quyền hỏi AI thật qua Core, dùng/sửa/gửi nháp; Customer chỉ thấy tin Staff chủ động Send. Mất quyền khi đang chạy phải chặn kết quả.
+3. **C01-C Staff panel:** open/close, hỏi/giải thích/tóm tắt/quick prompts/citations; giữ composer/chat/PDF, keyboard/mobile/no-F5.
+4. **C01-D E2E:** Staff đủ quyền hỏi AI thật qua Core; kết quả chỉ xuất hiện nội bộ, không thay composer hoặc thêm tin Customer. Mất quyền khi đang chạy phải chặn kết quả.
 
-Test bắt buộc: pending/private/Staff khác denied; Copilot không xuất hiện ở Customer history/list/event; task retry không trùng; citation ngoài quyền không trả; revoke giữa lượt không trả kết quả; lỗi Agent không chặn chat; tóm tắt có mốc context; Use draft bảo toàn nháp cũ và không tự gửi; đóng/mở/chuyển cuộc không lẫn context; DOM/keyboard/mobile/no-F5 và hồi quy Account/Customers/Policy/PDF.
+Test bắt buộc: pending/private/Staff khác denied; Copilot không xuất hiện ở Customer history/list/event; task retry không trùng; citation ngoài quyền không trả; revoke giữa lượt không trả kết quả; lỗi Agent không chặn chat; tóm tắt có mốc context; không có chức năng soạn nháp/Use draft và không thay composer; đóng/mở/chuyển cuộc không lẫn context; DOM/keyboard/mobile/no-F5 và hồi quy Account/Customers/Policy/PDF.
 
 ## Các phase cần triển khai sau Agent
 
@@ -91,8 +90,8 @@ Test bắt buộc: pending/private/Staff khác denied; Copilot không xuất hi�
 | --- | --- | --- |
 | [CP01](copilot/01-task-context-contract.md) | Task/context/service identity/checkpoint/DTO | P, chốt trước code |
 | [CP02](copilot/02-core-agent-service.md) | Internal history/Agent tools và recheck | P |
-| [CP03](copilot/03-panel-draft-citations.md) | Panel/summary/Use draft/citations | P |
-| [CP04](copilot/04-agent-e2e.md) | Agent thật, privacy và publish Staff Send | P |
+| [CP03](copilot/03-panel-citations.md) | Panel/tra cứu/giải thích/summary/citations | P |
+| [CP04](copilot/04-agent-e2e.md) | Agent thật, privacy và kết quả chỉ nội bộ | P |
 
 Không thuộc mốc Staff không Agent. Chat hai đầu/Accept/realtime đã E không bị đưa về backlog từ việc Copilot còn P. API A24–26 vẫn P cho đến code/test thật; checkpoint không đồng nghĩa Ticket business commit.
 

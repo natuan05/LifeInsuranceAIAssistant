@@ -1,0 +1,2139 @@
+{
+  "schema": "agent-v1",
+  "synthetic": true,
+  "note": "Synthetic examples shared by TS and Python tests. Customer/staff/policy/private document IDs reuse data/synthetic/manulife-demo-v1; other UUIDs are fixture-only. No chunks, vectors, tokens or signed URLs.",
+  "cases": [
+    {
+      "name": "evidence_markdown_anchor",
+      "type": "Evidence",
+      "valid": true,
+      "value": {
+        "evidence_id": "E1",
+        "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+        "document_version": "synthetic-v1",
+        "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+        "document_type": "CONTRACT",
+        "location": {
+          "anchor": "syn-benefits"
+        },
+        "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+      },
+      "note": "Markdown fixture: anchor only, no invented page."
+    },
+    {
+      "name": "evidence_pdf_pages_and_clause",
+      "type": "Evidence",
+      "valid": true,
+      "value": {
+        "evidence_id": "E2",
+        "document_id": "6f1d2c3a-0b4e-4a6f-8c7d-1e2f3a4b5c6d",
+        "document_version": "6865-2019",
+        "title": "Quy tắc và điều khoản Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ",
+        "document_type": "TERMS",
+        "location": {
+          "pages": [
+            10
+          ],
+          "clause": "Điều 12"
+        },
+        "content": "Điều 12 › Thời gian cân nhắc"
+      }
+    },
+    {
+      "name": "evidence_empty_pages_rejected",
+      "type": "Evidence",
+      "valid": false,
+      "value": {
+        "evidence_id": "E1",
+        "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+        "document_version": "synthetic-v1",
+        "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+        "document_type": "CONTRACT",
+        "location": {
+          "anchor": "syn-benefits",
+          "pages": []
+        },
+        "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+      }
+    },
+    {
+      "name": "evidence_without_location_rejected",
+      "type": "Evidence",
+      "valid": false,
+      "value": {
+        "evidence_id": "E1",
+        "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+        "document_version": "synthetic-v1",
+        "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+        "document_type": "CONTRACT",
+        "location": {},
+        "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+      }
+    },
+    {
+      "name": "retrieval_ok_markdown_anchor",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "OK",
+        "evidence": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            },
+            "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+          }
+        ],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_ok_with_unresolved_reference",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "OK",
+        "evidence": [
+          {
+            "evidence_id": "E2",
+            "document_id": "6f1d2c3a-0b4e-4a6f-8c7d-1e2f3a4b5c6d",
+            "document_version": "6865-2019",
+            "title": "Quy tắc và điều khoản Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ",
+            "document_type": "TERMS",
+            "location": {
+              "pages": [
+                10
+              ],
+              "clause": "Điều 12"
+            },
+            "content": "Điều 12 › Thời gian cân nhắc"
+          }
+        ],
+        "missing": [
+          {
+            "code": "UNRESOLVED_REFERENCE",
+            "document_id": "6f1d2c3a-0b4e-4a6f-8c7d-1e2f3a4b5c6d",
+            "document_version": "6865-2019",
+            "location": {
+              "clause": "Điều 12"
+            },
+            "reference": "Điều 12 của Hợp Đồng",
+            "reason": "Đích dẫn chiếu chưa được phân giải khi chuẩn bị corpus."
+          }
+        ],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_no_match_degraded",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "NO_MATCH",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": true,
+        "error": null
+      },
+      "note": "Embedding outage, keyword-only found nothing."
+    },
+    {
+      "name": "retrieval_no_source_valid_empty_scope",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "NO_SOURCE",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_denied",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "DENIED",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_error_scope_timeout",
+      "type": "RetrievalResult",
+      "valid": true,
+      "value": {
+        "status": "ERROR",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": {
+          "code": "SCOPE_UNAVAILABLE",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "name": "retrieval_extra_field_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "OK",
+        "evidence": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            },
+            "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+          }
+        ],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null,
+        "sufficiency": "PARTIAL"
+      },
+      "note": "Six fields only."
+    },
+    {
+      "name": "retrieval_ok_without_evidence_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "OK",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_error_with_raw_sql_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "ERROR",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": {
+          "code": "INTERNAL",
+          "retryable": false,
+          "detail": "SELECT * FROM rag.rag_knowledge_chunks"
+        }
+      }
+    },
+    {
+      "name": "retrieval_error_status_without_error_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "ERROR",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_denied_degraded_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "DENIED",
+        "evidence": [],
+        "missing": [],
+        "conflicts": [],
+        "degraded": true,
+        "error": null
+      }
+    },
+    {
+      "name": "retrieval_missing_semantic_assessment_rejected",
+      "type": "RetrievalResult",
+      "valid": false,
+      "value": {
+        "status": "OK",
+        "evidence": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            },
+            "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+          }
+        ],
+        "missing": [
+          {
+            "code": "INSUFFICIENT_EVIDENCE",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "reason": "Chưa đủ điều kiện."
+          }
+        ],
+        "conflicts": [],
+        "degraded": false,
+        "error": null
+      },
+      "note": "Semantic sufficiency is the Agent's assessment, not a tool issue."
+    },
+    {
+      "name": "contract_summary_minimal",
+      "type": "ContractSummary",
+      "valid": true,
+      "value": {
+        "policy_number": "SYN-POL-2024-0001",
+        "main_product": {
+          "code": "SYN-HTHP-GTBV",
+          "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+        }
+      }
+    },
+    {
+      "name": "overview_unmapped_riders_incomplete",
+      "type": "ContractOverview",
+      "valid": true,
+      "value": {
+        "policy_number": "SYN-POL-2024-0001",
+        "main_product": {
+          "code": "SYN-HTHP-GTBV",
+          "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+        },
+        "riders": [],
+        "riders_complete": false
+      },
+      "note": "Demo riders are unmapped, so the list is not complete."
+    },
+    {
+      "name": "overview_missing_riders_complete_rejected",
+      "type": "ContractOverview",
+      "valid": false,
+      "value": {
+        "policy_number": "SYN-POL-2024-0001",
+        "main_product": {
+          "code": "SYN-HTHP-GTBV",
+          "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+        },
+        "riders": []
+      }
+    },
+    {
+      "name": "overview_string_riders_complete_rejected",
+      "type": "ContractOverview",
+      "valid": false,
+      "value": {
+        "policy_number": "SYN-POL-2024-0001",
+        "main_product": {
+          "code": "SYN-HTHP-GTBV",
+          "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+        },
+        "riders": [],
+        "riders_complete": "true"
+      }
+    },
+    {
+      "name": "contract_list_result_empty_ok",
+      "type": "ContractListResult",
+      "valid": true,
+      "value": {
+        "status": "OK",
+        "contracts": [],
+        "error": null
+      }
+    },
+    {
+      "name": "contract_list_result_one",
+      "type": "ContractListResult",
+      "valid": true,
+      "value": {
+        "status": "OK",
+        "contracts": [
+          {
+            "policy_number": "SYN-POL-2024-0001",
+            "main_product": {
+              "code": "SYN-HTHP-GTBV",
+              "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+            }
+          }
+        ],
+        "error": null
+      }
+    },
+    {
+      "name": "contract_overview_result_ok",
+      "type": "ContractOverviewResult",
+      "valid": true,
+      "value": {
+        "status": "OK",
+        "overview": {
+          "policy_number": "SYN-POL-2024-0001",
+          "main_product": {
+            "code": "SYN-HTHP-GTBV",
+            "name": "Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ (fixture)"
+          },
+          "riders": [],
+          "riders_complete": false
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "contract_overview_result_not_found",
+      "type": "ContractOverviewResult",
+      "valid": true,
+      "value": {
+        "status": "NOT_FOUND",
+        "overview": null,
+        "error": null
+      }
+    },
+    {
+      "name": "contract_overview_result_denied",
+      "type": "ContractOverviewResult",
+      "valid": true,
+      "value": {
+        "status": "DENIED",
+        "overview": null,
+        "error": {
+          "code": "INVALID_ATTEMPT",
+          "retryable": false
+        }
+      }
+    },
+    {
+      "name": "contract_overview_result_error",
+      "type": "ContractOverviewResult",
+      "valid": true,
+      "value": {
+        "status": "ERROR",
+        "overview": null,
+        "error": {
+          "code": "TIMEOUT",
+          "retryable": true
+        }
+      }
+    },
+    {
+      "name": "contract_overview_result_error_as_denied_rejected",
+      "type": "ContractOverviewResult",
+      "valid": false,
+      "value": {
+        "status": "ERROR",
+        "overview": null,
+        "error": {
+          "code": "NOT_AUTHORIZED",
+          "retryable": false
+        }
+      },
+      "note": "Timeout/denied must stay distinct."
+    },
+    {
+      "name": "decision_list_contracts",
+      "type": "AgentDecision",
+      "valid": true,
+      "value": {
+        "tool": "list_contracts",
+        "arguments": {}
+      }
+    },
+    {
+      "name": "decision_get_contract_overview",
+      "type": "AgentDecision",
+      "valid": true,
+      "value": {
+        "tool": "get_contract_overview",
+        "arguments": {
+          "policy_number": "SYN-POL-2024-0001"
+        }
+      }
+    },
+    {
+      "name": "decision_retrieve_public",
+      "type": "AgentDecision",
+      "valid": true,
+      "value": {
+        "tool": "retrieve_public",
+        "arguments": {
+          "query": "thời gian cân nhắc Hành Trình Hạnh Phúc"
+        }
+      }
+    },
+    {
+      "name": "decision_retrieve_private",
+      "type": "AgentDecision",
+      "valid": true,
+      "value": {
+        "tool": "retrieve_private",
+        "arguments": {
+          "query": "hạn mức nội trú Demo Bình",
+          "policy_number": "SYN-POL-2024-0001"
+        }
+      }
+    },
+    {
+      "name": "decision_list_contracts_with_customer_id_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "list_contracts",
+        "arguments": {
+          "customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4"
+        }
+      }
+    },
+    {
+      "name": "decision_overview_with_actor_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "get_contract_overview",
+        "arguments": {
+          "policy_number": "SYN-POL-2024-0001",
+          "actor": {
+            "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+            "role": "STAFF"
+          }
+        }
+      }
+    },
+    {
+      "name": "decision_private_with_scope_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "retrieve_private",
+        "arguments": {
+          "query": "hạn mức",
+          "policy_number": "SYN-POL-2024-0001",
+          "scope": [
+            {
+              "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+              "document_version": "synthetic-v1"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "decision_public_with_policy_number_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "retrieve_public",
+        "arguments": {
+          "query": "hạn mức",
+          "policy_number": "SYN-POL-2024-0001"
+        }
+      }
+    },
+    {
+      "name": "decision_unknown_tool_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "get_premium_history",
+        "arguments": {
+          "policy_number": "SYN-POL-2024-0001"
+        }
+      }
+    },
+    {
+      "name": "decision_history_tool_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool": "read_history",
+        "arguments": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21"
+        }
+      },
+      "note": "History/scope are integration calls, never LLM tools."
+    },
+    {
+      "name": "decision_two_tools_array_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": [
+        {
+          "tool": "list_contracts",
+          "arguments": {}
+        },
+        {
+          "tool": "retrieve_public",
+          "arguments": {
+            "query": "phí"
+          }
+        }
+      ]
+    },
+    {
+      "name": "decision_tool_calls_list_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "tool_calls": [
+          {
+            "tool": "list_contracts",
+            "arguments": {}
+          }
+        ]
+      }
+    },
+    {
+      "name": "decision_answer_draft",
+      "type": "AgentDecision",
+      "valid": true,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1].",
+        "citations": [
+          {
+            "evidence_id": "E1"
+          }
+        ],
+        "actions": []
+      }
+    },
+    {
+      "name": "decision_tool_and_answer_mixed_rejected",
+      "type": "AgentDecision",
+      "valid": false,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1].",
+        "citations": [
+          {
+            "evidence_id": "E1"
+          }
+        ],
+        "actions": [],
+        "tool": "retrieve_public",
+        "arguments": {
+          "query": "phí"
+        }
+      }
+    },
+    {
+      "name": "agent_result_answer_with_citation",
+      "type": "AgentResult",
+      "valid": true,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            }
+          }
+        ],
+        "actions": []
+      }
+    },
+    {
+      "name": "agent_result_clarification",
+      "type": "AgentResult",
+      "valid": true,
+      "value": {
+        "response_type": "CLARIFICATION",
+        "message": "Bạn muốn hỏi quyền lợi nội trú của Demo Bình hay Demo Chi?",
+        "citations": [],
+        "actions": []
+      }
+    },
+    {
+      "name": "agent_result_extra_field_rejected",
+      "type": "AgentResult",
+      "valid": false,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            }
+          }
+        ],
+        "actions": [],
+        "confidence": 0.92
+      }
+    },
+    {
+      "name": "agent_result_citation_without_metadata_rejected",
+      "type": "AgentResult",
+      "valid": false,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1"
+          }
+        ],
+        "actions": []
+      }
+    },
+    {
+      "name": "ticket_handoff_summary_full",
+      "type": "TicketHandoffSummary",
+      "valid": true,
+      "value": {
+        "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+        "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+        "customer_statements": [
+          "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+        ],
+        "verified_findings": [
+          {
+            "text": "Hạn mức nội trú DEMO-TITAN A là 240.000.000 đồng/năm hợp đồng.",
+            "source_refs": [
+              "evidence:E1"
+            ]
+          }
+        ],
+        "attempted_steps": [
+          "Đọc tổng quan hợp đồng.",
+          "Tra quyền lợi nội trú trong hợp đồng giả lập."
+        ],
+        "pending_issues": [
+          "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+        ]
+      }
+    },
+    {
+      "name": "ticket_handoff_summary_missing_group_rejected",
+      "type": "TicketHandoffSummary",
+      "valid": false,
+      "value": {
+        "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+        "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+        "customer_statements": [
+          "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+        ],
+        "verified_findings": [
+          {
+            "text": "Hạn mức nội trú DEMO-TITAN A là 240.000.000 đồng/năm hợp đồng.",
+            "source_refs": [
+              "evidence:E1"
+            ]
+          }
+        ],
+        "pending_issues": [
+          "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+        ]
+      }
+    },
+    {
+      "name": "ticket_verified_finding_from_customer_message_rejected",
+      "type": "TicketHandoffSummary",
+      "valid": false,
+      "value": {
+        "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+        "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+        "customer_statements": [
+          "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+        ],
+        "verified_findings": [
+          {
+            "text": "Demo Bình nằm viện 3 ngày.",
+            "source_refs": [
+              "message:2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43"
+            ]
+          }
+        ],
+        "attempted_steps": [
+          "Đọc tổng quan hợp đồng.",
+          "Tra quyền lợi nội trú trong hợp đồng giả lập."
+        ],
+        "pending_issues": [
+          "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+        ]
+      },
+      "note": "Customer words are statements, not verified findings."
+    },
+    {
+      "name": "ticket_verified_finding_without_source_rejected",
+      "type": "TicketHandoffSummary",
+      "valid": false,
+      "value": {
+        "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+        "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+        "customer_statements": [
+          "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+        ],
+        "verified_findings": [
+          {
+            "text": "Hạn mức 240.000.000 đồng.",
+            "source_refs": []
+          }
+        ],
+        "attempted_steps": [
+          "Đọc tổng quan hợp đồng.",
+          "Tra quyền lợi nội trú trong hợp đồng giả lập."
+        ],
+        "pending_issues": [
+          "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+        ]
+      }
+    },
+    {
+      "name": "ticket_proposal_action",
+      "type": "TicketProposalAction",
+      "valid": true,
+      "value": {
+        "type": "PROPOSE_TICKET",
+        "summary": {
+          "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+          "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+          "customer_statements": [
+            "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+          ],
+          "verified_findings": [
+            {
+              "text": "Hạn mức nội trú DEMO-TITAN A là 240.000.000 đồng/năm hợp đồng.",
+              "source_refs": [
+                "evidence:E1"
+              ]
+            }
+          ],
+          "attempted_steps": [
+            "Đọc tổng quan hợp đồng.",
+            "Tra quyền lợi nội trú trong hợp đồng giả lập."
+          ],
+          "pending_issues": [
+            "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+          ]
+        }
+      }
+    },
+    {
+      "name": "handoff_proposal_action",
+      "type": "Action",
+      "valid": true,
+      "value": {
+        "type": "PROPOSE_HANDOFF",
+        "subject": "Hỏi điều kiện chi trả nội trú",
+        "reason": null
+      }
+    },
+    {
+      "name": "agent_result_with_ticket_proposal",
+      "type": "AgentResult",
+      "valid": true,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "PROPOSE_TICKET",
+            "summary": {
+              "request": "Khách muốn biết hồ sơ nằm viện của Demo Bình có được chi trả không.",
+              "context": "Hợp đồng SYN-POL-2024-0001; quyền lợi nội trú DEMO-TITAN A.",
+              "customer_statements": [
+                "Khách cho biết Demo Bình nằm viện 3 ngày vào tháng 10/2026."
+              ],
+              "verified_findings": [
+                {
+                  "text": "Hạn mức nội trú DEMO-TITAN A là 240.000.000 đồng/năm hợp đồng.",
+                  "source_refs": [
+                    "evidence:E1"
+                  ]
+                }
+              ],
+              "attempted_steps": [
+                "Đọc tổng quan hợp đồng.",
+                "Tra quyền lợi nội trú trong hợp đồng giả lập."
+              ],
+              "pending_issues": [
+                "Chưa có hồ sơ y tế và hóa đơn để đối chiếu điều kiện chi trả."
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "agent_result_send_to_customer_action_rejected",
+      "type": "AgentResult",
+      "valid": false,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "SEND_TO_CUSTOMER",
+            "message": "Chào chị, hồ sơ đã được duyệt."
+          }
+        ]
+      }
+    },
+    {
+      "name": "agent_result_draft_reply_action_rejected",
+      "type": "AgentResult",
+      "valid": false,
+      "value": {
+        "response_type": "ANSWER",
+        "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+        "citations": [
+          {
+            "evidence_id": "E1",
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+            "document_type": "CONTRACT",
+            "location": {
+              "anchor": "syn-benefits"
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "DRAFT_REPLY",
+            "message": "Bản nháp trả lời khách."
+          }
+        ]
+      }
+    },
+    {
+      "name": "conversation_create_customer",
+      "type": "ConversationCreate",
+      "valid": true,
+      "value": {
+        "clientConversationId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca"
+      }
+    },
+    {
+      "name": "conversation_create_staff_copilot",
+      "type": "ConversationCreate",
+      "valid": true,
+      "value": {
+        "clientConversationId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca",
+        "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "linkedContextConversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21"
+      }
+    },
+    {
+      "name": "conversation_create_customer_with_target_rejected",
+      "type": "ConversationCreateCustomer",
+      "valid": false,
+      "value": {
+        "clientConversationId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca",
+        "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4"
+      }
+    },
+    {
+      "name": "conversation_create_customer_with_role_rejected",
+      "type": "ConversationCreateCustomer",
+      "valid": false,
+      "value": {
+        "clientConversationId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca",
+        "role": "STAFF"
+      }
+    },
+    {
+      "name": "conversation_create_with_session_rejected",
+      "type": "ConversationCreate",
+      "valid": false,
+      "value": {
+        "clientConversationId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca",
+        "sessionToken": "synthetic"
+      }
+    },
+    {
+      "name": "conversation_summary_with_queued_run",
+      "type": "ConversationSummary",
+      "valid": true,
+      "value": {
+        "conversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "channelType": "CUSTOMER_SUPPORT",
+        "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "linkedContextConversationId": null,
+        "status": "AI_ACTIVE",
+        "currentRun": {
+          "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+          "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+          "status": "QUEUED"
+        }
+      }
+    },
+    {
+      "name": "conversation_summary_idle",
+      "type": "ConversationSummary",
+      "valid": true,
+      "value": {
+        "conversationId": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "channelType": "STAFF_COPILOT",
+        "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "linkedContextConversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "status": "AI_ACTIVE",
+        "currentRun": null
+      }
+    },
+    {
+      "name": "conversation_summary_customer_with_link_rejected",
+      "type": "ConversationSummary",
+      "valid": false,
+      "value": {
+        "conversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "channelType": "CUSTOMER_SUPPORT",
+        "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "linkedContextConversationId": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "status": "AI_ACTIVE",
+        "currentRun": null
+      }
+    },
+    {
+      "name": "conversation_list_page",
+      "type": "ConversationListPage",
+      "valid": true,
+      "value": {
+        "items": [
+          {
+            "conversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+            "channelType": "CUSTOMER_SUPPORT",
+            "targetCustomerId": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+            "linkedContextConversationId": null,
+            "status": "AI_ACTIVE",
+            "currentRun": {
+              "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+              "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+              "status": "QUEUED"
+            }
+          }
+        ],
+        "nextCursor": null
+      }
+    },
+    {
+      "name": "run_summary_completed",
+      "type": "RunSummary",
+      "valid": true,
+      "value": {
+        "id": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+        "messageId": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54",
+        "status": "COMPLETED",
+        "result": {
+          "response_type": "ANSWER",
+          "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+          "citations": [
+            {
+              "evidence_id": "E1",
+              "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+              "document_version": "synthetic-v1",
+              "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+              "document_type": "CONTRACT",
+              "location": {
+                "anchor": "syn-benefits"
+              }
+            }
+          ],
+          "actions": []
+        }
+      }
+    },
+    {
+      "name": "run_summary_running_with_result_rejected",
+      "type": "RunSummary",
+      "valid": false,
+      "value": {
+        "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "status": "RUNNING",
+        "result": {
+          "response_type": "ANSWER",
+          "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+          "citations": [
+            {
+              "evidence_id": "E1",
+              "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+              "document_version": "synthetic-v1",
+              "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+              "document_type": "CONTRACT",
+              "location": {
+                "anchor": "syn-benefits"
+              }
+            }
+          ],
+          "actions": []
+        }
+      }
+    },
+    {
+      "name": "run_summary_completed_without_result_rejected",
+      "type": "RunSummary",
+      "valid": false,
+      "value": {
+        "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "status": "COMPLETED"
+      }
+    },
+    {
+      "name": "conversation_history_page",
+      "type": "ConversationHistoryPage",
+      "valid": true,
+      "value": {
+        "items": [
+          {
+            "kind": "USER_MESSAGE",
+            "position": "10",
+            "messageId": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54",
+            "senderType": "CUSTOMER",
+            "content": "Hạn mức nội trú của Demo Bình là bao nhiêu?",
+            "createdAt": "2026-11-04T09:15:00.000Z",
+            "run": {
+              "id": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+              "status": "COMPLETED"
+            }
+          },
+          {
+            "kind": "AGENT_RESULT",
+            "position": "11",
+            "runId": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+            "messageId": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54",
+            "result": {
+              "response_type": "ANSWER",
+              "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+              "citations": [
+                {
+                  "evidence_id": "E1",
+                  "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                  "document_version": "synthetic-v1",
+                  "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                  "document_type": "CONTRACT",
+                  "location": {
+                    "anchor": "syn-benefits"
+                  }
+                }
+              ],
+              "actions": []
+            },
+            "createdAt": "2026-11-04T09:15:00.000Z"
+          },
+          {
+            "kind": "USER_MESSAGE",
+            "position": "12",
+            "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+            "senderType": "CUSTOMER",
+            "content": "Còn Demo Chi thì sao?",
+            "createdAt": "2026-11-04T09:15:00.000Z",
+            "run": {
+              "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+              "status": "QUEUED"
+            }
+          },
+          {
+            "kind": "RUN_OUTCOME",
+            "position": "13",
+            "runId": "aa6f7e0b-2d3c-4b0f-9f24-7e6d5c4b3adb",
+            "messageId": "bb7a8f1c-3e4d-4c1a-8a35-8f7e6d5c4bec",
+            "status": "FAILED",
+            "code": "SOURCE_UNAVAILABLE",
+            "createdAt": "2026-11-04T09:15:00.000Z"
+          }
+        ],
+        "nextCursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+      }
+    },
+    {
+      "name": "conversation_history_bad_cursor_rejected",
+      "type": "ConversationHistoryPage",
+      "valid": false,
+      "value": {
+        "items": [
+          {
+            "kind": "USER_MESSAGE",
+            "position": "10",
+            "messageId": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54",
+            "senderType": "CUSTOMER",
+            "content": "Hạn mức nội trú của Demo Bình là bao nhiêu?",
+            "createdAt": "2026-11-04T09:15:00.000Z",
+            "run": {
+              "id": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+              "status": "COMPLETED"
+            }
+          },
+          {
+            "kind": "AGENT_RESULT",
+            "position": "11",
+            "runId": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+            "messageId": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54",
+            "result": {
+              "response_type": "ANSWER",
+              "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+              "citations": [
+                {
+                  "evidence_id": "E1",
+                  "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                  "document_version": "synthetic-v1",
+                  "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                  "document_type": "CONTRACT",
+                  "location": {
+                    "anchor": "syn-benefits"
+                  }
+                }
+              ],
+              "actions": []
+            },
+            "createdAt": "2026-11-04T09:15:00.000Z"
+          },
+          {
+            "kind": "USER_MESSAGE",
+            "position": "12",
+            "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+            "senderType": "CUSTOMER",
+            "content": "Còn Demo Chi thì sao?",
+            "createdAt": "2026-11-04T09:15:00.000Z",
+            "run": {
+              "id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+              "status": "QUEUED"
+            }
+          },
+          {
+            "kind": "RUN_OUTCOME",
+            "position": "13",
+            "runId": "aa6f7e0b-2d3c-4b0f-9f24-7e6d5c4b3adb",
+            "messageId": "bb7a8f1c-3e4d-4c1a-8a35-8f7e6d5c4bec",
+            "status": "FAILED",
+            "code": "SOURCE_UNAVAILABLE",
+            "createdAt": "2026-11-04T09:15:00.000Z"
+          }
+        ],
+        "nextCursor": "not a cursor!"
+      }
+    },
+    {
+      "name": "message_submit",
+      "type": "MessageSubmit",
+      "valid": true,
+      "value": {
+        "clientMessageId": "9f5e6da9-1c2b-4aef-8e13-6d5c4b3a2fca",
+        "content": "Còn Demo Chi thì sao?"
+      }
+    },
+    {
+      "name": "message_submit_ack",
+      "type": "MessageSubmitAck",
+      "valid": true,
+      "value": {
+        "conversationId": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "messageId": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "runId": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "runStatus": "QUEUED",
+        "replayed": false
+      }
+    },
+    {
+      "name": "history_view",
+      "type": "HistoryView",
+      "valid": true,
+      "value": {
+        "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+        "current_message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43"
+      }
+    },
+    {
+      "name": "linked_history_view",
+      "type": "LinkedHistoryView",
+      "valid": true,
+      "value": {
+        "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+      }
+    },
+    {
+      "name": "run_request_customer",
+      "type": "RunRequest",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "message_text": "Còn Demo Chi thì sao?",
+        "channel_type": "CUSTOMER_SUPPORT",
+        "actor": {
+          "id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+          "role": "CUSTOMER"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+          "current_message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43"
+        },
+        "linked_history_view": null,
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        }
+      }
+    },
+    {
+      "name": "run_request_copilot_with_linked_view",
+      "type": "RunRequest",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65",
+        "message_text": "Tóm tắt diễn biến gần của khách.",
+        "channel_type": "STAFF_COPILOT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+          "through_cursor": null,
+          "current_message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65"
+        },
+        "linked_history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+        },
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        }
+      }
+    },
+    {
+      "name": "run_request_copilot_without_link",
+      "type": "RunRequest",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65",
+        "message_text": "Tóm tắt diễn biến gần của khách.",
+        "channel_type": "STAFF_COPILOT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+          "through_cursor": null,
+          "current_message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65"
+        },
+        "linked_history_view": null,
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        }
+      },
+      "note": "No valid link: Agent states missing context instead of picking another chat."
+    },
+    {
+      "name": "run_request_customer_with_linked_view_rejected",
+      "type": "RunRequest",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "message_text": "Còn Demo Chi thì sao?",
+        "channel_type": "CUSTOMER_SUPPORT",
+        "actor": {
+          "id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+          "role": "CUSTOMER"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+          "current_message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43"
+        },
+        "linked_history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+        },
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        }
+      }
+    },
+    {
+      "name": "run_request_customer_role_staff_rejected",
+      "type": "RunRequest",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "message_text": "Còn Demo Chi thì sao?",
+        "channel_type": "CUSTOMER_SUPPORT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+          "current_message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43"
+        },
+        "linked_history_view": null,
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        }
+      }
+    },
+    {
+      "name": "execution_context_copilot",
+      "type": "ExecutionContext",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65",
+        "channel_type": "STAFF_COPILOT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+          "through_cursor": null,
+          "current_message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65"
+        },
+        "linked_history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+        },
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        },
+        "thread_id": "conv:1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32"
+      }
+    },
+    {
+      "name": "execution_context_with_hmac_rejected",
+      "type": "ExecutionContext",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65",
+        "channel_type": "STAFF_COPILOT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+          "through_cursor": null,
+          "current_message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65"
+        },
+        "linked_history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+        },
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        },
+        "thread_id": "conv:1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "hmac_key_id": "local-key"
+      }
+    },
+    {
+      "name": "execution_context_with_message_text_rejected",
+      "type": "ExecutionContext",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65",
+        "channel_type": "STAFF_COPILOT",
+        "actor": {
+          "id": "9c4cbaed-e152-5cbb-b8ab-925af8c804f1",
+          "role": "STAFF"
+        },
+        "target_customer_id": "472f999c-4dd4-5510-9cf2-33838eddaad4",
+        "history_view": {
+          "conversation_id": "1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+          "through_cursor": null,
+          "current_message_id": "4a0f1e54-6d7c-4b9a-9fce-1e0d9c8b7a65"
+        },
+        "linked_history_view": {
+          "conversation_id": "0c6b7a10-2f3e-4d5c-9b8a-7a6f5e4d3c21",
+          "through_cursor": "eyJ2IjoxLCJzZXEiOiIxMiJ9"
+        },
+        "limits": {
+          "deadline_at": "2026-11-04T09:16:30.000Z",
+          "retrieval_calls_max": 3,
+          "core_read_requests_max": 4,
+          "core_request_timeout_ms": 3000,
+          "core_retry_per_call": 1,
+          "model_calls_max": null,
+          "graph_steps_max": null,
+          "turn_token_budget": null,
+          "finish_reserve_tokens": null
+        },
+        "thread_id": "conv:1d7c8b21-3a4f-4e6d-8c9b-8b7a6f5e4d32",
+        "message_text": "x"
+      },
+      "note": "Question text lives in MessageWork, not trusted context."
+    },
+    {
+      "name": "agent_event_progress",
+      "type": "AgentEvent",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "sequence": 1,
+        "kind": "PROGRESS",
+        "payload": {
+          "stage": "LOOKING_UP"
+        }
+      }
+    },
+    {
+      "name": "agent_event_result",
+      "type": "AgentEvent",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "sequence": 3,
+        "kind": "RESULT",
+        "payload": {
+          "result": {
+            "response_type": "ANSWER",
+            "message": "Theo hợp đồng giả lập, hạn mức nội trú của Demo Bình là 240.000.000 đồng mỗi năm hợp đồng [E1]. Đây là thông tin tham khảo, không phải kết luận chi trả.",
+            "citations": [
+              {
+                "evidence_id": "E1",
+                "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                "document_version": "synthetic-v1",
+                "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                "document_type": "CONTRACT",
+                "location": {
+                  "anchor": "syn-benefits"
+                }
+              }
+            ],
+            "actions": []
+          }
+        }
+      }
+    },
+    {
+      "name": "agent_event_error",
+      "type": "AgentEvent",
+      "valid": true,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "sequence": 2,
+        "kind": "ERROR",
+        "payload": {
+          "failure": {
+            "code": "DEADLINE_EXCEEDED",
+            "retryable": false
+          }
+        }
+      }
+    },
+    {
+      "name": "agent_event_result_without_result_rejected",
+      "type": "AgentEvent",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "sequence": 3,
+        "kind": "RESULT",
+        "payload": {
+          "stage": "COMPOSING"
+        }
+      }
+    },
+    {
+      "name": "agent_event_sequence_zero_rejected",
+      "type": "AgentEvent",
+      "valid": false,
+      "value": {
+        "schema_version": "agent-v1",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "sequence": 0,
+        "kind": "PROGRESS",
+        "payload": {
+          "stage": "PREPARING"
+        }
+      }
+    },
+    {
+      "name": "durable_ack_accepted",
+      "type": "DurableAck",
+      "valid": true,
+      "value": {
+        "outcome": "ACCEPTED",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": null,
+        "reason": null
+      }
+    },
+    {
+      "name": "durable_ack_ignored_stale",
+      "type": "DurableAck",
+      "valid": true,
+      "value": {
+        "outcome": "IGNORED_STALE",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "reason": "ATTEMPT_NOT_CURRENT"
+      }
+    },
+    {
+      "name": "durable_ack_conflict",
+      "type": "DurableAck",
+      "valid": true,
+      "value": {
+        "outcome": "CONFLICT",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "reason": "PAYLOAD_MISMATCH"
+      }
+    },
+    {
+      "name": "durable_ack_conflict_without_reason_rejected",
+      "type": "DurableAck",
+      "valid": false,
+      "value": {
+        "outcome": "CONFLICT",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": "8e4d5c98-0b1a-4fde-9d02-5c4b3a2f1eb9",
+        "reason": null
+      }
+    },
+    {
+      "name": "durable_ack_unknown_outcome_rejected",
+      "type": "DurableAck",
+      "valid": false,
+      "value": {
+        "outcome": "OK",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "attempt_id": "7d3c4b87-9a0f-4ecd-8cf1-4b3a2f1e0da8",
+        "event_id": null,
+        "reason": null
+      }
+    },
+    {
+      "name": "document_scope_public",
+      "type": "DocumentScope",
+      "valid": true,
+      "value": {
+        "decision": "GRANTED",
+        "scope_version": "policy-scope:1",
+        "expires_at": "2026-11-04T09:16:30.000Z",
+        "kind": "PUBLIC",
+        "policy_number": null,
+        "documents": [
+          {
+            "document_id": "6f1d2c3a-0b4e-4a6f-8c7d-1e2f3a4b5c6d",
+            "document_version": "6865-2019",
+            "policy_id": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "document_scope_private",
+      "type": "DocumentScope",
+      "valid": true,
+      "value": {
+        "decision": "GRANTED",
+        "scope_version": "policy-scope:1",
+        "expires_at": "2026-11-04T09:16:30.000Z",
+        "kind": "PRIVATE",
+        "policy_number": "SYN-POL-2024-0001",
+        "documents": [
+          {
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "policy_id": "484f961d-a7d7-5a44-82ce-669ca213a7f0"
+          }
+        ]
+      },
+      "note": "Whole contract dossier, including appendices when present."
+    },
+    {
+      "name": "document_scope_valid_empty",
+      "type": "DocumentScope",
+      "valid": true,
+      "value": {
+        "decision": "GRANTED",
+        "scope_version": "policy-scope:1",
+        "expires_at": "2026-11-04T09:16:30.000Z",
+        "kind": "PRIVATE",
+        "policy_number": "SYN-POL-2024-0001",
+        "documents": []
+      },
+      "note": "Maps to NO_SOURCE."
+    },
+    {
+      "name": "document_scope_denied",
+      "type": "DocumentScope",
+      "valid": true,
+      "value": {
+        "decision": "DENIED",
+        "kind": "PRIVATE",
+        "policy_number": "SYN-POL-2024-0001",
+        "reason": "NOT_AUTHORIZED"
+      }
+    },
+    {
+      "name": "document_scope_private_without_policy_rejected",
+      "type": "DocumentScope",
+      "valid": false,
+      "value": {
+        "decision": "GRANTED",
+        "scope_version": "policy-scope:1",
+        "expires_at": "2026-11-04T09:16:30.000Z",
+        "kind": "PRIVATE",
+        "policy_number": "SYN-POL-2024-0001",
+        "documents": [
+          {
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "policy_id": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "document_scope_denied_with_documents_rejected",
+      "type": "DocumentScope",
+      "valid": false,
+      "value": {
+        "decision": "DENIED",
+        "kind": "PRIVATE",
+        "policy_number": "SYN-POL-2024-0001",
+        "reason": "NOT_AUTHORIZED",
+        "documents": [
+          {
+            "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+            "document_version": "synthetic-v1",
+            "policy_id": "484f961d-a7d7-5a44-82ce-669ca213a7f0"
+          }
+        ]
+      }
+    },
+    {
+      "name": "conversation_context_pending_clarification",
+      "type": "ConversationContext",
+      "valid": true,
+      "value": {
+        "state_schema_version": "agent-state-v1",
+        "graph_version": "graph-0.1",
+        "topic": "Quyền lợi nội trú",
+        "active_policy_number": null,
+        "pending_clarification": {
+          "status": "ASKED",
+          "question": "Bạn muốn hỏi hợp đồng nào?",
+          "options": [
+            {
+              "ordinal": 1,
+              "label": "SYN-POL-2024-0001 — Hành Trình Hạnh Phúc",
+              "policy_number": "SYN-POL-2024-0001"
+            },
+            {
+              "ordinal": 2,
+              "label": "Hợp đồng thứ hai (fixture)",
+              "policy_number": "SYN-POL-2025-0002"
+            }
+          ],
+          "asked_in_run_id": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+          "asked_in_message_id": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54"
+        },
+        "history_summary": null,
+        "history_synced_through": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+        "linked_sync": null
+      }
+    },
+    {
+      "name": "conversation_context_proposed_clarification",
+      "type": "ConversationContext",
+      "valid": true,
+      "value": {
+        "state_schema_version": "agent-state-v1",
+        "graph_version": "graph-0.1",
+        "topic": "Quyền lợi nội trú",
+        "active_policy_number": null,
+        "pending_clarification": {
+          "status": "PROPOSED",
+          "question": "Bạn muốn hỏi hợp đồng nào?",
+          "options": [
+            {
+              "ordinal": 1,
+              "label": "SYN-POL-2024-0001 — Hành Trình Hạnh Phúc",
+              "policy_number": "SYN-POL-2024-0001"
+            },
+            {
+              "ordinal": 2,
+              "label": "Hợp đồng thứ hai (fixture)",
+              "policy_number": "SYN-POL-2025-0002"
+            }
+          ],
+          "asked_in_run_id": "6c2b3a76-8f9e-4dbc-9be0-3a2f1e0d9c87",
+          "asked_in_message_id": "3f9e0d43-5c6b-4a8f-8ebd-0d9c8b7a6f54"
+        },
+        "history_summary": null,
+        "history_synced_through": "eyJ2IjoxLCJzZXEiOiIxMiJ9",
+        "linked_sync": null
+      },
+      "note": "Not yet usable to interpret the next message."
+    },
+    {
+      "name": "message_work_with_unverified_condition",
+      "type": "MessageWork",
+      "valid": true,
+      "value": {
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "original_question": "Còn Demo Chi thì sao?",
+        "source_outputs": [
+          {
+            "operation_id": "op-1",
+            "tool": "retrieve_private",
+            "arguments": {
+              "query": "hạn mức nội trú Demo Chi",
+              "policy_number": "SYN-POL-2024-0001"
+            },
+            "result": {
+              "status": "OK",
+              "evidence": [
+                {
+                  "evidence_id": "E1",
+                  "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                  "document_version": "synthetic-v1",
+                  "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                  "document_type": "CONTRACT",
+                  "location": {
+                    "anchor": "syn-benefits"
+                  },
+                  "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+                }
+              ],
+              "missing": [],
+              "conflicts": [],
+              "degraded": false,
+              "error": null
+            },
+            "replaced": false
+          }
+        ],
+        "agent_assessment": {
+          "sufficiency": "PARTIAL",
+          "notes": "Có hạn mức; chưa kiểm điều kiện chờ cho trường hợp cụ thể."
+        },
+        "unverified_conditions": [
+          {
+            "text": "Thời gian chờ bệnh thông thường 45 ngày",
+            "basis_refs": [
+              "evidence:E1"
+            ],
+            "reason": "FINISH_RESERVE"
+          }
+        ],
+        "counters": {
+          "retrieval_calls": 1,
+          "core_read_requests": 2,
+          "model_calls": 3,
+          "graph_steps": 6,
+          "repair_attempts": 0,
+          "input_tokens": 5200,
+          "output_tokens": 640,
+          "thinking_tokens": 0
+        },
+        "progress": "COMPOSING",
+        "errors": []
+      }
+    },
+    {
+      "name": "message_work_counters_negative_rejected",
+      "type": "MessageWork",
+      "valid": false,
+      "value": {
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "original_question": "Còn Demo Chi thì sao?",
+        "source_outputs": [
+          {
+            "operation_id": "op-1",
+            "tool": "retrieve_private",
+            "arguments": {
+              "query": "hạn mức nội trú Demo Chi",
+              "policy_number": "SYN-POL-2024-0001"
+            },
+            "result": {
+              "status": "OK",
+              "evidence": [
+                {
+                  "evidence_id": "E1",
+                  "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                  "document_version": "synthetic-v1",
+                  "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                  "document_type": "CONTRACT",
+                  "location": {
+                    "anchor": "syn-benefits"
+                  },
+                  "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+                }
+              ],
+              "missing": [],
+              "conflicts": [],
+              "degraded": false,
+              "error": null
+            },
+            "replaced": false
+          }
+        ],
+        "agent_assessment": {
+          "sufficiency": "PARTIAL",
+          "notes": "Có hạn mức; chưa kiểm điều kiện chờ cho trường hợp cụ thể."
+        },
+        "unverified_conditions": [
+          {
+            "text": "Thời gian chờ bệnh thông thường 45 ngày",
+            "basis_refs": [
+              "evidence:E1"
+            ],
+            "reason": "FINISH_RESERVE"
+          }
+        ],
+        "counters": {
+          "retrieval_calls": -1,
+          "core_read_requests": 2,
+          "model_calls": 3,
+          "graph_steps": 6,
+          "repair_attempts": 0,
+          "input_tokens": 5200,
+          "output_tokens": 640,
+          "thinking_tokens": 0
+        },
+        "progress": "COMPOSING",
+        "errors": []
+      }
+    },
+    {
+      "name": "message_work_condition_without_basis_rejected",
+      "type": "MessageWork",
+      "valid": false,
+      "value": {
+        "message_id": "2e8d9c32-4b5a-4f7e-9dac-9c8b7a6f5e43",
+        "run_id": "5b1a2f65-7e8d-4cab-8adf-2f1e0d9c8b76",
+        "original_question": "Còn Demo Chi thì sao?",
+        "source_outputs": [
+          {
+            "operation_id": "op-1",
+            "tool": "retrieve_private",
+            "arguments": {
+              "query": "hạn mức nội trú Demo Chi",
+              "policy_number": "SYN-POL-2024-0001"
+            },
+            "result": {
+              "status": "OK",
+              "evidence": [
+                {
+                  "evidence_id": "E1",
+                  "document_id": "bd29723f-d5ce-5fda-977a-51eef8bebc74",
+                  "document_version": "synthetic-v1",
+                  "title": "Hợp đồng SYN-POL-2024-0001 — dữ liệu giả lập",
+                  "document_type": "CONTRACT",
+                  "location": {
+                    "anchor": "syn-benefits"
+                  },
+                  "content": "Quyền lợi nội trú DEMO-TITAN A — Người được bảo hiểm Demo Bình — Hạn mức 240.000.000 đồng/năm hợp đồng."
+                }
+              ],
+              "missing": [],
+              "conflicts": [],
+              "degraded": false,
+              "error": null
+            },
+            "replaced": false
+          }
+        ],
+        "agent_assessment": {
+          "sufficiency": "PARTIAL",
+          "notes": "Có hạn mức; chưa kiểm điều kiện chờ cho trường hợp cụ thể."
+        },
+        "unverified_conditions": [
+          {
+            "text": "Điều kiện X",
+            "basis_refs": [],
+            "reason": "NOT_SEARCHED"
+          }
+        ],
+        "counters": {
+          "retrieval_calls": 1,
+          "core_read_requests": 2,
+          "model_calls": 3,
+          "graph_steps": 6,
+          "repair_attempts": 0,
+          "input_tokens": 5200,
+          "output_tokens": 640,
+          "thinking_tokens": 0
+        },
+        "progress": "COMPOSING",
+        "errors": []
+      },
+      "note": "No invented conditions."
+    }
+  ]
+}

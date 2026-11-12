@@ -8,7 +8,7 @@ UI Staff không hiển thị các hướng dẫn thao tác thừa như “Press 
 
 Requirement FR-001/002/003/006/007/008/010/011/012/013, NFR-001–008; [SRS](../../../specifications/Requirement.md), [Data Model](../../../specifications/Data_Model.md), [kiến trúc](../../../architecture.md), [quyết định local](../../../source-review.md). Prisma trong apps/core/prisma/schema.prisma và controller/service hiện hành dùng để xác minh runtime; UI mẫu không là nguồn quyền/nghiệp vụ.
 
-**E** là code đã có, **P** là đề xuất/chưa implement. Các AU/CU/PL/NO bổ sung mô tả cho code đã làm, không phải code mới hoặc test vừa chạy. I01–I06/P01–P03 đã có; Ticket/Copilot và phần nghiệm thu còn mở được ghi đúng phase. Không đánh dấu trọn FR-001 cho đăng ký chưa có, FR-007/012 cho Agent chưa chạy, FR-010 cho route Ticket còn khung.
+**E** là code đã có, **P** là đề xuất/chưa implement. Các AU/CU/PL/NO bổ sung mô tả cho code đã làm, không phải code mới hoặc test vừa chạy. I01–I06/P01–P03 và TK01–TK05 đã có; producer Ticket I07/Copilot và phần nghiệm thu còn mở ghi đúng phase. FR-007/012 chưa hoàn tất từ Agent chưa chạy; không suy toàn MVP đã đạt từ route hoặc fixture.
 
 ## 2. Model và quyền
 
@@ -53,7 +53,7 @@ Nguồn state hiện tại: [chỉ mục phase](README.md) và [tiến độ](..
 1. Giữ và nghiệm thu Auth/Customers/Policy/PDF/Products/Inbox/handoff notification đang E.
 2. TK01–TK05: Staff đọc/tiếp nhận Ticket độc lập nguồn tạo; mỗi phase có gate. Test fixture không tạo API fake Agent hoặc thay bootstrap.
 3. Test Core/browser/E2E thuộc từng phase code của chức năng; không có nhóm Release hoặc chuẩn bị commit trong plans.
-4. Hoãn CP01–CP04, Agent draft/confirmation I07 và Customer UI mới. Việc này là tách mốc, không xóa requirement/plan tương lai.
+4. CP01–CP04 và Agent draft/confirmation I07 là đợt Agent theo design/plan. Customer Home/Products/Policies/PDF đã có; chỉ phần còn lại theo phase Customer, không hoãn toàn bộ UI.
 
 Resolve/close/reopen Ticket đã được người dùng chọn05/11 và triển khai trong TK03/TK04. Không thêm Claim/payment/upload/manual Ticket/read receipts/global search/template/attachment chỉ vì enum/icon có sẵn. Những mục chưa được chọn không tự thành Must hoặc phase bắt buộc. Đổi linkedPolicy/context nếu được chọn nằm trong nhóm Copilot, không chức năng app độc lập; Customer notification center có N01/N02 riêng.
 

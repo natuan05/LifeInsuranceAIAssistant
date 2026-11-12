@@ -1,6 +1,6 @@
 # Thiết kế Agent
 
-**Tài liệu chuẩn cho thiết kế Agent**, thay ba bản Agent trên Google Docs từ **27/10/2026**. Tổng hợp **31/10/2026**, bổ sung yêu cầu đã thống nhất **01/11/2026**: quyết định đã chốt; đặc tả/lựa chọn còn mở ở mục 9. Chưa triển khai Agent/retrieval/checkpoint. Link Google Docs ghi xuất xứ, không cần mở để hiểu thiết kế hiện hành.
+**Tài liệu chuẩn cho thiết kế Agent**, thay ba bản Agent trên Google Docs từ **27/10/2026**. Tổng hợp **31/10/2026**, bổ sung yêu cầu đã thống nhất **01/11/2026**: quyết định đã chốt; đặc tả/lựa chọn còn mở ở mục 9. Cập nhật 07/11: Task 5 có graph và unit tests với fake model/Core/retrieval/store; chưa nghiệm thu Agent tích hợp thật, retrieval/provider hoặc checkpoint bền vững. Link Google Docs ghi xuất xứ, không cần mở để hiểu thiết kế hiện hành.
 
 <a id="design-overview"></a>
 ## Bản thiết kế tổng thể
@@ -13,7 +13,7 @@ Thiết kế hiện hành ở đây; mục 1–8 giữ chi tiết/căn cứ. [M�
 
 | Phần | Thiết kế hiện hành |
 | --- | --- |
-| Phạm vi | Customer/Staff đã đăng nhập; [7 sản phẩm MVP](#mvp-products); Private chỉ dùng dữ liệu sinh hoàn toàn giả lập. Chat chung cho Staff chưa gắn Customer tạm hoãn |
+| Phạm vi | Customer/Staff đã đăng nhập bằng tài khoản được cấp sẵn, không tự đăng ký công khai trong MVP (xác nhận 07/11/2026); [7 sản phẩm MVP](#mvp-products); Private theo quy tắc dữ liệu và ngoại lệ đã duyệt. Chat chung cho Staff chưa gắn Customer tạm hoãn |
 | Core | Sở hữu danh tính, quyền, nghiệp vụ, lịch sử, vòng đời lượt và tiếp quản. Agent chỉ gọi Business API, không truy cập business DB |
 | Agent | Một Agent Python + custom LangGraph, LLM tự chọn bước trong giới hạn. Bốn node [Prepare → Agent → Execute tools → Agent hoặc Finalize](#initial-agent-graph); mỗi vòng gọi một tool logic |
 | Tool đọc nghiệp vụ | [`list_contracts`, `get_contract_overview`](#contract-read-tools). Metadata tối thiểu là sản phẩm chính, mã bổ trợ và mức đầy đủ; chi tiết dùng tài liệu |
@@ -680,7 +680,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 
 Đây là tóm tắt theo yêu cầu Staff, khác [bản tóm tắt Ticket được Customer xác nhận](#ticket-handoff-summary) và tóm tắt nội bộ để giảm context. Staff chat chung không gắn Customer vẫn tạm hoãn.
 
-**Phạm vi Copilot đã chốt thêm ngày 01/11/2026:** MVP không có chức năng soạn nháp câu trả lời để Staff gửi cho Customer. Copilot hỗ trợ tra cứu, giải thích và tóm tắt trong phạm vi đã thống nhất; không tự bổ sung chức năng soạn nháp từ quyết định về context hoặc tóm tắt.
+**Phạm vi Copilot đã chốt ngày 01/11/2026, xác nhận lại 06/11/2026:** MVP không có chức năng soạn nháp câu trả lời để Staff gửi cho Customer hoặc thao tác Use draft. Copilot hỗ trợ tra cứu, giải thích và tóm tắt trong phạm vi đã thống nhất; không tự bổ sung chức năng soạn nháp từ quyết định về context hoặc tóm tắt.
 
 **Nguồn đã kiểm tra ngày 01/11/2026:** [LangChain — Context engineering in agents](https://docs.langchain.com/oss/python/langchain/context-engineering) phân biệt state được lưu và context đưa vào từng model call. [When Agent Context Goes Stale, cập nhật 06/10/2026](https://arxiv.org/abs/2610.05281) nghiên cứu rủi ro quan sát cũ khi nguồn thay đổi trên workspace; chỉ tham khảo cho việc quản lý độ mới context liên kết, chưa chọn framework hoặc coi kết quả nghiên cứu đã kiểm chứng trên hội thoại bảo hiểm.
 

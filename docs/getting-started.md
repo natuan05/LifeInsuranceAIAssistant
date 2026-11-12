@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; nguồn tạo/xác nhận Ticket từ Agent, Copilot/Agent và Customer UI mới còn kế hoạch. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
+Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; Customer Home/Products/Policies/PDF/chat shell đã có; nguồn tạo/xác nhận Ticket I07 và Copilot/Agent còn phần triển khai/nghiệm thu riêng. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -291,7 +291,7 @@ Try it out login cần `X-Auth-Request: 1`, email/password mục 7 và đúng en
 
 Đây là bộ danh tính cố định cho mọi thành viên từ cùng phiên bản repo; tên, ngày sinh, địa chỉ và dữ liệu hợp đồng đều được viết mới, không phải người/hồ sơ thật. Email dùng miền `.invalid`, phone dùng mã quốc gia giả `+999` để không liên hệ nhầm người thật. Hồ sơ mới có ngày sinh/địa chỉ cho Customer và phòng ban cho Staff. UUID runtime tự cấp trong mỗi DB; không cần giống nhau giữa các máy.
 
-Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; không public tự đăng ký. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
+Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; MVP dùng tài khoản được cấp sẵn và không tự đăng ký công khai theo quyết định 07/11/2026. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
 
 ### 7.2. Khi nào seed chạy?
 

@@ -1,6 +1,6 @@
 # Kiến trúc Ứng dụng & Trách nhiệm Thành phần (Application Architecture)
 
-> **Đối chiếu app04/11/2026:** Sơ đồ dưới là kiến trúc logic đích, không bản triển khai production. Local có Web/Core/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications, Staff PDF và I01–I06 consent/Accept/send/catch-up/handoff notifications. Chưa External IdP, Ticket nghiệp vụ hoặc Customer owner policy/PDF/UI mới. Agent do nhánh riêng phụ trách; các đề xuất Agent/cloud trong nguồn không tự thành implementation. Xem [tiến độ](../ui/implementation-status.md), [architecture](../architecture.md), [source review](../source-review.md).
+> **Đối chiếu 06/11/2026 theo application main 05/11:** Local có Web/Core/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications/Tickets, Staff và Customer policy/PDF, Customer Home/Products, chat I01–I06 và Staff Ticket TK01–TK05. Tạo/xác nhận Ticket từ Agent I07 và Copilot chưa có trong baseline này; không nghiệm thu Agent từ API/UI App. Sơ đồ là kiến trúc logic đích; External IdP/cloud còn là định hướng. Xem [tiến độ](../ui/implementation-status.md), [architecture](../architecture.md), [source review](../source-review.md).
 
 > **Tài liệu tổng hợp từ:** `Application Architecture.pdf` và `Component Responsible.pdf`  
 > **Hệ thống:** Life Insurance Customer Service Application
@@ -58,7 +58,7 @@ flowchart TB
     O -->|"generation and query embedding"| M
 
     %% Internal Core Events
-    T -->|"accept linked conversation"| H
+    T -.->|"linked conversation; recheck transcript grant"| H
     H -.->|"customer conversation started"| N
     T -.->|"ticket committed"| N
     N -->|"authorized staff updates"| S
@@ -83,7 +83,7 @@ flowchart TB
 | Thành phần (Component) | Trách nhiệm (Responsibilities) |
 | :--- | :--- |
 | **Customer Portal** | Cung cấp giao diện cho Customer để gửi câu hỏi, chat với AI Agent và sử dụng các chức năng được phép theo quyền sở hữu dữ liệu. |
-| **Staff Workspace and Copilot Sidebar** | Cung cấp giao diện làm việc cho Staff, bao gồm tra cứu thông tin, quản lý công việc, xem thông báo và sử dụng AI Copilot trong ngữ cảnh hỗ trợ khách hàng. |
+| **Staff Workspace and Copilot Sidebar** | Staff tra cứu, quản lý Ticket, xem thông báo và dùng Copilot nội bộ để tra cứu/giải thích/tóm tắt trong cuộc đủ quyền; MVP không soạn nháp câu trả lời Customer hoặc có Use draft. |
 
 ---
 
@@ -93,8 +93,8 @@ flowchart TB
 | :--- | :--- |
 | **Access Policy and Request API** | Tiếp nhận request từ giao diện và AI Tool Adapter; xác thực ngữ cảnh người dùng, kiểm tra quyền truy cập, điều phối yêu cầu nghiệp vụ và cung cấp API được cho phép. |
 | **Customer, Profile and Policy** | Quản lý và cung cấp dữ liệu khách hàng, hồ sơ cá nhân, hợp đồng bảo hiểm và thông tin nghiệp vụ liên quan theo quyền truy cập. |
-| **Conversation and Human Handoff** | Quản lý hội thoại, duy trì ngữ cảnh chat, kết nối hội thoại với AI Agent và hỗ trợ chuyển giao từ AI sang Staff khi cần. |
-| **Ticket Management** | Quản lý Ticket hỗ trợ, bao gồm tạo, lưu trữ, tra cứu và liên kết Ticket với hội thoại tương ứng; chỉ ghi nhận Ticket sau khi đáp ứng các điều kiện nghiệp vụ. |
+| **Conversation and Human Handoff** | Quản lý lịch sử/lượt và quyền chat. Cuộc AI chỉ chuyển sau Customer consent và Staff Accept; trước Accept chỉ metadata. Direct là luồng riêng; assignment/Ticket không tự cấp quyền transcript. |
+| **Ticket Management** | Quản lý Ticket, trạng thái và liên kết hội thoại. Agent chỉ đề xuất; Core ghi Ticket + outbox sau xác nhận hợp lệ và kiểm quyền/chống trùng. Nhận/đổi trạng thái Ticket không thay quyền đọc chat. |
 | **Document Catalog and Access** | Quản lý danh mục và quyền truy cập tài liệu; xác định phạm vi tài liệu được phép sử dụng hoặc cung cấp cho từng người dùng. |
 | **In-app Notification and Delivery** | Phát và phân phối thông báo khi có hội thoại mới hoặc Ticket đã được lưu thành công; chỉ hiển thị thông tin cho Staff có quyền nhận thông báo. |
 
@@ -122,12 +122,14 @@ flowchart TB
 ## 3. Tóm tắt Luồng Tương tác Chính (Interaction Flow)
 
 1. **Ủy quyền & Tiếp nhận yêu cầu:**  
-   Customer và Staff tương tác qua Portal / Workspace → gửi request tới `Access Policy and Request API` → kiểm tra danh tính với `External Identity Provider`.
+   Customer và Staff gửi request qua Portal / Workspace → `Access Policy and Request API` kiểm phiên và quyền. Local dùng auth Core hiện có; External Identity Provider là định hướng, chưa tích hợp.
 2. **Xử lý hội thoại & AI Copilot:**  
    Module `Conversation and Human Handoff` chuyển giao ngữ cảnh hội thoại sang `Agent Runtime and Answer Safety`.
 3. **Truy xuất tri thức (RAG):**  
    Agent gửi truy vấn tới `Scoped Public and Private Retrieval`, thành phần này xác thực phạm vi tài liệu với `Document Catalog and Access` trước khi trả chunks về cho Agent.
 4. **Gọi Business Tools:**  
    Khi Agent cần gọi nghiệp vụ, yêu cầu đi qua `Allowlisted Business Tool Adapter` → quay ngược lại `Access Policy and Request API` của Core để kiểm tra quyền và xác thực tham số trước khi thực thi.
-5. **Chuyển giao và Tạo Ticket:**  
-   Khi có Ticket được commit hoặc có hội thoại mới cần can thiệp, `In-app Notification and Delivery` sẽ phát tín hiệu realtime đến `Staff Workspace`.
+5. **Chuyển giao:**
+   Customer xác nhận chia sẻ cuộc AI → Core lưu handoff request và phát thông báo → Staff Accept → mở transcript Customer-facing và chat tiếp. Handoff không tạo Ticket.
+6. **Tạo Ticket:**
+   Agent đề xuất nội dung → Customer xác nhận → Core kiểm quyền/idempotency và commit Ticket + outbox → báo mã và giao thông báo Staff bất đồng bộ. Ticket không tự cấp quyền chat.

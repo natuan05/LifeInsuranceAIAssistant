@@ -42,7 +42,7 @@ Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền đư
 
 A24 GET `/staff/conversations/:id/copilot`, A25 POST `.../copilot/messages`, A26 POST `.../copilot/summary` vẫn P. Trước code cần chốt request UUID/contextVersion/lastSequence, ACK200/202, task lookup/cancel/timeout/status, safe errors và transport. Không coi task endpoint/checkpoint protocol là đã có chỉ vì đặt tên.
 
-Core cấp context/catalog exact version, Agent gọi Core Business APIs; session/CSRF cho browser, service auth cho Agent. Recheck source transcript grant trước enqueue/tool/return; pending/AI riêng denied. Chính sách summary/draft/citation payload allowlist + retention phải được review. Chưa chọn streaming/polling hay SLA ở phase này.
+Core cấp context/catalog exact version, Agent gọi Core Business APIs; session/CSRF cho browser, service auth cho Agent. Recheck source transcript grant trước enqueue/tool/return; pending/AI riêng denied. Chính sách summary/citation payload allowlist + retention phải được review. Copilot không soạn nháp câu trả lời Customer. Chưa chọn streaming/polling hay SLA ở phase này.
 
 ## 4. Luồng thực hiện
 
@@ -127,18 +127,18 @@ sequenceDiagram
     U->>W: Gửi câu hỏi theo channel
     W->>C: A25 Copilot task request, proposal CP01
     C->>D: Session, source grant và durable intent
-    D-->>C: Turn hoặc task identity theo contract đã chốt
+    D-->>C: Run/attempt theo contract đã chốt
     C->>A: Trusted service envelope và context version
     A->>C: Business API hoặc retrieval scope
     C->>D: Recheck actor, owner và exact source version
     D-->>C: Dữ liệu đúng quyền
     C-->>A: Context allowlist
-    A->>C: Result gắn turn, attempt và watermark
+    A->>C: Result gắn run, attempt và watermark
     C->>D: Recheck fence và quyền trước lưu hoặc trả result
     alt Scope hoặc control version đã đổi
         C-->>W: Result không khả dụng, không Private muộn
     else Hợp lệ
-        C-->>W: Draft hoặc answer đúng channel
-        W-->>U: Review hoặc message đã commit
+        C-->>W: Kết quả tra cứu/giải thích/tóm tắt nội bộ
+        W-->>U: Đọc kết quả; không sửa composer hoặc gửi Customer
     end
 ```

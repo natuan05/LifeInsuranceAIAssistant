@@ -67,4 +67,6 @@ Một policy có một tài liệu chính trong bộ hiện tại và có thể 
 
 [Portfolio dev](../../data/synthetic/manulife-demo-v1/policies.json) gồm bốn hồ sơ sinh hoàn toàn giả lập. Core ánh xạ owner/entity/binding theo tài khoản dev; mỗi hồ sơ có người được bảo hiểm, sản phẩm, lựa chọn điều khoản, thời hạn/phí và người thụ hưởng riêng. Không nhân bản cùng owner/sản phẩm/người được bảo hiểm để đủ số trang. Bộ này khai báo không tham gia bổ trợ (`schemaVersion=1`, `riders=[]`, `ridersComplete=true`); không áp cờ đầy đủ cho dữ liệu legacy. Bản `contract.json` cũ có DEMO-TITAN và bản Private đã khử định danh không được dùng cho bootstrap runtime.
 
+Ngoại lệ 03/11/2026 cho phép lưu Git [bản Private đầy đủ đã khử định danh có dữ liệu demo](../../data/private/manulife-demo-full-v1/README.md). Nguồn vẫn `synthetic=false`, chưa human/RAG approval; không tự seed/chunk/embed. PDF/bản thô/ảnh/định danh thật không thuộc ngoại lệ; ô chưa điền vẫn là thiếu dữ liệu. Đáp án fixture synthetic không áp cho bản đầy đủ.
+
 API đọc hợp đồng và PDF cho Staff/Customer đã có; seed dùng đúng nguồn điều khoản Public được fixture chỉ định bằng checksum. Hai Business Tools đã chốt là [`list_contracts` và `get_contract_overview`](Agent_Design.md#contract-read-tools); contract và triển khai Agent được theo dõi riêng, không suy từ việc đã seed dữ liệu.
