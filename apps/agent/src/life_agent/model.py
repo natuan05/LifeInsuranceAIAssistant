@@ -52,6 +52,9 @@ class EmbeddingVector(TypedDict):
     model_version: str
     dimensions: int
     config_id: str
+    provider: str
+    input_format: str
+    normalize: bool
 
 
 class EmbeddingAdapter(Protocol):
@@ -108,7 +111,8 @@ class EmbeddingConfig:
 
     def identity(self) -> dict[str, Any]:
         return {"model_id": self.model_id, "model_version": self.model_version, "dimensions": self.dimensions,
-                "config_id": self.config_id}
+                "config_id": self.config_id, "provider": self.provider, "input_format": self.input_format,
+                "normalize": self.normalize}
 
 
 @dataclass(frozen=True)

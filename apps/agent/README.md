@@ -71,7 +71,7 @@ Quyền DB: thêm role `rag_indexer` (SELECT/INSERT/DELETE `rag`, chỉ dùng of
 
 Đề xuất cần review cùng PR (chưa phải quyết định):
 
-- Metadata `rag-chunk-v1` trong `RagKnowledgeChunk.metadata`: `kind`, `chunk_key`, `evidence_key`, `parent_key`, `section_key`, `heading_path`, `clause`, `pages`/`page_end`, `anchor`, `prefix`, `refs`, `issues`, `editorial_notes`, `product`, `approval`, `dataset_version`, `corpus_config_id`, `fingerprint`, `embedding`. Parent cũng là một dòng có vector (cột embedding bắt buộc) nhưng không vào nhánh tìm kiếm.
+- Metadata `rag-chunk-v2` trong `RagKnowledgeChunk.metadata`: `kind`, `chunk_key`, `evidence_key`, `parent_key`, `section_key`, `section_parent_keys`, `heading_path`, `clause`, `pages`/`page_end`, `anchor`, `prefix`, `refs`, `issues`, `editorial_notes`, `product`, `approval`, `dataset_version`, `corpus_config_id`, `fingerprint`, `embedding`. Parent cũng là một dòng có vector (cột embedding bắt buộc) nhưng không vào nhánh tìm kiếm. Parent giữ tham chiếu của toàn đoạn; `section_parent_keys` xác định khi nào đã trả đủ mọi phần của Điều. Identity embedding gồm provider/model/version/dimensions/config/input format/normalization, không chỉ config ID.
 - Catalog Public tạm: `document_id` uuid5 theo đường dẫn nguồn, `document_version` = `sha256-` + 12 ký tự checksum PDF, tiêu đề ghép tên sản phẩm. Thay bằng catalog Core ở Task 3; không phải `currentVersion`.
 - Unique `(document_id, document_version, chunk_index)` chỉ cho một không gian vector mỗi tài liệu/phiên bản: so hai embedding phải index lại tuần tự hoặc đổi schema sau review.
 - FTS `simple`, truy vấn OR các từ, `tsvector` tính khi truy vấn (chưa thêm migration/GIN/HNSW); 40/40 ứng viên → 20 hợp nhất → tối đa 8 bằng chứng, RRF 60 chỉ là biến thể thử có `config_id`.
@@ -81,7 +81,7 @@ Quyền DB: thêm role `rag_indexer` (SELECT/INSERT/DELETE `rag`, chỉ dùng of
 ### Chạy với PostgreSQL và Gemini
 
 1. `.env` ở root: thêm `DB_RAG_INDEXER_PASSWORD` và `DB_RAG_RETRIEVER_PASSWORD` (giá trị mẫu trong `.env.example`) rồi `docker compose up -d --build --wait` để tạo hai role.
-2. Copy `apps/agent/.env.example` thành `apps/agent/.env` (bị Git ignore), điền `GEMINI_API_KEY`. Không đưa key vào Git, chat hay log.
+2. Dùng `.env` root theo `.env.example`: điền `GEMINI_API_KEY`, DSN indexer/retriever cho đúng DB/cổng và credential đang có. Agent tool chỉ đọc các biến `GEMINI_*`/`LIFE_AGENT_*`; biến môi trường tiến trình ưu tiên hơn file. Không tạo `.env` riêng cho Agent, không đổi credential/volumes để khớp mẫu. Nếu còn file Agent cũ, tự chuyển đúng các biến cần dùng vào root và giữ bản cũ tới khi xác minh; tool không tự sửa hoặc xóa file của thành viên. Indexer DSN chỉ cấp cho job offline. Test DB dùng hai DSN `LIFE_AGENT_TEST_RAG_*` trỏ tới DB synthetic cô lập, không chạy fixture vào dữ liệu ứng dụng đang dùng. Không đưa key/DSN có mật khẩu vào Git, chat hay log.
 3. Từ `apps/agent`, sau khi cài như trên:
 
 ```bash
@@ -91,4 +91,8 @@ python evaluation/evaluate.py --cases evaluation/cases.json --mode retrieval
 python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end
 ```
 
-Lệnh index gọi embedding có tính phí theo cấu hình thử; chạy lại cùng dữ liệu/cấu hình sẽ bỏ qua tài liệu đã nạp. Báo cáo ghi vào `.local/agent-eval/` (ignored), gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt hay nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` cho tới khi người chấm điền file `--human-review`; báo cáo không tự tuyên bố đạt nghiệm thu.
+Lệnh index gọi embedding có tính phí theo cấu hình thử; chỉ chạy khi được phép cho đúng cấu hình/corpus. Schema chunk v2 và fingerprint đầy đủ làm index v1 hoặc identity khác cần được dựng lại có chủ đích; tool không tự chạy reindex hoặc gọi API để nâng dữ liệu. Chạy lại cùng dữ liệu/schema/identity sẽ bỏ qua tài liệu đã nạp.
+
+Báo cáo mặc định ở thư mục dữ liệu người dùng `LifeInsuranceAIAssistant/agent-eval`: Windows dùng `%LOCALAPPDATA%`, macOS dùng `~/Library/Application Support`, Linux dùng `$XDG_STATE_HOME` hoặc `~/.local/state`. `--out` có thể chọn file ngoài repo; đường dẫn trong repo bị từ chối trước khi mở client/gọi model. CLI in đường dẫn tuyệt đối sau khi ghi; khi chưa chạy thì chưa tạo file báo cáo. Đây là file tool trên host, tách với credential runtime trong Docker volumes. Báo cáo gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt/nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` tới khi có `--human-review`; không tự tuyên bố nghiệm thu đạt.
+
+Wrapper model ghi từng attempt, kể cả lỗi; HTTP 429 trả lỗi lượt, không chờ rồi retry ngầm ngoài ngân sách. Retry model cần policy/budget/deadline riêng được review, không mượn chính sách một retry của Business Tools. Các quyết định và regression của đợt sửa được ghi tại [Public RAG review fixes](../../docs/public-rag-review-fixes.md).

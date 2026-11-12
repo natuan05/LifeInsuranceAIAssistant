@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterable, Mapping, Protocol, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-CHUNK_SCHEMA = "rag-chunk-v1"
+CHUNK_SCHEMA = "rag-chunk-v2"
 _NAMESPACE = uuid.UUID("5d9a3f3e-6c1b-4f0e-9a51-7f1d2c3b4a60")
 
 # Agent_Design #mvp-products (decided 28/10/2026): 7 products, 4 main + 3 riders, keyed by source folder.
@@ -134,6 +134,7 @@ class PreparedChunk:
     refs: list[dict[str, Any]] = field(default_factory=list)
     issues: list[dict[str, Any]] = field(default_factory=list)
     editorial_notes: list[str] = field(default_factory=list)
+    section_parent_keys: list[str] = field(default_factory=list)
 
     @property
     def embedding_text(self) -> str:
@@ -488,6 +489,7 @@ def build_chunks(version: PreparedVersion) -> list[PreparedChunk]:
     doc_prefix = f"{version.document_id}:{version.document_version}:{cfg.dataset_version}"
     product = version.product["name"] + (f" ({version.product['option']})" if version.product["option"] else "")
     for section in _sections(version):
+        section_start = len(chunks)
         groups: list[dict[str, Any]] = []
         sub_path: list[str] = []
         current: dict[str, Any] | None = None
@@ -543,6 +545,10 @@ def build_chunks(version: PreparedVersion) -> list[PreparedChunk]:
                 chunks.append(_make_chunk(version, child_key, "child", parent_key, ordinal, section.key,
                                           path + g["sub"], clause, g["blocks"], product))
                 ordinal += 1
+        section_chunks = chunks[section_start:]
+        keys = [c.chunk_key for c in section_chunks if c.kind == "parent"]
+        for c in section_chunks:
+            c.section_parent_keys = list(keys)
     _attach_source_issues(version, chunks)
     return chunks
 
@@ -561,8 +567,9 @@ def _make_chunk(version: PreparedVersion, key: str, kind: str, parent_key: str |
         clause=clause, chunk_type=_chunk_type(heading_path, any(b.kind != "paragraph" and b.kind != "heading" for b in blocks)),
         pages=pages, anchor=anchor, content=content, prefix=prefix,
         editorial_notes=[n for b in blocks for n in b.notes])
-    if kind == "child":
-        chunk.refs = extract_refs(content, section_key)
+    # A returned parent needs the references of its entire passage, including children outside top-k.
+    # Headings label the passage; they are not self-references to follow.
+    chunk.refs = extract_refs("\n\n".join(b.text for b in blocks if b.kind != "heading"), section_key)
     return chunk
 
 
@@ -599,8 +606,8 @@ def extract_refs(content: str, own_section: str) -> list[dict[str, Any]]:
         if "." in number:
             parts = number.split(".")
             candidates += [f"{_KIND_SLUG[kind]}-{'.'.join(parts[:i])}" for i in range(len(parts) - 1, 0, -1)]
-        if own_section in candidates:
-            continue  # reference to the section that contains it
+        # A same-article reference can point into another parent part of a long article.
+        # Retrieval checks actual returned chunk keys, rather than assuming the whole article is present.
         line_start = content.rfind("\n", 0, m.start()) + 1
         line_end = content.find("\n", m.end())
         line = content[line_start: line_end if line_end >= 0 else len(content)]
@@ -663,17 +670,18 @@ def resolve_refs(chunks: Sequence[PreparedChunk]) -> RefReport:
 
 # ---------------------------------------------------------------------------------------------- indexing
 
-def fingerprint(version: PreparedVersion, embedding_config_id: str) -> str:
+def fingerprint(version: PreparedVersion, embedding_identity: Mapping[str, Any]) -> str:
     material = {"document_id": version.document_id, "document_version": version.document_version,
                 "output_sha256": version.source["output_sha256"], "dataset_version": version.dataset_version,
-                "corpus_config": asdict(version.corpus_config), "embedding": embedding_config_id, "schema": CHUNK_SCHEMA}
+                "corpus_config": asdict(version.corpus_config), "embedding": dict(embedding_identity), "schema": CHUNK_SCHEMA}
     return hashlib.sha256(json.dumps(material, sort_keys=True).encode()).hexdigest()
 
 
 def chunk_metadata(version: PreparedVersion, chunk: PreparedChunk, *, fp: str, embedding: Mapping[str, Any]) -> dict[str, Any]:
-    """Mapping into RagKnowledgeChunk.metadata (schema rag-chunk-v1, proposed for review)."""
+    """Mapping into RagKnowledgeChunk.metadata (schema rag-chunk-v2; see the Public RAG review decisions)."""
     return {"schema": CHUNK_SCHEMA, "kind": chunk.kind, "chunk_key": chunk.chunk_key, "evidence_key": chunk.evidence_key,
             "parent_key": chunk.parent_key, "section_key": chunk.section_key, "heading_path": chunk.heading_path,
+            "section_parent_keys": chunk.section_parent_keys,
             "clause": chunk.clause, "title": version.title, "doc_type": version.document_type,
             "chunk_type": chunk.chunk_type, "pages": chunk.pages, "page_end": chunk.pages[-1] if chunk.pages else None,
             "anchor": chunk.anchor, "prefix": chunk.prefix, "refs": chunk.refs, "issues": chunk.issues,
@@ -717,7 +725,7 @@ class PgIndexWriter:
         return psycopg.connect(self._dsn, connect_timeout=10)
 
     def write_version(self, version: PreparedVersion, chunks: Sequence[PreparedChunk]) -> IndexReceipt:
-        fp = fingerprint(version, self._config.config_id)
+        fp = fingerprint(version, self._config.identity())
         parents = sum(1 for c in chunks if c.kind == "parent")
         receipt = IndexReceipt(version.document_id, version.document_version, fp, len(chunks), parents,
                                len(chunks) - parents, False, self._config.config_id)

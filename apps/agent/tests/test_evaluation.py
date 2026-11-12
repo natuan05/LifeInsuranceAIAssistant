@@ -142,6 +142,35 @@ def test_token_and_cost_totals_include_summary_repair_and_retries():
     assert report["quality_metrics"]["cost_usd"]["generation"] == pytest.approx((3600 * 1 + 210 * 2) / 1e6)
 
 
+def test_recording_model_does_not_hide_retries_or_failed_calls():
+    from life_agent.model import ProviderError
+    from fakes import Harness, draft, reply, run_request
+
+    class BusyModel:
+        requests = 0
+
+        def decide(self, context):
+            self.requests += 1
+            if self.requests == 1:
+                raise ProviderError("RATE_LIMITED")
+            return reply(draft("Synthetic result"))
+
+    provider = BusyModel()
+    model = ev.RecordingModel(provider)
+    h = Harness(model)
+    request = run_request("rate-limited", "Synthetic question", limits_override={"model_calls_max": 1})
+    event = h.run(request)
+    assert provider.requests == 1
+    assert event["kind"] == "ERROR" and event["payload"]["failure"]["code"] == "MODEL_ERROR"
+    assert len(model.calls) == h.store.usage(request["message_id"])["model_calls"] == 1
+    assert model.calls[0]["error"] == "RATE_LIMITED"
+    report = ev.evaluate([case(expected=())], "synthetic", "cfg", mode="end-to-end", meta=META,
+                         doc_ids=DOC_IDS, runner=lambda c: {"scope_pairs": [], "retrievals": [], "result": None,
+                                                           "usage": {"calls": model.calls}})
+    assert report["quality_metrics"]["usage"]["failed_model_calls"] == 1
+    assert report["quality_metrics"]["cost_usd"]["generation"] is None  # failed request has no provider usage
+
+
 def test_private_case_text_is_not_written_to_the_report():
     secret = "Nội dung hợp đồng riêng SYN-POL-9 của khách"
     runs = {"p1": {"retrievals": [retrieval(evidence(DOC_A, "Điều 3. x"))], "scope_pairs": PAIRS,
