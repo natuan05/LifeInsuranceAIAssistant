@@ -21,10 +21,11 @@ Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến 
 
 ## Ranh giới đã chốt
 
-- Ticket là nhánh **Agent gợi ý tạo → Customer xem/xác nhận → Core tạo**. Yêu cầu Staff/Direct/Accept chat không bắt buộc và không tự tạo Ticket.
+- Ticket hỗ trợ cả hai luồng tạo: **Agent gợi ý → Customer xem xét/sửa/xác nhận** và **Customer tự tạo qua Form thủ công** (chốt 13/11/2026). Yêu cầu Staff/Direct/Accept chat không bắt buộc và không tự tạo Ticket.
+- Mọi Ticket mới tạo từ Customer **luôn khởi tạo ở trạng thái `OPEN`** (dù đã có hay chưa có Staff phụ trách). Staff vào danh sách xem và bấm Tiếp nhận (Accept) để chuyển sang `IN_PROGRESS`.
 - TicketStatus OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED là trạng thái Ticket. Chat không có nghiệp vụ Closed; ConversationStatus đã bỏ CLOSED qua migration mới, không thay TicketStatus.
 - Ticket có thể liên kết Conversation hoặc không; đọc/accept/close Ticket không tự cấp quyền transcript, nhận chat hoặc thay mode chat. Biết conversationId vẫn phải Direct/Accept gate ở Core.
-- Tickets là trang riêng; không nhét list vào accordion chat/Customers. Form Ticket thủ công của kế hoạch MVP cũ để backlog riêng, không triển khai trong đợt Inbox đang chốt.
+- Tickets là trang riêng; không nhét list vào accordion chat/Customers. Khách hàng có trang danh sách vé riêng và form tạo vé.
 
 ## Model và contract còn thiếu
 
