@@ -22,6 +22,6 @@ export class TicketAccessService {
     });
     if (!ticket) throw new NotFoundException();
     // Receiving a Ticket never grants conversation metadata or transcript access.
-    return { ...ticket, ...legacyTicketConfirmation(), allowedActions: { accept: ticket.status === 'ASSIGNED' } };
+    return { ...ticket, ...legacyTicketConfirmation(), allowedActions: { accept: ticket.status === 'ASSIGNED' || ticket.status === 'OPEN' } };
   }
 }

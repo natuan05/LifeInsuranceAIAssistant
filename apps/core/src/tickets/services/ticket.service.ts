@@ -13,6 +13,9 @@ import { ConversationCommandService } from '../../conversations/services/convers
 import { SafeApiException } from '../../http/safe-api.exception';
 import { randomUUID } from 'node:crypto';
 
+import type { ConfirmTicketDto } from '../dto/confirm-ticket.dto';
+import type { CreateManualTicketDto } from '../dto/create-manual-ticket.dto';
+
 const customerSelect = { userId: true, fullName: true, user: { select: { accountCode: true } } } satisfies Prisma.CustomerProfileSelect;
 const listSelect = { id: true, ticketCode: true, title: true, status: true, createdAt: true,
   customer: { select: customerSelect } } satisfies Prisma.SupportTicketSelect;
@@ -89,14 +92,16 @@ export class TicketService {
       // State reconciliation, not a cached receipt: current authority is required
       // even for retries after an unknown network outcome.
       if (ticket.status === target) return this.projectDetail(tx, actor.id, id);
-      if ((legacyAccept ? ticket.status !== 'ASSIGNED' : !this.transitions(ticket.status).includes(target)) || ticket.version !== expectedVersion) throw new SafeApiException('STALE_TICKET');
+      const isAccept = legacyAccept ? (ticket.status === 'ASSIGNED' || ticket.status === 'OPEN') : this.transitions(ticket.status).includes(target);
+      if (!isAccept || ticket.version !== expectedVersion) throw new SafeApiException('STALE_TICKET');
       const changed = await tx.supportTicket.updateMany({ where: { id, version: expectedVersion, status: ticket.status, assignedStaffId: actor.id },
         data: { status: target, version: { increment: 1 } } });
       if (changed.count !== 1) throw new SafeApiException('STALE_TICKET');
-      await tx.auditLog.create({ data: { actorType: 'USER', actorId: actor.id, actorRole: 'STAFF', action: ticket.status === 'ASSIGNED' && target === 'IN_PROGRESS' ? 'TICKET_ACCEPTED' : 'TICKET_STATUS_CHANGED',
+      const actionName = (ticket.status === 'ASSIGNED' || ticket.status === 'OPEN') && target === 'IN_PROGRESS' ? 'TICKET_ACCEPTED' : 'TICKET_STATUS_CHANGED';
+      await tx.auditLog.create({ data: { actorType: 'USER', actorId: actor.id, actorRole: 'STAFF', action: actionName,
         targetType: 'SupportTicket', targetId: id, outcome: 'SUCCESS', requestId: request.requestId ?? randomUUID(),
         metadata: { previousVersion: expectedVersion, version: expectedVersion + 1, previousStatus: ticket.status, status: target } } });
-      await tx.outboxEvent.create({ data: { aggregateType: 'TICKET', aggregateId: id, eventType: ticket.status === 'ASSIGNED' && target === 'IN_PROGRESS' ? 'TICKET_ACCEPTED' : 'TICKET_STATUS_CHANGED',
+      await tx.outboxEvent.create({ data: { aggregateType: 'TICKET', aggregateId: id, eventType: actionName,
         payload: { schemaVersion: 1, version: expectedVersion + 1 } } });
       return this.projectDetail(tx, actor.id, id);
     });
@@ -116,9 +121,376 @@ export class TicketService {
         version: ticket.version, customer: customerDto(ticket.customer), policy: ticket.policy?.customerId === ticket.customerId
           ? { id: ticket.policy.id, policyNumber: ticket.policy.policyNumber } : null,
         createdAt: ticket.createdAt.toISOString(), confirmedAt: ticket.confirmedAt.toISOString(),
-        ...legacyTicketConfirmation(), aiSummary: ticket.aiSummary, allowedActions: { accept: ticket.status === 'ASSIGNED', transitions: this.transitions(ticket.status) },
+        ...legacyTicketConfirmation(), aiSummary: ticket.aiSummary, allowedActions: { accept: ticket.status === 'ASSIGNED' || ticket.status === 'OPEN', transitions: this.transitions(ticket.status) },
         chatLink: conversation ? { conversationId: conversation.id,
           capability: conversation.status === 'PENDING_HANDOFF' ? 'REQUEST_METADATA' : 'TRANSCRIPT',
           href: `/staff/inbox/${conversation.id}?filter=${conversation.status === 'PENDING_HANDOFF' ? 'requests' : 'active'}` } : null } };
+  }
+
+  async customerConfirm(request: IncomingMessage & { requestId?: string }, dto: ConfirmTicketDto) {
+    const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);
+    if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+
+    return this.commands.transaction(async (tx) => {
+      // 1. Idempotency check
+      const existing = await tx.supportTicket.findUnique({
+        where: { idempotencyKey: dto.clientRequestId },
+        select: { id: true, ticketCode: true, status: true, confirmedAt: true, customerId: true },
+      });
+      if (existing) {
+        if (existing.customerId !== actor.id) throw new ForbiddenException();
+        return {
+          ticket: {
+            id: existing.id,
+            ticketCode: existing.ticketCode,
+            status: existing.status,
+            confirmedAt: existing.confirmedAt.toISOString(),
+          },
+          replayed: true,
+        };
+      }
+
+      // 2. Draft check and lock
+      const draft = await tx.ticketDraft.findFirst({
+        where: {
+          id: dto.draftId,
+          customerId: actor.id,
+        },
+      });
+      if (!draft) throw new NotFoundException('Ticket draft not found');
+
+      if (draft.state !== 'DRAFT') {
+        throw new SafeApiException('DRAFT_ALREADY_CONFIRMED');
+      }
+
+      const now = new Date();
+      if (draft.expiresAt < now) {
+        await tx.ticketDraft.update({ where: { id: draft.id }, data: { state: 'EXPIRED' } });
+        throw new SafeApiException('DRAFT_EXPIRED');
+      }
+
+      if (draft.version !== dto.expectedDraftVersion) {
+        throw new SafeApiException('STALE_DRAFT');
+      }
+
+      // 3. Find active assignment if any
+      const assignment = await tx.staffAssignment.findFirst({
+        where: { customerId: actor.id, isActive: true },
+        select: { staffId: true },
+      });
+
+      // 4. Generate unique ticketCode
+      let ticketCode = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+      while (await tx.supportTicket.findUnique({ where: { ticketCode }, select: { id: true } })) {
+        ticketCode = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const confirmedContent = {
+        title: draft.title,
+        description: draft.description,
+        policyId: draft.policyId,
+        textVersion: dto.confirmation.textVersion,
+        confirmedAt: now.toISOString(),
+      };
+
+      // 5. Create Ticket with status OPEN
+      const ticket = await tx.supportTicket.create({
+        data: {
+          ticketCode,
+          customerId: actor.id,
+          conversationId: draft.conversationId,
+          policyId: draft.policyId,
+          title: draft.title,
+          aiSummary: draft.description,
+          confirmedContent,
+          sourceDraftId: draft.id,
+          status: 'OPEN',
+          assignedStaffId: assignment?.staffId ?? null,
+          version: 0,
+          idempotencyKey: dto.clientRequestId,
+          confirmedAt: now,
+        },
+      });
+
+      // 6. Update draft state
+      await tx.ticketDraft.update({
+        where: { id: draft.id },
+        data: { state: 'CONFIRMED' },
+      });
+
+      // 7. Audit log & Outbox event
+      await tx.auditLog.create({
+        data: {
+          actorType: 'USER',
+          actorId: actor.id,
+          actorRole: 'CUSTOMER',
+          action: 'TICKET_CREATED',
+          targetType: 'SupportTicket',
+          targetId: ticket.id,
+          outcome: 'SUCCESS',
+          requestId: request.requestId ?? randomUUID(),
+          metadata: { ticketCode: ticket.ticketCode, draftId: draft.id, status: 'OPEN' },
+        },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'TICKET',
+          aggregateId: ticket.id,
+          eventType: 'TICKET_CREATED',
+          payload: {
+            schemaVersion: 1,
+            ticketId: ticket.id,
+            customerId: actor.id,
+            assignedStaffId: ticket.assignedStaffId,
+            status: 'OPEN',
+          },
+        },
+      });
+
+      return {
+        ticket: {
+          id: ticket.id,
+          ticketCode: ticket.ticketCode,
+          status: ticket.status,
+          confirmedAt: ticket.confirmedAt.toISOString(),
+        },
+        replayed: false,
+      };
+    });
+  }
+
+  async customerCreateManual(request: IncomingMessage & { requestId?: string }, dto: CreateManualTicketDto) {
+    const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);
+    if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+
+    return this.commands.transaction(async (tx) => {
+      // 1. Idempotency check
+      const existing = await tx.supportTicket.findUnique({
+        where: { idempotencyKey: dto.clientRequestId },
+        select: { id: true, ticketCode: true, status: true, createdAt: true, customerId: true },
+      });
+      if (existing) {
+        if (existing.customerId !== actor.id) throw new ForbiddenException();
+        return {
+          ticket: {
+            id: existing.id,
+            ticketCode: existing.ticketCode,
+            status: existing.status,
+            createdAt: existing.createdAt.toISOString(),
+          },
+          replayed: true,
+        };
+      }
+
+      // 2. Validate policy if provided
+      if (dto.policyId) {
+        const policy = await tx.insurancePolicy.findUnique({
+          where: { id: dto.policyId },
+          select: { customerId: true },
+        });
+        if (!policy || policy.customerId !== actor.id) {
+          throw new NotFoundException('Policy not found or not owned by customer');
+        }
+      }
+
+      // 3. Find active assignment if any
+      const assignment = await tx.staffAssignment.findFirst({
+        where: { customerId: actor.id, isActive: true },
+        select: { staffId: true },
+      });
+
+      // 4. Generate unique ticketCode
+      let ticketCode = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+      while (await tx.supportTicket.findUnique({ where: { ticketCode }, select: { id: true } })) {
+        ticketCode = `TK-${Math.floor(1000 + Math.random() * 9000)}`;
+      }
+
+      const now = new Date();
+      const confirmedContent = {
+        title: dto.title.trim(),
+        description: dto.description.trim(),
+        policyId: dto.policyId ?? null,
+        manual: true,
+        confirmedAt: now.toISOString(),
+      };
+
+      // 5. Create Ticket with status OPEN
+      const ticket = await tx.supportTicket.create({
+        data: {
+          ticketCode,
+          customerId: actor.id,
+          policyId: dto.policyId ?? null,
+          title: dto.title.trim(),
+          aiSummary: dto.description.trim(),
+          confirmedContent,
+          status: 'OPEN',
+          assignedStaffId: assignment?.staffId ?? null,
+          version: 0,
+          idempotencyKey: dto.clientRequestId,
+          confirmedAt: now,
+        },
+      });
+
+      // 6. Audit log & Outbox event
+      await tx.auditLog.create({
+        data: {
+          actorType: 'USER',
+          actorId: actor.id,
+          actorRole: 'CUSTOMER',
+          action: 'TICKET_CREATED',
+          targetType: 'SupportTicket',
+          targetId: ticket.id,
+          outcome: 'SUCCESS',
+          requestId: request.requestId ?? randomUUID(),
+          metadata: { ticketCode: ticket.ticketCode, manual: true, status: 'OPEN' },
+        },
+      });
+
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'TICKET',
+          aggregateId: ticket.id,
+          eventType: 'TICKET_CREATED',
+          payload: {
+            schemaVersion: 1,
+            ticketId: ticket.id,
+            customerId: actor.id,
+            assignedStaffId: ticket.assignedStaffId,
+            status: 'OPEN',
+          },
+        },
+      });
+
+      return {
+        ticket: {
+          id: ticket.id,
+          ticketCode: ticket.ticketCode,
+          status: ticket.status,
+          createdAt: ticket.createdAt.toISOString(),
+        },
+        replayed: false,
+      };
+    });
+  }
+
+  async customerList(request: IncomingMessage, query: { status?: string; search?: string; page?: number; pageSize?: number }) {
+    const { actor } = await this.auth.me(request);
+    if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+
+    const page = Math.max(1, query.page ?? 1);
+    const pageSize = Math.min(50, Math.max(1, query.pageSize ?? 10));
+    const skip = (page - 1) * pageSize;
+
+    const term = query.search?.replace(/[\\%_]/g, '\\$&');
+    const contains = { contains: term, mode: 'insensitive' as const };
+
+    const where: Prisma.SupportTicketWhereInput = {
+      customerId: actor.id,
+      ...(query.status ? { status: query.status as any } : {}),
+      ...(term ? { OR: [{ ticketCode: contains }, { title: contains }] } : {}),
+    };
+
+    const [items, total] = await Promise.all([
+      this.database.prisma.supportTicket.findMany({
+        where,
+        select: {
+          id: true,
+          ticketCode: true,
+          title: true,
+          status: true,
+          createdAt: true,
+          confirmedAt: true,
+          policy: { select: { policyNumber: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      this.database.prisma.supportTicket.count({ where }),
+    ]);
+
+    return {
+      items: items.map((t) => ({
+        id: t.id,
+        ticketCode: t.ticketCode,
+        title: t.title,
+        status: t.status,
+        policyNumber: t.policy?.policyNumber ?? null,
+        createdAt: t.createdAt.toISOString(),
+        confirmedAt: t.confirmedAt?.toISOString() ?? null,
+      })),
+      total,
+      page,
+      pageSize,
+    };
+  }
+
+  async customerDetail(request: IncomingMessage, ticketId: string) {
+    const { actor } = await this.auth.me(request);
+    if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+
+    const ticket = await this.database.prisma.supportTicket.findFirst({
+      where: { id: ticketId, customerId: actor.id },
+      include: {
+        policy: { select: { id: true, policyNumber: true } },
+        staff: {
+          select: {
+            userId: true,
+            fullName: true,
+            department: true,
+          },
+        },
+      },
+    });
+
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    return {
+      ticket: {
+        id: ticket.id,
+        ticketCode: ticket.ticketCode,
+        title: ticket.title,
+        status: ticket.status,
+        version: ticket.version,
+        policyId: ticket.policyId,
+        policyNumber: ticket.policy?.policyNumber ?? null,
+        conversationId: ticket.conversationId,
+        confirmedContent: ticket.confirmedContent as Record<string, unknown> | null,
+        assignedStaff: ticket.staff
+          ? {
+              id: ticket.staff.userId,
+              fullName: ticket.staff.fullName,
+              department: ticket.staff.department,
+            }
+          : null,
+        createdAt: ticket.createdAt.toISOString(),
+        confirmedAt: ticket.confirmedAt?.toISOString() ?? null,
+      },
+    };
+  }
+
+  async customerReceipt(request: IncomingMessage, clientRequestId: string) {
+    const { actor } = await this.auth.me(request);
+    if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+
+    const ticket = await this.database.prisma.supportTicket.findUnique({
+      where: { idempotencyKey: clientRequestId },
+      select: { id: true, ticketCode: true, status: true, customerId: true, confirmedAt: true },
+    });
+
+    if (!ticket || ticket.customerId !== actor.id) {
+      throw new NotFoundException();
+    }
+
+    return {
+      ticket: {
+        id: ticket.id,
+        ticketCode: ticket.ticketCode,
+        status: ticket.status,
+        confirmedAt: ticket.confirmedAt.toISOString(),
+      },
+      replayed: true,
+    };
   }
 }
