@@ -25,6 +25,7 @@ import {
 } from '@nestjs/swagger';
 import type { IncomingMessage } from 'node:http';
 import { AuthService } from '../../auth/services/auth.service';
+import { DatabaseService } from '../../database/database.service';
 import { ConfirmTicketDto } from '../dto/confirm-ticket.dto';
 import { CreateManualTicketDto } from '../dto/create-manual-ticket.dto';
 import { CreateTicketDraftDto } from '../dto/create-ticket-draft.dto';
@@ -45,6 +46,7 @@ import { TicketService } from '../services/ticket.service';
 export class CustomerTicketController {
   constructor(
     private readonly auth: AuthService,
+    private readonly database: DatabaseService,
     private readonly tickets: TicketService,
     private readonly drafts: TicketDraftService,
   ) {}
@@ -74,7 +76,7 @@ export class CustomerTicketController {
     @Param('draftId', new ParseUUIDPipe()) draftId: string,
     @Body() dto: UpdateTicketDraftDto,
   ) {
-    const { actor } = await this.auth.authorizeWrite(request);
+    const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);
     return this.drafts.updateDraft(actor.id, conversationId, draftId, dto);
   }
 
@@ -87,7 +89,7 @@ export class CustomerTicketController {
     @Param('conversationId', new ParseUUIDPipe()) conversationId: string,
     @Body() dto: CreateTicketDraftDto,
   ) {
-    const { actor } = await this.auth.authorizeWrite(request);
+    const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);
     return this.drafts.proposeDraft(actor.id, conversationId, dto);
   }
 

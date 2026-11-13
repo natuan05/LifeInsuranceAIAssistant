@@ -10,6 +10,10 @@ const errors = {
   ROUTING_CHANGED: { status: 409, message: 'The Staff assignment has changed. Confirm the new recipient.' },
   HANDOFF_ALREADY_PENDING: { status: 409, message: 'A Staff support request is already pending.' },
   ALREADY_ACCEPTED: { status: 409, message: 'This request has already been accepted.' },
+  DRAFT_EXPIRED: { status: 409, message: 'The ticket draft has expired.' },
+  DRAFT_ALREADY_CONFIRMED: { status: 409, message: 'The ticket draft has already been confirmed.' },
+  STALE_DRAFT: { status: 409, message: 'The ticket draft has changed. Check its current state.' },
+  DRAFT_NOT_EDITABLE: { status: 409, message: 'The ticket draft is no longer editable.' },
 } as const;
 
 // Only explicit, server-controlled errors may add a public business code.
