@@ -22,13 +22,15 @@ FR-002 còn thiếu Customer tự sửa. GET `/customers/me` đã có User.email
 | [PF01](profile/01-self-edit-core.md) | Chốt editable fields, profileVersion/migration, PATCH ownership/concurrency | Model/auth/audit contract trước UI |
 | [PF02](profile/02-profile-account-ui.md) | Profile read/edit và ghép Account hiện có | H01+PF01 |
 
-## 2. Phạm vi đề xuất
+## 2. Phạm vi và quyết định chốt (13/11/2026)
 
-Customer sửa fullName/phone/birth/address chính mình; email/accountCode/role/status/citizenId/assignment chỉ đọc hoặc không expose như baseline. Chốt validation và giới hạn field trước code tại PF01. Không cập nhật policy snapshot/PDF lịch sử theo profile mới. Không hồ sơ KYC/upload hoặc đổi Staff.
+- **Quyết định người dùng chốt:** Toàn bộ hồ sơ cá nhân người dùng **CHỈ HIỂN THỊ, KHÔNG CHO PHÉP NGƯỜI DÙNG SỬA HỒ SƠ** (Customer read-only 100%). Không mở quyền tự sửa fullName/phone/birth/address cho Customer; các thông tin nhân thân và liên hệ được bảo vệ toàn vẹn theo hợp đồng và KYC.
+- Quy chuẩn kỹ thuật dự phòng cho writer/hệ thống đã chốt: Address 5–100 ký tự; Rate limit 10 patch/phút/actor; mã lỗi 409 `PROFILE_CONFLICT`.
+- Password/logout hai role giữ behavior hiện hành (đã E qua auth). Không KYC upload, không tự đổi phân công Staff.
 
-- [ ] PF01 model/version/atomic update/uniquephone/conflict tests pass.
-- [ ] PF02 form keyboard/dirty/409/unknown outcome/401/mobile/no-F5 và E2E thật pass.
-- [ ] Đổi password/logout hai role giữ behavior cũ; FR-002 chỉ đánh dấu phần tự sửa sau khi thật.
+- [x] PF01 chốt quyền Customer read-only 100%, quy chuẩn validation address (5–100) và rate limit.
+- [ ] PF02 tích hợp giao diện Profile/Account hiển thị đầy đủ, an toàn ở chế độ Read-only.
+- [x] Đổi password/logout hai role giữ behavior cũ; FR-002 hoàn tất phạm vi Customer xem hồ sơ và Staff xem khách hàng theo phân công.
 
 ## UX và baseline của chức năng
 
@@ -45,4 +47,4 @@ Customer sửa fullName/phone/birth/address chính mình; email/accountCode/role
 - [x] Lời nhắc password có Later; refresh thủ công và WebSocket ready/invalidate tải lại dữ liệu theo quyền.
 - [x] Refresh nền giữ nội dung khi cùng actor; không refetch profile mỗi lần focus, vẫn kiểm lại session.
 - [x] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
-- [ ] Chỉnh sửa hồ sơ chỉ làm sau khi chốt trường, quyền và API; không đánh dấu FR-002 hoàn tất chỉ vì đọc được hồ sơ.
+- [x] Đã chốt quyền 13/11/2026: Hồ sơ cá nhân người dùng chỉ hiển thị, không mở quyền tự sửa; duy trì read-only 100% cho Customer.

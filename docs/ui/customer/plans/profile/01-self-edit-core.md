@@ -1,134 +1,118 @@
-# PF01 — Customer PATCH và optimistic concurrency
+# PF01 — Hồ sơ Customer và quy chuẩn dữ liệu
 
-04/11/2026 · **P, chưa triển khai/migration** · [C08](../08-profile-contract.md) · Tiếp: [PF02](02-profile-account-ui.md).
+04/11/2026 · **P, chốt phạm vi 13/11/2026** · [C08](../08-profile-contract.md) · Tiếp: [PF02](02-profile-account-ui.md).
+
+> [!IMPORTANT]
+> **Quyết định người dùng chốt (13/11/2026):**
+> 1. **Quyền hạn Customer:** Toàn bộ hồ sơ cá nhân người dùng **CHỈ HIỂN THỊ, KHÔNG CHO PHÉP NGƯỜI DÙNG SỬA HỒ SƠ** (Customer read-only 100%). Không cung cấp API `PATCH /customers/me` cho khách hàng tự sửa nhằm đảm bảo tính toàn vẹn định danh pháp lý và hợp đồng bảo hiểm.
+> 2. **Quy chuẩn kỹ thuật đã chốt:**
+>    - Trường `address`: Trim string tối thiểu **5 ký tự**, tối đa **100 ký tự** (5–100), không HTML/control chars.
+>    - Quota/Rate limit (nếu có writer mutation hồ sơ): **10 patch / phút / actor**.
+>    - Mã lỗi khi stale version / optimistic lock: **409 `PROFILE_CONFLICT`**.
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+Bảng bên dưới mô tả tác động của phase. Tên bảng thuộc schema `business` trừ nơi ghi rõ. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| users + customer_profiles | users.phone/updated_at; customer_profiles.full_name/birth/address; profile_version — P chưa có | PATCH ghi dự kiến, profile_version DDL mới | Unique phone; owner FK; expectedProfileVersion riêng, không dùng assignment_version/User.updated_at thay | Cao — mọi writer hồ sơ/operator phải tăng cùng profile_version; Staff Customers/Home/chat labels đọc dữ liệu này |
-| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
-| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| users + customer_profiles | users.account_code/email/phone/status; customer_profiles.full_name/birth/address/citizen_id | Đọc projection (Read-only) | Customer chỉ đọc hồ sơ chính mình; không mở quyền sửa | Cao — bảo toàn toàn vẹn dữ liệu hợp đồng và KYC |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Áp dụng quota | 10 request/phút/actor cho nhóm endpoint mutation nếu được mở | Trung bình — bảo vệ hệ thống chống lạm dụng |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Ghi log truy cập/thay đổi | actor_id → User.id; không lưu PII/credential vào log | Cao — tuân thủ NFR-002 |
 
-**Schema/migration:** P — thêm customer_profiles.profile_version default0 bằng migration mới sau chốt contract, không reset profile/assignment. Prisma hiện chưa có cột này.
+**Schema/migration:** Giữ nguyên schema hiện tại của `CustomerProfile`. Quyết định 13/11/2026 chốt Customer read-only 100%, không mở API sửa cho khách hàng nên không cần thêm DDL `profile_version` cho phía Customer.
 
-**Nhất quán và hồi quy:** Lock User/profile theo thứ tự writer hiện có, compare version, update phone/profile/version/audit atomic. Unique phone race rollback; rà account-management writer và realtime fingerprint. Kiểm conflict/no-op/timeout, không đổi PDF đã phát hành.
+**Nhất quán và hồi quy:** Khách hàng đọc hồ sơ cá nhân qua `GET /api/v1/customers/me` (đã E). Mọi request chỉnh sửa hồ sơ từ role Customer đều bị chặn an toàn (403 Forbidden hoặc 405 Method Not Allowed). Không làm thay đổi snapshot hoặc file PDF hợp đồng lịch sử.
 
-## 1. Vị trí và model đề xuất
+## 1. Vị trí và quyền hạn dữ liệu
 
-Sửa `apps/core/src/customers/controllers/customer.controller.ts`, `services/customer.service.ts`; DTO mới `update-customer-profile.dto.ts`, Swagger response. Migration **mới** thêm `CustomerProfile.profileVersion Int default0`; backfill0 không reset profile/assignment. Không dùng assignmentVersion để khóa hồ sơ, không suy User.updatedAt đại diện cho cả hai bảng. Chốt trường/profileVersion trước code; bổ sung [Data Model](../../../../specifications/Data_Model.md) khi migration được triển khai, chưa ghi field P thành E.
+**Quyết định 13/11/2026:** Khách hàng (Customer) **hoàn toàn không được sửa bất kỳ trường nào trong hồ sơ cá nhân**. Khách hàng chỉ có quyền xem (Read-only 100%) qua endpoint `GET /api/v1/customers/me` (đã E). Core không mở API `PATCH /customers/me` cho role Customer tự sửa.
 
-GET `/customers/me` giữ shape cũ, bổ sung `customer.profileVersion`. Core chỉ trả token, không để client tự set version. Khi fullName/phone/birth/address đổi từ tool/operator hoặc luồng khác, **mọi writer liên quan phải tăng cùng profileVersion**; rà account-management service và writer search trước apply. Nếu một writer chưa thể cập nhật, không tuyên bố chống ghi đè đầy đủ. Assignment update riêng không tăng profileVersion.
-
-Rà projection/types của Customer Web và fingerprint/invalidation profile trong `apps/core/src/realtime/realtime.service.ts`: thay đổi field được phép phải làm phiên đang mở đồng bộ lại đúng owner, không phát PII trên socket. Nếu thêm profileVersion vào fingerprint thì chỉ báo invalidate như nền hiện có, không coi nó là controlVersion của chat. PF02 vẫn giữ bản nháp dirty khi nhận dữ liệu mới để người dùng review.
+Nếu hệ thống trong tương lai mở rộng endpoint cập nhật hồ sơ khách hàng cho các writer khác (như Operator tool hoặc Staff hỗ trợ), các writer liên quan phải tuân thủ nghiêm ngặt quy chuẩn kiểm soát tranh chấp (optimistic concurrency control) và quy tắc validation đã chốt.
 
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
-| [apps/core/src/customers/controllers/customer.controller.ts](<../../../../../apps/core/src/customers/controllers/customer.controller.ts>) | Hiện có | Hiện có read, PATCH còn P | Cao | Customer own projection |
-| [apps/core/src/customers/services/customer.service.ts](<../../../../../apps/core/src/customers/services/customer.service.ts>) | Hiện có | P profile mutation với token riêng | Cao | Staff Customers query cùng profile |
-| `apps/core/src/customers/dto/update-customer-profile.dto.ts` | Dự kiến — chưa có file | P DTO editable + expectedProfileVersion | Trung bình | Customer editor/client types |
-| [apps/core/src/accounts/services/account-management.service.ts](<../../../../../apps/core/src/accounts/services/account-management.service.ts>) | Hiện có | Rà mọi writer/operator cập nhật profile version | Cao | Không bỏ sót nguồn ghi gây lost update |
-| [apps/core/src/realtime/realtime.service.ts](<../../../../../apps/core/src/realtime/realtime.service.ts>) | Hiện có | Rà profile fingerprint/invalidation | Cao | Không phát PII hoặc ghi đè dirty draft |
+| [apps/core/src/customers/controllers/customer.controller.ts](<../../../../../apps/core/src/customers/controllers/customer.controller.ts>) | Hiện có | GET /customers/me (E); chặn mọi mutation từ Customer | Cao | Customer own projection read-only |
+| [apps/core/src/customers/services/customer.service.ts](<../../../../../apps/core/src/customers/services/customer.service.ts>) | Hiện có | Trả safe projection theo quyền, không mở self-edit | Cao | Staff Customers query cùng profile |
+| [apps/core/src/realtime/realtime.service.ts](<../../../../../apps/core/src/realtime/realtime.service.ts>) | Hiện có | Giữ fingerprint/invalidation an toàn, không phát PII | Cao | WebSocket sync khi có cập nhật từ nguồn hợp lệ |
 
-## 2. API spec đề xuất
+## 2. Quy chuẩn dữ liệu và API spec
 
-`PATCH /api/v1/customers/me` body `{expectedProfileVersion:integer,...changedFields}`; ít nhất một editable field, không PUT toàn bộ entity. Response `200 {customer:<GET own customer projection + profileVersion>}`; assignment/contact không cần reload từ mutation. Session CUSTOMER/CSRF/Origin/JSON, no-store. Actor tự lấy từ cookie; unknownfield400.
+### 2.1. Phân quyền và trường dữ liệu của Customer
 
-| Field | Validation đề xuất |
-| --- | --- |
-| fullName | Trim,1–255; không null/empty/control chars |
-| phone | String/null, normalize và validate theo utility Staff hiện có, max20; null là xóa, không tự đổi format khác Staff |
-| birth | YYYY-MM-DD hợp lệ hoặc null; ngày không tương lai theo ngày server đã thống nhất, không locale parse |
-| address | Trim string1–1000 hoặc null; giới hạn1000 là contract mới cần chốt, không HTML/control chars |
-| expectedProfileVersion | Integer≥0 bắt buộc, chỉ compare không gán tùy ý |
+Toàn bộ thông tin hiển thị tại trang hồ sơ khách hàng là **CHỈ ĐỌC (READ-ONLY)**:
 
-email/accountCode/status/role/citizenId/assignmentVersion/profileVersion hoặc customerId gửi body400. Phone unique conflict409 generic không nói ai đang sở hữu. Stale version 409 `PROFILE_CONFLICT` (mã P cần thêm safe allowlist), response không chèn dữ liệu mới tùy tiện. No-op cùng version trả current profile không tăng version; actualchange tăng1. 401/403/400/429/503 theo common contract; quota đề xuất10patch/phút/actor, cần chốt.
+| Field | Trạng thái quyền Customer | Quy chuẩn validation hệ thống đã chốt |
+| --- | --- | --- |
+| fullName | **Chỉ đọc (Read-only)** | Trim, 1–255 ký tự; không null/empty/control chars |
+| phone | **Chỉ đọc (Read-only)** | Max 20 ký tự, format chuẩn E.164/utility Staff |
+| birth | **Chỉ đọc (Read-only)** | YYYY-MM-DD hợp lệ, không phải ngày tương lai |
+| address | **Chỉ đọc (Read-only)** | **Trim string 5–100 ký tự** (chốt 13/11/2026), không HTML/control chars |
+| citizenId | **Chỉ đọc (Read-only)** | Cố định theo định danh KYC/hợp đồng |
+| accountCode | **Chỉ đọc (Read-only)** | Mã tài khoản hệ thống |
+| email | **Chỉ đọc (Read-only)** | Email đăng nhập tài khoản |
+| status | **Chỉ đọc (Read-only)** | Trạng thái tài khoản |
 
-## 3. Transaction và timeout
+### 2.2. Quy chuẩn kỹ thuật khi có Writer Mutation
 
-Lock User và CustomerProfile theo thứ tự thống nhất với writer hiện có; recheck ACTIVE session/role trong transaction, compare version, normalize/compare diff, update User.phone + profile + version + audit atomic. Không log old/new PII vào audit. Audit target/action/outcome/field names đủ dùng. Unique phone race rollback cả hai bảng. Không thay session token/password/assignment hoặc policy PDF.
+Trong trường hợp có writer hợp lệ thực hiện cập nhật thông tin khách hàng:
+- **Rate limit / Quota:** Tối đa **10 patch / phút / actor** (chốt 13/11/2026).
+- **Mã lỗi khi stale version:** **409 `PROFILE_CONFLICT`** khi phiên bản gửi lên không khớp phiên bản hiện hành.
+- **Bảo vệ quyền riêng tư số điện thoại:** Lỗi trùng số điện thoại trả về generic 409 (không tiết lộ chủ sở hữu).
+- **Quyền Customer:** Nếu Customer cố tình gửi request `PATCH /api/v1/customers/me` (qua Postman/curl/script), Core từ chối với mã **`403 Forbidden`** hoặc **`405 Method Not Allowed`**.
 
-PATCH chưa có command receipt: timeout là **chưa rõ kết quả**. FE GET lại own profile; đối chiếu version/giá trị định gửi để giúp người dùng quyết định. Nếu cần gửi lại thì dùng expected version gốc; đã commit sẽ 409, không blindretry với token mới. Không nói giá trị khớp chứng minh lệnh của mình đã commit vì writer khác có thể giống. Nếu yêu cầu exactly-once command tracking sau này phải mở contract riêng, không giả idempotency từ version.
+## 3. Transaction và tính toàn vẹn
 
-```mermaid
-sequenceDiagram
-  participant W as Customer editor
-  participant C as Core Customer
-  participant D as PostgreSQL
-  W->>C: PATCH changed fields + expectedProfileVersion
-  C->>D: Lock User/profile, recheck auth/version
-  alt version đúng và phone khả dụng
-    C->>D: Update hai bảng + version + audit
-    D-->>C: Commit
-    C-->>W: Customer projection/version mới
-  else stale hoặc unique conflict
-    C-->>W: Safe409, không overwrite
-  end
-```
+- Khi có luồng cập nhật thông tin khách hàng từ writer được cấp phép: Lock User và CustomerProfile theo thứ tự thống nhất, kiểm tra concurrency version, ghi audit log atomic. Tuyệt đối không log dữ liệu PII cũ/mới vào audit log (chỉ log actor, action, target, outcome, changed fields).
+- Không tự ý cập nhật snapshot hoặc file PDF hợp đồng lịch sử khi thông tin địa chỉ/hồ sơ thay đổi.
 
 ## 4. Test cases
 
-Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+Các ca kiểm thử nhằm bảo đảm tính bảo mật và tính toàn vẹn dữ liệu theo quyết định 13/11/2026:
 
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+### PF01-T01 — Customer Self-Edit bị chặn hoàn toàn (Read-Only Enforcement)
 
-### PF01-T01 — PATCH changed fields và version
-
-**Lớp kiểm thử:** API + DB dự kiến.
-**Điều kiện và dữ liệu:** Sau PF01 có migration/API, C-A đọc profileVersion=n.
+**Lớp kiểm thử:** API Security.
+**Điều kiện và dữ liệu:** Session Customer C-A hợp lệ.
 
 **Các bước:**
+1. C-A gọi `GET /api/v1/customers/me` xác nhận đọc được đầy đủ thông tin hồ sơ.
+2. C-A thử gửi request `PATCH /api/v1/customers/me` chứa thay đổi `address`, `phone` hoặc `fullName`.
 
-1. PATCH riêng fullName, rồi riêng phone, rồi birth/address bằng token mới mỗi lần.
-2. GET lại profile sau từng request.
-3. Gửi no-op cùng version.
+**Kết quả mong đợi:**
+- Request GET thành công 200 trả đúng projection hồ sơ của chính mình.
+- Request PATCH bị từ chối `403 Forbidden` hoặc `405 Method Not Allowed`; dữ liệu trong database hoàn toàn không bị thay đổi.
 
-**Kết quả mong đợi:** Đúng owner/changed fields; thay đổi thật tăng1; no-op không tăng; không thay assignment/session/định danh.
+### PF01-T02 — Quy chuẩn độ dài Address (5–100 ký tự)
 
-### PF01-T02 — Concurrent edit và unique phone
-
-**Lớp kiểm thử:** API + DB barrier dự kiến.
-**Điều kiện và dữ liệu:** Hai context C-A cùng version n; phone synthetic trùng fixture C-B.
-
-**Các bước:**
-
-1. Context1 lưu, context 2 lưu bằng n.
-2. Thử đổi phone trùng.
-3. Inject audit failure sau update profile.
-
-**Kết quả mong đợi:** Stale409, phone conflict không nói owner; không partial User.phone/profile hoặc version, audit failure rollback toàn bộ.
-
-### PF01-T03 — Forbidden fields và validation
-
-**Lớp kiểm thử:** API dự kiến.
-**Điều kiện và dữ liệu:** Customer session/CSRF hợp lệ; các biến thể ngày/phone/text synthetic.
+**Lớp kiểm thử:** Validation Unit/Integration.
+**Điều kiện và dữ liệu:** Payload cập nhật address qua writer/service hợp lệ.
 
 **Các bước:**
+1. Gửi address có độ dài < 5 ký tự (ví dụ: "HN") -> Bị từ chối 400 Bad Request.
+2. Gửi address có độ dài > 100 ký tự -> Bị từ chối 400 Bad Request.
+3. Gửi address chứa HTML/script/control chars -> Bị sanitize/từ chối 400 Bad Request.
+4. Gửi address hợp lệ từ 5 đến 100 ký tự -> Chấp nhận.
 
-1. PATCH thêm role/email/customerId/citizenId.
-2. Gửi ngày tương lai/ngày không tồn tại, control chars hoặc tên trống.
-3. Gửi bằng Staff/CSRF sai.
+### PF01-T03 — Quota Rate Limit (10 patch / phút / actor)
 
-**Kết quả mong đợi:** 400/403 đúng contract; không sửa dữ liệu hoặc tin actor/body; không tự coerce field sai.
+**Lớp kiểm thử:** Rate Limiting.
+**Điều kiện và dữ liệu:** Gửi liên tục vượt quá 10 request/phút.
 
-### PF01-T04 — Timeout và migration compatibility
+**Kết quả mong đợi:** Request thứ 11 trong cửa sổ 1 phút bị từ chối với mã `429 Too Many Requests`.
 
-**Lớp kiểm thử:** API + Migration harness dự kiến.
-**Điều kiện và dữ liệu:** Schema riêng có profile/credentials đã tồn tại; ACK có thể bị ngắt sau commit.
+### PF01-T04 — Stale Version Concurrency Conflict (409 PROFILE_CONFLICT)
 
-**Các bước:**
+**Lớp kiểm thử:** Optimistic Concurrency.
+**Điều kiện và dữ liệu:** Hai writer cùng sửa một khách hàng với cùng version ban đầu.
 
-1. Apply migration và đối chiếu hash dữ liệu giữ nguyên.
-2. PATCH rồi ngắt ACK; GET profile đối chiếu.
-3. Retry bằng version cũ khi dữ liệu đã thay đổi.
+**Kết quả mong đợi:** Writer thứ hai nhận mã lỗi `409 PROFILE_CONFLICT`, không ghi đè dữ liệu của writer thứ nhất.
 
-**Kết quả mong đợi:** Migration giữ dữ liệu/credential; GET phân biệt current state, stale retry không overwrite; mọi writer được chốt phải cập nhật version.
-
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
-
-- [ ] Không reset dữ liệu hoặc tự đổi credential/assignment; API chỉ P→E sau code.
+**Checklist chức năng liên quan:**
+- [x] Hồ sơ cá nhân người dùng chỉ hiển thị, không cho phép khách hàng tự sửa (Customer read-only 100%).
+- [x] Chốt quy chuẩn validation trường address: 5–100 ký tự.
+- [x] Chốt rate limit: 10 patch / phút / actor.
+- [x] Chốt mã lỗi stale version: 409 PROFILE_CONFLICT.
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.

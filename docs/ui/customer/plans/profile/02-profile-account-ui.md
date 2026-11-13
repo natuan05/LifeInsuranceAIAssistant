@@ -1,6 +1,9 @@
 # PF02 — Profile editor và Account Customer
 
-04/11/2026 · **Chưa triển khai phần mới** · [C08](../08-profile-contract.md) · Cần H01+[PF01](01-self-edit-core.md).
+04/11/2026 · **Cập nhật 13/11/2026** · [C08](../08-profile-contract.md) · Cần H01+[PF01](01-self-edit-core.md).
+
+> [!NOTE]
+> Theo quyết định chốt tại PF01 (13/11/2026): Hồ sơ cá nhân người dùng **chỉ hiển thị, không cho phép người dùng tự sửa**. Giao diện hồ sơ tập trung vào hiển thị đầy đủ, an toàn, dễ đọc (Read-only view) cùng vùng liên hệ Staff và quản lý mật khẩu/bảo mật tại `/account`, không hiển thị form Edit/Save thông tin cá nhân.
 
 ## Data model và phạm vi ảnh hưởng
 
