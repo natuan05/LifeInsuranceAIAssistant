@@ -10,7 +10,11 @@ Ngày **27/10/2026** đã đối chiếu văn bản ba phần AI Agent Module, O
 
 **Rà soát ngày 31/10/2026:** đọc [bản tổng thể Agent/RAG](specifications/Agent_Design.md#design-overview) và [phân loại công việc còn lại](specifications/Agent_Design.md#remaining-work) để biết trạng thái hiện hành. Bảng đối chiếu/lịch sử bên dưới không phải danh sách toàn bộ kiến trúc cần brainstorm lại. Schema/cơ chế thực thi và tham số cần đo được tách khỏi quyết định nghiệp vụ/model còn mở.
 
-> **Hiện trạng app04/11/2026:** Staff Auth/profile, Customers/search, Policies/PDF, Products/PDF và Inbox I01–I06/chat hai đầu/handoff notifications đã có. Ticket nghiệp vụ/Customer UI mới còn P; xem [checklist](ui/implementation-status.md), [Staff plans](ui/staff/plans/README.md). Các mốc cũ bên dưới là lịch sử/quyết định nguồn, không là snapshot runtime hiện tại. Không sửa thiết kế/kế hoạch Agent ở đợt đồng bộ app này.
+> **Đồng bộ 06/11/2026 theo application main 05/11:** Staff Auth/Customers/Policies/Products, Inbox I01–I06 và Ticket TK01–TK05 đã có; Customer Home/Products/Policies/PDF cũng đã có. Producer tạo/xác nhận Ticket I07 và Agent/Copilot chưa được nghiệm thu từ baseline App. Xem [checklist](ui/implementation-status.md). Các mốc cũ bên dưới là lịch sử, không đưa phần đã triển khai về backlog.
+
+**Thứ tự áp dụng tài liệu:** [Agent Design](specifications/Agent_Design.md) quyết định nghiệp vụ Agent/RAG; [plan](superpowers/plans/2026-10-31-agent-rag-implementation.md) mô tả triển khai/gates; contracts và UI phases phải theo hai nguồn này. Xác nhận 06/11: Copilot chỉ tra cứu/giải thích/tóm tắt, không soạn nháp Customer/Use draft. [Data Model phần III](specifications/Data_Model.md#iii-mở-rộng-agentrag-dự-kiến--chưa-là-schema-đã-triển-khai) ghi phần lưu trữ dự kiến; không tự coi proposal DDL/model là đã triển khai hoặc duyệt G1/G2.
+
+**Đã chốt 07/11/2026 — tài khoản:** MVP dùng tài khoản được cấp sẵn; Customer không tự đăng ký công khai. [FR-001/UC-001](specifications/Requirement.md) và [Customer auth](ui/customer/plans/01-auth-contract.md) đã đồng bộ; thiếu public registration không còn là gap MVP. Không tự mở rộng sang tích hợp quy trình phát hành hợp đồng/cấp tài khoản tự động hoặc đổi provider xác thực.
 
 ## Nguồn
 
@@ -122,7 +126,7 @@ Theo yêu cầu tiếp theo, đã tạo toàn bộ model/bảng và Compose full
 ## Đối chiếu sau triển khai UI — 30/10/2026
 
 - **Đã giải quyết local:** auth/account/password/logout, profile/assigned-customer list/detail/pagination; Staff UI/routes/menu/account; rename InsurancePolicy/PolicyStatus/insurance_policies bằng migration thứ tư; invalidation native WebSocket cho account/profile/assignment.
-- **Một phần:** FR-001 chưa có public registration/IdP; FR-002 mới read-only; FR-003 thiếu search. Customer layout/menu mới chưa hoàn thiện.
+- **Một phần tại mốc 30/10:** FR-002 mới read-only; FR-003 thiếu search; Customer layout/menu chưa hoàn thiện. Gap public registration của nguồn cũ đã được thay bằng quyết định tài khoản cấp sẵn 07/11; trạng thái App hiện hành xem checklist ở đầu tài liệu.
 - **Còn thiếu:** chat/Agent/Ticket/history/summary/notification và Customer policy/PDF. Staff policy/catalog/PDF đã có theo cập nhật 31/10–02/11; không coi hoàn thành toàn bộ FR chỉ từ các API Staff. Không có FR-004 trong bảng FR nguồn.
 - **Khác baseline cần đọc đúng:** Socket.IO trong bảng ADR nguồn không phải thư viện local; local dùng `ws` receive-only. Native channel không chốt chat transport, fan-out, event replay hoặc queue. Sơ đồ External IdP chưa phải auth local hiện tại.
 - **Quyết định còn mở:** policy đang xem vs linkedPolicy conversation (chưa API đổi context); policy–terms/version; New/filter; send/takeover/Ticket concurrency/confirmation/idempotency; checkpoint/tool scope; notifications recipient/read/delivery; benchmark/production.

@@ -9,6 +9,7 @@ import { loadConfig } from '../config';
 import { Prisma } from '../generated/prisma/client';
 import { ConversationAccessService } from '../conversations/services/conversation-access.service';
 import type { ChatEvent, ChatRecipient } from '../conversations/services/conversation-event.service';
+import { TicketAccessService } from '../tickets/services/ticket-access.service';
 
 type Peer = { request: IncomingMessage; fingerprint: string; actorId: string; busy: boolean; alive: boolean };
 
@@ -20,7 +21,28 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
   private timer?: NodeJS.Timeout;
   private heartbeat?: NodeJS.Timeout;
   constructor(private readonly adapter: HttpAdapterHost, private readonly auth: AuthService, private readonly database: DatabaseService,
-    private readonly access: ConversationAccessService) {}
+    private readonly access: ConversationAccessService, private readonly ticketAccess: TicketAccessService) {}
+
+  async publishTicket(event: ChatEvent, recipients: string[]) {
+    for (const [ws, peer] of this.peers) {
+      if (ws.readyState !== WebSocket.OPEN || !recipients.includes(peer.actorId)) continue;
+      try {
+        await this.database.prisma.$transaction(async tx => {
+          const { actor } = await this.auth.me(peer.request, tx);
+          if (actor.id !== peer.actorId || actor.role !== 'STAFF') throw new UnauthorizedException();
+          await this.ticketAccess.requireTicket(tx, actor.id, event.aggregateId);
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+        for (const type of ['tickets-invalidated', 'notifications-invalidated']) {
+          if (ws.readyState !== WebSocket.OPEN) break;
+          if (ws.bufferedAmount > 65536) { ws.close(1013, 'Slow consumer'); break; }
+          ws.send(JSON.stringify({ type, eventId: event.id }));
+        }
+      } catch (failure) {
+        if (failure instanceof UnauthorizedException) ws.close(4001, 'Session expired');
+        else if (!(failure instanceof Error && 'getStatus' in failure && typeof failure.getStatus === 'function' && failure.getStatus() === 404)) throw failure;
+      }
+    }
+  }
 
   async publishChat(event: ChatEvent, recipients: ChatRecipient[]) {
     for (const [ws, peer] of this.peers) {

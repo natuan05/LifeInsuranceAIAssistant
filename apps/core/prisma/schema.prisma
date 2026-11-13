@@ -434,6 +434,7 @@ model SupportTicket {
   aiSummary        String?            @map("ai_summary")
   extractedDetails Json?              @map("extracted_details") @db.JsonB
   status           TicketStatus
+  version          Int                @default(0)
   idempotencyKey   String             @unique @map("idempotency_key") @db.VarChar(255)
   confirmedAt      DateTime           @map("confirmed_at") @db.Timestamptz(3)
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)

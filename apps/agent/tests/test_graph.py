@@ -4,7 +4,7 @@ import pytest
 
 from life_agent.core_client import CoreError
 
-from fakes import (CONV, POLICY, answer_citing, POLICY_2, PUBLIC_DOC, FakeCore, FakeRetrieval, Harness, ProcessCrash, ScriptedModel, config,
+from fakes import (CONV, POLICY, answer_citing, POLICY_2, PUBLIC_DOC, FakeCore, FakeRetrieval, Harness, ManualClock, ProcessCrash, ScriptedModel, config,
                    contract, draft, evidence, outcome_item, overview, reply, result_item, retrieval_ok,
                    retrieval_status, run_request, tool, uid, user_item)
 
@@ -183,7 +183,7 @@ def test_finalize_repairs_unknown_citation_once():
     event = h.run(run_request("m1", "?"))
     assert event["kind"] == "RESULT"
     assert model.contexts[2].finalize_issue == {"issues": [{"code": "CITATION_UNKNOWN", "ref": "op-77-E7"}]}
-    assert model.contexts[2].tools  # repair does not reset tool budget but may still see allowed tools
+    assert model.contexts[2].tools == {}  # repair only uses evidence already obtained
     assert h.state()["work"]["counters"]["repair_attempts"] == 1
     assert h.state()["trace"].count("finalize") == 2
 
@@ -333,3 +333,69 @@ def test_long_history_is_summarised_once_over_threshold_and_counted():
     assert summary["covers_through"] == "7" and len(model.summaries) == 1
     assert [t["position"] for t in model.contexts[0].conversation["recent_turns"]] == ["8", "9", "10"]
     assert h.store.usage(uid("message:m11"))["model_calls"] == 2
+
+
+def test_summary_crash_before_prepare_checkpoint_does_not_reuse_call_reservation():
+    class CrashingSummaryModel(ScriptedModel):
+        def summarize(self, items, *, max_chars):
+            self.summaries.append(items)
+            raise ProcessCrash()
+
+    model = CrashingSummaryModel([])
+    core = FakeCore()
+    core.histories[CONV] = [user_item(i, f"h{i}", "synthetic history " * 60) for i in range(1, 7)]
+    h = Harness(model, core=core, cfg=config(recent_turns=1, history_summary_threshold_chars=100))
+    for attempt in ("a1", "a2", "a3"):
+        try:
+            h.run(run_request("m7", "Continue", history_cursor="p6", attempt=attempt,
+                              limits_override={"model_calls_max": 1}))
+        except ProcessCrash:
+            pass
+    assert len(model.summaries) == 1
+    assert h.store.usage(uid("message:m7"))["model_calls"] == 1
+
+
+def test_model_answer_returning_after_deadline_is_not_published():
+    clock = ManualClock()
+
+    def late_answer(context):
+        clock.advance(120)
+        return reply(draft("This late answer must not be published."))
+
+    h = Harness(ScriptedModel([late_answer]), clock=clock)
+    event = h.run(run_request("late", "Question"))
+    assert event["kind"] == "ERROR"
+    assert payload(event)["failure"]["code"] == "DEADLINE_EXCEEDED"
+    assert h.state()["result"] is None
+
+
+def test_actual_model_usage_exceeding_token_cap_is_not_published():
+    model = ScriptedModel([reply(draft("Over-budget answer"), tokens=(6000, 80))])
+    h = Harness(model)
+    event = h.run(run_request("over-budget", "Question",
+                              limits_override={"turn_token_budget": 5000, "finish_reserve_tokens": 500}))
+    assert event["kind"] == "ERROR"
+    assert payload(event)["failure"]["code"] == "BUDGET_EXHAUSTED"
+
+
+def test_long_evidence_ids_keep_distinct_sources():
+    first = evidence("a" * 63 + "A", "First source", doc=PUBLIC_DOC)
+    second = evidence("a" * 63 + "B", "Second source", doc=uid("other-document"))
+    raw = retrieval_ok(first, second)
+    model = ScriptedModel([reply(tool("retrieve_public", query="sources")), answer_citing("Two sources")])
+    h = Harness(model, retrieval=FakeRetrieval({"sources": raw}))
+    event = h.run(run_request("sources", "Compare the sources"))
+    received = model.contexts[1].retrieval_results[0]["evidence"]
+    assert len({item["evidence_id"] for item in received}) == 2
+    assert [c["document_id"] for c in payload(event)["result"]["citations"]] == [first["document_id"], second["document_id"]]
+
+
+def test_repair_rejects_new_tool_call_without_executing_it():
+    model = ScriptedModel([reply(draft("Unknown citation", cites=["E404"])),
+                           reply(tool("retrieve_public", query="repair search")), reply(draft("Must not reach here"))])
+    h = Harness(model, retrieval=FakeRetrieval({"repair search": retrieval_ok(PUBLIC_EVIDENCE)}))
+    event = h.run(run_request("repair-tool", "Question"))
+    assert event["kind"] == "ERROR"
+    assert payload(event)["failure"]["code"] == "OUTPUT_INVALID"
+    assert h.retrieval.calls == []
+    assert model.contexts[1].tools == {}

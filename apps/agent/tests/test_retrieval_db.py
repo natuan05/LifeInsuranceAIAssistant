@@ -1,6 +1,6 @@
 """PostgreSQL + pgvector tests with the real roles (plan Task 8 Step 1/3/7): offline indexer writes, read-only
 retrieval role searches. Synthetic fixture rows only, removed after each test. Skipped when the two DSNs are absent:
-LIFE_AGENT_TEST_RAG_INDEXER_DSN and LIFE_AGENT_TEST_RAG_RETRIEVER_DSN (environment or apps/agent/.env)."""
+LIFE_AGENT_TEST_RAG_INDEXER_DSN and LIFE_AGENT_TEST_RAG_RETRIEVER_DSN (environment or root .env)."""
 import dataclasses
 import json
 import uuid
@@ -64,7 +64,7 @@ def insert_private(version, policy_id, owner_id):
 
     cfg = embedding_config()
     chunks = resolve_refs(build_chunks(version)).chunks
-    fp = fingerprint(version, cfg.config_id)
+    fp = fingerprint(version, cfg.identity())
     with psycopg.connect(INDEXER) as conn:
         for c in chunks:
             meta = chunk_metadata(version, c, fp=fp, embedding=cfg.identity())
@@ -91,7 +91,10 @@ def test_same_content_other_version_is_never_returned(documents):
         reader.close()
     assert result["status"] == "OK" and eng.last_trace["keyword"] and eng.last_trace["vector"]
     assert {e["document_version"] for e in result["evidence"]} == {"fixture-v1"}  # newer version does not replace it
-    assert any(e["location"]["clause"] == "Điều 4. Loại trừ" for e in result["evidence"])  # ref expansion, same scope
+    # Ranking ties vary with fixture IDs. The invariant is scope, plus explicit missing when a target hits the cap.
+    assert (any(e["location"]["clause"] == "Điều 4. Loại trừ" for e in result["evidence"])
+            or any(m["code"] == "EXPANSION_CAP_REACHED" and m.get("reference") == "Điều 4"
+                   for m in result["missing"]))
 
 
 def test_scope_filter_applies_before_candidate_caps(documents):
@@ -180,6 +183,25 @@ def test_index_in_another_vector_space_is_refused_at_search(documents):
     finally:
         reader.close()
     assert result["error"]["code"] == "EMBEDDING_INCOMPATIBLE"
+
+
+def test_same_config_id_with_changed_model_is_refused_and_reindexed(documents):
+    version = make_version(documents)
+    first = index_version(version, writer())
+    changed = dataclasses.replace(embedding_config(), model_version="2")
+    eng, reader = engine(cfg=changed)
+    try:
+        result = eng.search("thời gian chờ", scope_of(version), search_config())
+    finally:
+        reader.close()
+    assert result["status"] == "ERROR" and result["error"]["code"] == "EMBEDDING_INCOMPATIBLE"
+    second = index_version(version, writer(cfg=changed))
+    assert not second.skipped and second.fingerprint != first.fingerprint
+    eng, reader = engine(cfg=changed)
+    try:
+        assert eng.search("thời gian chờ", scope_of(version), search_config())["status"] == "OK"
+    finally:
+        reader.close()
 
 
 def test_embedding_outage_uses_keyword_only_on_real_sql(documents):

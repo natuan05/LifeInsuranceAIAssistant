@@ -4,12 +4,37 @@
 
 ## Thứ tự đọc
 
+Mỗi phase chứa **Test cases** và **sequence diagram** của chính chức năng đó. Phần kiểm thử là kịch bản có thể thực hiện, không phải nhật ký chạy test hoặc bảng đếm số ca pass. Xem [quy ước bên dưới](#quy-ước-test-case-và-sequence-diagram).
+
 1. [Tiến độ](implementation-status.md): runtime E, phần P và mức chứng cứ.
 2. [Menu/phạm vi](menu.md): các màn đích, không biến placeholder thành yêu cầu.
-3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Mốc tiếp là Staff Tickets và nghiệm thu không Agent.
-4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): để đợt Customer sau, chưa triển khai UI mới.
+3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Tickets TK01–TK05 đã có; Agent/Copilot và I07 là phần tiếp theo.
+4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): Home/Products/Policies/PDF đã có; đọc trạng thái từng phase, không coi toàn bộ Customer còn là kế hoạch.
 5. [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng), [routes](staff/plans/00-staff-contract.md#điều-hướng), [gap](staff/plans/README.md#phần-còn-lại-theo-chức-năng): tham chiếu dùng chung, không lặp contract chức năng.
 6. [Requirement](../specifications/Requirement.md), [Data Model](../specifications/Data_Model.md), [architecture](../architecture.md), [source review](../source-review.md): nguồn và quyết định local.
+
+## Quy ước test case và sequence diagram
+
+Mỗi test case có mã trong phạm vi phase và đủ bốn phần: **lớp kiểm thử**, **điều kiện/dữ liệu**, **các bước có thứ tự**, **kết quả mong đợi**. Kết quả cần nêu điều kiểm được: HTTP status/DTO, thay đổi DB, số mutation, quyền truy cập, DOM/focus hoặc navigation. Không viết “đã chạy thành công” thay cho kỳ vọng; không dùng HTTP/mock UI làm bằng chứng browser E2E thật.
+
+Dùng các alias synthetic S-A/S-B, C-A/C-B và resource của fixture cô lập; thay bằng UUID thực khi chạy. Các path API rút gọn dùng prefix `/api/v1`. Request ghi dùng session, Origin và các header bảo vệ/CSRF theo contract của endpoint. Case đổi phân công, khóa tài khoản, quota, migration hoặc inject lỗi chỉ chạy trong harness/môi trường test; không phụ thuộc dữ liệu riêng của một thành viên, không sửa bootstrap và phải tự dọn fixture.
+
+Sequence diagram dùng Mermaid `sequenceDiagram`, thể hiện actor, Web, Core và các thành phần thực sự tham gia như DB, Storage, worker hoặc Agent. Nêu thứ tự kiểm quyền, commit, phản hồi và nhánh lỗi chính; không chỉ đổi tên flowchart thành sequence diagram. Giữ sơ đồ đã đúng, bổ sung nơi còn thiếu. Phase chưa triển khai ghi rõ **dự kiến**, giữ endpoint/model chưa chốt ở trạng thái đề xuất.
+
+Đây là quy ước viết tài liệu; chỉnh test case hoặc diagram không tự đổi trạng thái E/P, không chứng nhận chức năng đã pass. Kết quả chạy thực tế trả ngắn trong trao đổi hoặc công cụ kiểm thử, không chèn báo cáo theo từng lượt vào phần kịch bản.
+
+## Quy ước data model, vị trí code và mức ảnh hưởng
+
+Mỗi phase cần có hai bảng riêng, đối chiếu `apps/core/prisma/schema.prisma`, SQL migrations và service thực thi; tên model Prisma không thay cho tên bảng/cột PostgreSQL khi mô tả tác động.
+
+| Bảng cần có | Nội dung bắt buộc |
+| --- | --- |
+| Data model | Bảng vật lý/model, cột được dùng hoặc đổi, đọc/ghi/DDL, FK/unique/index hoặc version liên quan, chức năng bị ảnh hưởng và mức độ |
+| Vị trí code | Đường dẫn từ root repo, trách nhiệm cụ thể, hiện có hay dự kiến tạo, mức ảnh hưởng và caller/màn/API cần kiểm hồi quy |
+
+**Thấp**: thay state/projection cục bộ, không đổi quyền/ghi nghiệp vụ; **Trung bình**: truy vấn/DTO/component dùng chung hoặc ghi trạng thái phụ trợ; **Cao**: phân quyền/phiên, consent, concurrency/idempotency, mutation nhiều bảng hoặc migration. Đây là đánh giá phạm vi và rủi ro khi sửa, không phải severity của lỗi hoặc chứng nhận đã kiểm thử. UI đọc qua API không được ghi trực tiếp DB; bảng tác động phải nêu cả ghi gián tiếp như quota/audit/mark-read/Accept, thay vì gọi mọi GET là “không ghi DB”.
+
+Mỗi phase phải chốt: có migration không, bảng/cột mới nào còn P, backfill có làm đổi nghĩa dữ liệu cũ không, transaction/lock/version nào giữ tính nhất quán và luồng nào cần kiểm lại. Đổi model/DTO dùng chung phải chỉ rõ tác động sang vai trò còn lại, operator, bootstrap và storage nếu có. Không ghi một bảng đề xuất như thể đã tồn tại; không sửa migration đã apply. Contract chức năng liên kết các bảng chi tiết tại phase sở hữu thay vì sao chép nhiều dictionary khác nhau. Xem [bản đồ tác động model](../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Cấu trúc và ownership
 

@@ -35,11 +35,7 @@ try {
   await client.query('GRANT SELECT ON ALL TABLES IN SCHEMA rag TO rag_retriever');
   // Agent durable runtime (checkpoint, receipts, ledger, outbound events): own schema/roles, no business or rag access.
   // agent_migrator owns the schema and runs apps/agent migrations; agent_runtime gets DML only, no DDL.
-  await client.query('CREATE SCHEMA IF NOT EXISTS agent_runtime AUTHORIZATION agent_migrator');
-  await client.query('GRANT USAGE ON SCHEMA agent_runtime TO agent_runtime');
-  await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE agent_migrator IN SCHEMA agent_runtime GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO agent_runtime');
-  await client.query('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA agent_runtime TO agent_runtime');
-  await client.query('REVOKE ALL ON SCHEMA agent_runtime FROM PUBLIC');
+  await client.query(readFileSync(new URL('./agent-runtime-grants.sql', import.meta.url), 'utf8'));
   await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE app_migrator IN SCHEMA business GRANT USAGE, SELECT ON SEQUENCES TO core_runtime, admin_runtime');
   await client.query('COMMIT');
   console.log('Database roles and namespaces ready; no runtime superuser or DDL grants.');

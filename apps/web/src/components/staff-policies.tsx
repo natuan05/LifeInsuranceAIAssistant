@@ -61,8 +61,9 @@ function BenefitAmount({ amount, currency, unit }: { amount: string | null; curr
 
 function PolicyInformation({ policy }: { policy: PolicyDetail }) {
   const snapshot = policy.benefitsSnapshot;
-  return <details className="tw:group tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-white">
-    <summary className="tw:flex tw:cursor-pointer tw:list-none tw:items-center tw:justify-between tw:gap-4 tw:rounded-xl tw:px-5 tw:py-4 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600 tw:[&::-webkit-details-marker]:hidden"><span><span className="tw:block tw:text-sm tw:font-semibold">Policy information</span><span className="tw:mt-1 tw:block tw:text-xs tw:leading-5 tw:text-slate-600">Customer, payments and coverage at a glance</span></span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="tw:shrink-0 tw:text-slate-500 tw:group-open:rotate-180"><path d="m6 9 6 6 6-6" /></svg></summary>
+  const [open, setOpen] = useState(false);
+  return <details open={open} className="tw:group tw:rounded-xl tw:border tw:border-solid tw:border-slate-200 tw:bg-white">
+    <summary onClick={event => { event.preventDefault(); setOpen(value => !value); }} className="tw:flex tw:cursor-pointer tw:list-none tw:items-center tw:justify-between tw:gap-4 tw:rounded-xl tw:px-5 tw:py-4 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600 tw:[&::-webkit-details-marker]:hidden"><span><span className="tw:block tw:text-sm tw:font-semibold">Policy information</span><span className="tw:mt-1 tw:block tw:text-xs tw:leading-5 tw:text-slate-600">Customer, payments and coverage at a glance</span></span><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="tw:shrink-0 tw:text-slate-500 tw:group-open:rotate-180"><path d="m6 9 6 6 6-6" /></svg></summary>
     <div className="tw:border-0 tw:border-t tw:border-solid tw:border-slate-200 tw:p-5 tw:sm:p-6"><Fields items={[
       ['Customer', `${policy.customer.fullName} (${policy.customer.accountCode})`],
       ['Premium', policyMoney(policy.premiumAmount, policy.currency)], ['Payment frequency', policy.paymentFrequency?.toLowerCase().replaceAll('_', ' ')],

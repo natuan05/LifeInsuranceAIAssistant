@@ -94,7 +94,8 @@ def check_draft(draft: Mapping[str, Any], channel_type: str, evidence: Mapping[s
 
 def _namespace_evidence(result: dict, operation_id: str) -> dict:
     """Evidence ids are unique per message: prefix them with the operation that produced them."""
-    mapping = {e["evidence_id"]: f"{operation_id}-{e['evidence_id']}"[:64] for e in result["evidence"]}
+    mapping = {e["evidence_id"]: f"{operation_id}-E{position}"
+               for position, e in enumerate(result["evidence"], start=1)}
     result = copy.deepcopy(result)
     for item in result["evidence"]:
         item["evidence_id"] = mapping[item["evidence_id"]]
@@ -127,6 +128,12 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             raise _Stop("BUDGET_EXHAUSTED")
         if seconds_left(clock, limits) <= 0:
             raise _Stop("DEADLINE_EXCEEDED")
+
+    def check_model_limits(message_id: str, limits: RunLimits) -> None:
+        if seconds_left(clock, limits) <= 0:
+            raise _Stop("DEADLINE_EXCEEDED")
+        if store.usage(message_id).get("model_tokens", 0) > limits.turn_token_budget:
+            raise _Stop("BUDGET_EXHAUSTED")
 
     def add_error(work: dict, source: str, code: str, operation_id: str | None) -> None:
         work["errors"] = (work["errors"] + [{"source": source, "code": code, "operation_id": operation_id}])[-20:]
@@ -165,7 +172,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             recent = _sync_history(execution, conversation, recent, limits)
             linked, linked_status = _sync_linked(execution, conversation, linked, linked_status, limits)
             _reconcile_pending(conversation, recent)
-            recent = _summarize_if_needed(work, conversation, recent, message_id)
+            recent = _summarize_if_needed(work, conversation, recent, message_id, limits)
         except _Stop as stop:
             update["failure"] = stop.failure
         work["progress"] = "PREPARING"
@@ -200,7 +207,9 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             items = _pages(lambda cursor, left: core.history(execution, view, cursor, timeout=left),
                            conversation["history_synced_through"], limits)
         except CoreError as error:
-            raise _Stop("SOURCE_UNAVAILABLE", retryable=error.transient) from error
+            code = {"NOT_AUTHORIZED": "PERMISSION_DENIED", "INVALID_ATTEMPT": "ATTEMPT_INVALID"}.get(
+                error.code, "SOURCE_UNAVAILABLE")
+            raise _Stop(code, retryable=error.transient) from error
         conversation["history_synced_through"] = view["through_cursor"]
         return _merge(recent, items)
 
@@ -212,15 +221,20 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             conversation["linked_sync"] = None
             return [], "NONE"
         previous = conversation["linked_sync"]
-        if previous == view:
-            return linked, status  # same Staff question: the frozen view is not refreshed
+        # Even an unchanged frozen view must pass current Core authorization on resume/new turns.
+        # Reading after its watermark returns no additional items and never widens the source snapshot.
         same_chat = previous is not None and previous["conversation_id"] == view["conversation_id"]
         start = previous["through_cursor"] if same_chat else None
         base = linked if same_chat else []
         try:
             items = _pages(lambda cursor, left: core.linked_history(execution, view, cursor, timeout=left), start, limits)
-        except CoreError:
-            return base, "SYNC_FAILED"  # keep what was read before; never labelled as fully synced
+        except CoreError as error:
+            denied = {"NOT_AUTHORIZED": "PERMISSION_DENIED", "INVALID_ATTEMPT": "ATTEMPT_INVALID"}
+            if error.code in denied:
+                raise _Stop(denied[error.code]) from error
+            if not error.transient:
+                raise _Stop("SOURCE_UNAVAILABLE") from error
+            return base, "SYNC_FAILED"  # transient source error; never labelled as fully synced
         conversation["linked_sync"] = dict(view)
         return _merge(base, items), "SYNCED"
 
@@ -237,7 +251,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         else:
             conversation["pending_clarification"] = None
 
-    def _summarize_if_needed(work, conversation, recent, message_id) -> list[dict]:
+    def _summarize_if_needed(work, conversation, recent, message_id, limits) -> list[dict]:
         keep = config.recent_turns
         older = recent[: max(len(recent) - keep, 0)]
         summary = conversation["history_summary"]
@@ -248,7 +262,10 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             return recent
         if summary:
             material = [{"previous_summary": summary["text"]}] + material
-        operation = f"summary-{work['counters']['graph_steps']}"
+        check_model_limits(message_id, limits)
+        # Prepare itself may not have checkpointed before a crash. Allocate from ledger usage,
+        # never a graph-step counter that can roll back and reuse a spent reservation.
+        operation = f"summary-{store.usage(message_id).get('model_calls', 0) + 1}"
         try:
             store.reserve(message_id, "model_calls", operation)
             store.reserve(message_id, "model_tokens", operation, tokens_for(len(str(material))))
@@ -261,6 +278,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             return recent
         store.settle(message_id, "model_tokens", operation, reply.usage.total)
         _count_tokens(work, reply)
+        check_model_limits(message_id, limits)
         covers = older[-1]["position"]
         conversation["history_summary"] = {"text": str(reply.output)[:4000] or "-", "covers_through": covers}
         return [i for i in recent if int(i["position"]) > int(covers)]
@@ -278,7 +296,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         work = copy.deepcopy(state["work"])
         conversation = copy.deepcopy(state["conversation"])
         trace = state.get("trace", []) + ["agent"]
-        finishing = bool(state.get("finishing"))
+        finishing = bool(state.get("finishing") or state.get("finalize_issue"))
         try:
             guard(work, limits)
             usage = store.usage(message_id)
@@ -309,6 +327,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
                 raise _Stop("MODEL_ERROR", retryable=True)
             store.settle(message_id, "model_tokens", operation, reply.usage.total)
             _count_tokens(work, reply)
+            check_model_limits(message_id, limits)
             _apply_notes(reply.notes, work, conversation, state)
             output = reply.output
             if not contracts.is_valid("AgentDecision", output):
@@ -408,6 +427,11 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         trace = state.get("trace", []) + ["finalize"]
         failure = state.get("failure")
         result = None
+        if failure is None:
+            try:
+                check_model_limits(message_id, RunLimits.from_contract(execution["limits"]))
+            except _Stop as stop:
+                failure = stop.failure
         if failure is None:
             draft = state["draft"]
             evidence, core_ok = source_registry(work)

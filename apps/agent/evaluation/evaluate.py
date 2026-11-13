@@ -6,7 +6,7 @@
 Report = mandatory_checks (PASS | FAIL | NOT_RUN) kept apart from quality_metrics. A mandatory failure is never offset by
 quality, and NOT_RUN is never PASS: checks that need a person (claim commitment, ticket wording) stay NOT_RUN until a
 reviewer file records a verdict. No threshold here is an approved acceptance gate; acceptance is never declared by
-code. The run reads an already built index (no seeding/indexing) and writes its report to the ignored .local/ area.
+code. The run reads an already built index (no seeding/indexing) and writes its report outside the checkout.
 Prompts, chunk text and Private content are not written to the report; Public answers are kept for human review.
 """
 from __future__ import annotations
@@ -210,7 +210,8 @@ def evaluate(cases: Sequence[Mapping[str, Any]], dataset_id: str, config_id: str
     human_review = human_review or {}
     rows, all_checks = [], []
     latencies, usage_totals = [], {"model_calls": 0, "input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0,
-                                   "retrieval_calls": 0, "embedding_calls": 0, "rate_limited_waits": 0}
+                                   "retrieval_calls": 0, "embedding_calls": 0, "rate_limited_waits": 0,
+                                   "failed_model_calls": 0}
     by_kind: dict[str, int] = {}
     quality: dict[str, list[float | None]] = {f"recall@{k}": [] for k in ks}
     quality.update({f"ndcg@{k}": [] for k in ks})
@@ -245,6 +246,7 @@ def evaluate(cases: Sequence[Mapping[str, Any]], dataset_id: str, config_id: str
         usage = run.get("usage", {})
         for call in usage.get("calls", []):
             usage_totals["model_calls"] += 1
+            usage_totals["failed_model_calls"] += int(bool(call.get("error")))
             for token in ("input_tokens", "output_tokens", "thinking_tokens"):
                 usage_totals[token] += call.get(token, 0)
             by_kind[call.get("kind", "decide")] = by_kind.get(call.get("kind", "decide"), 0) + 1
@@ -297,6 +299,9 @@ def _cost(usage: Mapping[str, int], pricing: Mapping[str, Any] | None, model: st
         return {"generation": None, "note": "no price configured"}
     generation = (usage["input_tokens"] * price["input"] + (usage["output_tokens"] + usage["thinking_tokens"])
                   * price["output"]) / 1_000_000
+    if usage.get("failed_model_calls"):
+        return {"generation": None, "known_usage_estimate": round(generation, 6),
+                "note": "provider failure without usage; total generation cost unknown; embedding excluded"}
     return {"generation": round(generation, 6), "note": "thinking tokens billed as output; embedding cost not included"}
 
 
@@ -364,39 +369,31 @@ class _DownEmbedding:
 
 
 class RecordingModel:
-    """Wraps the provider adapter to record per-call usage and kind (decide / repair / summary). A rate-limited request
-    (429, not processed by the provider) is waited out and retried here so quota limits of a trial key do not turn into
-    case failures; every wait is counted in the report."""
+    """Record each graph-reserved provider attempt, including failures. Never retry or wait outside the ledger."""
 
-    def __init__(self, inner, *, rate_limit_retries: int = 4, sleep: Callable[[float], None] = time.sleep):
+    def __init__(self, inner):
         self.inner = inner
         self.calls: list[dict[str, Any]] = []
-        self.rate_limited = 0
-        self._retries = rate_limit_retries
-        self._sleep = sleep
 
-    def _call(self, fn):
+    def _call(self, kind, fn):
         from life_agent.model import ProviderError
 
-        for attempt in range(self._retries + 1):
-            try:
-                return fn()
-            except ProviderError as error:
-                if error.code != "RATE_LIMITED" or attempt == self._retries:
-                    raise
-                self.rate_limited += 1
-                self._sleep(min(60.0, 5.0 * 2 ** attempt))
-
-    def _record(self, kind, reply):
-        self.calls.append({"kind": kind, "input_tokens": reply.usage.input_tokens,
-                           "output_tokens": reply.usage.output_tokens, "thinking_tokens": reply.usage.thinking_tokens})
+        entry = {"kind": kind, "input_tokens": 0, "output_tokens": 0, "thinking_tokens": 0}
+        self.calls.append(entry)
+        try:
+            reply = fn()
+        except Exception as error:
+            entry["error"] = error.code if isinstance(error, ProviderError) else type(error).__name__
+            raise
+        entry.update(input_tokens=reply.usage.input_tokens, output_tokens=reply.usage.output_tokens,
+                     thinking_tokens=reply.usage.thinking_tokens)
         return reply
 
     def decide(self, context):
-        return self._record("repair" if context.finalize_issue else "decide", self._call(lambda: self.inner.decide(context)))
+        return self._call("repair" if context.finalize_issue else "decide", lambda: self.inner.decide(context))
 
     def summarize(self, items, *, max_chars):
-        return self._record("summary", self._call(lambda: self.inner.summarize(items, max_chars=max_chars)))
+        return self._call("summary", lambda: self.inner.summarize(items, max_chars=max_chars))
 
 
 def build_runtime(trial: Mapping[str, Any], env: Mapping[str, str]):
@@ -480,7 +477,7 @@ def end_to_end_runner(rt, trial, env) -> Callable[[Mapping], dict]:
                 "failure": event["payload"].get("failure"),
                 "tool_calls": [{"tool": o["tool"], "query": o["arguments"].get("query")} for o in outputs],
                 "usage": {"calls": model.calls, "embedding_calls": rt["embedder"].calls - before,
-                          "rate_limited_waits": model.rate_limited}}
+                          "rate_limited_waits": 0}}
     return run
 
 
@@ -527,6 +524,16 @@ def report_meta(trial: Mapping[str, Any], rt: Mapping[str, Any], mode: str) -> d
     }
 
 
+def report_output_path(requested: Path | None, mode: str, stamp: str) -> Path:
+    from life_agent.config import ConfigError, user_data_directory
+
+    output = (requested if requested is not None else
+              user_data_directory() / "agent-eval" / f"{mode}-{stamp}.json").resolve()
+    if output.is_relative_to(REPO_ROOT.resolve()):
+        raise ConfigError("evaluation output must be outside the repository")
+    return output
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     from life_agent.config import load_env
 
@@ -539,6 +546,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--human-review", type=Path, help="JSON {case_id: {check: PASS|FAIL|NOT_RUN}}")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    # Reject an unsafe output path before opening clients or making any paid call.
+    out = report_output_path(args.out, args.mode, stamp)
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     env = load_env(args.env_file)
@@ -555,14 +565,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                           mode=args.mode, meta=report_meta(trial, rt, args.mode), doc_ids=doc_ids, human_review=human)
     finally:
         rt["reader"].close()
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    out = (args.out or REPO_ROOT / ".local" / "agent-eval" / f"{args.mode}-{stamp}.json").resolve()
-    if not str(out).startswith(str((REPO_ROOT / ".local").resolve())):
-        raise SystemExit("--out must be inside the repository's ignored .local/ directory")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     q = report["quality_metrics"]
-    summary = {"report": str(out.relative_to(REPO_ROOT)), "mode": args.mode, "cases": len(cases),
+    summary = {"report": str(out), "mode": args.mode, "cases": len(cases),
                "mandatory_status": report["mandatory_status"],
                "mandatory": {k: v["status"] for k, v in report["mandatory_checks"].items()},
                "recall@8": q.get("recall@8"), "ndcg@8": q.get("ndcg@8"), "mrr": q.get("mrr"),

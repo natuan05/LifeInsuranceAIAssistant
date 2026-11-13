@@ -63,6 +63,6 @@ export const createConversation = (intent: CreateIntent, csrf: string, signal: A
 export type HandoffIntent = { clientRequestId: string; expectedVersion: number; expectedAssignmentVersion: number; sharedSubject: string; sharedReason: string; consent: { confirmed: true; textVersion: string; scope: string } };
 export const requestHandoff = (id: string, intent: HandoffIntent, csrf: string, signal: AbortSignal) => request<{ conversation: { id: string } }>(`${conversationPath('CUSTOMER', id)}/handoff-requests`, signal, csrf, intent);
 
-export type StaffNotification = { id: string; kind: 'HANDOFF_REQUESTED'; title: string; isRead: boolean; createdAt: string; target: { type: 'CONVERSATION'; id: string } };
+export type StaffNotification = { id: string; kind: 'HANDOFF_REQUESTED' | 'TICKET_CREATED' | 'TICKET_ACCEPTED' | 'TICKET_STATUS_CHANGED'; title: string; isRead: boolean; createdAt: string; target: { type: 'CONVERSATION' | 'TICKET'; id: string } };
 export const staffNotifications = (cursor: string | undefined, signal: AbortSignal) => request<CursorPage<StaffNotification>>(`staff/notifications?${query({ cursor })}`, signal);
 export const readStaffNotification = (id: string, csrf: string, signal: AbortSignal) => request<{ id: string; isRead: boolean }>(`staff/notifications/${encodeURIComponent(id)}/read`, signal, csrf, {});

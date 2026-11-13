@@ -1,6 +1,6 @@
 """Runtime store used by the graph: interface, in-memory double and the durable PostgreSQL store (Task 4).
 
-The durable store follows contracts/agent-v1.md section 12 and the G2/G3 decisions of 06/11/2026: receipts keyed by
+The durable store follows contracts/agent-v1.md section 12 and the G2/G3 proposals recorded on 06/11/2026: receipts keyed by
 attempt, one writer per thread fenced by (thread_id, attempt_id, writer_epoch) inside the same transaction as every
 write, a per-message ledger reserved before external calls, and an immutable final event committed together with the
 completion marker. It lives in schema agent_runtime with its own roles; it never touches business or rag.
@@ -204,6 +204,7 @@ class PgRuntimeStore:
         run_id, attempt_id = request["run_id"], request["attempt_id"]
         thread_id = f"conv:{request['conversation_id']}"
         with self.transaction() as cur:
+            owner = self._lock_owner(cur, thread_id)
             cur.execute(f"SELECT request_sha256, status FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR UPDATE",
                         (attempt_id,))
             row = cur.fetchone()
@@ -218,7 +219,6 @@ class PgRuntimeStore:
                 cur.execute(f"UPDATE {SCHEMA}.outbound_events SET next_delivery_at = now() "
                             f"WHERE attempt_id = %s AND ack_outcome IS NULL", (attempt_id,))
                 return _ack("DUPLICATE", run_id, attempt_id)
-            owner = self._lock_owner(cur, thread_id)
             epoch = 1
             if owner is not None:
                 previous, epoch = owner[0], owner[1] + 1
@@ -238,6 +238,9 @@ class PgRuntimeStore:
 
     @staticmethod
     def _lock_owner(cur, thread_id: str):
+        # The advisory gate also covers the first receipt/revoke, when there is no owner row to lock yet.
+        # Control transactions always acquire owner before receipt; fenced writes use the same row order.
+        cur.execute("SELECT pg_advisory_xact_lock(718001, hashtext(%s))", (thread_id,))
         cur.execute(f"SELECT attempt_id, writer_epoch, revoked FROM {SCHEMA}.thread_owners WHERE thread_id = %s FOR UPDATE",
                     (thread_id,))
         return cur.fetchone()
@@ -249,10 +252,13 @@ class PgRuntimeStore:
         run_id, attempt_id = revocation["run_id"], revocation["attempt_id"]
         thread_id = f"conv:{revocation['conversation_id']}"
         with self.transaction() as cur:
-            cur.execute(f"SELECT status, thread_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR UPDATE",
+            owner = self._lock_owner(cur, thread_id)
+            cur.execute(f"SELECT status, thread_id, run_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR UPDATE",
                         (attempt_id,))
             row = cur.fetchone()
-            owner = self._lock_owner(cur, row[1] if row else thread_id)
+            if row is not None and (row[1] != thread_id or (row[2] is not None and str(row[2]) != run_id)):
+                return contracts.validate("RevocationAck", {"outcome": "REJECTED", "run_id": run_id,
+                    "attempt_id": attempt_id, "writer_epoch": None, "reason": "PAYLOAD_MISMATCH"})
             if row is None:  # dispatch still in flight: leave a tombstone so it is refused when it lands
                 cur.execute(f"INSERT INTO {SCHEMA}.run_receipts (attempt_id, thread_id, status, revoked_at) "
                             f"VALUES (%s, %s, 'REVOKED', now())", (attempt_id, thread_id))
@@ -274,6 +280,11 @@ class PgRuntimeStore:
     def claim_execution(self, run_id: str, attempt_id: str, *, worker_id: str, lease_seconds: float) -> ExecutionLease:
         """Take the execution lease and raise the epoch, fencing any earlier claim of the same attempt."""
         with self.transaction() as cur:
+            cur.execute(f"SELECT thread_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s", (attempt_id,))
+            existing = cur.fetchone()
+            if existing is None:
+                raise StaleWriter(attempt_id)
+            owner = self._lock_owner(cur, existing[0])
             cur.execute(f"SELECT run_id, message_id, thread_id, status, claimed_by, lease_expires_at > now() "
                         f"FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR UPDATE", (attempt_id,))
             row = cur.fetchone()
@@ -281,7 +292,6 @@ class PgRuntimeStore:
                 raise StaleWriter(attempt_id)
             if row[4] and row[4] != worker_id and row[5]:
                 raise LeaseHeld(attempt_id)
-            owner = self._lock_owner(cur, row[2])
             if owner is None or str(owner[0]) != attempt_id or owner[2]:
                 raise StaleWriter(attempt_id)
             epoch = owner[1] + 1
@@ -400,12 +410,18 @@ class PgRuntimeStore:
     def persist_final(self, lease: ExecutionLease, outcome: Mapping[str, Any]) -> dict:
         """Final result/failure + event + sequence + completion marker in one transaction (12.7)."""
         with self.transaction() as cur:
-            cur.execute(f"SELECT status, final_event_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR UPDATE",
+            cur.execute(f"SELECT status, final_event_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s",
                         (lease.attempt_id,))
             row = cur.fetchone()
             if row is not None and row[0] == "FINALIZED":
                 return self._event(cur, row[1])
             self.fence(cur, lease)
+            # Serialize finalization without blocking the FK KEY SHARE locks taken by concurrent progress events.
+            cur.execute(f"SELECT status, final_event_id FROM {SCHEMA}.run_receipts WHERE attempt_id = %s FOR NO KEY UPDATE",
+                        (lease.attempt_id,))
+            row = cur.fetchone()
+            if row is not None and row[0] == "FINALIZED":
+                return self._event(cur, row[1])
             if "result" in outcome:
                 event = self._emit(cur, lease, "RESULT", {"result": outcome["result"]})
             else:
@@ -435,8 +451,15 @@ class PgRuntimeStore:
 
     def ack_event(self, event_id: str, ack: Mapping[str, Any], *, retry_after_s: float = 0) -> None:
         """Stop resending on ACCEPTED/DUPLICATE/IGNORED_STALE/CONFLICT; REJECTED or no ACK keeps the event."""
-        outcome = ack.get("outcome") if ack else None
         with self.transaction() as cur:
+            cur.execute(f"SELECT run_id::text, attempt_id::text FROM {SCHEMA}.outbound_events WHERE event_id = %s",
+                        (event_id,))
+            row = cur.fetchone()
+            if row is None:
+                return
+            valid = contracts.is_valid("DurableAck", ack)
+            matches = valid and (ack["run_id"], ack["attempt_id"], ack["event_id"]) == (*row, event_id)
+            outcome = ack["outcome"] if matches else None
             if outcome in ("ACCEPTED", "DUPLICATE", "IGNORED_STALE", "CONFLICT"):
                 cur.execute(f"UPDATE {SCHEMA}.outbound_events SET ack_outcome = %s, acked_at = now(), "
                             f"delivery_attempts = delivery_attempts + 1 WHERE event_id = %s AND ack_outcome IS NULL",
@@ -612,6 +635,9 @@ class FencedPostgresSaver(BaseCheckpointSaver[str]):
         with self.store.transaction() as cur:
             self.store.fence(cur, self.lease)
             self._check_thread(thread_id)
+            # A different advisory namespace from owner transitions avoids any SHARE-to-UPDATE lock upgrade.
+            # Serialize the head check and insert even when this namespace has no checkpoint yet.
+            cur.execute("SELECT pg_advisory_xact_lock(718002, hashtext(%s))", (canonical_json([thread_id, ns]),))
             cur.execute(f"SELECT checkpoint_id FROM {SCHEMA}.checkpoints WHERE thread_id = %s AND checkpoint_ns = %s "
                         f"ORDER BY checkpoint_id DESC LIMIT 1", (thread_id, ns))
             head = cur.fetchone()

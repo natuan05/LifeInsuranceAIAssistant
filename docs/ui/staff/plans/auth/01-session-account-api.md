@@ -2,6 +2,22 @@
 
 04/11/2026 · **Đã triển khai; tài liệu bổ sung từ code hiện tại** · [Contract](../01-auth-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + staff_profiles | users.phone/updated_at, staff_profiles.user_id/full_name/department | PATCH ghi phone/full_name; đọc trường readonly | User–StaffProfile 1:1 theo user_id/role; phone unique, User.updated_at là token so sánh | Cao — khóa User rồi kiểm token, cập nhật tên/phone và audit atomic; không sửa department/email/role |
+| users + auth_sessions | users.password_hash/password_changed_at/password_change_recommended/failed_login_attempts/locked_until, auth_sessions.token_hash/csrf_token_hash/expires_at/revoked_at | Login/password/logout ghi | Lock User serialize password/login; phiên mới và thu hồi phiên theo nghiệp vụ | Cao — đổi password ảnh hưởng mọi tab và cả hai role; không ghi hash/token vào log |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không DDL mới; dùng schema Auth/Profile hiện có. Không backfill/reset mật khẩu hay tài khoản khi sửa API.
+
+**Nhất quán và hồi quy:** PATCH lock/recheck expectedUpdatedAt trong transaction; password/session/audit theo transaction AuthService. Kiểm AU01-T01–T04, form Account và phiên cũ sau đổi mật khẩu.
+
 ## 1. Phạm vi và model
 
 FR-001, NFR-001/002 và quyết định Staff tự sửa hồ sơ. User–StaffProfile 1:1, User–AuthSession 1:N; không có public Staff signup.
@@ -9,6 +25,13 @@ FR-001, NFR-001/002 và quyết định Staff tự sửa hồ sơ. User–StaffP
 ## 2. Vị trí code
 
 `apps/core/src/auth/controllers/auth.controller.ts`, `staff-profile.controller.ts`, `services/auth.service.ts`, `dto/update-staff-profile.dto.ts`; account provisioning thuộc operator, không chuyển vào Staff API.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/auth/controllers/auth.controller.ts](<../../../../../apps/core/src/auth/controllers/auth.controller.ts>) | Hiện có | Login/me/password/logout, bảo vệ cookie và header | Cao | Staff và Customer dùng chung AuthService |
+| [apps/core/src/auth/controllers/staff-profile.controller.ts](<../../../../../apps/core/src/auth/controllers/staff-profile.controller.ts>) | Hiện có | GET/PATCH own Staff, validation DTO | Cao | Form Account, phone unique, optimistic concurrency |
+| [apps/core/src/auth/services/auth.service.ts](<../../../../../apps/core/src/auth/services/auth.service.ts>) | Hiện có | Xác thực, khóa User, cập nhật hồ sơ/phiên và audit | Cao | Operator writers, realtime session và mọi API |
+| [apps/core/src/auth/dto/update-staff-profile.dto.ts](<../../../../../apps/core/src/auth/dto/update-staff-profile.dto.ts>) | Hiện có | Allowlist fullName/phone/expectedUpdatedAt | Trung bình | Swagger và staff-profile-api.ts |
 
 ## 3. API và dữ liệu
 
@@ -37,15 +60,114 @@ flowchart LR
   C --> E[Lỗi an toàn và retry có kiểm soát]
 ```
 
-## 5. Kiểm thử
+## 5. Test cases
 
-`apps/core/test/auth.test.cjs`; chạy `npm run test:auth`; kiểm password/role/CSRF/profile concurrency/phone collision/thu hồi phiên. Rà suite thật bằng rg trước chạy, không tạo test chỉ lặp DTO.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
+
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### AU01-T01 — Đăng nhập đúng cổng Staff
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A là Staff ACTIVE có mật khẩu synthetic đã biết; C-A là Customer.
+
+**Các bước:**
+
+1. POST /auth/staff/login bằng S-A.
+2. Dùng cookie nhận được gọi GET /auth/me và GET /staff/me.
+3. Lặp đăng nhập cổng Staff bằng C-A.
+
+**Kết quả mong đợi:** S-A nhận session và đúng hồ sơ chính mình; C-A không tạo được phiên Staff; không trả password hash/token nội bộ.
+
+### AU01-T02 — Chỉ sửa tên và phone của chính Staff
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A đã đăng nhập; GET /staff/me trả updatedAt=t0, dùng làm expectedUpdatedAt khi ghi.
+
+**Các bước:**
+
+1. PATCH /staff/me với fullName mới, phone synthetic và expectedUpdatedAt=t0 cùng CSRF hợp lệ.
+2. GET lại hồ sơ.
+3. Gửi PATCH chứa thêm role hoặc email.
+
+**Kết quả mong đợi:** Lần đầu lưu đúng tên/phone và token mới; request có trường cấm bị 400, không đổi role/email.
+
+### AU01-T03 — Hai phiên cùng sửa hồ sơ
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** Hai context S-A cùng đọc token t0; dùng hai tên synthetic khác nhau.
+
+**Các bước:**
+
+1. Context1 PATCH bằng t0.
+2. Context2 PATCH bằng t0.
+3. GET hồ sơ sau hai request.
+
+**Kết quả mong đợi:** Context1 thành công; context 2 nhận409; dữ liệu context 1 không bị ghi đè.
+
+### AU01-T04 — CSRF, password và thu hồi phiên
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** S-A có hai phiên hợp lệ; biết mật khẩu hiện tại của fixture.
+
+**Các bước:**
+
+1. PATCH hồ sơ với CSRF sai.
+2. Đổi mật khẩu synthetic qua POST /auth/change-password.
+3. Dùng phiên cũ gọi GET /auth/me; dùng phiên mới rồi logout.
+
+**Kết quả mong đợi:** CSRF sai trả 403 và không ghi; đổi mật khẩu thu hồi phiên cũ; logout làm phiên mới không còn truy cập được. Không ghi mật khẩu vào log.
+
+**Suite tham khảo:** [auth.test.cjs](../../../../../apps/core/test/auth.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
-- [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
+
+**Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
 API đang E; bổ sung tài liệu không chứng minh vừa chạy lại suite. Đợt code tiếp theo phải kiểm auth/password/role và profile race; không thay password policy hoặc credential.
 
+## Tự động hóa test case
+
+| Suite/vị trí | Phạm vi và giới hạn |
+| --- | --- |
+| [staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Auth thật: login, PATCH/audit DB, hai writer xung đột, đổi password thu hồi phiên cũ và logout bằng UI. |
+| [browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Dữ liệu synthetic UUID qua test Docker, session/password trong memory; finally dọn đúng fixture/object, không reset seed |
+| [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
+
+Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Xác nhận thao tác
+    W->>C: PATCH /staff/me, changed fields và expectedUpdatedAt
+    C->>D: Kiểm session, CSRF và khóa User và StaffProfile, self scope
+    D-->>C: Quyền, version và state hiện hành
+    alt Không đủ quyền hoặc version stale
+        C-->>W: 401, 403, 404 hoặc409 an toàn
+        W-->>U: Giữ nháp phù hợp và review trạng thái
+    else Hợp lệ
+        C->>D: Update profile, token và audit atomic
+        D-->>C: COMMIT
+        C-->>W: 200 hồ sơ mới
+        W-->>U: Cập nhật sau ACK
+    end
+    opt Timeout hoặc mất ACK
+        W->>C: GET current state hoặc receipt theo contract
+        C->>D: Kiểm lại quyền và đọc kết quả
+        C-->>W: Current state, không tự cấp quyền mới
+        W-->>U: Review trước khi ghi lại
+    end
+```

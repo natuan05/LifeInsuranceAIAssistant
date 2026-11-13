@@ -190,6 +190,29 @@ services:
       storage-init: { condition: service_completed_successfully }
     restart: "no"
 
+  # Explicitly destructive maintenance command; never part of default up.
+  dev-data-reset:
+    profiles: [maintenance]
+    extends: { service: seed-dev }
+    command: ["node", "dist/cli/reset-dev-data.js", "--compose-local", "--erase-all-app-data"]
+    volumes:
+      - credential_bootstrap:/credentials/bootstrap:ro
+      - credential_storage_root:/credentials/storage-cleanup:ro
+
+  dev-seed-tests:
+    profiles: [tests]
+    extends: { service: core-tests }
+    command: ["node", "--test", "--test-concurrency=1", "test/policy-seed.test.cjs", "test/dev-data-reset.test.cjs"]
+    environment:
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
+    volumes:
+      - credential_bootstrap:/credentials/bootstrap:ro
+
+  dev-policy-reseed:
+    profiles: [maintenance]
+    extends: { service: dev-data-reset }
+    command: ["node", "dist/cli/reset-dev-data.js", "--compose-local", "--replace-policy-fixtures"]
+
   core:
     image: life-insurance-core:local
     build: { context: ., dockerfile: apps/core/Dockerfile, target: runtime }

@@ -5,31 +5,42 @@ import { ConversationCommandService } from '../conversations/services/conversati
 import { ConversationSessionService, type ConversationRequest } from '../conversations/services/conversation-session.service';
 import { decodeInboxCursor, encodeInboxCursor, inboxCursorScope } from '../conversations/services/inbox-cursor';
 import type { CustomerConversationsQuery } from '../conversations/dto/message-query.dto';
+import { TicketAccessService } from '../tickets/services/ticket-access.service';
+import { ticketNotificationTitle } from '../tickets/services/ticket-event.service';
 @Injectable()
 export class NotificationsService {
-  constructor(private readonly session: ConversationSessionService, private readonly access: ConversationAccessService, private readonly commands: ConversationCommandService) {}
+  constructor(private readonly session: ConversationSessionService, private readonly access: ConversationAccessService, private readonly commands: ConversationCommandService,
+    private readonly tickets: TicketAccessService) {}
   private scope(actorId: string): Prisma.NotificationWhereInput {
-    return { recipientStaffId: actorId, kind: 'HANDOFF_REQUESTED', conversation: { is: this.access.staffScope(actorId) } };
+    return { recipientStaffId: actorId, OR: [
+      { kind: 'HANDOFF_REQUESTED', ticketId: null, conversation: { is: this.access.staffScope(actorId) } },
+      { kind: { in: ['TICKET_CREATED', 'TICKET_ACCEPTED', 'TICKET_STATUS_CHANGED'] }, conversationId: null, ticket: { is: this.tickets.staffScope(actorId) } },
+    ] };
   }
   list(request: ConversationRequest, query: CustomerConversationsQuery) {
     return this.session.read(request, 'STAFF', async (tx, actorId) => {
       const scope = inboxCursorScope(actorId, 'notifications', 'all');
       const boundary = decodeInboxCursor(query.cursor, scope);
-      const rows = await tx.notification.findMany({ where: { ...this.scope(actorId), ...(boundary ? { OR: [
-        { createdAt: { lt: new Date(boundary.at) } }, { createdAt: new Date(boundary.at), id: { lt: boundary.id } } ] } : {}) },
+      const rows = await tx.notification.findMany({ where: { AND: [this.scope(actorId), ...(boundary ? [{ OR: [
+        { createdAt: { lt: new Date(boundary.at) } }, { createdAt: new Date(boundary.at), id: { lt: boundary.id } } ] }] : [])] },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: query.limit + 1,
-        select: { id: true, createdAt: true, isRead: true, conversationId: true } });
+        select: { id: true, kind: true, createdAt: true, isRead: true, conversationId: true, ticketId: true } });
       const items = rows.slice(0, query.limit), last = items.at(-1), hasMore = rows.length > query.limit;
-      return { items: items.map(row => ({ id: row.id, kind: 'HANDOFF_REQUESTED', title: 'Staff support requested', isRead: row.isRead,
-        createdAt: row.createdAt.toISOString(), target: { type: 'CONVERSATION', id: row.conversationId } })),
+      return { items: items.map(row => ({ id: row.id, kind: row.kind, title: row.kind === 'HANDOFF_REQUESTED' ? 'Staff support requested' : ticketNotificationTitle(row.kind!), isRead: row.isRead,
+        createdAt: row.createdAt.toISOString(), target: row.ticketId ? { type: 'TICKET', id: row.ticketId } : { type: 'CONVERSATION', id: row.conversationId } })),
         pageInfo: { hasMore, nextCursor: hasMore && last ? encodeInboxCursor(scope, last.createdAt, last.id) : null } };
     });
   }
   read(request: ConversationRequest, id: string) {
     return this.session.write(request, 'STAFF', 'NOTIFICATION_READ', async (tx, actorId) => {
-      const row = await tx.notification.findFirst({ where: { id, recipientStaffId: actorId, kind: 'HANDOFF_REQUESTED' }, select: { conversationId: true } });
-      if (!row?.conversationId) throw new NotFoundException();
-      await this.commands.lock(tx, actorId, row.conversationId);
+      const row = await tx.notification.findFirst({ where: { id, ...this.scope(actorId) }, select: { conversationId: true, ticketId: true } });
+      if (!row) throw new NotFoundException();
+      if (row.ticketId) {
+        const ticket = await this.tickets.requireTicket(tx, actorId, row.ticketId);
+        await this.commands.lockCustomer(tx, actorId, ticket.customerId);
+        await tx.$queryRaw`SELECT id FROM business.support_tickets WHERE id=${row.ticketId}::uuid FOR UPDATE`;
+      } else if (row.conversationId) await this.commands.lock(tx, actorId, row.conversationId);
+      else throw new NotFoundException();
     }, async (tx, actorId) => {
       const row = await tx.notification.findFirst({ where: { id, ...this.scope(actorId) }, select: { id: true } });
       if (!row) throw new NotFoundException();

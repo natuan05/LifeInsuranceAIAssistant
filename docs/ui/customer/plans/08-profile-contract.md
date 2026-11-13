@@ -2,6 +2,17 @@
 
 04/11/2026 · **Kế hoạch phần sửa; read/auth đã có** · C08 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [PF01 — Customer PATCH và optimistic concurrency](profile/01-self-edit-core.md) | users + customer_profiles (PATCH ghi dự kiến, profile_version DDL mới) | [apps/core/src/customers/controllers/customer.controller.ts](<../../../../apps/core/src/customers/controllers/customer.controller.ts>); [apps/core/src/customers/services/customer.service.ts](<../../../../apps/core/src/customers/services/customer.service.ts>) | Cao — Customer own projection |
+| [PF02 — Profile editor và Account Customer](profile/02-profile-account-ui.md) | users + customer_profiles (Đọc own profile); users + customer_profiles (PATCH ghi dự kiến, profile_version DDL mới) | [apps/web/src/components/customer-account.tsx](<../../../../apps/web/src/components/customer-account.tsx>); [apps/web/src/lib/customer-api.ts](<../../../../apps/web/src/lib/customer-api.ts>) | Cao — Account và Home/sidebar labels |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Căn cứ và model
 
 FR-002 còn thiếu Customer tự sửa. GET `/customers/me` đã có User.email/phone/accountCode/status + CustomerProfile.fullName/birth/address + Staff contact theo availability. Password/logout đã E qua auth, không viết lại. CustomerProfile không có updatedAt; User.updatedAt không tự đổi khi sửa chỉ profile, assignmentVersion chỉ cho routing. Không sao chép expectedUpdatedAt Staff một cách sai nguồn.
@@ -33,5 +44,5 @@ Customer sửa fullName/phone/birth/address chính mình; email/accountCode/role
 - [x] Đổi mật khẩu/logout thật; password mới 6 ký tự đến 72 byte UTF-8, không trim, thu hồi các phiên cũ.
 - [x] Lời nhắc password có Later; refresh thủ công và WebSocket ready/invalidate tải lại dữ liệu theo quyền.
 - [x] Refresh nền giữ nội dung khi cùng actor; không refetch profile mỗi lần focus, vẫn kiểm lại session.
-- [ ] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
+- [x] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
 - [ ] Chỉnh sửa hồ sơ chỉ làm sau khi chốt trường, quyền và API; không đánh dấu FR-002 hoàn tất chỉ vì đọc được hồ sơ.

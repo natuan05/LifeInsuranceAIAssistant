@@ -86,12 +86,12 @@ class Row:
 class IndexReader(Protocol):
     """Scoped read access to rag. Every method receives the pairs and must apply them in SQL."""
 
-    def profile(self, pairs: Sequence[ScopePair], access_scope: str) -> dict[tuple[str, str], set[str]]:
-        """(document, version) -> embedding config ids of child rows (missing key = not indexed)."""
+    def profile(self, pairs: Sequence[ScopePair], access_scope: str) -> dict[tuple[str, str], list[dict[str, Any]]]:
+        """(document, version) -> complete embedding identities plus stored_dimensions of child rows."""
 
     def keyword(self, query: str, pairs: Sequence[ScopePair], access_scope: str, config: SearchConfig) -> list[str]: ...
 
-    def vector(self, values: Sequence[float], embedding_config_id: str, pairs: Sequence[ScopePair], access_scope: str,
+    def vector(self, values: Sequence[float], embedding_identity: Mapping[str, Any], pairs: Sequence[ScopePair], access_scope: str,
                config: SearchConfig) -> list[str]: ...
 
     def rows(self, ids: Sequence[str], pairs: Sequence[ScopePair], access_scope: str) -> dict[str, Row]: ...
@@ -148,8 +148,8 @@ class SearchEngine:
         indexed = [p for p in pairs if (p.document_id, p.document_version) in profile]
         if not indexed:
             return _error("SEARCH_UNAVAILABLE", False)
-        configs = set().union(*(profile[(p.document_id, p.document_version)] for p in indexed))
-        if configs != {self._embedding.config_id}:
+        expected = {**self._embedding.identity(), "stored_dimensions": self._embedding.dimensions}
+        if any(identity != expected for p in indexed for identity in profile[(p.document_id, p.document_version)]):
             return _error("EMBEDDING_INCOMPATIBLE", False)  # never compare vectors from different spaces
         missing = [{"code": "SOURCE_WARNING", "document_id": p.document_id, "document_version": p.document_version,
                     "reason": "Tài liệu trong phạm vi chưa được lập chỉ mục tìm kiếm."}
@@ -169,7 +169,7 @@ class SearchEngine:
         try:
             keyword_ids = self._index.keyword(query, indexed, access, config)
             if vector is not None:
-                vector_ids = self._index.vector(vector["values"], self._embedding.config_id, indexed, access, config)
+                vector_ids = self._index.vector(vector["values"], self._embedding.identity(), indexed, access, config)
         except SearchUnavailable:
             return _error("SEARCH_UNAVAILABLE", True)
         fused = rrf([keyword_ids, vector_ids], config.rrf_k)[: config.fused_candidates]
@@ -198,7 +198,7 @@ class SearchEngine:
         evidence, issues, used_chars = [], [], 0
         emitted_parents: set[str] = set()
         seen_content: set[str] = set()
-        sections_in_evidence: set[tuple[str, str, str]] = set()
+        emitted_keys: set[str] = set()
         chosen_rows: list[Row] = []
         for child in children:
             if len(evidence) >= config.max_evidence:
@@ -220,30 +220,32 @@ class SearchEngine:
             if unit is parent:
                 emitted_parents.add(parent.metadata["chunk_key"])
             evidence.append(_evidence(unit))
-            chosen_rows.append(child)
+            chosen_rows.append(unit)
+            emitted_keys.add(unit.metadata["chunk_key"])
             used_chars += len(unit.content)
-            sections_in_evidence.add((unit.document_id, unit.document_version, unit.metadata["section_key"]))
             issues.extend(_source_issues(unit))
-        issues.extend(self._expand_refs(chosen_rows, pairs, access, config, evidence, sections_in_evidence,
+        issues.extend(self._expand_refs(chosen_rows, pairs, access, config, evidence, emitted_keys,
                                         seen_content, used_chars))
         return evidence, _dedupe(issues)
 
     def _expand_refs(self, chosen: list[Row], pairs: list[ScopePair], access: str, config: SearchConfig,
-                     evidence: list[dict], sections: set[tuple[str, str, str]], seen: set[str], used_chars: int
+                     evidence: list[dict], emitted_keys: set[str], seen: set[str], used_chars: int
                      ) -> list[dict]:
         issues: list[dict] = []
         in_scope = {(p.document_id, p.document_version) for p in pairs}
+        # Only all emitted parent parts prove coverage of an entire target section.
+        complete = {(r.document_id, r.document_version, r.metadata["section_key"])
+                    for r in chosen if r.metadata.get("section_parent_keys")
+                    and set(r.metadata["section_parent_keys"]) <= emitted_keys}
         targets: list[tuple[str, str, str, str, Row]] = []
         for row in chosen:
             for ref in row.metadata.get("refs") or []:
-                if ref.get("kind") != "explicit":
-                    continue
                 if ref["status"] == "RESOLVED":
                     key = (ref["target_document_id"], ref["target_document_version"], ref["target_section_key"])
                     if key[:2] not in in_scope:
                         issues.append(_issue("REFERENCE_OUT_OF_SCOPE", row, ref["raw"],
                                              "Đích tham chiếu nằm ngoài phạm vi tài liệu được cấp."))
-                    elif key not in sections and key not in [t[:3] for t in targets]:
+                    elif key not in complete and key not in [t[:3] for t in targets]:
                         targets.append((*key, ref["raw"], row))
                 elif ref["status"] == "TARGET_MISSING":
                     issues.append(_issue("REFERENCE_TARGET_MISSING", row, ref["raw"],
@@ -252,6 +254,8 @@ class SearchEngine:
                     issues.append(_issue("UNRESOLVED_REFERENCE", row, ref["raw"],
                                          _UNRESOLVED_REASON.get(ref.get("reason"), "Tham chiếu chưa được phân giải.")))
         if config.ref_expansion_depth == 0:
+            issues.extend(_issue("EXPANSION_CAP_REACHED", origin, raw, "Chưa mở rộng tham chiếu theo cấu hình thử.")
+                          for _, _, _, raw, origin in targets)
             return issues
         expanded = 0
         for doc, ver, section_key, raw, origin in targets:
@@ -259,11 +263,14 @@ class SearchEngine:
                 issues.append(_issue("EXPANSION_CAP_REACHED", origin, raw,
                                      "Chưa lấy mục được dẫn chiếu vì đã đạt giới hạn mở rộng."))
                 continue
+            expanded += 1  # the cap bounds database lookups too, including missing targets
             rows = self._index.section(doc, ver, section_key, pairs, access)
             if not rows:
                 issues.append(_issue("REFERENCE_TARGET_MISSING", origin, raw, "Mục được dẫn chiếu không có trong chỉ mục."))
                 continue
-            expanded += 1
+            rows = [r for r in rows if r.metadata["chunk_key"] not in emitted_keys]
+            if not rows:
+                continue
             for target in rows:
                 digest = hashlib.sha256(target.content.encode()).hexdigest()
                 if digest in seen:
@@ -274,6 +281,7 @@ class SearchEngine:
                     break
                 seen.add(digest)
                 evidence.append(_evidence(target))
+                emitted_keys.add(target.metadata["chunk_key"])
                 used_chars += len(target.content)
                 issues.extend(_source_issues(target))
         return issues
@@ -283,6 +291,7 @@ _UNRESOLVED_REASON = {
     "CROSS_DOCUMENT": "Tham chiếu sang tài liệu khác chưa có ánh xạ phiên bản đã kiểm tra.",
     "AMBIGUOUS_TARGET": "Tham chiếu khớp nhiều mục; chưa xác định được mục đích.",
     "NO_LOCAL_TARGET_KIND": "Tài liệu này không có mục loại được dẫn; có thể dẫn sang tài liệu khác.",
+    "AMBIGUOUS_PHRASE": "Tham chiếu mơ hồ trong nguồn chưa xác định được đích.",
 }
 
 
@@ -381,13 +390,13 @@ class PgIndexReader:
                 "pols": [p.policy_id for p in pairs], "access": access, **extra}
 
     def profile(self, pairs, access_scope):
-        rows = self._query(f"SELECT c.document_id::text, c.document_version, c.metadata->'embedding'->>'config_id' "
+        rows = self._query(f"SELECT c.document_id::text, c.document_version, c.metadata->'embedding', vector_dims(c.embedding) "
                            f"FROM rag.rag_knowledge_chunks c {_SCOPE_JOIN} "
-                           f"WHERE c.access_scope = %(access)s AND c.metadata->>'kind' = 'child' GROUP BY 1, 2, 3",
+                           f"WHERE c.access_scope = %(access)s AND c.metadata->>'kind' = 'child' GROUP BY 1, 2, 3, 4",
                            self._params(pairs, access_scope))
-        out: dict[tuple[str, str], set[str]] = {}
-        for doc, ver, cfg in rows:
-            out.setdefault((doc, ver), set()).add(cfg)
+        out: dict[tuple[str, str], list[dict[str, Any]]] = {}
+        for doc, ver, identity, dimensions in rows:
+            out.setdefault((doc, ver), []).append({**(identity or {}), "stored_dimensions": dimensions})
         return out
 
     def keyword(self, query, pairs, access_scope, config):
@@ -407,14 +416,16 @@ class PgIndexReader:
                                              n=config.keyword_candidates), config.statement_timeout_ms)
         return [r[0] for r in rows]
 
-    def vector(self, values, embedding_config_id, pairs, access_scope, config):
+    def vector(self, values, embedding_identity, pairs, access_scope, config):
+        import json
+
         literal = "[" + ",".join(repr(float(v)) for v in values) + "]"
         sql = (f"SELECT c.id::text FROM rag.rag_knowledge_chunks c {_SCOPE_JOIN} "
                f"WHERE c.access_scope = %(access)s AND c.metadata->>'kind' = 'child' "
-               f"AND c.metadata->'embedding'->>'config_id' = %(emb)s "
+               f"AND c.metadata->'embedding' = %(emb)s::jsonb "
                f"AND vector_dims(c.embedding) = %(dims)s "
                f"ORDER BY c.embedding <=> %(vec)s::vector, c.id LIMIT %(n)s")
-        rows = self._query(sql, self._params(pairs, access_scope, emb=embedding_config_id, dims=len(values), vec=literal,
+        rows = self._query(sql, self._params(pairs, access_scope, emb=json.dumps(embedding_identity), dims=len(values), vec=literal,
                                              n=config.vector_candidates), config.statement_timeout_ms)
         return [r[0] for r in rows]
 

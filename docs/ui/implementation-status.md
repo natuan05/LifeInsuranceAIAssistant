@@ -2,11 +2,15 @@
 
 Products P03 cập nhật 04/11/2026: PDF tự hiển thị khi chọn sản phẩm, bộ chọn khi nhiều tài liệu; bỏ View PDF/Refresh documents/Close preview. Realtime giữ bản đang đọc và thông báo chuyển phiên bản mới; bị gỡ/mất quyền thì xóa. 45 test pass (18 Products mock +26 Policy/PDF regression +1 E2E Core/MinIO thật); lint/Docker build/typecheck pass. Chi tiết tại [P03](staff/plans/products/03-staff-products-ui.md).
 
-Đối chiếu source **04/11/2026**. Đây là snapshot hiện tại, không phải nhật ký triển khai hoặc nghiệm thu toàn bộ FR/NFR. Operator là công cụ riêng; Web/Core local chạy Docker qua gateway.
+Cập nhật 05/11/2026: PL05 Quick Policy Lookup trong Inbox (modal in-place và tab mới) đã hoàn tất. Notification center bổ sung badge đếm số lượng chưa đọc, đánh dấu đọc tại chỗ từng mục và toàn bộ, tích hợp thông báo đổi mật khẩu bảo mật. 29 test browser pass (20 staff-inbox + 8 conversation-realtime + 1 ticket-flow).
+
+Customer Portal cập nhật 05/11/2026: Đã hoàn tất triển khai UI Customer tích hợp bao gồm Shell H01, Home H02 (portfolio thực tế, tiêu đề đen ASSIGNED SUPPORT STAFF chuẩn, bỏ card tĩnh Paperless Policy), Products PR01/PR02 (danh sách, tìm kiếm, nút View Details xem chi tiết giải pháp kèm Back to Solutions, bỏ nút ép mở chat, xem/tải PDF tài liệu PUBLIC qua SignedPdfPreview), và My Policies PO01/PO02/D01/D02 (tra cứu hợp đồng, quyền lợi, lịch phí, xem hợp đồng PDF). Giao diện 100% tiếng Anh nhất quán. Tất cả test customer-conversations (5/5), customer-policies (5/5), staff-inbox (20/20) pass. Docker web container đã rebuild sạch.
+
+Đối chiếu source **05/11/2026**. Đây là snapshot hiện tại, không phải nhật ký triển khai hoặc nghiệm thu toàn bộ FR/NFR. Operator là công cụ riêng; Web/Core local chạy Docker qua gateway.
 
 [Thứ tự đọc](README.md) · [Menu đích](menu.md) · [Chỉ mục Staff](staff/README.md) · [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng) · [Gap G01–G10](staff/plans/README.md#phần-còn-lại-theo-chức-năng)
 
-Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff UI đã triển khai: [Staff Products](staff/plans/04-products-contract.md). [Customer theo chức năng và phase](customer/plans/README.md) vẫn chưa triển khai UI mới; dùng chung A17/A19/access. Tách phần không Agent khỏi Agent/Ticket và đề xuất notification center Customer.
+Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff UI đã triển khai: [Staff Products](staff/plans/04-products-contract.md). [Customer plans](customer/plans/README.md) có H01/H02, PR01/PR02 và PO01/PO02/D01/D02 đã triển khai; profile edit, Agent/Ticket confirmation và notification center Customer còn theo phase riêng. Tài khoản cấp sẵn đã chốt 07/11, không còn registration backlog trong MVP.
 
 ## Quy ước
 
@@ -16,22 +20,22 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 
 | Mã | Trạng thái | Đã có | Còn thiếu |
 | --- | --- | --- | --- |
-| C01 | Một phần FR-001 | Login email/password/session/role | Registration A01/A02; reset/OTP/SSO không tự là Must |
-| C02 | Một phần UX | `/customer` đọc hồ sơ/contact và chat tối thiểu | H01 shell và H02 Home nhẹ, không API metrics mặc định |
-| C03 | Core catalog/access đã có, UI chưa làm | A17/P01 và A19/access/P02 hai role | UI Customer PR01/PR02 |
-| C04 | Chưa làm | Schema policy, quan hệ nhiều policy/khách | Customer list/detail/quyền lợi/kỳ phí theo ownership |
-| C05 | Chưa làm phía Customer | Storage private và metadata/file dùng chung đã có | Customer catalog/view/download và UI |
-| C06 | I03–I06 đã nối nền | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM | CH01 layout mới; CH02/CH03 Agent trả lời thật/citations |
+| C01 | Login/session đã có local | Tài khoản được cấp sẵn; email/password/session/role | Không yêu cầu tự đăng ký; reset/OTP/SSO không tự là Must. Chưa suy production/NFR đã đạt từ local |
+| C02 | Đã nối API local | H01 shell điều hướng, H02 Home hiển thị portfolio từ dữ liệu hợp đồng thực tế, lối tắt dịch vụ và Staff phụ trách | Đã tinh chỉnh tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ card tĩnh Paperless Policy |
+| C03 | Đã nối API local | PR01 catalog/search/detail tại chỗ, nút View Details, PR02 xem/tải PDF tài liệu PUBLIC qua SignedPdfPreview | Đã bỏ nút ép chat; khách hàng tự chủ động vào chat khi có nhu cầu |
+| C04 | Đã nối API local | PO01/PO02 danh sách/chi tiết hợp đồng, quyền lợi, lịch phí theo ownership | 5/5 browser tests pass |
+| C05 | Đã nối API local | D01/D02 xem/tải PDF hợp đồng sở hữu qua MinIO presigned URL | Tích hợp SignedPdfPreview |
+| C06 | I03–I06 và CH01 đã nối | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM trong Customer shell | CH02/CH03 Agent trả lời thật/citations |
 | C07 | Chưa làm | Schema Ticket/outbox, plan I07 | Trusted draft/explicit confirmation/result/detail theo I07/T01/T02; manual/list tổng riêng |
-| C08 | Một phần | Hồ sơ chỉ đọc/Staff contact, account/password/logout | Sửa hồ sơ và menu/style Customer mới |
-| C09 | Đề xuất UX, chưa chốt | SYSTEM và chat realtime có I06, không Customer Notification row | N01 quyết định scope trước N02; không yêu cầu Must từ FR-013 |
-| S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; 15 regression form + 22 phiên/retry không F5, focus freshness 30 giây | E2E/trình duyệt khác |
+| C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Sửa hồ sơ theo PF01/02 |
+| C09 | UI shell/client state | Toolbar popover và thao tác đánh dấu đọc trong phiên; chưa Core Customer notification API | N01/N02 scope/recipient/persistence nếu được chọn; không coi UI là thông báo nghiệp vụ thật |
+| S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; regression + gateway/Core/DB E2E trên Chromium/Firefox/WebKit | Auth mở rộng ngoài MVP theo yêu cầu riêng |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
-| S03 | Đã nối API local | Customers list/detail/search/page/retry, hợp đồng/PDF; 15 regression FE | Link theo khách là UX tùy scope; bổ sung E2E thật trong CU02 |
-| S04 | Một phần | A14/A15/A16/A18/A20 và FE list/lookup/detail/catalog/PDF/download; thu gọn cột kết quả, refresh giữ iframe/src và 26 regression Policies | Products P01–P03 đã có riêng; Customer access/Agent citations/context còn P; bổ sung E2E policy thật trong PL03 |
+| S03 | Đã nối API local | Customers list/detail/search/page/retry, policies/PDF; Conversations/Tickets theo customerId, Back/no-F5, regression + real E2E ba browser | Phase CU01/CU02 sở hữu bảo trì và test cases |
+| S04 | Đã nối API local | A14/A15/A16/A18/A20, lookup/dossier/PDF/download, PL05 Inbox lookup; regression + real Core/DB/MinIO E2E hai role trên ba browser | Agent citations/context còn P; native PDF toolbar/zoom không thuộc kiểm DOM |
 | S05 | Chat hai đầu/realtime đã nối | Consent/handoff/Accept/history/send/SYSTEM/catch-up | Agent/Copilot/history nội bộ/summary/checkpoint |
-| S06 | Khung | Routes Tickets chưa kết nối | TK01–TK05 Staff read/accept/UI/events trước Agent; I07 draft/confirmation riêng |
-| S07 | Handoff đã có I06 | A27/A28/UI, recipient/outbox/dedup/reconnect | Ticket notification TK05, producer tạo từ I07 sau; không read receipt mặc định |
+| S06 | TK01–TK05 Core/UI/consumer đã có | A21/A22 read; A23 Accept/version/audit/outbox; UI list→detail/status dropdown/reopen, Notifications toolbar/portal/no-F5;63 Core +3 migration tests trong đợt status;22 browser (14 Ticket mock/1 real hai-tab +7 handoff) | I07 draft/confirmation/producer riêng; benchmark/fanout còn mở |
+| S07 | Handoff I06/Ticket TK05 đã có | A27/A28 union target, recipient/outbox/dedup/reconnect, WS Ticket/catch-up, badge đếm chưa đọc trên toolbar, inline mark read/mark all read, tích hợp Security Notice đổi mật khẩu | Producer tạo I07 sau, Customer center/read receipt không tự thêm |
 
 ## Nền đã triển khai
 
@@ -57,7 +61,7 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 - [x] Product A17/P01 Core/gateway:10 test HTTP/PostgreSQL +1 gateway pass, lint/build pass;78 test hồi quy chat pass. Không browser E2E/UI Products.
 - [x] Product A19/access P02:13 Core/HTTP/MinIO test +1 gateway pass;88 regression pass (10 P01 +78 chat), lint/build pass. Không browser E2E/UI Products.
 - [x] Staff Products P03:17 browser test mock +1 E2E Core/PostgreSQL/MinIO th?t;93 regression Account/Session/Customers/Policy/Inbox pass; t?ng111 pass, kh?ng flaky.
-- [ ] Customer ownership Policy/PDF theo PO01/PO02/D01/D02. Quick lookup/đổi context không tự thành phần Must.
+- [x] Customer ownership Policy/PDF theo PO01/PO02/D01/D02 đã hoàn tất; Products PR01/PR02 danh sách/chi tiết/xem PDF tài liệu đã hoàn tất (5/5 browser tests pass, Docker web pass). Bỏ ép luồng chat trực tiếp, chuyển sang View Details tại chỗ.
 - [x] Việc 01: retry khôi phục phiên không F5, dedup/abort/role/next; có 22 regression Session, gồm tối ưu focus/visibility 30 giây và bypass khi invalidation/expiry.
 - [x] Việc 02: metadata revalidate nền, giữ iframe/src cùng file/version; revoke/expiry/download/actor đổi đúng lifecycle; 26 regression Policies mới.
 - [ ] E2E tích hợp/CI, các trình duyệt khác, concurrency/catch-up/expiry/storage lỗi và benchmark; không lấy invalidation local làm cam kết production.
@@ -68,16 +72,16 @@ Mã gap/điều kiện đóng nằm duy nhất tại [G01–G10](staff/plans/REA
 
 | Yêu cầu | Độ phủ hiện tại |
 | --- | --- |
-| FR-001 | Local login/session/logout/password có; public registration/IdP chưa có, chưa hoàn tất toàn FR |
+| FR-001 | Local login/session/logout/password đã có cho tài khoản cấp sẵn; tự đăng ký không thuộc MVP theo quyết định 07/11. External IdP không là điều kiện hoàn tất chức năng login local |
 | FR-002 | Staff xem khách đúng assignment; Customer own profile chỉ đọc, chưa quản lý/sửa. Staff self-edit là yêu cầu bổ sung đã triển khai |
 | FR-003 / UC-003 | Staff list/detail/search/phân trang đúng assignment đã nối; có Core tests và regression FE, chưa E2E đầy đủ |
 | FR-005/006/007 | Chat Customer–Staff/consent/Accept/send/realtime đã có; AI trả lời/Copilot chưa có, không đánh dấu đủ FR-005/007 |
-| FR-008 / UC-007 | Staff policy/PDF và Core product catalog A17 hai role đã có; product documents/UI và Customer owner policy/PDF còn thiếu, chưa đủ toàn FR |
-| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history và Staff handoff notification đã có I03–I06; Ticket/draft confirmation/AI summary/Copilot còn thiếu, không đánh dấu đủ nhóm FR |
+| FR-008 / UC-007 | Staff/Customer policy/PDF và product catalog/documents/UI đã có. Retrieval AI và mapping nguồn áp dụng cho RAG là phần Agent riêng; không nghiệm thu từ UI đọc PDF |
+| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. I07 draft/confirmation/producer và AI summary/Copilot còn thiếu; không đánh dấu đủ nhóm FR |
 | NFR-001/002 | Baseline auth/assignment/CSRF/allowlist/synthetic ở API hiện có; retrieval/tool scope chưa làm |
 | NFR-003 | Staff đọc DB/snapshot và exact document version; AI safety/retrieval pipeline chưa làm |
 | NFR-005/006 | Handoff outbox/realtime local có I06; Ticket+outbox nghiệp vụ còn I07. Chưa đo workload/SLA thông báo5 giây, không suy từ test local |
-| NFR-007 | Staff signed PDF access/TTL/phiên bản có; Customer còn thiếu. Signed URL không thu hồi tức thì, audit cấp link không chứng minh tải thành công |
+| NFR-007 | Staff/Customer signed PDF access/TTL/phiên bản đã có. Signed URL không thu hồi tức thì, audit cấp link không chứng minh tải thành công |
 | NFR-004/008 | HTTP request metadata/audit local có một phần; chưa benchmark hoặc observability Agent/notification đầy đủ |
 
 Bảng FR nguồn không có FR-004. Ticket thủ công/notification center Customer là đề xuất mở rộng, không tự là Must; FR-013 chỉ System→Staff. Bản Data Model nguồn khác baseline local ở một số ràng buộc; xem [architecture](../architecture.md#local-data-model) và [Policies](staff/plans/05-policies-contract.md#quan-hệ-dữ-liệu-và-phiên-bản), không sửa nguồn/ADR chỉ từ tiến độ UI.
@@ -93,4 +97,4 @@ Bảng FR nguồn không có FR-004. Ticket thủ công/notification center Cust
 | Bootstrap policy | 4 seed tests; rerun/preservation/collision/rollback/retry, PDF ổn định/checksum | Không phụ thuộc fixture riêng trên máy người chạy; không nghiệm thu UI/Agent |
 | Static/build | Các đợt trước đã chạy lint/typecheck/Docker build | Không chứng minh nghiệp vụ, hiệu năng hoặc pixel-perfect |
 
-Tối ưu kiểm phiên khi quay lại tab ngày **03/11/2026** đã qua Web lint/typecheck, Docker build/up và **78 ca browser pass** (15 Account + 22 Session + 15 Customers + 26 Policies). Suite kiểm đúng ranh giới freshness 30 giây, không auth thừa bởi focus/ready, invalidate/expiry bypass và cổng login theo role đã xác thực; không đổi auth từng API Core. Bằng chứng việc 01/02 ban đầu ở [kế hoạch 01](staff/plans/auth/03-session-lifecycle.md#8-kết-quả-triển-khai-03112026), [kế hoạch 02](staff/plans/policies/04-viewer-lifecycle.md#9-kết-quả-triển-khai-03112026). Các test backend/storage là bằng chứng trước, không chạy lại trong đợt FE này. Browser dùng API/WebSocket/PDF mock, không E2E Core/DB/MinIO hoặc kiểm page/zoom native PDF. Chi tiết hành vi hiện tại tại [Account](staff/plans/01-auth-contract.md#kiểm-phiên-khi-quay-lại-tab), lệnh/giới hạn từng suite ở file chức năng và [Getting Started](../getting-started.md#commands).
+Tối ưu kiểm phiên khi quay lại tab ngày **03/11/2026** đã qua Web lint/typecheck, Docker build/up và **78 ca browser pass** (15 Account + 22 Session + 15 Customers + 26 Policies). Suite kiểm đúng ranh giới freshness 30 giây, không auth thừa bởi focus/ready, invalidate/expiry bypass và cổng login theo role đã xác thực; không đổi auth từng API Core. Bằng chứng việc 01/02 ban đầu ở [kế hoạch 01](staff/plans/auth/03-session-lifecycle.md#8-ghi-chú-triển-khai), [kế hoạch 02](staff/plans/policies/04-viewer-lifecycle.md#9-ghi-chú-triển-khai). Các test backend/storage là bằng chứng trước, không chạy lại trong đợt FE này. Browser dùng API/WebSocket/PDF mock, không E2E Core/DB/MinIO hoặc kiểm page/zoom native PDF. Chi tiết hành vi hiện tại tại [Account](staff/plans/01-auth-contract.md#kiểm-phiên-khi-quay-lại-tab), lệnh/giới hạn từng suite ở file chức năng và [Getting Started](../getting-started.md#commands).

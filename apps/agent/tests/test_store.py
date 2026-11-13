@@ -13,7 +13,7 @@ from life_agent import contracts
 from life_agent.config import load_env
 from life_agent.core_client import CoreError
 from life_agent.graph import build_graph
-from life_agent.store import (BudgetExhausted, EventConflict, PgRuntimeStore, StaleWriter, copy_runtime_data,
+from life_agent.store import (BudgetExhausted, CheckpointConflict, EventConflict, PgRuntimeStore, StaleWriter, copy_runtime_data,
                               execute_attempt, migrate)
 
 import store_procs
@@ -114,6 +114,33 @@ def test_revoke_before_dispatch_leaves_tombstone(store, ids):
         store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
 
 
+@pytest.mark.parametrize("wrong_field", ["run_id", "conversation_id"])
+def test_revoke_rejects_mismatched_known_receipt_without_fencing(store, ids, wrong_field):
+    req = ids.request()
+    store.accept_run(req)
+    lease = store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
+    wrong = {**revocation(req), wrong_field: str(uuid.uuid4())}
+    ack = store.revoke(wrong)
+    assert contracts.is_valid("RevocationAck", ack)
+    assert (ack["outcome"], ack["reason"]) == ("REJECTED", "PAYLOAD_MISMATCH")
+    assert store.receipt(req["attempt_id"])["status"] == "ACCEPTED"
+    assert store.persist_progress(lease, "LOOKING_UP")["attempt_id"] == req["attempt_id"]
+
+
+def test_revoke_tombstone_matches_thread_and_echoes_control_run(store, ids):
+    req = ids.request()
+    assert store.revoke(revocation(req))["outcome"] == "REVOKED"
+    repeated = {**revocation(req), "run_id": str(uuid.uuid4())}
+    ack = store.revoke(repeated)
+    assert ack["outcome"] == "ALREADY_REVOKED" and ack["run_id"] == repeated["run_id"]
+    wrong = {**repeated, "conversation_id": str(uuid.uuid4())}
+    ack = store.revoke(wrong)
+    assert contracts.is_valid("RevocationAck", ack)
+    assert (ack["outcome"], ack["reason"]) == ("REJECTED", "PAYLOAD_MISMATCH")
+    assert store.receipt(req["attempt_id"])["run_id"] is None
+    assert store.accept_run(req)["outcome"] == "IGNORED_STALE"
+
+
 def test_new_attempt_fences_previous_owner_and_second_claim_fences_first(store, ids):
     a = ids.request(attempt="a1")
     store.accept_run(a)
@@ -201,6 +228,122 @@ def _invoke(graph, thread_id, errors):
         graph.invoke({"n": 0}, {"configurable": {"thread_id": thread_id}}, durability="sync")
     except BaseException as error:  # StaleWriter is a BaseException
         errors.append(error)
+
+
+def _wait_for_block_or_completion(observer, pid, completed):
+    """Wait for a real PostgreSQL lock wait or completion, never infer locking from sleep alone."""
+    until = time.monotonic() + 10
+    while time.monotonic() < until:
+        with observer.transaction() as cur:
+            cur.execute("SELECT cardinality(pg_blocking_pids(%s)) > 0", (pid,))
+            if cur.fetchone()[0] or completed.is_set():
+                return
+        completed.wait(0.01)
+    raise AssertionError("operation neither blocked in PostgreSQL nor completed")
+
+
+def test_renew_and_revoke_do_not_deadlock(store, ids):
+    req = ids.request()
+    store.accept_run(req)
+    lease = store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
+    renewal, revoker = PgRuntimeStore(DSN), PgRuntimeStore(DSN)
+    fenced, release, completed = threading.Event(), threading.Event(), threading.Event()
+    errors, outcomes = [], []
+    original_fence = renewal.fence
+
+    def pause_after_fence(cur, current):
+        original_fence(cur, current)
+        fenced.set()
+        assert release.wait(10)
+
+    renewal.fence = pause_after_fence
+
+    def renew():
+        try:
+            renewal.renew_lease(lease, 60)
+        except BaseException as error:
+            errors.append(error)
+
+    def revoke():
+        try:
+            outcomes.append(revoker.revoke(revocation(req))["outcome"])
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            completed.set()
+
+    renewal.connection().execute("SET statement_timeout = '8s'")
+    revoker.connection().execute("SET statement_timeout = '8s'")
+    first, second = threading.Thread(target=renew), threading.Thread(target=revoke)
+    try:
+        first.start()
+        assert fenced.wait(10)
+        second.start()
+        _wait_for_block_or_completion(store, revoker.connection().info.backend_pid, completed)
+    finally:
+        release.set()
+        first.join(12)
+        if second.ident is not None:
+            second.join(12)
+        renewal.close()
+        revoker.close()
+    assert not first.is_alive() and not second.is_alive()
+    assert not errors, [type(error).__name__ for error in errors]
+    assert outcomes == ["REVOKED"]
+    with pytest.raises(StaleWriter):
+        store.persist_progress(lease, "LOOKING_UP")
+
+
+@pytest.mark.parametrize("existing_head", [False, True])
+def test_checkpoint_head_compare_and_swap_is_atomic(store, ids, existing_head):
+    from langgraph.checkpoint.base import empty_checkpoint
+
+    req = ids.request()
+    store.accept_run(req)
+    lease = store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
+    initial = {"configurable": {"thread_id": lease.thread_id}}
+    if existing_head:
+        initial = store.checkpointer(lease).put(initial, {**empty_checkpoint(), "id": "001"}, {}, {})
+    first_store, second_store = PgRuntimeStore(DSN), PgRuntimeStore(DSN)
+    locked, release, completed = threading.Event(), threading.Event(), threading.Event()
+    results = []
+
+    def pause(**_):
+        locked.set()
+        assert release.wait(10)
+
+    first_store.hooks["checkpoint_write_locked"] = pause
+
+    def save(own, checkpoint_id, done=None):
+        try:
+            own.checkpointer(lease).put(initial, {**empty_checkpoint(), "id": checkpoint_id}, {}, {})
+            results.append((checkpoint_id, "SAVED"))
+        except BaseException as error:
+            results.append((checkpoint_id, type(error)))
+        finally:
+            if done is not None:
+                done.set()
+
+    second_store.connection().execute("SET statement_timeout = '8s'")
+    first = threading.Thread(target=save, args=(first_store, "002"))
+    second = threading.Thread(target=save, args=(second_store, "003", completed))
+    try:
+        first.start()
+        assert locked.wait(10)
+        second.start()
+        _wait_for_block_or_completion(store, second_store.connection().info.backend_pid, completed)
+    finally:
+        release.set()
+        first.join(12)
+        if second.ident is not None:
+            second.join(12)
+        first_store.close()
+        second_store.close()
+    assert sorted(results, key=lambda item: item[0]) == [("002", "SAVED"), ("003", CheckpointConflict)]
+    with store.transaction() as cur:
+        cur.execute("SELECT checkpoint_id FROM agent_runtime.checkpoints WHERE thread_id = %s ORDER BY checkpoint_id",
+                    (lease.thread_id,))
+        assert [row[0] for row in cur.fetchall()] == (["001", "002"] if existing_head else ["002"])
 
 
 # ---------------------------------------------------------------------------------------------- ledger
@@ -319,6 +462,57 @@ def test_sequence_is_unique_with_concurrent_progress_writers(store, ids):
     assert sorted(sequences) == list(range(1, 21)) and final["sequence"] == 21
 
 
+def test_progress_and_final_do_not_deadlock_on_receipt_foreign_keys(store, ids):
+    req = ids.request()
+    store.accept_run(req)
+    lease = store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
+    store.persist_progress(lease, "LOOKING_UP")  # Existing sequence row: later UPDATE holds no receipt FK lock.
+    progress, finalizer = PgRuntimeStore(DSN), PgRuntimeStore(DSN)
+    sequence_locked, release, completed = threading.Event(), threading.Event(), threading.Event()
+    errors, events = [], []
+    original_insert = progress.insert_event
+
+    def pause_before_event_insert(cur, event):
+        sequence_locked.set()
+        assert release.wait(10)
+        original_insert(cur, event)
+
+    progress.insert_event = pause_before_event_insert
+
+    def emit_progress():
+        try:
+            events.append(progress.persist_progress(lease, "LOOKING_UP"))
+        except BaseException as error:
+            errors.append(error)
+
+    def finalize():
+        try:
+            events.append(finalizer.persist_final(lease, {"result": RESULT}))
+        except BaseException as error:
+            errors.append(error)
+        finally:
+            completed.set()
+
+    progress.connection().execute("SET statement_timeout = '8s'")
+    finalizer.connection().execute("SET statement_timeout = '8s'")
+    first, second = threading.Thread(target=emit_progress), threading.Thread(target=finalize)
+    try:
+        first.start()
+        assert sequence_locked.wait(10)
+        second.start()
+        _wait_for_block_or_completion(store, finalizer.connection().info.backend_pid, completed)
+    finally:
+        release.set()
+        first.join(12)
+        if second.ident is not None:
+            second.join(12)
+        progress.close()
+        finalizer.close()
+    assert not first.is_alive() and not second.is_alive()
+    assert not errors, [type(error).__name__ for error in errors]
+    assert sorted((event["sequence"], event["kind"]) for event in events) == [(2, "PROGRESS"), (3, "RESULT")]
+
+
 def test_event_id_reuse_with_other_payload_conflicts_and_acks_stop_delivery(store, ids):
     a = ids.request()
     store.accept_run(a)
@@ -331,13 +525,88 @@ def test_event_id_reuse_with_other_payload_conflicts_and_acks_stop_delivery(stor
             store.insert_event(cur, {**event, "payload": {"result": {**RESULT, "message": "khác"}}})
     pending = [e["event_id"] for e in store.pending_events()]
     assert event["event_id"] in pending
-    store.ack_event(event["event_id"], {"outcome": "REJECTED"})
-    store.ack_event(event["event_id"], {"outcome": "DUPLICATE"})
+    ack = {"run_id": a["run_id"], "attempt_id": a["attempt_id"], "event_id": event["event_id"], "reason": None}
+    store.ack_event(event["event_id"], {**ack, "outcome": "REJECTED", "reason": "UNKNOWN_RUN"})
+    assert event["event_id"] in [e["event_id"] for e in store.pending_events()]
+    store.ack_event(event["event_id"], {**ack, "outcome": "DUPLICATE"})
     assert event["event_id"] not in [e["event_id"] for e in store.pending_events()]
     assert (a["run_id"], a["attempt_id"]) not in store.recoverable()
 
 
+@pytest.mark.parametrize("mutation", ["run_id", "attempt_id", "event_id", "missing_ids", "reason", "outcome"])
+def test_ack_must_be_valid_and_match_the_stored_event(store, ids, mutation):
+    req = ids.request()
+    store.accept_run(req)
+    lease = store.claim_execution(req["run_id"], req["attempt_id"], worker_id="w", lease_seconds=30)
+    event = store.persist_final(lease, {"result": RESULT})
+    ack = {"outcome": "ACCEPTED", "run_id": req["run_id"], "attempt_id": req["attempt_id"],
+           "event_id": event["event_id"], "reason": None}
+    if mutation in ("run_id", "attempt_id", "event_id"):
+        ack[mutation] = str(uuid.uuid4())
+        assert contracts.is_valid("DurableAck", ack)
+    elif mutation == "missing_ids":
+        ack = {"outcome": "DUPLICATE"}
+    elif mutation == "reason":
+        ack["reason"] = "UNKNOWN_RUN"
+    else:
+        ack["outcome"] = "UNKNOWN"
+    store.ack_event(event["event_id"], ack)
+    assert event["event_id"] in [e["event_id"] for e in store.pending_events()]
+
+
 # ---------------------------------------------------------------------------------------------- roles / split
+
+@pytest.mark.skipif(not (ADMIN and MIGRATOR), reason="admin/migrator DSNs not configured")
+def test_bootstrap_keeps_migration_metadata_private_before_and_after_migrate(ids):
+    from pathlib import Path
+
+    import psycopg
+    from psycopg.conninfo import make_conninfo
+
+    grants = (Path(__file__).resolve().parents[2] / "core/scripts/agent-runtime-grants.sql").read_text(encoding="utf-8")
+    target_db = f"agent_grants_{ids.tag}"
+    with psycopg.connect(ADMIN, autocommit=True) as admin:
+        admin.execute(f'CREATE DATABASE "{target_db}"')
+    try:
+        target_admin = make_conninfo(ADMIN, dbname=target_db)
+        target_migrator = make_conninfo(MIGRATOR, dbname=target_db)
+        target_runtime = make_conninfo(DSN, dbname=target_db)
+        with psycopg.connect(target_admin, autocommit=True) as admin:
+            admin.execute(grants)  # First bootstrap precedes migrations: metadata table does not exist yet.
+        assert migrate(target_migrator) == ["001_durable_runtime"]
+
+        def assert_metadata_denied(runtime):
+            for sql in ("SELECT 1 FROM agent_runtime.schema_migrations",
+                        "UPDATE agent_runtime.schema_migrations SET sha256 = sha256 WHERE false",
+                        "DELETE FROM agent_runtime.schema_migrations WHERE false",
+                        "INSERT INTO agent_runtime.schema_migrations (version, sha256) VALUES ('runtime-probe', repeat('0', 64))"):
+                with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                    runtime.execute(sql)
+
+        with psycopg.connect(target_runtime, autocommit=True) as runtime:
+            assert_metadata_denied(runtime)  # migrate itself already revokes the default DML grant.
+            with psycopg.connect(target_admin, autocommit=True) as admin:
+                admin.execute(grants)  # Starting the stack again must not restore metadata access.
+            assert_metadata_denied(runtime)
+            message_id = str(uuid.uuid4())
+            runtime.execute("INSERT INTO agent_runtime.ledgers (message_id, kind, cap) VALUES (%s, 'model_calls', 2)",
+                            (message_id,))
+            runtime.execute("UPDATE agent_runtime.ledgers SET used = 1 WHERE message_id = %s", (message_id,))
+            assert runtime.execute("SELECT used FROM agent_runtime.ledgers WHERE message_id = %s", (message_id,)).fetchone() == (1,)
+            runtime.execute("DELETE FROM agent_runtime.ledgers WHERE message_id = %s", (message_id,))
+            with psycopg.connect(target_migrator, autocommit=True) as migrator:
+                migrator.execute("CREATE TABLE agent_runtime.bootstrap_grant_probe (id integer PRIMARY KEY)")
+            runtime.execute("INSERT INTO agent_runtime.bootstrap_grant_probe VALUES (1)")  # Future tables retain DML defaults.
+            runtime.execute("UPDATE agent_runtime.bootstrap_grant_probe SET id = 2 WHERE id = 1")
+            assert runtime.execute("SELECT id FROM agent_runtime.bootstrap_grant_probe").fetchall() == [(2,)]
+            runtime.execute("DELETE FROM agent_runtime.bootstrap_grant_probe")
+            with psycopg.connect(target_admin, autocommit=True) as admin:
+                admin.execute(grants)
+            assert_metadata_denied(runtime)
+    finally:
+        with psycopg.connect(ADMIN, autocommit=True) as admin:
+            admin.execute(f'DROP DATABASE IF EXISTS "{target_db}" WITH (FORCE)')
+
 
 def test_runtime_role_cannot_read_business_write_rag_or_change_schema():
     import psycopg

@@ -2,13 +2,25 @@
 
 04/11/2026 · **CH01–CH03 là kế hoạch mới** · C06 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [CH01 — Ghép Conversations UI trên I03–I06](chat/01-existing-chat-workspace.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + messages + conversation_handoffs + conversation_command_receipts (Ghi gián tiếp qua I03/I05, không từ UI trực tiếp); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/customer-handoff-dialog.tsx](<../../../../apps/web/src/components/customer-handoff-dialog.tsx>) | Cao — Customer shell và Direct/AI tabs |
+| [CH02 — Contract Core–Agent, durable turns và tool scope](chat/02-agent-boundary.md) | conversations + conversation_handoffs (Đọc); messages (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../apps/core/src/conversations/services/conversation-message.service.ts>); [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Cao — SYSTEM/Customer/Staff append giữ semantics |
+| [CH03 — AI answers, citations và lời gợi ý có xác nhận](chat/03-agent-answers-ui.md) | messages (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/conversation-transcript.tsx](<../../../../apps/web/src/components/conversation-transcript.tsx>) | Cao — Customer shell và Direct/AI tabs |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Baseline và yêu cầu
 
 FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/history, Direct, consent/request/Accept, gửi chống trùng, realtime catch-up và SYSTEM tiếp nhận. `apps/agent` vẫn placeholder, chưa provider/transport/checkpoint/runtime. Không làm lại REST/chat từ đầu hoặc giả AI đã phản hồi.
 
 | Phase | Kết quả | Gate |
 | --- | --- | --- |
-| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat đang chạy vào shell/route Customer mới | H01; không Agent |
+| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat vào shell Customer mới (Đã triển khai) | H01; không Agent |
 | [CH02](chat/02-agent-boundary.md) | Service identity, durable turns, tools/retrieval/fence và contract Agent | Review kiến trúc/migration trước nối LLM |
 | [CH03](chat/03-agent-answers-ui.md) | Hiển thị tiến trình/answer/citations/gợi ý đã được Core cho phép | CH02+Agent thật, D01/D02 nếu mở policy PDF |
 
@@ -18,7 +30,7 @@ ConversationStatus chỉ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE, không CLOSED. 
 
 CH02 là phase phân tích kỹ thuật/contract và triển khai nền sau khi quyết định được ghi lại; không tự chọn AgentCore/provider/HTTPframework/checkpoint từ đề xuất ADR. Cần test Core với adapter giả trong harness rồi Agent thật; không lấy mock answer làm FR-005 đã đạt.
 
-- [ ] CH01 giữ quyền/nháp/reconcile/realtime I03–I06.
+- [x] CH01 giữ quyền/nháp/reconcile/realtime I03–I06, giao diện 100% tiếng Anh, tối ưu header và composer.
 - [ ] CH02 boundary/security/durability được chốt và kiểm chứng riêng.
 - [ ] CH03 nguồn/citation/handoff/Ticket-gate/no-F5 tests; FR-005 không xong chỉ vì gửi được tin.
 

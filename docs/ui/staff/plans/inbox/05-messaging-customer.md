@@ -2,6 +2,26 @@
 
 Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtime/Agent riêng** · [Chung](../03-inbox-contract.md) · Trước: [I03](03-handoff-transcript.md), [I04](04-staff-inbox-ui.md) · Tiếp: [I06](06-realtime-routing.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
+| messages + conversations | messages.sequence/audience/client_message_id/internal_message_id/sender_type/sender_id/content; conversations.next_message_sequence/last_customer_facing_activity_at | Append ghi, không sửa/xóa nội dung cũ | Unique sequence và key theo conversation/sender; counter cấp dưới conversation lock | Cao — Accept tạo SYSTEM duy nhất, send/retry không trùng; send thường không tăng control_version |
+| conversation_command_receipts | actor_id/operation/client_request_id/request_hash/resource_id/result_version | Thêm hoặc đọc để replay | Unique (actor_id,operation,client_request_id); resource_id do service kiểm theo operation | Cao — replay vẫn kiểm quyền; không dùng receipt chat như receipt Ticket |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** Không migration; tận dụng sequence/audience/unique keys I01.
+
+**Nhất quán và hồi quy:** Lock/recheck quyền/controlVersion trước append; message/counter/receipt/audit/outbox atomic. Customer entry/Accept giữ I03. Kiểm send lost-response/retry, thứ tự, CSRF và revoke; không thêm typing/read ACK.
+
 ## 1. Kết quả
 
 Customer tạo AI/Direct/yêu cầu Staff từ UI; Staff Accept và hai bên gửi/đọc cùng cuộc qua Core thật. Tin nhắn chống trùng, có trạng thái đang gửi/chưa rõ kết quả/lỗi rõ ràng. Chưa có realtime chat tự cập nhật cho đến I06: dùng thao tác tải lại **vùng hội thoại**, không F5. Không coi đây là Agent trả lời thật hoặc delivery/read receipt.
@@ -15,6 +35,14 @@ Core: thêm methods/controllers tại ConversationsModule, `dto/send-message.dto
 Web đã tạo `components/conversation-composer.tsx`, `customer-conversations.tsx`, `customer-handoff-dialog.tsx`, mở rộng `lib/conversation-api.ts` và transcript I04. Tích hợp nhánh chat trong `components/customer-workspace.tsx`, không thay toàn Customer shell hoặc giả mở quyền Staff. `auth-screen.tsx` truyền CSRF/session theo props/context nhỏ trong memory; Staff composer nối component I04.
 
 Customer entry ở `/customer` hiện có; đề xuất query `conversationId=<uuid>` để chọn cuộc, không cần thêm ứng dụng hoặc route tree lớn. Chỉ lưu id/query công khai cần navigation, không body/CSRF/cursor vào URL.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/conversations/services/conversation-sending.service.ts](<../../../../../apps/core/src/conversations/services/conversation-sending.service.ts>) | Hiện có | Public send/reconcile orchestration | Cao | Staff/Customer send |
+| [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../../apps/core/src/conversations/services/conversation-message.service.ts>) | Hiện có | Append counter/message/audit/outbox | Cao | User send, SYSTEM Accept, trusted AI |
+| [apps/web/src/components/conversation-composer.tsx](<../../../../../apps/web/src/components/conversation-composer.tsx>) | Hiện có | Pending/unknown-result/draft/Enter | Trung bình | Cả hai role |
+| [apps/web/src/components/customer-conversations.tsx](<../../../../../apps/web/src/components/customer-conversations.tsx>) | Hiện có | Customer entry/history/handoff | Trung bình | Customer portal và shared transcript |
+| [apps/web/src/lib/conversation-api.ts](<../../../../../apps/web/src/lib/conversation-api.ts>) | Hiện có | Send/reconcile wrapper | Cao | Retry key và error allowlist |
 
 ## 3. API gửi tin — đã triển khai
 
@@ -84,7 +112,7 @@ Audit chỉ message id/conversation id/operation, không content. Outbox không 
 
 ### 4.1. Quota local đề xuất
 
-RateLimitBucket DB theo actor+operation, không theo IP gateway chung. Bản đầu send60/phút, create10/phút, handoff request5/phút, Accept30/phút, command/message lookup120/phút, read240/phút. Quota dùng cho cả phase I03/I05 khi endpoint tương ứng triển khai, Retry-After rõ. Đây là cấu hình local đề xuất cần kiểm load, không SLO production. Replays vẫn chịu request-abuse limit nhưng không tính như message mới.
+RateLimitBucket DB theo actor+operation, không theo IP gateway chung. Bản đầu send60/phút, create10/phút, handoff request5/phút, Accept 30/phút, command/message lookup 120/phút, read240/phút. Quota dùng cho cả phase I03/I05 khi endpoint tương ứng triển khai, Retry-After rõ. Đây là cấu hình local đề xuất cần kiểm load, không SLO production. Replays vẫn chịu request-abuse limit nhưng không tính như message mới.
 
 ## 5. UI Staff/Customer
 
@@ -143,27 +171,80 @@ sequenceDiagram
 5. E2E hai browser contexts qua gateway, dùng refresh vùng để nhận tin ở đầu kia trước I06.
 6. Cập nhật docs theo mốc: I05 cung cấp REST hai chiều; I06 hiện đã có realtime. Agent còn chưa triển khai; không để nút lỗi ngầm hoặc ghi realtime vẫn thiếu ở hiện tại.
 
-## 8. Test plan
+## 8. Test cases
 
-Core **đã có** `apps/core/test/conversation-send.test.cjs`; browser `apps/web/tests/browser/conversation-send.spec.mjs`, `customer-conversations.spec.mjs`; E2E thật `conversation-flow.integration.spec.mjs`. Integration container fixtures riêng, không bootstrap seed cá nhân.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Kiểm tra | Kết quả |
-| --- | --- | --- |
-| I05-T01 | Direct Customer→Staff→Customer | Một cuộc/id, đúng actor, order/sequence/nội dung |
-| I05-T02 | Pending Customer gửi thêm/Staff cố gửi | Customer được lưu, Staff denied, chỉ đọc được sau Accept |
-| I05-T03 | Hai POST cùng key, hai keys cùng text | Cùng key một tin; khác key là hai ý định hợp lệ |
-| I05-T04 | Commit xong ACK bị ngắt; lookup404 lúc đang chạy | Reconcile/retry không duplicate/báo thất bại giả |
-| I05-T05 | Key cũ khác content/expectedVersion | 409, không tạo message mới |
-| I05-T06 | Send đua Accept/reassignment/lock/session revoke | Gate/fence đúng thứ tự commit, không Staff cũ gửi muộn |
-| I05-T07 | Transaction fail sau insert trước outbox/receipt | Không message/counter/outbox nửa chừng |
-| I05-T08 | 4000/4001 code points, blank, CRLF, Unicode/HTML | Validation/hash/hiển thị an toàn nhất quán |
-| I05-T09 | Enter/Shift+Enter/IME/double click | Chỉ intent hợp lệ, không submit/F5 ngoài ý muốn |
-| I05-T10 | Đổi cuộc lúc pending, gõ nháp mới trước ACK | Không lẫn/xóa nháp mới hoặc merge sai cuộc |
-| I05-T11 | Handoff dialog cancel/confirm/routing đổi | Cancel không ghi, confirm rõ scope, Customer xác nhận lại khi đổi Staff |
-| I05-T12 | Rate limit/CSRF/actor giả/citations body | 429/403/400 đúng, không lộ Private hoặc tạo grant |
-| I05-T13 | Transcript/ACK/reconcile cùng message | Merge một bubble, không giả delivered/read |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-Manual E2E: Customer mở Direct → gửi → Staff tải lại vùng list/chat → trả lời → Customer tải lại vùng; tiếp theo AI cuộc có fixture lịch sử → xác nhận nhờ Staff → pending không transcript Staff → Accept → cả lịch sử cũ + tin mới. Báo rõ fixture AI không phải LLM integration.
+### I05-T01 — Direct gửi hai chiều
+
+**Lớp kiểm thử:** Browser E2E + DB.
+**Điều kiện và dữ liệu:** C-A/S-A có Direct hợp lệ, hai context đăng nhập riêng.
+
+**Các bước:**
+
+1. Customer gửi một câu synthetic.
+2. Staff trả lời bằng Send hoặc Enter.
+3. Kiểm bubbles/sequence qua API hai phía.
+
+**Kết quả mong đợi:** Một tin mỗi intent, đúng sender/content/order; ACK không giả delivered/read; không F5.
+
+### I05-T02 — Cùng key retry và key bị đổi payload
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** Client key K, expectedVersion hiện hành, content synthetic cố định.
+
+**Các bước:**
+
+1. POST cùng K/payload đồng thời hai lần.
+2. Replay K với content hoặc expectedVersion khác.
+3. POST key mới cùng text.
+
+**Kết quả mong đợi:** K chỉ một message; replay khác payload 409; key mới tạo intent khác, không gộp chỉ vì text giống nhau.
+
+### I05-T03 — ACK mất sau commit và lookup 404 tạm thời
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Harness giữ request đầu, cho lookup theo clientId trả 404 trước khi commit xong.
+
+**Các bước:**
+
+1. Gửi tin và ngắt ACK.
+2. Bấm kiểm kết quả rồi retry theo UI.
+3. Cho commit/lookup trả message đã lưu.
+
+**Kết quả mong đợi:** 404 tạm không bị coi là thất bại chắc chắn; retry cùng key/payload, một bubble, không tự sinh UUID mới.
+
+### I05-T04 — Boundary content và bàn phím
+
+**Lớp kiểm thử:** API + Browser.
+**Điều kiện và dữ liệu:** Các chuỗi synthetic blank,4000/4001 Unicode code points, CRLF và HTML literal.
+
+**Các bước:**
+
+1. Gửi từng biến thể qua API.
+2. Trong composer dùng Shift+Enter và Enter.
+3. Gõ IME đang composition rồi kết thúc và Send.
+
+**Kết quả mong đợi:** Blank/4001 bị 400;4000 hợp lệ, CRLF nhất quán; HTML không thực thi; IME không gửi nhầm, Shift+Enter xuống dòng.
+
+### I05-T05 — Quyền pending/revoke và rollback
+
+**Lớp kiểm thử:** API + DB barrier.
+**Điều kiện và dữ liệu:** C-A pending, sau đó accepted; có fixture outbox failure.
+
+**Các bước:**
+
+1. Customer gửi thêm lúc pending, S-A cố gửi.
+2. Sau Accept inject lỗi giữa insert/outbox.
+3. Revoke rồi replay tin cũ bằng S-A.
+
+**Kết quả mong đợi:** Customer gửi đúng owner; Staff pending/revoked bị deny; rollback không message/counter/receipt/outbox nửa chừng.
+
+**Suite tham khảo:** [conversation-send.test.cjs](../../../../../apps/core/test/conversation-send.test.cjs), [conversation-send.spec.mjs](../../../../../apps/web/tests/browser/conversation-send.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 9. Điều kiện hoàn tất
 
@@ -174,7 +255,7 @@ Manual E2E: Customer mở Direct → gửi → Staff tải lại vùng list/chat
 - [x] Milestone ghi REST hai chiều; I06 realtime và Agent runtime còn riêng.
 
 
-## 10. Implementation và kiểm chứng 04/11/2026
+## 10. Ghi chú triển khai
 
 Core thêm `dto/send-message.dto.ts`, `services/conversation-sending.service.ts`, mở rộng hai controller, quota SEND60/phút và Swagger ACK/lookup DTO. Dùng lại transaction/locks/receipt/sequence/outbox I01; không migration/schema/dependency mới. ACK được chiếu lại dưới session/grant hiện hành sau commit; nếu quyền vừa mất trả lỗi an toàn, client xử lý unknown/reconcile, không hoàn tác tin đã commit.
 
@@ -185,7 +266,3 @@ Dialog dùng modal native và vòng Tab/Shift+Tab; Escape/Cancel không ghi. Pen
 Kiểm tra Core: `docker compose --profile tests run --rm --no-deps core-tests node --test test/conversation-send.test.cjs test/conversation-workflow.test.cjs test/inbox-read.test.cjs test/conversation-permissions.test.cjs test/http-foundation.test.cjs` — 72 ca, gồm 9 ca send mới và các race/fence/rollback I01/I03.
 
 Browser: `conversation-send.spec.mjs` (8), `customer-conversations.spec.mjs` (5), `conversation-flow.integration.spec.mjs` (1 gateway thật hai browser contexts), cùng I04 (16) và hồi quy Account/Session/Customers/Policy (78). Bộ đầy đủ 108 ca. Fixture thật tự tạo/dọn qua core-tests, không bootstrap seed, không ghi credential/transcript ra host hoặc tạo report Markdown. Kết quả browser/HTTP phân biệt rõ; không chụp ảnh.
-
-Lint/typecheck Core/Web và Docker build Core/Web/core-tests pass tại mốc I05. I06 hiện đã có realtime/catch-up; Inbox/Refresh messages đã được bỏ, ACK/realtime đồng bộ nền giữ nhóm/metadata/composer/nháp và transcript. Không có delivery/read ACK. AI chat chỉ lưu tin, chưa có Agent trả lời tự động. Ticket/Copilot/read markers/attachments vẫn ngoài I05.
-
-**Nghiệm thu tay 04/11:** người dùng xác nhận các phần còn lại pass tại mốc I05. SYSTEM sau Accept đã triển khai ở I06-A; Copilot Staff vẫn là kế hoạch CP01–CP04, chưa mở thêm phạm vi sửa giao diện Customer.

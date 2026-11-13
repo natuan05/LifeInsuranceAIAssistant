@@ -6,14 +6,14 @@
 
 Mỗi chức năng có một contract và các phase API/UI/flow/test trong plans, cùng cấu trúc Customer. Nội dung màn hình, API, routes và phần còn thiếu đã gộp vào contract sở hữu; thư mục Staff chỉ giữ README.md và plans/, không duy trì file tổng hợp song song.
 
-| Đã có runtime | Còn làm trước Agent | Để nhánh sau |
+| Đã có runtime | Còn kiểm theo phạm vi | Để nhánh Agent |
 | --- | --- | --- |
-| Auth/profile, Customers, Policy/PDF, Products, Inbox I01–I06, handoff notifications | TK01–TK05 Staff Ticket read/accept/UI/events, tests trong từng phase | Agent/Copilot, I07 draft/confirmation, Customer mới |
+| Auth/profile, Customers, Policy/PDF, Products, Inbox I01–I06, handoff notifications và TK01–TK05 Staff Ticket | Benchmark/fanout và tích hợp rộng hơn | Agent/Copilot, I07 draft/confirmation |
 
 Products tự mở PDF, nhiều tài liệu dùng selector; phiên bản mới chuyển chủ động. Search Enter không nút Search/Clear trên Products/Customers/Lookup; Inbox debounce/Enter. Realtime giữ vùng đọc/nháp/focus, không F5; mất scope xóa ngay.
 
 ## Bắt đầu lần triển khai tiếp
 
-[TK01 — Quyền/model Ticket](plans/tickets/01-scope-model-contract.md) trước TK02 read, TK03 accept, TK04 UI, TK05 event. Hiện Ticket route còn khung; version/confirmed snapshot chưa có trong schema. Không tạo Ticket fake hoặc cho Staff xem AI riêng để lấp UI.
+[TK01–TK05](plans/07-tickets-contract.md) là baseline đã có cho quyền/model/read/Accept/UI/status/notification; không làm lại theo danh sách phase. Producer I07 từ đề xuất Agent + xác nhận Customer còn kế hoạch, confirmed snapshot chưa có. Không tạo Ticket fake hoặc cho Staff xem AI riêng để lấp UI.
 
-Không triển khai Agent trong mốc này; Customer theo [plans riêng](../customer/plans/README.md) để đợt sau. Tài liệu chia theo chức năng app, không có kế hoạch Release riêng.
+Agent/Copilot và I07 theo [Agent Design](../../specifications/Agent_Design.md) và [plan](../../superpowers/plans/2026-10-31-agent-rag-implementation.md); Copilot không có Use draft. Customer Home/Products/Policies/PDF đã có; phần còn lại theo [plans riêng](../customer/plans/README.md). Tài liệu chia theo chức năng app, không có kế hoạch Release riêng.

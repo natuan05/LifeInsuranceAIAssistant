@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../database/database.service';
 import { ConversationEventService, type ChatEvent } from '../../conversations/services/conversation-event.service';
 import { RealtimeService } from '../../realtime/realtime.service';
+import { TicketEventService, ticketEventTypes } from '../../tickets/services/ticket-event.service';
 
 const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
 @Injectable()
@@ -11,7 +12,8 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
   private timer?: NodeJS.Timeout;
   private running: Promise<void> | null = null;
   private stopped = false;
-  constructor(private readonly database: DatabaseService, private readonly events: ConversationEventService, private readonly realtime: RealtimeService) {}
+  constructor(private readonly database: DatabaseService, private readonly events: ConversationEventService, private readonly realtime: RealtimeService,
+    private readonly tickets: TicketEventService) {}
   onApplicationBootstrap() {
     this.timer = setInterval(() => { if (!this.running && !this.stopped) { this.running = this.tick().catch(() => { /* DB unavailable: retry on next bounded tick; no payload logs. */ }).finally(() => { this.running = null; }); } }, 500);
     this.timer.unref();
@@ -19,8 +21,9 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
   async claim(): Promise<Array<ChatEvent & { retryCount: number }>> {
     return this.database.prisma.$queryRaw`
       WITH due AS (
-        SELECT id FROM business.outbox_events WHERE aggregate_type='CONVERSATION'
-          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED')
+        SELECT id FROM business.outbox_events WHERE ((aggregate_type='CONVERSATION'
+          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED'))
+          OR (aggregate_type='TICKET' AND event_type IN ('TICKET_CREATED','TICKET_ACCEPTED','TICKET_STATUS_CHANGED')))
           AND ((status='PENDING' AND next_attempt_at<=NOW()) OR (status='PROCESSING' AND (lease_expires_at IS NULL OR lease_expires_at<=NOW())))
         ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 20
       ) UPDATE business.outbox_events e SET status='PROCESSING',lease_owner=${this.owner},
@@ -31,7 +34,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
     for (const event of await this.claim()) await this.process(event);
   }
   async process(event: ChatEvent & { retryCount: number }) {
-      if (!types.includes(event.eventType)) return;
+      if (!types.includes(event.eventType) && !ticketEventTypes.some(type => type === event.eventType)) return;
       // Renew before each bounded handler in the batch. Never hold a row lock across WS work.
       const lease = await this.database.prisma.outboxEvent.updateMany({ where: { id: event.id, status: 'PROCESSING', leaseOwner: this.owner }, data: { leaseExpiresAt: new Date(Date.now() + 30000) } });
       if (!lease.count) return;
@@ -44,9 +47,15 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
       }, 10000);
       renew.unref();
       try {
-        const recipients = await this.events.route(event);
-        if (lost) return;
-        await this.realtime.publishChat(event, recipients);
+        if (ticketEventTypes.some(type => type === event.eventType)) {
+          const recipients = await this.tickets.route(event);
+          if (lost) return;
+          await this.realtime.publishTicket(event, recipients);
+        } else {
+          const recipients = await this.events.route(event);
+          if (lost) return;
+          await this.realtime.publishChat(event, recipients);
+        }
         await this.database.prisma.outboxEvent.updateMany({ where: { id: event.id, leaseOwner: this.owner, status: 'PROCESSING' },
           data: { status: 'PUBLISHED', leaseOwner: null, leaseExpiresAt: null, lastError: null } });
       } catch {

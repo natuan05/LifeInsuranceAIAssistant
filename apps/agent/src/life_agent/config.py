@@ -6,6 +6,7 @@ No value is defaulted in code: a missing limit or config value stops the run ins
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass, fields
 from datetime import datetime
 from pathlib import Path
@@ -91,12 +92,24 @@ class AgentConfig:
 
 
 AGENT_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = AGENT_ROOT.parents[1]
+
+
+def user_data_directory() -> Path:
+    """Same host-data convention as scripts/local-state.mjs; runtime credentials remain in Docker volumes."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        base = Path.home() / "Library" / "Application Support"
+    else:
+        base = Path(os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state")
+    return base / "LifeInsuranceAIAssistant"
 
 
 def load_env(path: Any = None) -> dict[str, str]:
-    """Read KEY=VALUE pairs from a private env file (default ``apps/agent/.env``, Git ignored); process environment
-    wins. Values are never printed; callers pass them straight to the client that needs them."""
-    file = Path(path) if path else AGENT_ROOT / ".env"
+    """Read Agent settings from root .env (or an explicit file); process environment wins.
+    Other services' settings are excluded. Values are never printed or rewritten."""
+    file = Path(path) if path else REPO_ROOT / ".env"
     values: dict[str, str] = {}
     if file.is_file():
         for line in file.read_text(encoding="utf-8").splitlines():
@@ -104,10 +117,13 @@ def load_env(path: Any = None) -> dict[str, str]:
             if not line or line.startswith("#") or "=" not in line:
                 continue
             key, _, value = line.partition("=")
+            key = key.strip()
+            if not key.startswith(("LIFE_AGENT_", "GEMINI_")):
+                continue
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
                 value = value[1:-1]
-            values[key.strip()] = value
+            values[key] = value
     elif path:
         raise ConfigError("env file not found")
     values.update({k: v for k, v in os.environ.items() if k.startswith(("LIFE_AGENT_", "GEMINI_"))})
@@ -117,5 +133,5 @@ def load_env(path: Any = None) -> dict[str, str]:
 def require(env: Mapping[str, str], name: str) -> str:
     value = env.get(name)
     if not value:
-        raise ConfigError(f"{name} is not set (see apps/agent/.env.example)")
+        raise ConfigError(f"{name} is not set (see root .env.example)")
     return value

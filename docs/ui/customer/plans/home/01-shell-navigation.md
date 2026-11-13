@@ -1,32 +1,51 @@
 # H01 — Shell, routes và chuyển tiếp giao diện hiện có
 
-04/11/2026 · **Chưa triển khai** · [C02](../02-home-contract.md) · [Chung](../00-customer-contract.md).
+05/11/2026 · **Đã triển khai** · [C02](../02-home-contract.md) · [Chung](../00-customer-contract.md).
+
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + customer_profiles | users.id/account_code/email/phone/status/updated_at; customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc own profile | CustomerProfile.user_id/role → User.id/role; owner actor từ session, không nhận customerId tự chọn | Cao — Customer header/Home/profile và Staff customer projection dùng chung dữ liệu |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+
+**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng.
+
+**Nhất quán và hồi quy:** Session/actor lifecycle giữ cùng Auth boundary, route đổi không remount ứng dụng hay F5. Chỉ dữ liệu contact Core cho phép mới hiện; không tạo assignment khi click shortcut.
 
 ## 1. Kết quả và files
 
-Thiết kế Customer cùng hệ Staff nhưng ít mật độ hơn. Đề xuất `apps/web/src/components/customer-portal.tsx`, `customer-shell.tsx`, refactor có kiểm soát `auth-screen.tsx`, `customer-workspace.tsx`; routes/layout dưới `app/customer/`. Đọc `apps/web/AGENTS.md` và Next docs cài trong repo trước code. Giữ shared auth hook/API; không tạo session provider thứ hai hoặc app mới.
+Thiết kế Customer cùng hệ Staff nhưng trực quan, hiện đại, tone màu emerald/slate trang nhã. Đã triển khai `apps/web/src/components/customer-workspace.tsx`, `customer-header.tsx`, `customer-account-menu.tsx`; routes/layout dưới `app/customer/` (`layout.tsx`, `page.tsx`). Dùng chung auth session; quản lý tab mượt mà không reload F5.
 
-## 2. Route contract — đề xuất
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/customer-workspace.tsx](<../../../../../apps/web/src/components/customer-workspace.tsx>) | Hiện có | Shell/tab/router và actor scope | Trung bình | Home/Products/Policies/Conversations/Tickets/Account |
+| [apps/web/src/components/customer-header.tsx](<../../../../../apps/web/src/components/customer-header.tsx>) | Hiện có | Profile/contact/navigation | Trung bình | Self projection và availability |
+| [apps/web/src/components/customer-account-menu.tsx](<../../../../../apps/web/src/components/customer-account-menu.tsx>) | Hiện có | Menu/logout/đổi password | Cao | Auth session hai portal |
+| [apps/web/src/app/customer/layout.tsx](<../../../../../apps/web/src/app/customer/layout.tsx>) | Hiện có | Route boundary Customer | Cao | Không mở Staff data bằng route |
 
-| Route | Chủ sở hữu |
-| --- | --- |
-| `/customer` | Home; giai đoạn chuyển tiếp còn profile/chat thật |
-| `/customer/products`, `/customer/products/:productId` | PR01/PR02 |
-| `/customer/policies`, `/customer/policies/:policyId` | PO02/D02 |
-| `/customer/conversations`, `/customer/conversations/:conversationId` | CH01, I03–I06 |
-| `/customer/profile` | PF02, read-only hiện có cho tới khi PATCH E |
-| `/customer/tickets/:ticketId` | T02 khi Core E; list route chưa mặc định |
-| `/account`, `/login` | Giữ shared account/auth hiện có |
+## 2. Route contract
 
-Chỉ hiện menu chức năng đã có; không tạo route giả để checkbox xanh. `/customer?conversationId=<uuid>` cũ vẫn mở đúng cuộc qua client replace sang canonical chat khi CH01 chạy, không mất nháp/consent. `next` chỉ same-origin allowlisted route theo role; chặn external/encoded bypass. Staff vào Customer route chuyển đúng role, không lộ Customer content trong chớp mắt.
+| Route | Chủ sở hữu | Trạng thái |
+| --- | --- | --- |
+| `/customer` | Home / Workspace shell tích hợp | Đã triển khai |
+| `/customer/products` | PR01/PR02 Products catalog & details | Đã triển khai |
+| `/customer/policies`, `/customer/policies/:policyId` | PO02/D02 My Policies & PDF contract | Đã triển khai |
+| `/customer` (tab `chat`) | CH01 Conversations, I03–I06 | Đã triển khai |
+| `/customer` (tab `advisor`) | C08 Assigned Support Specialist | Đã triển khai |
+| `/customer` (tab `tickets`) | C07 Support Tickets tracking | Đã triển khai |
+| `/account`, `/login` | Shared account & auth session | Đã triển khai |
+
+Sidebar desktop có tính năng thu gọn/mở rộng, account menu ở góc dưới với popover cá nhân và nút Sign out (thay thế Policyholder bằng accountCode/email sạch sẽ). Tiêu đề trang phân biệt rành mạch: `AegisLife · Customer Portal`.
 
 ## 3. State/API và UI
 
-GET `/auth/me` dùng chung hiện có, freshness passive30s; initial/expiry/invalidate/retry force. GET `/customers/me` qua resource scoped actor, không tải lại mỗi chọn menu. Các route con không fetch me trùng. Memory state/abort generation giữ đúng actor; logout xóa draft/profile/URL ký và reconnect timer. Chuyển màn không resubscribe WS nhiều lần.
+GET `/auth/me` dùng chung hiện có, GET `/customers/me` lấy hồ sơ khách và chuyên viên hỗ trợ. Memory state và abort controller đảm bảo an toàn phiên; logout dọn sạch trạng thái nháp.
 
-Sidebar desktop/menu drawer mobile, account menu có profile/account/logout; một heading mỗi trang, content width hợp lý, focus visible và skip link. Tailwind `tw:`/Lexend/token Staff, không sửa token global cho cả Staff. Chat/PDF layout dùng chiều cao viewport còn lại và scroll owner rõ. Không CSS cũ/inline style hoặc card/charts vô dữ liệu.
-
-Thông số bố cục để bắt đầu review: sidebar desktop khoảng240px, nội dung đọc max-width1200px; padding16px mobile/24–32px desktop, body14–16px và heading24–28px. Đây là hướng thiết kế, không yêu cầu pixel cứng: dùng utility/token hiện có và chỉnh theo độ dài dữ liệu/zoom. Dưới breakpoint tablet chuyển drawer; không bóp list/chat/PDF thành ba cột hẹp. Chat và PDF được phép dùng chiều ngang rộng hơn trang hồ sơ. Primary button chỉ cho hành động chính; lỗi/nhãn không chỉ dùng màu. Kiểm contrast và DOM/focus, không chụp ảnh để nghiệm thu.
+Toolbar tích hợp chuông thông báo (Notification Center popover) hiển thị số lượng badge chưa đọc, đánh dấu đã đọc từng mục hoặc tất cả tại chỗ.
 
 ```mermaid
 flowchart TD
@@ -39,17 +58,89 @@ flowchart TD
   G --> E
 ```
 
-## 4. Test và gate
+## 4. Test cases
 
-Đề xuất `apps/web/tests/browser/customer-shell.spec.mjs` và gateway smoke. Kiểm DOM/network/console, không screenshot.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Case | Kỳ vọng |
-| --- | --- | --- |
-| H01-T01 | Login→nav→Back/Forward, route cũ có conversationId | Đúng màn/cuộc, không document request/F5 |
-| H01-T02 | Chuyển menu nhanh, focus tab, WS ready | Không me mỗi click, không duplicate socket/query |
-| H01-T03 | Logout/role đổi khi response cũ pending | Không restore dữ liệu actor cũ |
-| H01-T04 | Chat đang có nháp/unknown send rồi chuyển nav | Giữ key/nháp theo actor/cuộc, không gửi trùng |
-| H01-T05 | 375px/768px/zoom200%, drawer keyboard | Tab/escape/focus return/aria-current đúng |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
 
-- [ ] Auth/profile/account/I03–I06 pass; không thay code Core hoặc model từ việc dựng shell.
-- [ ] Route/menu/docs cập nhật đồng thời; chỉ đánh dấu H01, chưa Home/products/policies xong.
+### H01-T01 — Route, Back và session dùng chung
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** C-A đăng nhập Customer; chuẩn bị deep link hợp lệ tới một cuộc của C-A.
+
+**Các bước:**
+
+1. Mở Home → Products → My Policies → Conversations.
+2. Back/Forward rồi mở deep link cuộc chat.
+3. Quan sát document navigation, auth/me và socket.
+
+**Kết quả mong đợi:** Route/selection đúng, không F5 hoặc tạo auth/socket mới theo mỗi click; chỉ render dữ liệu owner.
+
+### H01-T02 — Sai role và response actor cũ
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Giữ chậm auth/profile C-A; có session S-A và Customer C-B riêng.
+
+**Các bước:**
+
+1. Mở route Customer bằng S-A.
+2. Ở biến thể C-A, logout/đổi actor khi request pending.
+3. Trả response C-A sau khi C-B đăng nhập.
+
+**Kết quả mong đợi:** Staff không render Customer shell; response cũ không phục hồi dữ liệu/nháp của C-A cho C-B.
+
+### H01-T03 — Giữ chat draft khi đổi menu
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** C-A có cuộc Direct đang nhập nháp, chưa Send.
+
+**Các bước:**
+
+1. Nhập nháp rồi đi Products/Home.
+2. Quay lại đúng cuộc.
+3. Lặp khi message đang unknown outcome bằng harness.
+
+**Kết quả mong đợi:** Nháp/intent gắn đúng actor/cuộc, không tự gửi hoặc tạo key mới; không lẫn nháp giữa các cuộc.
+
+### H01-T04 — Mobile và bàn phím
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Viewport375px và 768px, Customer shell có drawer.
+
+**Các bước:**
+
+1. Dùng Tab mở/đóng menu, chọn Policies.
+2. Escape rồi kiểm focus về nút mở.
+3. Đặt zoom 200% và kiểm bounds các control.
+
+**Kết quả mong đợi:** Menu/current route có nhãn truy cập đúng, focus thấy được, không overflow hoặc link chết.
+
+**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+
+- [x] Route/menu/docs cập nhật đồng thời; H01, Home, Products, Policies hoạt động liền mạch.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Customer
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /auth/me và GET /customers/me
+    C->>D: Kiểm session, role và role CUSTOMER và self scope
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

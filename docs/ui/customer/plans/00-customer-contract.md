@@ -53,7 +53,7 @@ sequenceDiagram
   C->>D: Auth/owner và version trong giao dịch phù hợp
   D-->>C: Allowlist / commit
   C-->>W: Data hoặc safe error
-  Note over W,C: UI không tự cấp quyền; retry không F5
+  Note over W,C: UI không tự cấp quyền, retry không F5
 ```
 
 - [ ] Spec/Swagger/model/migration cần thiết được review trước phần phụ thuộc.

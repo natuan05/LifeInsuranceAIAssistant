@@ -2,14 +2,15 @@
 Real SQL/scope/roles are covered by test_retrieval_db.py; neither proves semantic quality (Task 9)."""
 import copy
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from life_agent import contracts
 from life_agent.core_client import CoreError
-from life_agent.corpus import build_chunks, chunk_metadata, fingerprint, prepare_document, resolve_refs
-from life_agent.retrieval import Row, RetrievalService, SearchConfig, SearchEngine, SearchUnavailable, query_terms, rrf
+from life_agent.corpus import Block, build_chunks, chunk_metadata, fingerprint, prepare_document, resolve_refs
+from life_agent.retrieval import Row, RetrievalService, ScopePair, SearchConfig, SearchEngine, SearchUnavailable, query_terms, rrf
 from life_agent.store import AttemptInvalid
 
 from corpus_fixtures import TRUNCATED, corpus_config, fixture_manifest
@@ -52,7 +53,8 @@ class MemoryIndex:
         out = {}
         for r in self._scoped(pairs, access):
             if r.metadata["kind"] == "child":
-                out.setdefault((r.document_id, r.document_version), set()).add(r.metadata["embedding"]["config_id"])
+                out.setdefault((r.document_id, r.document_version), []).append(
+                    {**r.metadata["embedding"], "stored_dimensions": self.cfg.dimensions})
         return out
 
     def keyword(self, query, pairs, access, config):
@@ -68,11 +70,11 @@ class MemoryIndex:
                 scored.append((-hits, r.id))
         return [i for _, i in sorted(scored)][: config.keyword_candidates]
 
-    def vector(self, values, emb_id, pairs, access, config):
+    def vector(self, values, embedding_identity, pairs, access, config):
         self._check("vector")
         scored = []
         for r in self._scoped(pairs, access):
-            if r.metadata["kind"] == "child" and r.metadata["embedding"]["config_id"] == emb_id:
+            if r.metadata["kind"] == "child" and r.metadata["embedding"] == embedding_identity:
                 v = HashEmbedding.values(r.metadata["prefix"] + "\n\n" + r.content, self.cfg.dimensions)
                 scored.append((-sum(a * b for a, b in zip(values, v)), r.id))
         return [i for _, i in sorted(scored)][: config.vector_candidates]
@@ -99,7 +101,7 @@ def index_rows(embed_cfg, *, document_id=None, version_label=None, config_id=Non
     version = prepare_document(source, manifest, corpus_config(), catalog=catalog)
     chunks = resolve_refs(build_chunks(version)).chunks
     identity = {**embed_cfg.identity(), **({"config_id": config_id} if config_id else {})}
-    fp = fingerprint(version, identity["config_id"])
+    fp = fingerprint(version, identity)
     rows = [Row(str(uuid.uuid4()), version.document_id, version.document_version, c.content,
                 chunk_metadata(version, c, fp=fp, embedding=identity)) for c in chunks]
     return version, rows
@@ -171,6 +173,17 @@ def test_vectors_from_another_space_are_never_compared():
     assert "vector" not in index.calls
 
 
+@pytest.mark.parametrize("changed", [{"model_id": "other"}, {"model_version": "2"}, {"dimensions": 32}])
+def test_same_config_id_does_not_allow_another_embedding_identity(changed):
+    cfg = embedding_config()
+    version, rows = index_rows(cfg)
+    index = MemoryIndex(rows, cfg)
+    result = SearchEngine(index, HashEmbedding(), replace(cfg, **changed)).search(
+        "thời gian chờ", scope_of(version), search_config())
+    assert result["status"] == "ERROR" and result["error"]["code"] == "EMBEDDING_INCOMPATIBLE"
+    assert "vector" not in index.calls
+
+
 def test_database_error_is_error_never_no_match():
     version, rows = index_rows(embedding_config())
     for failing in ("profile", "rows"):
@@ -213,6 +226,68 @@ def test_unindexed_document_in_scope_is_a_source_warning():
 
 
 # ---------------------------------------------------------------------------------------------- assembly
+
+def assemble_one(eng, version, row, **config):
+    return eng._assemble([row.id], [ScopePair(version.document_id, version.document_version, None)],
+                         "PUBLIC", search_config(**config))
+
+
+def test_parent_references_are_followed_when_the_ranked_child_has_none():
+    version, rows = index_rows(embedding_config())
+    child = next(r for r in rows if r.metadata["kind"] == "child" and "| 30 |" in r.content)
+    assert child.metadata["refs"] == []
+    eng, _ = engine(rows)
+    evidence, missing = assemble_one(eng, version, child)
+    assert {e["location"]["clause"] for e in evidence} >= {"Điều 3. Thời gian chờ", "Điều 4. Loại trừ"}
+    assert any(m["reference"] == "Điều 9" and m["code"] == "REFERENCE_TARGET_MISSING" for m in missing)
+
+
+def test_same_article_reference_fetches_other_parent_parts():
+    cfg = embedding_config()
+    version, _ = index_rows(cfg)
+    blocks = [Block("heading", "Điều 1. Điều kiện synthetic", [1], "synthetic-1", level=3),
+              Block("paragraph", "1.1. Điều kiện đã xác minh synthetic. " * 6, [1], "synthetic-1"),
+              Block("paragraph", "Phần khác trong cùng Điều. " * 10, [2], "synthetic-2"),
+              Block("paragraph", "1.2. Áp dụng theo Điều 1.1. " * 7, [3], "synthetic-3")]
+    version = replace(version, blocks=blocks, source_issues=[], corpus_config=corpus_config(
+        child_target_chars=250, child_max_chars=350, child_min_chars=50, parent_max_chars=400))
+    rows = [Row(str(uuid.uuid4()), version.document_id, version.document_version, c.content,
+                chunk_metadata(version, c, fp="synthetic", embedding=cfg.identity()))
+            for c in resolve_refs(build_chunks(version)).chunks]
+    child = next(r for r in rows if r.metadata["kind"] == "child" and "Áp dụng theo" in r.content)
+    eng, _ = engine(rows)
+    evidence, _ = assemble_one(eng, version, child, max_evidence=20, max_evidence_chars=50000)
+    assert any("1.1. Điều kiện đã xác minh" in e["content"] for e in evidence)
+
+
+def test_vague_reference_is_reported_as_unresolved():
+    version, rows = index_rows(embedding_config())
+    child = next(r for r in rows if r.metadata["kind"] == "child" and r.metadata["section_key"] == "dieu-4")
+    eng, _ = engine(rows)
+    _, missing = assemble_one(eng, version, child)
+    assert any(m["code"] == "UNRESOLVED_REFERENCE" and m["reference"] == "như trên" for m in missing)
+
+
+@pytest.mark.parametrize("cap", [0, 1])
+def test_reference_target_cap_also_bounds_database_lookups(cap):
+    version, rows = index_rows(embedding_config())
+    child = next(r for r in rows if r.metadata["kind"] == "child" and "| 30 |" in r.content)
+    eng, index = engine(rows)
+    _, missing = assemble_one(eng, version, child, ref_max_targets=cap)
+    assert index.calls.count("section") <= cap
+    assert any(m["code"] == "EXPANSION_CAP_REACHED" and m["reference"] == "Điều 4" for m in missing)
+
+
+def test_fully_returned_reference_target_needs_no_lookup_or_cap_warning():
+    version, rows = index_rows(embedding_config())
+    selected = [next(r.id for r in rows if r.metadata["kind"] == "child" and r.metadata["section_key"] == key)
+                for key in ("dieu-1", "dieu-3", "dieu-4")]
+    eng, index = engine(rows)
+    _, missing = eng._assemble(selected, [ScopePair(version.document_id, version.document_version, None)],
+                               "PUBLIC", search_config(ref_max_targets=0))
+    assert index.calls.count("section") == 0
+    assert not any(m["code"] == "EXPANSION_CAP_REACHED" and m.get("reference") in ("Điều 3", "Điều 4")
+                   for m in missing)
 
 def test_rrf_order_on_known_rankings():
     assert [i for i, _ in rrf([["a", "b", "c"], ["c", "a"]], 60)] == ["a", "c", "b"]

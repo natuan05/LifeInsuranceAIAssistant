@@ -65,7 +65,7 @@ Module `apps/core/src/conversations` (04/11/2026) đã có tạo/list/đọc h�
 1. Dựng các contract trên vào API hội thoại hiện có (`clientConversationId` ↔ `clientRequestId` + `kind=AI`; bổ sung `currentRun`, mục `AGENT_RESULT`/`RUN_OUTCOME`, Staff Copilot có link).
 2. Giữ module `agent` riêng như bản đồ file của kế hoạch.
 
-Ngày 06/11/2026 chọn kết hợp (12.13 #1): API Web ↔ Core theo module `conversations` hiện có, phần run/attempt/event và tích hợp Agent ở module `agent` riêng. Tên trường Web ↔ Core sẽ chỉnh theo API hiện có khi làm Task 3.
+Ghi nhận phương án từ nhánh ngày 06/11/2026 (12.13 #1), chưa duyệt: API Web ↔ Core theo module `conversations` hiện có, phần run/attempt/event và tích hợp Agent ở module `agent` riêng. Phương án này dự kiến chỉnh tên trường Web ↔ Core theo API hiện có khi làm Task 3.
 
 ## 4. Core ↔ Agent
 
@@ -171,7 +171,7 @@ Lịch sử người dùng hiển thị `RUN_OUTCOME.code` đã lọc (thêm `ST
 
 ## 11. Cần chốt ở review G1
 
-1. Hướng Task 3 với module hội thoại hiện có (mục 3) — đã chọn ngày 06/11/2026 ở 12.13 #1.
+1. Hướng Task 3 với module hội thoại hiện có (mục 3) — phương án từ nhánh ngày 06/11/2026 ở 12.13 #1, còn chờ duyệt.
 2. Quy ước camelCase/snake_case và các đổi tên ở mục 1.
 3. Thêm `PROPOSE_HANDOFF` cạnh `PROPOSE_TICKET` (Agent Design nêu action gồm Ticket hoặc chuyển Staff; kế hoạch chỉ đặc tả Ticket) và đề xuất Copilot không trả action trước G6.
 4. Dependency `ajv` 8.20.0 cho Core devDependencies (đã có sẵn trong lockfile qua Nest CLI); Python dùng `jsonschema` khi Task 4 pin dependency.
@@ -180,13 +180,14 @@ Lịch sử người dùng hiển thị `RUN_OUTCOME.code` đã lọc (thêm `ST
 
 ## 12. Protocol bền vững và tích hợp — gói đề xuất G2/G3 (Task 2)
 
-**Trạng thái: đề xuất của Task 2; năm lựa chọn ở 12.13 đã chốt ngày 06/11/2026 (người dùng giao Agent tự chọn), anh Tuấn review cùng PR.** Phần này là đầu vào cho G2 (persistence/concurrency) và G3 (transport/policy). Theo kế hoạch, Task 3/4 phần DB và Task 6 chỉ bắt đầu khi phần tương ứng được duyệt. Reference model [`agent-protocol-model.cjs`](../apps/core/test/helpers/agent-protocol-model.cjs) và [`agent-protocol.test.cjs`](../apps/core/test/agent-protocol.test.cjs) (`node --test apps/core/test/agent-protocol.test.cjs`) kiểm tính nhất quán của các bảng dưới. Chúng không chứng minh khóa DB, mạng hay hai tiến trình thật; các phép đó nằm trong acceptance matrix (12.12).
+**Trạng thái: gói đề xuất Task 2; năm phương án ở 12.13 là ghi nhận từ nhánh nguồn ngày 06/11/2026, chưa đóng G2/G3.** Nhánh ghi các phương án này đã được giao chọn; review hiện tại chưa xác minh nguồn xác nhận đó và không tự chuyển chúng thành quyết định được duyệt. Phần này là đầu vào cho G2 (persistence/concurrency) và G3 (transport/policy). Theo kế hoạch, Task 3/4 phần DB và Task 6 chỉ bắt đầu khi phần tương ứng được duyệt. Reference model [`agent-protocol-model.cjs`](../apps/core/test/helpers/agent-protocol-model.cjs) và [`agent-protocol.test.cjs`](../apps/core/test/agent-protocol.test.cjs) (`node --test apps/core/test/agent-protocol.test.cjs`) kiểm tính nhất quán của các bảng dưới. Chúng không chứng minh khóa DB, mạng hay hai tiến trình thật; các phép đó nằm trong acceptance matrix (12.12).
 
-| Mục | Trạng thái | Người duyệt | Ngày |
+| Mục | Trạng thái | Nguồn ghi nhận/review | Ngày ghi nhận |
 | --- | --- | --- | --- |
-| 12.2–12.8 Storage, state machine, fencing, ledger, final record, crash matrix (G2) | Đề xuất; quyết định 1–4 ở 12.13 đã chốt | Người dùng giao chọn; anh Tuấn review PR | 06/11/2026 |
-| 12.9–12.10 HMAC, endpoint, framework (G3) | Profile HMAC và framework đã chốt (12.13 #5); lịch giao lại/retention còn đề xuất | Người dùng giao chọn; anh Tuấn review PR | 06/11/2026 |
-| 12.11 DDL | Core: đề xuất cho Task 3; Agent: đã triển khai ở Task 4 | — | 06/11/2026 |
+| 12.2–12.8 Storage, state machine, fencing, ledger, final record, crash matrix (G2) | Đề xuất; phương án 1–4 ở 12.13 còn chờ duyệt G2 | Ghi nhận từ nhánh; chưa xác minh nguồn duyệt | 06/11/2026 |
+| 12.9–12.10 HMAC, endpoint, framework (G3) | Đề xuất profile/framework (12.13 #5), lịch giao lại/retention; chưa đóng G3 | Ghi nhận từ nhánh; chưa xác minh nguồn duyệt | 06/11/2026 |
+| 12.11 DDL | Core: đề xuất cho Task 3; Agent: migration Task 4 đã có, không tự đóng G2 | — | — |
+
 
 ### 12.1 Bất biến cần giữ
 
@@ -197,6 +198,8 @@ Lịch sử người dùng hiển thị `RUN_OUTCOME.code` đã lọc (thêm `ST
 5. Budget theo tin nhắn, trừ **trước** lời gọi ngoài; reservation chưa rõ kết quả vẫn tính là đã tiêu; attempt mới cùng tin không có ledger mới.
 6. Kết quả cuối, event bất biến, sequence và dấu hoàn tất được ghi cùng một transaction. Đã có bản ghi cuối thì không chạy lại graph.
 7. Không có transaction, FK, view hay join giữa schema Core (`business`) và schema Agent (`agent_runtime`). ID chỉ dùng để liên kết.
+
+Trước khi áp ACK, bên gửi kiểm đủ trường, kiểu, outcome/reason nhất quán và khớp request đang chờ: dispatch khớp `run_id`/`attempt_id` và `event_id=null`; event khớp cả `run_id`/`attempt_id`/`event_id`; revoke khớp `run_id`/`attempt_id`, không có `event_id`, có `writer_epoch` nguyên không âm cho `REVOKED`/`ALREADY_REVOKED` và `reason=null`. ACK thiếu/sai trường, không rõ outcome hoặc thuộc request khác không đổi trạng thái, không mở revoke barrier, không xóa event đang chờ; tiếp tục giao đúng request/event đã lưu.
 
 ### 12.2 Phân chia lưu trữ và quyền
 
@@ -216,10 +219,12 @@ Runtime Agent không có quyền `business` và không ghi `rag`; Core không c�
 | `claimNext(conversation)` | Khóa hội thoại; từ chối nếu không `AI_ACTIVE`, đã có `RUNNING` hoặc còn attempt `INVALIDATING`; lấy run `QUEUED` có `queue_position` nhỏ nhất → `RUNNING`; cố định `history_view`; tạo `agent_attempts(DISPATCHING)` với RunRequest + SHA-256 | Commit **trước** khi gửi HTTP; không giữ transaction qua mạng |
 | Gửi/đối soát | Ngoài transaction: `POST /internal/runs`; nhận `ACCEPTED`/`DUPLICATE` → `ACCEPTED`. Không có ACK → gửi lại đúng request đã lưu theo `next_dispatch_at` (backoff) | Lặp an toàn nhờ receipt của Agent |
 | `applyEvent(event)` | Khóa hội thoại; chèn `agent_run_events` (khóa `event_id`, unique `(attempt_id, sequence)`); kiểm attempt là `current_attempt_id` và đang sống, hội thoại `AI_ACTIVE`, quyền actor hiện hành. `RESULT` kiểm schema và trích dẫn trong scope của run → Message `AI_AGENT` + run `COMPLETED` + attempt `FINISHED`. `ERROR` → `FAILED`. `PROGRESS` chỉ cập nhật khi `sequence` lớn hơn | `DurableAck` mục 4: `DUPLICATE` (cùng hash), `CONFLICT` (`PAYLOAD_MISMATCH`/`SEQUENCE_CONFLICT`), `IGNORED_STALE` (attempt không còn hiện hành hoặc run đã kết thúc), `REJECTED` (`UNKNOWN_RUN`) |
-| `invalidateAttempt(attempt, reason)` | Khóa hội thoại; attempt → `INVALIDATING` (tool, scope, history và event của attempt bị từ chối ngay). `STAFF_TAKEOVER` cùng transaction với handoff hiện có: tăng `control_version`, run đang chạy và các run `QUEUED` → `CANCELLED`. `DEADLINE` → run `FAILED`. `RETRY` giữ run `RUNNING` | Gửi `AttemptRevocation`; lặp lại tới khi có `RevocationAck` |
-| Nhận `RevocationAck` | Attempt → `INVALIDATED`, lưu `revoked_epoch`. Với `RETRY`: tạo attempt mới cùng run | Hội thoại được claim tiếp |
+| `invalidateAttempt(attempt, reason)` | Khóa hội thoại; attempt → `INVALIDATING` (tool, scope, history và event của attempt bị từ chối ngay). `STAFF_TAKEOVER` cùng transaction với handoff hiện có: tăng `control_version`, run đang chạy và các run `QUEUED` → `CANCELLED`. `DEADLINE` → run `FAILED`. `CANCELLED_BY_CORE`/`PERMISSION_CHANGED` → run hiện tại `CANCELLED`. `RETRY` giữ run `RUNNING` | Gửi `AttemptRevocation`; lặp lại tới khi có `RevocationAck` hợp lệ, đúng run/attempt |
+| Nhận `RevocationAck` | Chỉ ACK hợp lệ `REVOKED`/`ALREADY_REVOKED` đúng run/attempt mới chuyển attempt → `INVALIDATED`, lưu `revoked_epoch`. Với `RETRY`: tạo attempt mới cùng run | Hội thoại được claim tiếp; attempt đang chờ ACK vẫn giữ barrier dù run đã terminal |
 
-`history_view.through_cursor` cố định lúc claim, nên gồm kết quả lượt trước dù kết quả đó commit sau lúc tin hiện tại vào hàng đợi; tin xếp sau không thuộc view. `linked_history_view` của Copilot cố định lúc `acceptMessage`. Deadline: reconcile thấy attempt quá `deadline_at` + thời gian ân hạn thì gọi `invalidateAttempt(DEADLINE)`. **Đã chốt 06/11/2026 (12.13 #4):** attempt lỗi hoặc quá hạn thì run kết thúc `FAILED` (hoặc `CANCELLED` khi takeover), không tự tạo attempt mới. Gửi lại cùng attempt khi mất ACK vẫn giữ; lý do `RETRY` chỉ dùng khi có thao tác chủ động sau này.
+`history_view.through_cursor` cố định lúc claim, nên gồm kết quả lượt trước dù kết quả đó commit sau lúc tin hiện tại vào hàng đợi; tin xếp sau không thuộc view. `linked_history_view` của Copilot cố định lúc `acceptMessage`. Deadline: reconcile thấy attempt quá `deadline_at` + thời gian ân hạn thì gọi `invalidateAttempt(DEADLINE)`. **Phương án từ nhánh 06/11/2026 (12.13 #4), chờ duyệt G2:** attempt lỗi hoặc quá hạn thì run kết thúc `FAILED` (hoặc `CANCELLED` khi takeover), không tự tạo attempt mới. Gửi lại cùng attempt khi mất ACK vẫn giữ; lý do `RETRY` chỉ dùng khi có thao tác chủ động sau này.
+
+**Người dùng xác nhận bổ sung ngày 12/11/2026:** `PERMISSION_CHANGED` kết thúc run bằng `CANCELLED`, với mã lịch sử Core `RUN_OUTCOME.code=PERMISSION_DENIED`; `CANCELLED_BY_CORE` cũng kết thúc `CANCELLED`, mã lịch sử `CANCELLED_BY_CORE`. Không tự tạo attempt mới. Hai lý do này hủy run hiện tại; không chuyển hội thoại sang Staff hoặc tự hủy các run đang xếp hàng. FIFO chỉ được claim tiếp sau revoke ACK tương quan hợp lệ; Core vẫn kiểm quyền hiện hành cho lượt tiếp theo. Đây là quyết định bổ sung, không phải một trong năm lựa chọn ngày 06/11.
 
 Dispatcher là vòng polling trong tiến trình Core (`SELECT … FOR UPDATE SKIP LOCKED` trên hội thoại có run chờ), chạy cùng bộ đối soát. Đây là ứng viên, chưa chọn queue/worker service mới; nhiều instance Core vẫn đúng nhờ khóa hội thoại và các unique index.
 
@@ -227,16 +232,20 @@ Dispatcher là vòng polling trong tiến trình Core (`SELECT … FOR UPDATE SK
 
 | Lệnh (Storage API) | Transaction `agent_runtime` |
 | --- | --- |
-| `accept_run(request) -> DurableAck` | Xác thực HMAC → kiểm schema → receipt theo `attempt_id`: chưa có → tạo `ACCEPTED`, chuyển `thread_owners` sang attempt này (`writer_epoch + 1`, receipt cũ còn `ACCEPTED` → `REVOKED`), mở ledger của `message_id` nếu chưa có. Đã có, cùng SHA-256 → `DUPLICATE` và lên lịch giao lại event chưa ACK. Khác SHA → `CONFLICT`. Tombstone/`REVOKED` → `IGNORED_STALE` |
-| `revoke(attempt) -> RevocationAck` | Khóa hàng `thread_owners`; nếu attempt đang sở hữu thì `writer_epoch + 1`, `revoked = true`; receipt `ACCEPTED` → `REVOKED`; attempt chưa từng nhận → tombstone để request đến muộn bị từ chối. Commit rồi mới ACK |
+| `accept_run(request) -> DurableAck` | Xác thực HMAC → kiểm schema → bên nhận tự tính SHA-256 của JSON canonical `RunRequest` nhận được → receipt theo `attempt_id`: chưa có → tạo `ACCEPTED`, chuyển `thread_owners` sang attempt này (`writer_epoch + 1`, receipt cũ còn `ACCEPTED` → `REVOKED`), mở ledger của `message_id` nếu chưa có. Đã có, cùng SHA-256 → `DUPLICATE` và lên lịch giao lại event chưa ACK. Khác SHA → `CONFLICT`. Tombstone/`REVOKED` → `IGNORED_STALE` |
+| `revoke(attempt) -> RevocationAck` | Khóa hàng `thread_owners`; nếu attempt đang sở hữu thì `writer_epoch + 1`, `revoked = true`; receipt `ACCEPTED` → `REVOKED`; attempt chưa từng nhận → tombstone (`status=REVOKED`, `run_id=NULL`, `request_sha256=NULL`) để request đến muộn bị từ chối. `run_id` trong ACK lấy từ control request, không từ tombstone. Commit rồi mới ACK |
 | `claim_execution(run_id, attempt_id) -> ExecutionLease` | Chỉ receipt `ACCEPTED` còn sở hữu thread; lấy lease (`claimed_by`, `lease_expires_at`) và **nâng epoch ở mỗi lần claim**, nên tiến trình cũ chạy cùng attempt sau restart/hết lease cũng bị chặn |
 | `reserve(...)`, `write_checkpoint(...)`, `persist_final(...)` | Đều kiểm quyền ghi (12.5) trong cùng transaction |
 | `pending_events() / ack_event()` | Đọc `outbound_events` chưa ACK theo `next_delivery_at`; ACK `ACCEPTED`/`DUPLICATE`/`IGNORED_STALE`/`CONFLICT` thì dừng gửi (`CONFLICT` ghi sự cố); `REJECTED` hoặc không có ACK thì giữ lại |
 | Khởi động lại | Giao lại event chưa ACK; chạy tiếp chỉ receipt `ACCEPTED` còn sở hữu thread, sau khi đồng bộ lại với Core (gửi lại request của Core luôn là `DUPLICATE`). Receipt `FINALIZED` không chạy lại graph |
 
+Fingerprint receipt gồm toàn bộ trường wire `RunRequest`: schema/run/attempt/conversation/message, nội dung, channel, actor, Customer mục tiêu, cả hai history view và limits. Sắp khóa object khi canonical hóa, giữ thứ tự array. Không lấy hash do bên gửi khai làm căn cứ; không thêm trường fingerprint vào wire. Header HMAC/nonce/timestamp và giá trị nội bộ dẫn xuất như `thread_id` không thuộc fingerprint receipt. Hash byte body dùng cho HMAC (12.9) là phép kiểm riêng, không thay hash canonical phía nhận.
+
+Tombstone chưa có payload để đối chiếu run: revoke lặp đúng attempt/thread trả `ALREADY_REVOKED`, ACK echo `run_id` của control request đã xác thực; không tra kho Core và không điền `run_id` vào tombstone. Quy tắc dựa vào control từ Core tin cậy và `attempt_id` duy nhất toàn hệ thống. Thread khác bị từ chối; với receipt đã nhận run, cả run và thread đều phải khớp. Bất kỳ dispatch đến muộn cho attempt đã có tombstone đều `IGNORED_STALE`.
+
 ### 12.5 Quyền ghi checkpoint và điểm tuyến tính hóa revoke
 
-**Đã chốt 06/11/2026 (12.13 #2):** checkpointer là lớp con `BaseCheckpointSaver` do dự án viết trên psycopg (`put`, `put_writes`, `delete_thread`, `get_tuple`, `list`), dùng serializer của chính thư viện. Không dùng thẳng `langgraph-checkpoint-postgres`, vì không chèn được bước kiểm epoch vào cùng transaction của mọi đường ghi (kể cả pending writes). Graph chạy đồng bộ với `durability="sync"`; lease được truyền qua `configurable` do code đặt, không qua state. Pin `langgraph-checkpoint` 4.3.1 (bản đi cùng `langgraph` 1.2.20 hiện dùng) ở Task 4 và đối chiếu interface với tài liệu chính thức khi triển khai.
+**Phương án từ nhánh 06/11/2026 (12.13 #2), chờ duyệt G2:** checkpointer là lớp con `BaseCheckpointSaver` do dự án viết trên psycopg (`put`, `put_writes`, `delete_thread`, `get_tuple`, `list`), dùng serializer của chính thư viện. Không dùng thẳng `langgraph-checkpoint-postgres`, vì không chèn được bước kiểm epoch vào cùng transaction của mọi đường ghi (kể cả pending writes). Graph chạy đồng bộ với `durability="sync"`; lease được truyền qua `configurable` do code đặt, không qua state. Pin `langgraph-checkpoint` 4.3.1 (bản đi cùng `langgraph` 1.2.20 hiện dùng) ở Task 4 và đối chiếu interface với tài liệu chính thức khi triển khai.
 
 ```sql
 -- mọi lần ghi (checkpoint, pending writes, reservation, kết quả cuối) bắt đầu bằng:
@@ -250,11 +259,11 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 
 **Điểm tuyến tính hóa** là lúc transaction revoke commit trong kho Agent. Lần ghi đã giữ `FOR SHARE` trước đó commit xong thì revoke mới tiếp tục. Lần ghi bắt đầu sau đó đọc epoch mới và thất bại. Ở READ COMMITTED, lần ghi đang chờ khóa được đánh giá lại trên phiên bản dòng mới nên cũng thất bại. Phép thử sơ bộ trên PostgreSQL 16 với hai kết nối cho đúng thứ tự này: revoke chờ lần ghi đang mở, lần ghi sau revoke bị từ chối, attempt mới ghi được. Đây chưa phải test nghiệm thu; test hai tiến trình nằm ở Task 4.
 
-**Đã chốt 06/11/2026 (12.13 #3): chấp nhận khoảng hở dưới đây, không thêm điều kiện lease vào câu kiểm quyền ghi.** Khi Core không gửi được revoke (mất mạng), Core đã chặn tool/scope/history/event của attempt cũ và không giao attempt mới hay tin kế tiếp cho hội thoại đó. Tuy vậy, writer cũ vẫn có thể gọi model và ghi checkpoint cho thread tới khi revoke tới được kho Agent. Các lần ghi này không thành kết quả Core. Attempt kế tiếp chỉ đọc chúng sau khi revoke đã ACK. Lease chỉ dùng để tiến trình khác nhận lại receipt khi tiến trình cũ chết (mỗi lần claim nâng epoch); nó không thay revoke, vì một writer chỉ mất mạng tới Core vẫn tới được DB của mình và vẫn gia hạn được. Core không bao giờ suy ra đã thu hồi chỉ vì lease hết hạn.
+**Phương án từ nhánh 06/11/2026 (12.13 #3), chờ duyệt G2: chấp nhận khoảng hở dưới đây, không thêm điều kiện lease vào câu kiểm quyền ghi.** Khi Core không gửi được revoke (mất mạng), Core đã chặn tool/scope/history/event của attempt cũ và không giao attempt mới hay tin kế tiếp cho hội thoại đó. Tuy vậy, writer cũ vẫn có thể gọi model và ghi checkpoint cho thread tới khi revoke tới được kho Agent. Các lần ghi này không thành kết quả Core. Attempt kế tiếp chỉ đọc chúng sau khi revoke đã ACK. Lease chỉ dùng để tiến trình khác nhận lại receipt khi tiến trình cũ chết (mỗi lần claim nâng epoch); nó không thay revoke, vì một writer chỉ mất mạng tới Core vẫn tới được DB của mình và vẫn gia hạn được. Core không bao giờ suy ra đã thu hồi chỉ vì lease hết hạn.
 
 ### 12.6 Ledger
 
-`ledgers(message_id, kind, cap, used)` và `reservations(message_id, kind, operation_id, amount, settled)`. Thứ tự trong một transaction: kiểm quyền ghi → khóa dòng ledger → chèn reservation (`ON CONFLICT DO NOTHING`; trùng `operation_id` = replay, không cấp thêm) → `used + amount <= cap` mới cộng, không thì rollback và `BudgetExhausted` **trước** khi gửi. Mã thao tác gắn số bước graph như mốc 2, nên chạy lại sau crash không xin lại được phần đã cấp.
+`ledgers(message_id, kind, cap, used)` và `reservations(message_id, kind, operation_id, amount, settled)`. Thứ tự trong một transaction: kiểm quyền ghi → khóa dòng ledger → chèn reservation (`ON CONFLICT DO NOTHING`; trùng `operation_id` = replay, không cấp thêm) → `used + amount <= cap` mới cộng, không thì rollback và `BudgetExhausted` **trước** khi gửi. Mã thao tác nhận diện từng lần gọi ngoài, không mặc định chỉ dựa vào số bước graph. Graph hiện tại cấp ID cho summary/model từ usage ledger đã tiêu để lần gọi mới sau crash không dùng lại reservation cũ; các retry cũng cần reservation riêng trong budget gốc của tin nhắn. Replay reservation chỉ cho biết phần đã cấp, không cho phép gửi lại lời gọi chưa rõ kết quả. Nếu không có kết quả đã lưu để tái sử dụng, lần thử gọi ngoài mới phải có operation ID và reservation mới; reservation chưa rõ kết quả vẫn tính đã tiêu.
 
 | Loại | Đơn vị | Ghi chú |
 | --- | --- | --- |
@@ -303,7 +312,7 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 | Xoay khóa | Keyring theo `key_id`: một khóa ký hiện hành, khóa cũ chỉ để kiểm trong thời gian chuyển; khóa nằm trong credential volume local, ngoài Git/prompt/checkpoint/log |
 | Đường truyền | Local: mạng Docker nội bộ. Ngoài local bắt buộc TLS (HMAC không mã hóa nội dung) |
 
-**Đã chốt 06/11/2026 (12.13 #5):** dùng profile tự đặt ở bảng trên (`LI-HMAC-SHA256-v1`), lấy cảm hứng từ [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) nhưng không triển khai đủ RFC đó. Hai phía chỉ cần thư viện chuẩn (`hmac`/`hashlib` của Python, `node:crypto` của Core); có test vector chung ở Task 6. Đổi profile thì tăng tên phiên bản trong chuỗi ký.
+**Phương án từ nhánh 06/11/2026 (12.13 #5), chờ duyệt G3:** dùng profile tự đặt ở bảng trên (`LI-HMAC-SHA256-v1`), lấy cảm hứng từ [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) nhưng không triển khai đủ RFC đó. Hai phía chỉ cần thư viện chuẩn (`hmac`/`hashlib` của Python, `node:crypto` của Core); có test vector chung ở Task 6. Đổi profile thì tăng tên phiên bản trong chuỗi ký.
 
 ### 12.10 Endpoint, giao lại và framework (G3)
 
@@ -316,7 +325,7 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 
 Giao lại đề xuất: backoff mũ 1 → 60 giây có jitter. Dispatch/revoke lặp tới khi có ACK hoặc tới hạn của run. Event lặp tối đa 24 giờ rồi ghi sự cố. Event đã ACK giữ 30 ngày. Các mức 3 giây/4 request/1 retry của Business Tools không áp vào callback. URL callback lấy từ cấu hình, không từ model/tài liệu/body.
 
-**HTTP framework phía Agent — đã chốt 06/11/2026 (12.13 #5):** Starlette + uvicorn, dự kiến pin `starlette` 1.9.0 và `uvicorn` 0.54.0 ở Task 6 (kiểm lại tài liệu/bản vá khi pin). Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
+**HTTP framework phía Agent — phương án từ nhánh 06/11/2026 (12.13 #5), chờ duyệt G3:** Starlette + uvicorn, dự kiến pin `starlette` 1.9.0 và `uvicorn` 0.54.0 ở Task 6 (kiểm lại tài liệu/bản vá khi pin). Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
 
 ### 12.11 DDL đề xuất
 
@@ -412,11 +421,13 @@ Agent — schema `agent_runtime`: đã triển khai ở Task 4 bằng [`apps/age
 | HMAC | Task 6: sửa body/path/header, sai khóa, lệch giờ, nonce lặp, gửi lại nonce mới cùng ID nghiệp vụ |
 | Takeover/late event | Task 6/10: takeover khi tool đang chờ; event muộn không đổi kết quả |
 
-### 12.13 Quyết định G2/G3 ngày 06/11/2026
+<a id="1213-quyết-định-g2g3-ngày-06112026"></a>
 
-Người dùng giao Agent tự chọn và ghi lại ngày 06/11/2026; anh Tuấn review cùng PR. Đổi quyết định nào thì sửa mục này và các mục bị ảnh hưởng trước khi triển khai.
+### 12.13 Phương án G2/G3 ghi nhận từ nhánh ngày 06/11/2026
 
-| # | Câu hỏi | Quyết định | Lý do |
+Lịch sử nhánh ghi: “Người dùng giao Agent tự chọn và ghi lại ngày 06/11/2026; anh Tuấn review cùng PR.” Review hiện tại chưa xác minh nguồn xác nhận của ghi nhận này. Giữ nguyên năm phương án và lý do dưới đây trong gói đề xuất Task 2; review tính nhất quán hoặc merge nhánh không tự đóng G2/G3 hay phê duyệt các phương án. Xác nhận trực tiếp ngày 12/11/2026 về `PERMISSION_CHANGED` ở 12.3 là quyết định bổ sung riêng.
+
+| # | Câu hỏi | Phương án từ nhánh, chưa duyệt | Lý do |
 | --- | --- | --- | --- |
 | 1 | Bảng run/attempt/event đặt ở module `conversations` hay module `agent` riêng (kèm G1 mục 11.1) | **Kết hợp:** API Web ↔ Core (tạo/list/đọc hội thoại, lịch sử, gửi tin) dùng tiếp module `conversations` hiện có, thêm `currentRun` và mục `AGENT_RESULT`/`RUN_OUTCOME`. Vòng đời run/attempt/event, dispatcher/đối soát, API nội bộ cho Agent và HMAC nằm trong module mới `apps/core/src/agent/` như bản đồ file của kế hoạch. `acceptMessage` do service gửi tin của `conversations` gọi trong cùng transaction; takeover của `ConversationHandoff` gọi `invalidateAttempt` trong cùng transaction | Không dựng API hội thoại thứ hai song song; giữ `controlVersion`, khóa hội thoại và handoff đã có. Phần tích hợp Agent tách riêng để review và thay transport/auth khi lên cloud |
 | 2 | Checkpointer | **Tự viết lớp con `BaseCheckpointSaver`** trên psycopg trong schema `agent_runtime`, kiểm `(thread_id, attempt_id, writer_epoch)` trong cùng transaction với mọi đường ghi; pin `langgraph-checkpoint` 4.3.1 | `langgraph-checkpoint-postgres` tự quản bảng/migration và không cho chèn bước kiểm quyền ghi vào cùng transaction, kể cả pending writes; kế hoạch yêu cầu dừng nếu thư viện không hook được mọi đường ghi |

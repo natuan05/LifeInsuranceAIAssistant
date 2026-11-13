@@ -4,9 +4,30 @@
 
 Nghiệp vụ đã chốt tại contract P: active catalog, hai role đã đăng nhập, tên/mã/summary từ DB; nội dung đầy đủ trong PDF. A17/DTO/query bên dưới đã E; P02 tài liệu/access hiện cũng đã E theo phase riêng, UI P03 đã triển khai.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_products | id/product_code/name/summary/is_active | Đọc | Unique product_code; chỉ catalog active, không sửa hợp đồng đã tham gia khi sản phẩm inactive | Trung bình — catalog và tài liệu dùng chung hai role |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+
+**Schema/migration:** Không DDL; không thêm bảng benefit/pricing hoặc policy cá nhân vào catalog.
+
+**Nhất quán và hồi quy:** Quota ghi riêng; read count/page RepeatableRead, recheck session. Kiểm inactive/search/DTO hai role; không tự sửa các policy của sản phẩm inactive.
+
 ## 1. Kết quả và file
 
 FR-008: hai role tìm/chọn sản phẩm đang công bố, không cần Agent. Đã thêm `apps/core/src/products/products.module.ts`, `controllers/product.controller.ts`, `services/product.service.ts`, `dto/product-query.dto.ts`, `dto/product-response.dto.ts`; import ProductsModule tại `app.module.ts`. Dùng AuthService/DatabaseService và RepeatableRead, không thay schema hoặc dependency. Không đọc business DB từ Web/Agent.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/products/controllers/product.controller.ts](<../../../../../apps/core/src/products/controllers/product.controller.ts>) | Hiện có | Catalog/detail hai role | Trung bình | Staff/Customer Products |
+| [apps/core/src/products/services/product.service.ts](<../../../../../apps/core/src/products/services/product.service.ts>) | Hiện có | Active filter/search/count/page projection | Cao | Không kéo policies/customer relations vào DTO |
+| [apps/core/src/products/services/product-quota.ts](<../../../../../apps/core/src/products/services/product-quota.ts>) | Hiện có | Atomic actor quota dùng chung P01/P02 | Trung bình | Read và PDF access độc lập nhóm |
+| [apps/core/src/products/dto/product-query.dto.ts](<../../../../../apps/core/src/products/dto/product-query.dto.ts>) | Hiện có | Validate literal search/page | Trung bình | product-api.ts và browser search |
 
 ## 2. API spec đã triển khai — A17 E
 
@@ -20,7 +41,7 @@ FR-008: hai role tìm/chọn sản phẩm đang công bố, không cần Agent. 
 
 Không nhận isActive/customerId/role/sort hoặc query lạ. Auth hai role; cùng DTO. Lọc isActive=true và search **trước** total/page, sort productCode ASC rồi id ASC. Escape LIKE `%`, `_`, `\`; parameterized query. Page vượt cuối trả items rỗng, total đúng; UI điều chỉnh một lần khi dữ liệu đổi.
 
-Quota `PRODUCT_READ`: tổng list/detail120 request/phút/actor, bucket DB hashed actor, không theo cookie hoặc assignment. Upsert quota autocommit riêng, sau đó recheck session trong read transaction RepeatableRead; count/page cùng snapshot.429 dùng RATE_LIMITED + Retry-After. Không ghi product, policy hoặc assignment từ GET.
+Quota `PRODUCT_READ`: tổng list/detail 120 request/phút/actor, bucket DB hashed actor, không theo cookie hoặc assignment. Upsert quota autocommit riêng, sau đó recheck session trong read transaction RepeatableRead; count/page cùng snapshot.429 dùng RATE_LIMITED + Retry-After. Không ghi product, policy hoặc assignment từ GET.
 
 ```json
 {
@@ -49,22 +70,70 @@ sequenceDiagram
   C-->>W: items/total/page/pageSize
   W->>C: GET product theo UUID
   C->>D: Chỉ active product
-  C-->>W: product hoặc safe404
+  C-->>W: product hoặc safe 404
 ```
 
-## 5. Các bước và kiểm thử
+## 5. Test cases
 
-1. DTO validation/Swagger trước service; thống nhất response với `lib/product-api.ts` tương lai.
-2. Auth/role/quota, scoped queries, response projection.
-3. Thêm `apps/core/test/products.test.cjs` theo container harness hiện có. Fixture active/inactive/null, tên có dấu/ký tự LIKE, trùng timestamp, >2 page; teardown theo runId.
+Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
 
-| ID | Thao tác | Kỳ vọng |
-| --- | --- | --- |
-| P01-T01 | Anonymous/expired và hai role hợp lệ | 401 hoặc cùng catalog; không nhận role giả |
-| P01-T02 | Search theo code/name, `%_\`, đổi page | Literal search; total trước page; thứ tự ổn định |
-| P01-T03 | Inactive detail/list và policy lịch sử tham chiếu nó | Catalog404/ẩn; Staff policy vẫn đọc đúng quyền |
-| P01-T04 | Null summary, page rỗng, input/query lạ | Null/rỗng đúng;400 cho input sai |
-| P01-T05 | Inspect JSON/logs, quota burst | Không policy/customer/storage data;429 an toàn |
+**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+
+### P01-T01 — Catalog dùng chung hai role
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** Có sản phẩm active P1/P2 và inactive P0, mã synthetic.
+
+**Các bước:**
+
+1. GET /products bằng Staff và Customer.
+2. GET detail P1 rồi P0.
+3. So sánh field trả về giữa hai role.
+
+**Kết quả mong đợi:** Hai role thấy cùng catalog active, P0 không xuất hiện và detail 404; DTO không kèm policy/Customer hoặc storage fields.
+
+### P01-T02 — Search trên toàn tập và literal
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Hơn10 sản phẩm active; P11 có mã riêng, một tên chứa % hoặc _.
+
+**Các bước:**
+
+1. GET page 2 rồi search mã P11 từ page 1.
+2. Search literal %/_ và từ chỉ có trong summary.
+3. Search tên với case khác và khoảng trắng.
+
+**Kết quả mong đợi:** Search áp trước count/page; ký tự literal không thành wildcard; summary không được tìm; thứ tự productCode/id ổn định.
+
+### P01-T03 — Query và quyền session
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** Phiên Staff/Customer và product UUID hợp lệ đã chuẩn bị.
+
+**Các bước:**
+
+1. Gửi page=0, pageSize=51, query isActive hoặc customerId.
+2. Gọi detail bằng UUID sai và UUID không tồn tại.
+3. Gọi catalog không cookie.
+
+**Kết quả mong đợi:** Input400, UUID không tồn tại404, thiếu session 401; không phản chiếu dữ liệu gửi lên vào lỗi.
+
+### P01-T04 — Quota và snapshot
+
+**Lớp kiểm thử:** API + DB harness.
+**Điều kiện và dữ liệu:** Bucket PRODUCT_READ cô lập; barrier có thể đổi isActive giữa truy vấn.
+
+**Các bước:**
+
+1. Đặt bucket sát ngưỡng rồi gọi list và detail.
+2. Gọi vượt ngưỡng.
+3. Dùng barrier đổi publication trong một request list.
+
+**Kết quả mong đợi:** List/detail dùng chung quota;429 có Retry-After; count/items trong từng response cùng snapshot, không nửa trạng thái.
+
+**Suite tham khảo:** [products.test.cjs](../../../../../apps/core/test/products.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
+
+**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Gate hoàn tất
 
@@ -72,11 +141,9 @@ sequenceDiagram
 - [x] Account/Customers/Policies/Inbox smoke gateway pass; không thêm dependency/migration.
 - [x] A17 đã E; P02 hiện đã E theo phase riêng, P03 đã triển khai.
 
-## 7. Kết quả kiểm chứng — 04/11/2026
+## 7. Ghi chú triển khai
 
-`apps/core/test/products.test.cjs`: **10 test Core/HTTP/PostgreSQL pass**, **1 test gateway pass** riêng sau cập nhật runtime. Có fixture hai role, có/không assignment,13 sản phẩm active và1 inactive, ký tự LIKE/dấu/null, nhiều trang; kiểm race đổi publication giữa count/page, session locked/expired/revoked, quota đồng thời/reset và projection/Swagger. Fixture synthetic cô lập tự dọn; không sửa seed chung.
 
-**78 test hồi quy** permissions/Inbox/workflow/send/realtime pass; lint Core và Docker build TypeScript pass. Smoke gateway gồm auth/me, staff/me, customers/me, Staff Customers list/detail, policy inactive lịch sử và Inbox. Đây là backend/gateway integration, không browser E2E hoặc UI Products đã hoàn thành.
 
 ```powershell
 docker compose --profile tests build core-tests

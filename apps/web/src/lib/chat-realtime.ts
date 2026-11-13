@@ -21,9 +21,8 @@ export function useChatRefresh(refresh: (signal: AbortSignal) => Promise<void>, 
     };
     const schedule = () => { dirty = true; if (!busy) { clearTimeout(timer); timer = setTimeout(() => void run(), 100); } };
     const revoke = () => { controller.abort(); controller = new AbortController(); clearScope(); schedule(); };
-    const visible = () => { if (document.visibilityState === 'visible') schedule(); };
     window.addEventListener(eventName, schedule); window.addEventListener(chatScopeEvent, revoke);
-    window.addEventListener('online', schedule); document.addEventListener('visibilitychange', visible);
-    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener(eventName, schedule); window.removeEventListener(chatScopeEvent, revoke); window.removeEventListener('online', schedule); document.removeEventListener('visibilitychange', visible); };
+    window.addEventListener('online', schedule);
+    return () => { controller.abort(); clearTimeout(timer); window.removeEventListener(eventName, schedule); window.removeEventListener(chatScopeEvent, revoke); window.removeEventListener('online', schedule); };
   }, [refresh, clearScope, enabled, eventName]);
 }

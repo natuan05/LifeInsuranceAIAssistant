@@ -34,7 +34,7 @@ def test_copilot_uses_frozen_source_view_on_resume():
     core.histories[CONV].append(user_item(4, "c4", "Tin khách 4"))  # B committed after the view
     calls_before = core.count("linked_history")
     first = h.run(copilot_request("s1", "Tóm tắt giúp", "p3", attempt="a2"))
-    assert core.count("linked_history") == calls_before  # resume keeps the same view, no refresh
+    assert core.count("linked_history") == calls_before + 1  # reauthorize without widening the frozen view
     assert linked_texts(model.contexts[1]) == ["Tin khách 1", "Tin khách 2", "Tin khách 3"]
     assert all(c[1] == {"conversation_id": CONV, "through_cursor": "p3"} for c in core.calls if c[0] == "linked_history")
     assert first["run_id"] == uid("run:s1")  # result belongs to the Copilot run, not the Customer chat
@@ -85,6 +85,22 @@ def test_linked_sync_failure_is_kept_as_source_status():
     second = model.contexts[1].linked_source
     assert second["status"] == "SYNC_FAILED" and linked_texts(model.contexts[1]) == ["Tin khách 1", "Tin khách 2"]
     assert second["view"] == {"conversation_id": CONV, "through_cursor": "p2"}  # not claimed as synced to p3
+
+
+@pytest.mark.parametrize("code,expected", [("NOT_AUTHORIZED", "PERMISSION_DENIED"),
+                                          ("INVALID_ATTEMPT", "ATTEMPT_INVALID")])
+@pytest.mark.parametrize("through", ["p2", "p3"])
+def test_linked_authorization_failure_never_reuses_cached_private_history(code, expected, through):
+    core = FakeCore()
+    core.histories[CONV] = customer_chat(2)
+    model = ScriptedModel([reply(draft("Authorized summary")), reply(draft("Must not see cached history"))])
+    h = Harness(model, core=core)
+    h.run(copilot_request("s1", "Summarize", "p2"))
+    core.fail_linked = CoreError(code)
+    event = h.run(copilot_request("s2", "Continue", through))
+    assert event["kind"] == "ERROR"
+    assert event["payload"]["failure"]["code"] == expected
+    assert len(model.contexts) == 1
 
 
 @pytest.mark.parametrize("max_chars,includes_start,omitted", [(60000, True, 0), (4500, False, 6)])
