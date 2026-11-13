@@ -2,6 +2,18 @@
 
 Ngày **03/11/2026**. Trạng thái: **đã triển khai và kiểm chứng ngày 03/11/2026**. Thứ tự hôm nay: 01 → [02 Policy/PDF](../policies/04-viewer-lifecycle.md) → [03 chốt Inbox](../03-inbox-contract.md). Phạm vi/nghiệm thu chung tại [kế hoạch hôm nay](../../../../next-steps.md#kế-hoạch-hôm-nay--03112026).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+
+**Schema/migration:** Không migration. Web chỉ gọi Core; không ghi trực tiếp profile/session.
+
+**Nhất quán và hồi quy:** Refetch cùng actor giữ draft/focus, 401/role change clear đúng scope. Các mutation là tác động gián tiếp qua AU01; retry auth không lặp PATCH/đổi password.
+
 ## 1. Kết quả cần đạt
 
 Mở Staff workspace hoặc Account khi mạng/Core lỗi → hiện Try again → kết nối phục hồi → bấm thử lại để lấy phiên và vào đúng route hiện tại. Không F5, không navigation document mới, không dùng location.href để thay state.
@@ -10,14 +22,16 @@ Mở Staff workspace hoặc Account khi mạng/Core lỗi → hiện Try again �
 
 ## 2. Điểm xuất phát và file liên quan
 
-| File | Điểm cần xử lý |
-| --- | --- |
-| [auth-screen.tsx](../../../../../apps/web/src/components/auth-screen.tsx) | Trước sửa: Try again gọi location.reload. Hiện dùng chung refresh qua ref, guard chống trùng, AbortController và trạng thái pending/focus |
-| [auth-api.ts](../../../../../apps/web/src/lib/auth-api.ts) | me(signal?) đã nhận AbortSignal tùy chọn, giữ mặc định callers; AuthScreen kết hợp abort lifecycle và timeout 15 giây |
-| [staff-account.spec.mjs](../../../../../apps/web/tests/browser/staff-account.spec.mjs) | 15 ca form giữ nguyên; bổ sung 13 ca tại staff-session.spec.mjs cho bootstrap/retry/timeout/abort/role |
-| [playwright.config.mjs](../../../../../apps/web/playwright.config.mjs) | Trình duyệt chạy trên Web Docker; screenshot/video/trace tắt |
 
 Đọc guide Next tương ứng trong node_modules/next/dist/docs trước khi sửa route/hook. Không thêm thư viện hoặc shared package chỉ để sửa retry.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/auth-screen.tsx](<../../../../../apps/web/src/components/auth-screen.tsx>) | Hiện có | Retry/timeout/abort, single-flight me, giữ actor khi lỗi mạng | Cao | Cả hai portal, đổi tab/logout/late response |
+| [apps/web/src/lib/auth-api.ts](<../../../../../apps/web/src/lib/auth-api.ts>) | Hiện có | me(signal), cookie/CSRF và lỗi session | Cao | Tất cả caller auth |
+| [apps/web/tests/browser/staff-session.spec.mjs](../../../../../apps/web/tests/browser/staff-session.spec.mjs) | Hiện có | Regression retry/focus/network/role | Trung bình | Không thay HTTP test cho browser test |
+| [apps/web/tests/browser/staff-account.spec.mjs](<../../../../../apps/web/tests/browser/staff-account.spec.mjs>) | Hiện có | 15 ca form giữ nguyên; bổ sung 13 ca tại staff-session.spec.mjs cho bootstrap/retry/timeout/abort/role | Cao | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/playwright.config.mjs](<../../../../../apps/web/playwright.config.mjs>) | Hiện có | Trình duyệt chạy trên Web Docker; screenshot/video/trace tắt | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
 
 ## 3. Contract giữ nguyên
 
@@ -131,6 +145,18 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 Tối ưu tiếp ngày 03/11: [kiểm phiên khi quay lại tab](../01-auth-contract.md#kiểm-phiên-khi-quay-lại-tab) dùng freshness 30 giây cho focus/visibility/ready, vẫn bypass initial/retry/invalidate/expiry.
 
 Việc 01 đã đạt gate. Trạng thái các việc tiếp theo được cập nhật tại [phạm vi hôm nay](../../../../next-steps.md#kế-hoạch-hôm-nay--03112026).
+
+**Focus khi bootstrap lỗi:** Chỉ đưa focus về Try again khi loading đã kết thúc, request không còn pending và lỗi vẫn hiện. Lên lịch sau frame render, hủy callback khi lifecycle đổi; không chỉ phụ thuộc cờ refreshingSession vì phản hồi rất nhanh có thể được React batch. Kiểm trên WebKit cùng Chromium/Firefox, giữ single-flight và không kéo focus khỏi form đang sửa.
+
+## Tự động hóa test case
+
+| Suite/vị trí | Phạm vi và giới hạn |
+| --- | --- |
+| [staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Regression phiên trên ba browser cộng E2E login/password/logout/mất phiên với Core thật; không coi API mock là kiểm quyền. |
+| [browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Dữ liệu synthetic UUID qua test Docker, session/password trong memory; finally dọn đúng fixture/object, không reset seed |
+| [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
+
+Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
 
 ## Sequence diagram
 

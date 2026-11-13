@@ -2,9 +2,29 @@
 
 04/11/2026 · **Chưa triển khai** · [C07](../07-tickets-contract.md) · Cần [T01](01-confirmation-core-contract.md), draft Agent thật cho luồng đầy đủ.
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| TicketDraft / confirmed snapshot — P, chưa có bảng/cột | Dự kiến owner/conversation/draftVersion/contentHash/confirmationTextVersion/expiresAt/consumedTicketId và SupportTicket sourceDraftId/confirmedContent | DDL + ghi dự kiến, chưa triển khai | Tên bảng/cột/FK/unique/retention phải chốt trong migration spec I07; không lấy ai_summary làm consent | Cao — Customer confirm, Agent draft, Ticket DTO và outbox phải cùng nội dung bất biến |
+
+**Schema/migration:** Không migration tại UI; dùng schema/API confirmation P tại I07/T01, không tự tạo confirmedContent từ ai_summary.
+
+**Nhất quán và hồi quy:** Review hiển thị đúng draftVersion/contentHash; explicit confirm, cancel không Ticket. Unknown result reconcile cùng intent, không tự phát success hoặc gửi lại key mới. Kiểm expiry/stale/foreign owner/duplicate.
+
 ## 1. Vị trí/API
 
 Đề xuất `components/customer-ticket-confirmation.tsx`, `customer-ticket-detail.tsx`, `lib/ticket-api.ts`, route `app/customer/tickets/[ticketId]/page.tsx`. Dùng I07 GET draft/POST confirm/GET receipt/GET detail; không gọi Staff Accept hoặc ghi nghiệp vụ trực tiếp qua Agent. Customer list tổng chưa có spec nên không tạo menu dẫn tới trang trống.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| `apps/web/src/components/customer-ticket-confirmation.tsx` | Dự kiến — chưa có file | P review/confirm/cancel đúng snapshot | Cao | Customer chat và Ticket creation |
+| [apps/web/src/components/customer-tickets.tsx](<../../../../../apps/web/src/components/customer-tickets.tsx>) | Hiện có | Hiện có UI; P confirmation result integration theo T01 | Trung bình | Không tự mở Staff ticket endpoint |
+| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | P owner draft/confirm wrappers | Cao | Staff accept/status API giữ nguyên |
 
 ## 2. Review và outcome
 

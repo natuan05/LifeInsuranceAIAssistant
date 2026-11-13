@@ -4,6 +4,17 @@
 
 Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; Inbox/Ticket theo khách chưa có.
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [CU01 — Customers API theo phân công](customers/01-assignment-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/core/src/customers/controllers/customer.controller.ts](<../../../../apps/core/src/customers/controllers/customer.controller.ts>); [apps/core/src/customers/services/customer.service.ts](<../../../../apps/core/src/customers/services/customer.service.ts>) | Cao — Customers list/detail |
+| [CU02 — Danh sách, hồ sơ và vùng policies](customers/02-directory-profile-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/web/src/components/staff-customer-directory.tsx](<../../../../apps/web/src/components/staff-customer-directory.tsx>); [apps/web/src/lib/customer-api.ts](<../../../../apps/web/src/lib/customer-api.ts>) | Trung bình — Back/Forward, empty/error, không F5 |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## Hiện trạng
 
 - [x] `/staff/customers`: list/search/phân trang 10/trang trên toàn tập active assignment.
@@ -13,7 +24,7 @@
 - [x] Loading/empty/no match/error/retry; request cũ bị hủy; 401/403/404 xóa dữ liệu riêng.
 - [x] Realtime refresh nền cho list/hồ sơ cùng query, giữ dữ liệu trong lúc chờ; kiểm phiên khi focus/visible vẫn có.
 - [x] Có 15 regression browser Chromium với API/WebSocket giả lập.
-- [ ] Liên kết theo khách sang Inbox/Tickets sau khi triển khai [kế hoạch](inbox/00-inbox-spec.md); hiện chưa có link/API/UI hỗ trợ trong Customers.
+- [x] Hồ sơ khách có Conversations/Tickets mở màn nghiệp vụ với customerId; Core giữ kiểm assignment/Direct/consent, không nhúng chat vào Customers.
 
 ## API hiện có
 
@@ -114,8 +125,8 @@ Mặc định `http://localhost:8080`, đổi bằng `BROWSER_TEST_BASE_URL`. Sc
 
 ## Phần còn lại
 
-- [ ] Sau khi Inbox/Tickets hoạt động: liên kết từ hồ sơ bằng customerId đã kiểm quyền; chi tiết hỗ trợ vẫn ở đúng màn hình nghiệp vụ.
-- [ ] E2E tích hợp browser/Core/DB và hồi quy các trình duyệt khác.
+- [x] Liên kết từ hồ sơ bằng customerId đã kiểm quyền; Inbox tự mở nhóm đúng khách, chi tiết hỗ trợ ở đúng màn nghiệp vụ, Back giữ tìm kiếm.
+- [x] E2E browser/gateway/Core/DB cho search/page/profile/support links/Back và ngoài assignment; hồi quy Chromium/Firefox/WebKit theo CU01/CU02.
 
 Dữ liệu kiểm thử phải hoàn toàn synthetic; bộ regression tạo fixture độc lập trong bộ nhớ để chạy được trên mọi máy.
 

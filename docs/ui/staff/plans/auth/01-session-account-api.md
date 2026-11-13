@@ -2,6 +2,22 @@
 
 04/11/2026 · **Đã triển khai; tài liệu bổ sung từ code hiện tại** · [Contract](../01-auth-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + staff_profiles | users.phone/updated_at, staff_profiles.user_id/full_name/department | PATCH ghi phone/full_name; đọc trường readonly | User–StaffProfile 1:1 theo user_id/role; phone unique, User.updated_at là token so sánh | Cao — khóa User rồi kiểm token, cập nhật tên/phone và audit atomic; không sửa department/email/role |
+| users + auth_sessions | users.password_hash/password_changed_at/password_change_recommended/failed_login_attempts/locked_until, auth_sessions.token_hash/csrf_token_hash/expires_at/revoked_at | Login/password/logout ghi | Lock User serialize password/login; phiên mới và thu hồi phiên theo nghiệp vụ | Cao — đổi password ảnh hưởng mọi tab và cả hai role; không ghi hash/token vào log |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không DDL mới; dùng schema Auth/Profile hiện có. Không backfill/reset mật khẩu hay tài khoản khi sửa API.
+
+**Nhất quán và hồi quy:** PATCH lock/recheck expectedUpdatedAt trong transaction; password/session/audit theo transaction AuthService. Kiểm AU01-T01–T04, form Account và phiên cũ sau đổi mật khẩu.
+
 ## 1. Phạm vi và model
 
 FR-001, NFR-001/002 và quyết định Staff tự sửa hồ sơ. User–StaffProfile 1:1, User–AuthSession 1:N; không có public Staff signup.
@@ -9,6 +25,13 @@ FR-001, NFR-001/002 và quyết định Staff tự sửa hồ sơ. User–StaffP
 ## 2. Vị trí code
 
 `apps/core/src/auth/controllers/auth.controller.ts`, `staff-profile.controller.ts`, `services/auth.service.ts`, `dto/update-staff-profile.dto.ts`; account provisioning thuộc operator, không chuyển vào Staff API.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/auth/controllers/auth.controller.ts](<../../../../../apps/core/src/auth/controllers/auth.controller.ts>) | Hiện có | Login/me/password/logout, bảo vệ cookie và header | Cao | Staff và Customer dùng chung AuthService |
+| [apps/core/src/auth/controllers/staff-profile.controller.ts](<../../../../../apps/core/src/auth/controllers/staff-profile.controller.ts>) | Hiện có | GET/PATCH own Staff, validation DTO | Cao | Form Account, phone unique, optimistic concurrency |
+| [apps/core/src/auth/services/auth.service.ts](<../../../../../apps/core/src/auth/services/auth.service.ts>) | Hiện có | Xác thực, khóa User, cập nhật hồ sơ/phiên và audit | Cao | Operator writers, realtime session và mọi API |
+| [apps/core/src/auth/dto/update-staff-profile.dto.ts](<../../../../../apps/core/src/auth/dto/update-staff-profile.dto.ts>) | Hiện có | Allowlist fullName/phone/expectedUpdatedAt | Trung bình | Swagger và staff-profile-api.ts |
 
 ## 3. API và dữ liệu
 
@@ -103,9 +126,20 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
-- [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
+
+**Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
 API đang E; bổ sung tài liệu không chứng minh vừa chạy lại suite. Đợt code tiếp theo phải kiểm auth/password/role và profile race; không thay password policy hoặc credential.
+
+## Tự động hóa test case
+
+| Suite/vị trí | Phạm vi và giới hạn |
+| --- | --- |
+| [staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Auth thật: login, PATCH/audit DB, hai writer xung đột, đổi password thu hồi phiên cũ và logout bằng UI. |
+| [browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Dữ liệu synthetic UUID qua test Docker, session/password trong memory; finally dọn đúng fixture/object, không reset seed |
+| [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
+
+Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
 
 ## Sequence diagram
 
@@ -119,7 +153,7 @@ sequenceDiagram
     participant D as PostgreSQL
     U->>W: Xác nhận thao tác
     W->>C: PATCH /staff/me, changed fields và expectedUpdatedAt
-    C->>D: Kiểm session, CSRF và khóa User và StaffProfile; self scope
+    C->>D: Kiểm session, CSRF và khóa User và StaffProfile, self scope
     D-->>C: Quyền, version và state hiện hành
     alt Không đủ quyền hoặc version stale
         C-->>W: 401, 403, 404 hoặc409 an toàn

@@ -98,7 +98,7 @@ export function StaffInboxDirectory({ filter, search, customerId, selected, sele
     return () => abort.abort();
   }, [filter, search, customerId, cursor, revision, onDenied, refreshToken]);
   return <div ref={scroll} onScroll={event => { memory.position.set('top', event.currentTarget.scrollTop); }} className="tw:min-h-0 tw:flex-1 tw:overflow-y-auto tw:overscroll-contain" aria-label="Inbox customers">
-    {result?.items.map(({ customer }) => <CustomerGroup key={customer.id} customer={customer} filter={filter} selected={selected} href={href} expand={selectedCustomerId === customer.id} memory={memory} onDenied={onDenied} refreshToken={refreshToken}/>)}
+    {result?.items.map(({ customer }) => <CustomerGroup key={customer.id} customer={customer} filter={filter} selected={selected} href={href} expand={selectedCustomerId === customer.id || customerId === customer.id} memory={memory} onDenied={onDenied} refreshToken={refreshToken}/>)}
     {loading && !result && <p role="status" className="tw:p-4 tw:text-xs tw:text-slate-500">Loading customers…</p>}
     {error && <div role="alert" className="tw:p-4 tw:text-xs tw:text-red-700">{error}<button className={inboxButton + ' tw:mt-2! tw:text-xs!'} onClick={() => setRevision(value => value + 1)}>Retry</button></div>}
     {!loading && !error && result?.items.length === 0 && <p className="tw:p-5 tw:text-xs tw:leading-relaxed tw:text-slate-500">No matching conversations. Direct messages and transferred customer cases appear here.</p>}

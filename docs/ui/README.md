@@ -23,6 +23,19 @@ Sequence diagram dùng Mermaid `sequenceDiagram`, thể hiện actor, Web, Core 
 
 Đây là quy ước viết tài liệu; chỉnh test case hoặc diagram không tự đổi trạng thái E/P, không chứng nhận chức năng đã pass. Kết quả chạy thực tế trả ngắn trong trao đổi hoặc công cụ kiểm thử, không chèn báo cáo theo từng lượt vào phần kịch bản.
 
+## Quy ước data model, vị trí code và mức ảnh hưởng
+
+Mỗi phase cần có hai bảng riêng, đối chiếu `apps/core/prisma/schema.prisma`, SQL migrations và service thực thi; tên model Prisma không thay cho tên bảng/cột PostgreSQL khi mô tả tác động.
+
+| Bảng cần có | Nội dung bắt buộc |
+| --- | --- |
+| Data model | Bảng vật lý/model, cột được dùng hoặc đổi, đọc/ghi/DDL, FK/unique/index hoặc version liên quan, chức năng bị ảnh hưởng và mức độ |
+| Vị trí code | Đường dẫn từ root repo, trách nhiệm cụ thể, hiện có hay dự kiến tạo, mức ảnh hưởng và caller/màn/API cần kiểm hồi quy |
+
+**Thấp**: thay state/projection cục bộ, không đổi quyền/ghi nghiệp vụ; **Trung bình**: truy vấn/DTO/component dùng chung hoặc ghi trạng thái phụ trợ; **Cao**: phân quyền/phiên, consent, concurrency/idempotency, mutation nhiều bảng hoặc migration. Đây là đánh giá phạm vi và rủi ro khi sửa, không phải severity của lỗi hoặc chứng nhận đã kiểm thử. UI đọc qua API không được ghi trực tiếp DB; bảng tác động phải nêu cả ghi gián tiếp như quota/audit/mark-read/Accept, thay vì gọi mọi GET là “không ghi DB”.
+
+Mỗi phase phải chốt: có migration không, bảng/cột mới nào còn P, backfill có làm đổi nghĩa dữ liệu cũ không, transaction/lock/version nào giữ tính nhất quán và luồng nào cần kiểm lại. Đổi model/DTO dùng chung phải chỉ rõ tác động sang vai trò còn lại, operator, bootstrap và storage nếu có. Không ghi một bảng đề xuất như thể đã tồn tại; không sửa migration đã apply. Contract chức năng liên kết các bảng chi tiết tại phase sở hữu thay vì sao chép nhiều dictionary khác nhau. Xem [bản đồ tác động model](../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## Cấu trúc và ownership
 
 | Vị trí | Trách nhiệm |

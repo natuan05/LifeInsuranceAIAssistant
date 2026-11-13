@@ -4,6 +4,18 @@ UI P03 cập nhật 04/11/2026: tự mở PDF đầu tiên; nhiều tài liệu 
 
 Cập nhật **04/11/2026** · **P01/P02 Core đã triển khai; P03 Staff UI đã triển khai** · [Staff](../README.md) · [API E/P](00-staff-contract.md#api-theo-chức-năng) · [Customer C03](../../customer/plans/03-products-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [P01 — Catalog sản phẩm: Core read API](products/01-catalog-read-api.md) | insurance_products (Đọc) | [apps/core/src/products/controllers/product.controller.ts](<../../../../apps/core/src/products/controllers/product.controller.ts>); [apps/core/src/products/services/product.service.ts](<../../../../apps/core/src/products/services/product.service.ts>) | Cao — Staff/Customer Products |
+| [P02 — Tài liệu sản phẩm PUBLIC và cấp quyền PDF](products/02-document-access.md) | insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/core/src/products/controllers/product-document.controller.ts](<../../../../apps/core/src/products/controllers/product-document.controller.ts>); [apps/core/src/products/services/product-document.service.ts](<../../../../apps/core/src/products/services/product-document.service.ts>) | Cao — Hai role dùng cùng endpoint |
+| [P03 — Staff Products: danh sách, chi tiết và PDF](products/03-staff-products-ui.md) | insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-products.tsx](<../../../../apps/web/src/components/staff-products.tsx>); [apps/web/src/lib/product-api.ts](<../../../../apps/web/src/lib/product-api.ts>) | Cao — Staff Tools và routes products |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Kết quả và căn cứ
 
 Hoàn thiện phần tra cứu thủ công còn thiếu của **FR-008**, dùng cho Customer và Staff: danh sách sản phẩm, chi tiết thông tin đã có và PDF công khai đúng phiên bản. Staff Policy Lookup/PDF cá nhân đang chạy được giữ nguyên. Đây là phần Staff nên làm tiếp trước Copilot/Ticket vì không cần Agent.
@@ -69,7 +81,7 @@ P01 và P02 catalog dùng RateLimitBucket nhóm PRODUCT_READ120/phút/actor; P02
 1. Đối chiếu P01/P02 với quyết định nghiệp vụ đã chốt; hoàn thiện DTO/quota/cursor trước phần code phụ thuộc, không yêu cầu chốt lại publication rule hoặc menu Products.
 2. Core integration với PostgreSQL/MinIO Docker, fixtures synthetic cô lập; không sửa bootstrap hoặc seed riêng của người dùng.
 3. Browser DOM/keyboard/network qua gateway, sau đó E2E hai role với Core thật. HTTP test không tính là browser E2E.
-4. Ghi kết quả trong checklist phase hiện có; không tạo report hoặc scratch file. Không stage/commit tự động.
+4. Báo kết quả kiểm thử ngắn trong trao đổi; phase giữ test case và trạng thái triển khai, không ghi nhật ký từng lượt chạy. Không tạo report/scratch file hoặc tự stage/commit.
 
 - [x] Chốt phạm vi catalog, nội dung, quyền, phiên bản và mục Products; đây là quyết định tài liệu, chưa nghiệm thu implementation.
 - [x] P01 Core/gateway/permission/quota tests pass; lint/build và78 test hồi quy pass, kết quả tại phase P01.
@@ -96,4 +108,4 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 
 | ID | Phần còn lại | Phase sở hữu |
 | --- | --- | --- |
-| G03 | Staff Policy/PDF và Products UI đã E; Customer PDF và citations P | [PL01–04](05-policies-contract.md), [P01–03](04-products-contract.md) không làm lại; Customer D01/D02, Agent citations riêng |
+| G03 | Staff Policy/PDF/Products và Customer owner PDF đã E; citations Agent còn P | [PL01–04](05-policies-contract.md), [P01–03](04-products-contract.md), Customer D01/D02; Agent citations riêng |

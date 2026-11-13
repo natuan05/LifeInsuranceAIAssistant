@@ -95,6 +95,10 @@ PostgreSQL từ host: `127.0.0.1:5432`, database `life_insurance`; trong Docker 
 | `admin_runtime` | `LocalDbAdmin-2026!` | `DB_ADMIN_PASSWORD` | Tool quản trị tài khoản local |
 | `app_migrator` | `LocalDbMigrate-2026!` | `DB_MIGRATION_PASSWORD` | Migration/schema |
 | `local_owner` | `LocalDbOwner-2026!` | `DB_BOOTSTRAP_PASSWORD` | Bootstrap local; không dùng cho ứng dụng hoặc xem DB thường ngày |
+| `rag_indexer` | `LocalDbRagIndexer-2026!` | `DB_RAG_INDEXER_PASSWORD` | Indexer RAG offline của Agent: chỉ SELECT/INSERT/DELETE `rag`, không cấp cho runtime |
+| `rag_retriever` | `LocalDbRagRetriever-2026!` | `DB_RAG_RETRIEVER_PASSWORD` | Retrieval runtime của Agent: chỉ đọc `rag`, không truy cập `business` |
+| `agent_migrator` | `LocalDbAgentMigrate-2026!` | `DB_AGENT_MIGRATOR_PASSWORD` | Chủ schema `agent_runtime`, chạy migration của Agent |
+| `agent_runtime` | `LocalDbAgentRuntime-2026!` | `DB_AGENT_RUNTIME_PASSWORD` | Lưu bền của Agent (checkpoint, receipt, ledger, event): DML `agent_runtime`, không DDL/business/rag |
 
 Mở [DbGate](http://127.0.0.1:5050) để xem DB ngay, không cần nhập password vì service đã tự cấu hình `db_viewer`. Nếu dùng công cụ khác, dùng host/port/database và `db_viewer` trong bảng; không cấp quyền ghi để chỉ xem dữ liệu.
 
@@ -105,6 +109,8 @@ Mở [DbGate](http://127.0.0.1:5050) để xem DB ngay, không cần nhập pass
 | `local-writer` | `LocalMinioWriter-2026!` | Job chuẩn bị file: đọc/ghi, không xóa/quản trị |
 
 S3 endpoint từ host: `http://localhost:9000`; trong Docker: `http://minio:9000`, region `ap-southeast-1`, bucket `life-insurance-documents`, path-style. Các access key của reader/writer dành cho chương trình, không phải tài khoản quản trị console.
+
+Các role `rag_*` và `agent_*` được thêm sau bản đầu: máy đã có dữ liệu cần thêm các biến `DB_RAG_*`, `DB_AGENT_*` vào `.env` riêng rồi chạy lại `docker compose up -d --build --wait`; prepare tạo credential mới chỉ cho các role này, không đổi role cũ. Nếu để trống, password được sinh ngẫu nhiên trong volume và Agent không biết giá trị.
 
 **Máy đã có dữ liệu:** giữ `.env` và volumes hiện tại, không copy đè credential mẫu. Bảng này không tự đổi mật khẩu cũ. Nếu trước đây dùng password ngẫu nhiên, tra các biến `DB_*_PASSWORD` trong `.env` riêng; nếu biến trống, giá trị vẫn nằm trong credential volume tương ứng. Với MinIO, chạy `npm run storage:credentials` để lấy đúng tài khoản hiện dùng vào file riêng ngoài repo. Không chia sẻ các giá trị hiện dùng đó hoặc xóa volumes để chuyển sang mẫu.
 
@@ -281,13 +287,15 @@ Try it out login cần `X-Auth-Request: 1`, email/password mục 7 và đúng en
 
 **Mật khẩu ban đầu chung: `DevLocal-2026!`**.
 
-| Vai trò | Email | Mã | Phân công ban đầu |
+| Vai trò / tên hiển thị | Email | Mã | Phân công ban đầu |
 | --- | --- | --- | --- |
-| Staff A | staff.a@dev.example.invalid | STF-000001 | Phụ trách Customer A |
-| Staff B | staff.b@dev.example.invalid | STF-000002 | Phụ trách Customer B |
-| Customer A | customer.a@dev.example.invalid | CUS-000001 | Staff A |
-| Customer B | customer.b@dev.example.invalid | CUS-000002 | Staff B |
-| Customer chưa phân công | customer.unassigned@dev.example.invalid | CUS-000003 | Chưa có Staff |
+| Staff — Nguyễn Hoàng Minh | minh.staff@dev.example.invalid | STF-000001 | Phụ trách Lê Minh Anh |
+| Staff — Trần Ngọc Hà | ha.staff@dev.example.invalid | STF-000002 | Phụ trách Phạm Ngọc Linh |
+| Customer — Lê Minh Anh | anh.customer@dev.example.invalid | CUS-000001 | Nguyễn Hoàng Minh |
+| Customer — Phạm Ngọc Linh | linh.customer@dev.example.invalid | CUS-000002 | Trần Ngọc Hà |
+| Customer — Vũ Thu Trang | trang.customer@dev.example.invalid | CUS-000003 | Chưa có Staff |
+
+Đây là bộ danh tính cố định cho mọi thành viên từ cùng phiên bản repo; tên, ngày sinh, địa chỉ và dữ liệu hợp đồng đều được viết mới, không phải người/hồ sơ thật. Email dùng miền `.invalid`, phone dùng mã quốc gia giả `+999` để không liên hệ nhầm người thật. Hồ sơ mới có ngày sinh/địa chỉ cho Customer và phòng ban cho Staff. UUID runtime tự cấp trong mỗi DB; không cần giống nhau giữa các máy.
 
 Chỉ đăng nhập bằng email, không dùng mã. Customer vào `/login`, Staff vào `/staff/login`; MVP dùng tài khoản được cấp sẵn và không tự đăng ký công khai theo quyết định 07/11/2026. Chỉ đúng 5 fixture synthetic này được phép công khai credential cho dev local; không dùng hồ sơ/hợp đồng thật đã che tên.
 
@@ -316,23 +324,126 @@ Staff có Products và Policy Lookup riêng trong Tools. Tickets hiển thị da
 
 ### 7.4. Sản phẩm, hợp đồng và PDF mô phỏng
 
-Bootstrap chung tự tạo **2 sản phẩm, 14 hợp đồng, 17 tài liệu và 20 phiên bản PDF**. Không cần sinh file trên host hoặc chạy script riêng. `seed-dev` chờ cả migration và storage-init, dùng DB admin_runtime và credential storage-writer readonly từ volumes; Core vẫn chỉ nhận storage-reader.
+Bootstrap chung tạo **7 sản phẩm, 4 hợp đồng, 17 tài liệu và 17 phiên bản PDF**: 13 tài liệu Public và bốn hồ sơ riêng từ `data/synthetic/manulife-demo-v1/policies.json`. Không nhân bản một hợp đồng để đủ số trang. `seed-dev` chờ migration và storage-init, dùng DB admin_runtime và storage-writer từ volumes; Core vẫn chỉ nhận storage-reader. Không sinh file trên host.
 
 | Khách mẫu | Bộ hợp đồng mới | Số lượng |
 | --- | --- | --- |
-| customer.a@dev.example.invalid | DEV-POL-A-001 đến DEV-POL-A-012 | 12, đủ 2 trang 10/2 |
-| customer.b@dev.example.invalid | DEV-POL-B-001 đến DEV-POL-B-002 | 2 |
-| customer.unassigned@dev.example.invalid | Không tạo hợp đồng | 0 |
+| Lê Minh Anh — anh.customer@dev.example.invalid | BH-2024-01001 (bảo vệ con, Hành Trình Hạnh Phúc); BH-2026-01002 (bảo vệ bản thân, Xanh Phú Quý) | 2 |
+| Phạm Ngọc Linh — linh.customer@dev.example.invalid | BH-2026-02001 (bản thân, Xanh Tương Lai); BH-2026-02002 (con, Xanh Ước Mơ UL049) | 2 |
+| Vũ Thu Trang — trang.customer@dev.example.invalid | Không tạo hợp đồng | 0 |
 
-Sản phẩm DEV-LIFE-01 và DEV-CARE-01 đều có nhãn mô phỏng. Có trạng thái ACTIVE/LAPSED/MATURED/PENDING; A-012 chưa có PDF chính để thử trạng thái thiếu file. A-001 có bản PDF 1.0/1.1, mở bản 1.1. Điều khoản mỗi sản phẩm có 1.0/2.0, một số hợp đồng ghim 1.0 dù currentVersion là 2.0; A-001 và A-002 có phụ lục riêng. Không seed tài liệu giới thiệu sản phẩm, chat, Ticket hoặc thêm Customer.
+Catalog gồm bốn sản phẩm chính (Xanh Phú Quý, Xanh Tương Lai, Xanh Ước Mơ, Hành Trình Hạnh Phúc – Gia Tăng Bảo Vệ) và ba bổ trợ (Dự Phòng Xanh, Hộ Vệ Xanh, Lá Chắn Xanh). Một nhóm thư mục là một sản phẩm; 13 tài liệu không phải 13 sản phẩm. Hai bản điều khoản UL049/ULP50 thuộc hai lựa chọn của Xanh Ước Mơ và được giữ riêng.
 
-PDF tiếng Việt có font nhúng, 5 trang/hợp đồng chính, 3 trang/điều khoản và 2 trang/phụ lục. Tất cả đều ghi dữ liệu giả lập/không có giá trị pháp lý; không dùng mẫu thật đã che tên. Metadata/checksum ở PostgreSQL, PDF trong bucket private theo MINIO_BUCKET, prefix `dev-fixtures/policies-v1/dev/` trên MinIO volume. Không commit PDF, không tạo `.local`, không xuất credential hoặc PDF ra host.
+Mỗi hồ sơ chọn đúng một sản phẩm chính và đúng bản điều khoản bằng checksum, có người được bảo hiểm/người thụ hưởng, mục đích tham gia, thời hạn và phí riêng. Snapshot `2026-11-01`, đều ACTIVE. Đây là dữ liệu giả lập, không phải báo giá hoặc xác nhận phát hành thương mại.
+
+| Hợp đồng | Người được bảo hiểm | Phí mỗi kỳ / định kỳ | Phí quy năm | STBH chính | Kỳ tiếp theo |
+| --- | --- | --- | --- | --- | --- |
+| BH-2024-01001 | Lê Quang Bình | 6.000.000 / nửa năm | 12.000.000 | 750.000.000 | 2027-01-01 |
+| BH-2026-01002 | Lê Minh Anh | 24.000.000 / năm | 24.000.000 | 1.000.000.000 | 2027-07-01 |
+| BH-2026-02001 | Phạm Ngọc Linh | 1.500.000 / tháng | 18.000.000 | 800.000.000 | 2026-12-01 |
+| BH-2026-02002 | Phạm Gia Bảo | 2.250.000 / quý | 9.000.000 | 500.000.000 | 2027-01-01 |
+
+Đơn vị tiền: VND. STBH không phải khoản chi trả đã được phê duyệt. Giá trị tài khoản, hoàn lại, nợ và số tiền giải quyết quyền lợi chưa có nguồn xác nhận được giữ `null`. Kiểm phân trang trên >10 hợp đồng dùng fixture cô lập của các suite API/browser; không trộn vào bootstrap chung.
+
+Bốn hồ sơ khai báo không tham gia bổ trợ (`schemaVersion=1`, `riders=[]`, `ridersComplete=true`); không dùng DEMO-TITAN hoặc tự gắn ba bổ trợ trong catalog. Mỗi hợp đồng có một PDF chính `portfolio-v2.1` và một bản điều khoản của đúng sản phẩm `public-text-v2`; không tự tạo phụ lục. Tên tài liệu gồm bên mua, sản phẩm và số hợp đồng. Không seed chat/Ticket hoặc thêm Customer ngoài năm tài khoản chuẩn. `contract.json`/15 đáp án cũ là fixture tham chiếu riêng, không phải nguồn runtime.
+
+PDF chính tiếng Việt có font nhúng, sáu phần: giấy chứng nhận/thông tin, các bên, thời hạn/phí, phạm vi quyền lợi, lịch thu giả lập và danh mục tài liệu/xác nhận. Các PDF Public dựng lại toàn bộ nội dung Markdown, giữ mốc trang nguồn; riêng điều khoản Hành Trình Hạnh Phúc có 25 mốc. Bảng HTML gộp ô được chuyển thành dòng giá trị có nhãn cột. Phân trang bản dựng khác PDF nguồn, ghi rõ không phải PDF gốc/chưa duyệt nghiệp vụ. `data/private` không được seed. Metadata/checksum ở PostgreSQL, PDF trong bucket private theo MINIO_BUCKET, prefix `dev-fixtures/synthetic-manulife-v1/dev/` trên MinIO volume. Không commit PDF, tạo `.local` hoặc xuất credential/PDF ra host.
 
 Chạy lại chỉ thêm bản ghi còn thiếu, giữ password/khóa/hồ sơ/phân công và các trường hợp đồng/snapshot đã sửa; không bật lại version bị vô hiệu hóa hoặc đổi currentVersion đã chỉnh. File còn nguyên được kiểm SHA-256, không upload đè. File fixture thiếu được phục hồi bằng đúng nội dung ổn định. Nếu trùng mã/ID với dữ liệu không thuộc bootstrap hoặc object/version đã khác checksum thì seed báo lỗi, không chiếm hay ghi đè. DB rollback khi seed thất bại; object đã upload ở prefix riêng được giữ để lần chạy lại tiếp tục, không xóa bucket/volumes.
 
 Dữ liệu đã có được giữ nguyên khi chạy lại bootstrap. Số lượng trong bảng mô tả bộ seed dùng chung, không phải tổng dữ liệu của mọi môi trường. Kết quả tra cứu thực tế phụ thuộc dữ liệu và phân công hiện hành; kiểm thử tự động dùng fixture cô lập để không phụ thuộc dữ liệu của thành viên.
 
-Kiểm chứng seed: `npm run test:policy-seed` chạy fixture riêng với DB rollback, kiểm tính ổn định PDF, chạy lại, giữ chỉnh sửa, lỗi storage/retry và xung đột. Chạy ứng dụng bằng Docker; test không khởi động Core/Web trên host.
+Kiểm chứng seed: `npm run test:policy-seed` chạy fixture riêng với DB rollback, kiểm tính ổn định PDF, chạy lại, giữ chỉnh sửa, lỗi storage/retry và xung đột. `docker compose run --rm --no-deps dev-seed-tests` kiểm thêm full reset trong transaction luôn rollback; chạy tuần tự khi Core đã dừng để không cạnh tranh dữ liệu. Test không khởi động Core/Web trên host.
+
+### 7.5. Xóa toàn bộ dữ liệu ứng dụng local và seed lại
+
+Chỉ dùng khi chủ môi trường chủ động muốn bỏ **toàn bộ** dữ liệu ứng dụng: tài khoản, hồ sơ/mật khẩu đã đổi, phân công, hợp đồng/tài liệu, chat/tin nhắn, Ticket, notification, session, rate limit, audit cũ và chunks RAG. Không phải bước cho thành viên mới hoặc cách xử lý lỗi đăng nhập. Bootstrap bình thường không gọi thao tác này; bộ cũ có email khác sẽ báo xung đột, không tự đổi tài khoản đang dùng.
+
+Schema, migration metadata, DB roles, `.env`, credential DB/MinIO và Docker volumes được giữ. Lệnh riêng cần quyền DB owner và xóa object; các credential này chỉ mount vào service `dev-data-reset` thuộc profile `maintenance`, không thêm quyền cho Core hoặc seed thường.
+
+```powershell
+docker compose build seed-dev
+docker compose stop core
+try {
+    docker compose run --rm --no-deps dev-data-reset
+    if ($LASTEXITCODE -ne 0) { throw 'Dev data reset failed; inspect the short error before retrying.' }
+} finally {
+    docker compose up -d --no-deps core
+}
+```
+
+DB clear và seed mới cùng một transaction: lỗi trước commit phục hồi dữ liệu DB cũ. PDF mới được upload/kiểm SHA-256 trước commit; file đã upload có thể được tái sử dụng khi retry. Sau commit mới xóa các object/version fixture cũ trong phạm vi cho phép; không xóa bucket hoặc credential. DB lưu hàng đợi cleanup trong audit của bộ mới; nếu xóa storage thất bại, chạy lại đúng lệnh trên sẽ hoàn tất cleanup đang chờ, không reset DB lần nữa. Khi cleanup đã hoàn tất, gọi lại lệnh là một lần reset mới.
+
+Sau thành công mở `http://localhost:8080`, đăng nhập lại bằng năm email và mật khẩu ban đầu ở mục 7.1. Không tạo file credential/PDF trên host hoặc file riêng ngoài repo; dữ liệu runtime nằm trong volumes. Inbox/Tickets ban đầu trống để bắt đầu kiểm thử sạch.
+
+```mermaid
+sequenceDiagram
+    actor O as Người vận hành local
+    participant R as dev-data-reset (Docker)
+    participant D as PostgreSQL
+    participant S as MinIO
+    O->>R: Lệnh reset rõ ràng, Core đã dừng
+    R->>S: Liệt kê đúng prefix fixture và object versions
+    R->>D: BEGIN, khóa seed, clear 19 bảng app
+    R->>D: Tạo 5 tài khoản, hồ sơ và phân công
+    R->>S: Upload hoặc kiểm checksum 17 PDF mới
+    alt Lỗi seed hoặc storage trước commit
+        R->>D: ROLLBACK, giữ DB cũ
+    else Thành công
+        R->>D: Tạo 4 hợp đồng, bindings và audit cleanup, COMMIT
+        R->>S: Xóa object/version cũ, giữ key đang được bộ mới dùng
+        R->>D: Đánh dấu cleanup hoàn tất
+        R-->>O: URL, tài khoản trong tài liệu, không có file host mới
+    end
+```
+
+**Test case GS-SEED-01 — Bộ chung và chạy lại:** trên DB mới, chạy Compose; đăng nhập từng email ở mục 7.1, kiểm tên/phân công, 2/2/0 hợp đồng. Mỗi khách có hai sản phẩm/người được bảo hiểm phân biệt được, PDF và bảng phí khớp mục 7.4. Chạy `seed-dev` lần nữa: không thêm bản ghi hoặc reset chỉnh sửa.
+
+**Test case GS-SEED-02 — Reset:** trên môi trường test, tạo dữ liệu thử/đổi hồ sơ và đăng nhập; chạy lệnh mục 7.5. Kỳ vọng năm tài khoản chuẩn, bảy sản phẩm, bốn hợp đồng/17 version; chat/Ticket/notification trống, phiên cũ không dùng được, mật khẩu về mẫu. PDF đã loại khỏi bộ mới hết truy cập; object có cùng checksum được tái sử dụng nếu vẫn thuộc bộ mới.
+
+**Test case GS-SEED-03 — Rollback/retry:** dùng suite `dev-seed-tests` để inject lỗi upload và rollback reset; không inject lỗi trên dữ liệu đang dùng. Kỳ vọng DB cũ phục hồi nguyên trạng, không thay schema/migrations/credential. Retry cleanup sau commit chỉ xóa đúng prefix/object không còn được DB tham chiếu.
+
+### 7.6. Thay bộ hợp đồng mẫu nhân bản cũ
+
+Môi trường từng seed 12 bản sao cho một khách cần chạy maintenance một lần; không phải migration schema và không tự xóa dữ liệu khi Compose up. Môi trường mới nhận bốn hồ sơ chuẩn ngay từ bootstrap.
+
+```powershell
+docker compose build seed-dev
+docker compose stop core
+try {
+    docker compose run --rm --no-deps dev-policy-reseed
+    if ($LASTEXITCODE -ne 0) { throw 'Policy fixture replacement failed; inspect the short error before retrying.' }
+} finally {
+    docker compose up -d --no-deps core
+}
+```
+
+Chỉ policy có marker/audit sở hữu của bộ dev cũ và PDF Private gắn với chúng được xóa. Giữ tài khoản, password, hồ sơ/phân công, 7 sản phẩm/13 tài liệu Public, chat, tin nhắn, Ticket và chứng cứ cũ. Liên kết tùy chọn từ chat/Ticket tới policy bị loại được bỏ và tăng controlVersion/version; không âm thầm chuyển cuộc trao đổi cũ sang sản phẩm mới. Có RAG references thì dừng để review reindex, không tự sửa Agent.
+
+Xóa metadata cũ/tạo bốn hồ sơ mới cùng transaction; lỗi seed/upload rollback DB. Sau commit mới xóa file không còn được tham chiếu. Audit lưu cleanup chờ để retry an toàn như mục 7.5; sau khi hoàn tất, chạy lại chỉ kiểm/giữ bộ mới, không reset tài khoản. Không tạo file host hoặc đổi credentials/volumes.
+
+```mermaid
+sequenceDiagram
+    actor O as Người vận hành local
+    participant R as dev-policy-reseed
+    participant D as PostgreSQL
+    participant S as MinIO
+    O->>R: Thay fixture policy, Core đã dừng
+    R->>D: Kiểm marker/audit và RAG references
+    R->>D: BEGIN, bỏ optional links, xóa policy/PDF metadata cũ
+    R->>S: Kiểm Public đã có, upload 4 PDF hồ sơ riêng
+    alt Seed hoặc upload lỗi
+        R->>D: ROLLBACK, giữ nguyên dữ liệu cũ
+    else Hợp lệ
+        R->>D: Tạo 4 policy đúng owner/product/terms, COMMIT + cleanup audit
+        R->>S: Xóa PDF cũ không còn tham chiếu
+        R-->>O: Bộ mới sẵn sàng, dữ liệu khác giữ nguyên
+    end
+```
+
+**Test case GS-SEED-04 — Hồ sơ khác biệt:** đăng nhập Staff Minh, mở từng hợp đồng của Minh Anh. Kiểm BH-2024-01001 là Hành Trình Hạnh Phúc cho con Lê Quang Bình, phí nửa năm 6 triệu; BH-2026-01002 là Xanh Phú Quý cho bản thân, phí năm 24 triệu. Kiểm PDF chính có đúng sản phẩm/người/số hợp đồng và tổng phí; mỗi danh mục policy chỉ có một bản điều khoản của đúng sản phẩm, không có DEMO-TITAN/ULP50 gắn nhầm.
+
+**Test case GS-SEED-05 — Bảo toàn dữ liệu khi thay fixture:** trong harness, tạo một chat/Ticket tham chiếu policy cũ, lưu nguyên nội dung/chứng cứ và hồ sơ/password của actor. Chạy policy-only replacement. Kỳ vọng policy/PDF cũ bị loại, optional links null và version tăng; nội dung, chứng cứ, actor/profile/password không đổi. Chạy lại không thêm hồ sơ trùng. Suite `dev-seed-tests` kiểm ca này bằng transaction rollback.
 
 <a id="database"></a>
 ## 8. Dữ liệu và migration
@@ -351,7 +462,7 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff và Customer owner policy/PDF APIs đã có trong main 05/11. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
+Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs và Customer owner list/detail/catalog/view/download APIs đã có; UI hai role dùng API đúng scope riêng. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 
 Người sửa backend có thể chạy `npm run db:validate --workspace @life-insurance/core` và `npm run db:generate --workspace @life-insurance/core`. Generate không sửa DB. Thay schema cần migration mới và giữ CHECK/partial indexes; không sửa migration đã apply hoặc dùng db push/migrate reset trên DB cần giữ.
 
@@ -382,6 +493,21 @@ npm run test:http --workspace @life-insurance/core
 ~~~
 
 Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Browser mock và gateway E2E có giới hạn riêng ở checklist UI, không thay kiểm quyền Core/DB/MinIO.
+
+### 9.1. Kiểm thử browser Staff và E2E hệ thống thật
+
+Sau `docker compose up -d --build --wait` và `npm ci`, cài browser kiểm thử một lần nếu máy chưa có:
+
+~~~powershell
+node node_modules/@playwright/test/cli.js install chromium firefox webkit
+node apps/web/scripts/test-staff.mjs --workers=2
+~~~
+
+Lệnh thứ hai chạy Account/session/Customers/Policies/Inbox regression và `staff-foundation.integration.spec.mjs` trên Chromium, Firefox, WebKit. Mặc định đủ ba browser; có thể đặt `BROWSER_TEST_BROWSERS=chromium` trong môi trường lệnh nếu chỉ cần vòng kiểm ngắn. Web/Core vẫn là build Docker qua gateway `http://localhost:8080`, không khởi động server host.
+
+Phân biệt bằng chứng: các file regression cũ dùng API/WS mock để kiểm UI; `staff-foundation.integration.spec.mjs` dùng gateway/Core/PostgreSQL/MinIO thật, tài khoản/mật khẩu/session riêng chỉ trong memory và fixture UUID qua service test Docker. Ca mạng cố ý abort request, expiry dịch đồng hồ browser rồi trả lại giờ thật trước xin grant mới; không gọi đó là outage/clock drift của server. Kiểm PDF qua byte/checksum/Range, không chứng nhận giao diện toolbar/zoom của PDF viewer native.
+
+Harness có quyền dọn chỉ trong service `product-document-tests`, không thêm quyền ghi/xóa object cho Core runtime. Mỗi ca đóng context và dọn đúng user/profile/assignment/policy/document/chat/Ticket/session/audit/object của runId trong finally; bootstrap và dữ liệu đang dùng được giữ nguyên. Runner tổng hợp một JSON tạm trong thư mục dữ liệu tạm của hệ điều hành, tự xóa cả thư mục do nó tạo khi xong; không tạo report/credential/PDF trong repo, screenshot/video/trace tắt. Kết quả báo trong terminal; tài liệu phase giữ test case và trạng thái triển khai.
 
 Product API có test Docker với PostgreSQL/MinIO thật, sau khi stack đã healthy:
 

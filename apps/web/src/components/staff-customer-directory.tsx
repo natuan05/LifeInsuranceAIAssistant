@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useRef } from 'react';
+import Link from 'next/link';
 import { StaffCustomerPolicies } from './staff-policies';
 import type { Customer, CustomerList } from '@/lib/customer-api';
 
@@ -277,6 +278,16 @@ export function StaffCustomerDirectory({
                   </div>
                 ))}
               </dl>
+              <nav aria-label="Customer support" className="tw:mt-5 tw:flex tw:flex-wrap tw:gap-2 tw:border-t tw:border-slate-200 tw:pt-4">
+                <Link href={`/staff/inbox?customerId=${encodeURIComponent(detail.id)}`} prefetch={false}
+                  className="tw:inline-flex tw:items-center tw:rounded-lg tw:border tw:border-slate-300 tw:px-3 tw:py-2 tw:text-xs tw:font-semibold tw:text-blue-700 tw:no-underline tw:hover:bg-blue-50 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600">
+                  Conversations
+                </Link>
+                <Link href={`/staff/tickets?customerId=${encodeURIComponent(detail.id)}`} prefetch={false}
+                  className="tw:inline-flex tw:items-center tw:rounded-lg tw:border tw:border-slate-300 tw:px-3 tw:py-2 tw:text-xs tw:font-semibold tw:text-blue-700 tw:no-underline tw:hover:bg-blue-50 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600">
+                  Tickets
+                </Link>
+              </nav>
             </aside>
           </div>
         )}

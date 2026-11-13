@@ -2,6 +2,20 @@
 
 05/11/2026 · **Đã triển khai** · [C03](../03-products-contract.md) · Cần H01, [Staff P01](../../../staff/plans/products/01-catalog-read-api.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_products | id/product_code/name/summary/is_active | Đọc | Unique product_code; chỉ catalog active, không sửa hợp đồng đã tham gia khi sản phẩm inactive | Trung bình — catalog và tài liệu dùng chung hai role |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+
+**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng.
+
+**Nhất quán và hồi quy:** Products chỉ PUBLIC/current, không tạo policy/quote/Ticket khi chọn tài liệu. Core P01/P02 dùng chung Staff; kiểm active/inactive, search, cursor/current version, missing PDF và không lẫn policy private.
+
 ## 1. File và UI
 
 Triển khai tại `apps/web/src/components/customer-products.tsx`, tích hợp trong `CustomerWorkspace` (`app/customer/page.tsx`). Sử dụng client API `lib/product-api.ts` dùng chung.
@@ -17,6 +31,13 @@ Bố cục giao diện:
   - Nút **`← Back to Solutions`** ở đầu trang giúp quay lại danh sách nhanh chóng mà không reload F5.
   - Header chi tiết: Mã code, nhãn chứng nhận *Certified AegisLife Product*, tiêu đề lớn và phần mô tả đầy đủ.
   - Bảng thông số: Plan Category (*Life & Health Protection*), Product Code, Contract Format (*Paperless Electronic Policy*), Currency (*VND*).
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/customer-products.tsx](<../../../../../apps/web/src/components/customer-products.tsx>) | Hiện có | Catalog/detail và document selection Customer | Trung bình | Customer shell và tự mở PDF |
+| [apps/web/src/lib/product-api.ts](<../../../../../apps/web/src/lib/product-api.ts>) | Hiện có | Dùng chung P01/P02 API client | Cao | Staff Products và publication DTO |
+| [apps/web/src/components/signed-pdf-preview.tsx](<../../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Hiện có | Shared preview/download, dùng khi mở tài liệu | Cao | Hai role/policy viewer |
+| [apps/core/src/products/services/product-document.service.ts](<../../../../../apps/core/src/products/services/product-document.service.ts>) | Hiện có | Publication/access backend dùng lại, không clone service Customer | Cao | Current PUBLIC policy của Staff giữ nguyên |
 
 ## 2. API và luồng dữ liệu
 

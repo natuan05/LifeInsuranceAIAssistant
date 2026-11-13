@@ -2,9 +2,30 @@
 
 05/11/2026 · **Đã triển khai** · [C04](../04-policies-contract.md) · Tiếp: [PO02](02-policy-ui.md), [D01](../documents/01-owner-document-access.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| users + customer_profiles | users.id/account_code/email/phone/status/updated_at; customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc own profile | CustomerProfile.user_id/role → User.id/role; owner actor từ session, không nhận customerId tự chọn | Cao — Customer header/Home/profile và Staff customer projection dùng chung dữ liệu |
+
+**Schema/migration:** Không migration; dùng Policy.customer_id/FK/product và JSON hiện có; không thêm bảng người/benefit cho read API.
+
+**Nhất quán và hồi quy:** Owner filter customer_id=actor trước search/status/count/page; không lấy Staff assignment làm quyền Customer. Kiểm UUID khách khác/không tồn tại, decimal/null/ngày và late response sau đổi actor.
+
 ## 1. Vị trí và scope
 
 Triển khai tại `apps/core/src/policies/controllers/customer-policy.controller.ts`, tích hợp vào `PoliciesModule` và `PolicyService` (`ownerList`, `ownerDetail`). Xác thực session `CUSTOMER` → truy vấn `InsurancePolicy.customerId = actor.id`, kiểm tra quyền sở hữu nghiêm ngặt, không cho phép truyền `customerId` từ client để xem hợp đồng của người khác.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/policies/controllers/customer-policy.controller.ts](<../../../../../apps/core/src/policies/controllers/customer-policy.controller.ts>) | Hiện có | Owner list/detail endpoints | Cao | Customer My policies |
+| [apps/core/src/policies/services/policy.service.ts](<../../../../../apps/core/src/policies/services/policy.service.ts>) | Hiện có | ownerList/ownerDetail và projection dùng chung | Cao | Staff policy methods cũng trong service |
+| [apps/core/src/policies/services/policy-snapshot.ts](<../../../../../apps/core/src/policies/services/policy-snapshot.ts>) | Hiện có | Safe benefits/financial JSON parser | Cao | Seed, PDF metadata và hai role |
+| [apps/web/src/lib/policy-api.ts](<../../../../../apps/web/src/lib/policy-api.ts>) | Hiện có | ownPolicies/ownPolicyDetail wrappers | Trung bình | Home và policy UI |
 
 ## 2. API spec đã triển khai
 

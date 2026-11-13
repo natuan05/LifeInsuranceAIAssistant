@@ -2,6 +2,25 @@
 
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I01** · [Chỉ mục/contract chung](../03-inbox-contract.md) · [Nghiệp vụ](00-inbox-spec.md) · Tiếp: [I02](02-inbox-read-api.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
+| conversations + conversation_handoffs | conversations.status/assigned_staff_id/control_version/support_origin/created_by_customer_id/direct_assignment_id; handoffs.state/consent_scope/consent_text_version/confirmed_by_customer_id/confirmed_at/accepted_by_staff_id/accepted_at | Create/request/Accept/revoke ghi | Composite FK conversation/customer và assignment/customer/recipient; partial unique một handoff PENDING/ACCEPTED; provenance/consent bất biến | Cao — quyền transcript chỉ sau Direct hợp lệ hoặc Accept, đổi assignment phải thu hồi grant |
+| messages + conversations | messages.sequence/audience/client_message_id/internal_message_id/sender_type/sender_id/content; conversations.next_message_sequence/last_customer_facing_activity_at | Append ghi, không sửa/xóa nội dung cũ | Unique sequence và key theo conversation/sender; counter cấp dưới conversation lock | Cao — Accept tạo SYSTEM duy nhất, send/retry không trùng; send thường không tăng control_version |
+| conversation_command_receipts | actor_id/operation/client_request_id/request_hash/resource_id/result_version | Thêm hoặc đọc để replay | Unique (actor_id,operation,client_request_id); resource_id do service kiểm theo operation | Cao — replay vẫn kiểm quyền; không dùng receipt chat như receipt Ticket |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** I01 đã có migration thêm handoff/receipt và cột provenance/control/sequence/audience/keys, backfill legacy theo SQL hiện có; không chạy lại/sửa migration đã apply. SQL CHECK/partial unique bổ sung Prisma; legacy không tự grant.
+
+**Nhất quán và hồi quy:** Reassignment khóa và revoke trong cùng transaction với đổi assignment; không xóa lịch sử. Kiểm migration legacy, capability và revoke/reassign cùng Staff bằng assignment mới.
+
 ## 1. Kết quả và phạm vi
 
 Core phân biệt chat AI riêng, Direct và cuộc Customer cho phép chuyển/Staff Accept; cùng policy dùng cho REST và event. Không dựa vào assignedStaffId/status để suy quyền. Chuẩn bị message order/idempotency vừa đủ cho các phase sau.
@@ -10,17 +29,21 @@ Không thêm endpoint chat, UI, Agent runtime, Ticket workflow hoặc counts. En
 
 ## 2. Vị trí triển khai
 
-| File hiện có | Thay đổi dự kiến |
-| --- | --- |
-| `apps/core/prisma/schema.prisma` | Model/field/index bên dưới; không thêm package model trùng Prisma |
-| `apps/core/prisma/migrations/` | Migration additive mới, giữ nguyên năm migration hiện có |
-| `apps/core/src/database/database.service.ts` | Readiness yêu cầu migration mới khi model phụ thuộc đã deploy |
-| `apps/core/src/admin/main.ts` | Compatibility đồng bộ migration mới |
-| `apps/core/src/accounts/services/account-management.service.ts` | Assignment mutation thu hồi quyền/control cùng transaction |
-| `apps/core/src/auth/services/auth.service.ts` | Tái sử dụng me/authorizeWrite; không đưa nghiệp vụ chat vào auth |
-| `apps/core/src/app.module.ts` | Import ConversationsModule khi có service/controller cần dùng |
 
 Đã tạo `conversations.module.ts`, `services/conversation-access.service.ts`, `services/conversation-command.service.ts`, `services/conversation-message.service.ts` và helper `services/conversation-revocation.ts` trong `apps/core/src/conversations/`. Chưa thêm controller/response DTO public; các phần đó thuộc I02/I03. Module chỉ export service nội bộ, không có endpoint chat.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/prisma/schema.prisma](<../../../../../apps/core/prisma/schema.prisma>) | Hiện có | Prisma models/relations/indexes I01 | Cao | Generated client, mọi writer Conversation/Message |
+| [apps/core/prisma/migrations/](<../../../../../apps/core/prisma/migrations>) | Hiện có | SQL backfill/check/partial unique | Cao | DB cũ và clone mới, FK lịch sử |
+| [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Một gate cho metadata/transcript/send | Cao | REST Staff/Customer, realtime, future Copilot |
+| [apps/core/src/conversations/services/conversation-command.service.ts](<../../../../../apps/core/src/conversations/services/conversation-command.service.ts>) | Hiện có | Lock, canonical hash, receipt/replay | Cao | Create/request/Accept/send |
+| [apps/core/src/conversations/services/conversation-revocation.ts](<../../../../../apps/core/src/conversations/services/conversation-revocation.ts>) | Hiện có | Revoke theo assignment cụ thể | Cao | Operator reassignment, pending/accepted grant |
+| [apps/core/src/accounts/services/account-management.service.ts](<../../../../../apps/core/src/accounts/services/account-management.service.ts>) | Hiện có | Assignment mutation gọi revoke | Cao | Account tool và toàn Inbox |
+| [apps/core/src/database/database.service.ts](<../../../../../apps/core/src/database/database.service.ts>) | Hiện có | Readiness migration compatibility | Cao | Core startup và operator compatibility |
+| [apps/core/src/admin/main.ts](<../../../../../apps/core/src/admin/main.ts>) | Hiện có | Compatibility đồng bộ migration mới | Cao | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/core/src/auth/services/auth.service.ts](<../../../../../apps/core/src/auth/services/auth.service.ts>) | Hiện có | Tái sử dụng me/authorizeWrite; không đưa nghiệp vụ chat vào auth | Cao | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/core/src/app.module.ts](<../../../../../apps/core/src/app.module.ts>) | Hiện có | Import ConversationsModule khi có service/controller cần dùng | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
 
 ## 3. Schema đã triển khai
 

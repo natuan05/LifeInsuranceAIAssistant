@@ -2,6 +2,24 @@
 
 Ngày 03/11/2026 · **Kế hoạch đề xuất, chưa implement; mở sau Inbox** · [Chung](../03-inbox-contract.md) · Trước: [I06](../inbox/06-realtime-routing.md) · [Tài liệu Ticket Staff](../07-tickets-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc nền; P tạo Ticket và immutable confirmed snapshot qua I07 | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| TicketDraft / confirmed snapshot — P, chưa có bảng/cột | Dự kiến owner/conversation/draftVersion/contentHash/confirmationTextVersion/expiresAt/consumedTicketId và SupportTicket sourceDraftId/confirmedContent | DDL + ghi dự kiến, chưa triển khai | Tên bảng/cột/FK/unique/retention phải chốt trong migration spec I07; không lấy ai_summary làm consent | Cao — Customer confirm, Agent draft, Ticket DTO và outbox phải cùng nội dung bất biến |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** P — migration mới cho draft/snapshot/hash/unique consume, chưa tồn tại trong schema hiện hành. Không backfill confirmed content từ AI hoặc reset Ticket cũ.
+
+**Nhất quán và hồi quy:** Dự kiến lock owner/draft/routing, compare version/hash/expiry, snapshot+Ticket+consume draft+outbox atomic. Cancel không ghi Ticket; retry cùng intent không tạo trùng, legacy giữ UNVERIFIED. Chưa coi phần P là API/schema đã chạy.
+
 ## 1. Ranh giới nghiệp vụ
 
 Ticket là yêu cầu nghiệp vụ: Agent đề xuất nội dung → Customer xem và xác nhận → Core tạo Ticket + outbox atomic. Nó không là trạng thái cuộc chat. Handoff/Direct/Accept chat không tự tạo Ticket. Xem/nhận/đóng Ticket không cho Staff đọc AI chat riêng hoặc thay Accept chat.
@@ -10,18 +28,17 @@ I07 là nhánh tiếp theo, không chặn nghiệm thu Inbox I06. Không ghép C
 
 ## 2. File triển khai
 
-| Vị trí cần thêm/sửa | Trách nhiệm |
-| --- | --- |
-| `apps/core/src/tickets/tickets.module.ts` | Module nghiệp vụ Ticket, không đưa vào ConversationService |
-| `controllers/customer-ticket.controller.ts`, `staff-ticket.controller.ts` trong module | Ownership draft/confirm, Staff list/detail/accept |
-| `services/ticket-draft.service.ts`, `ticket.service.ts`, `ticket-access.service.ts` | Draft trusted, transaction confirmation/idempotency, Ticket scope riêng |
-| `dto/ticket-query.dto.ts`, `confirm-ticket.dto.ts`, `ticket-response.dto.ts` | OpenAPI và validation, không reuse raw conversation payload |
-| Prisma schema/migration mới | Draft/immutable confirmed snapshot/version/hash cần thiết bên dưới |
-| Core outbox/notifications I06 | TICKET_CREATED/TICKET_ASSIGNED events; recipient theo Ticket policy |
-| Web `components/staff-tickets.tsx`, `customer-ticket-confirmation.tsx`, `lib/ticket-api.ts` | Màn Tickets riêng và Customer review nội dung |
-| Staff workspace + routes tickets hiện có | Mount data thật tại slot Tickets; không chuyển về Customers/Inbox để thay trang |
 
 Core AppModule import TicketsModule khi triển khai. Agent không truy cập trực tiếp business DB; browser không gọi Agent để lấy quyền/draft trusted.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| `apps/core/src/tickets/controllers/customer-ticket.controller.ts` | Dự kiến — chưa có file | P — owner draft/read/confirm endpoint | Cao | Customer review, service identity Agent |
+| `apps/core/src/tickets/services/ticket-draft.service.ts` | Dự kiến — chưa có file | P — trusted draft/version/hash và consume once | Cao | Ticket creation/idempotency/expiry |
+| [apps/core/src/tickets/services/ticket.service.ts](<../../../../../apps/core/src/tickets/services/ticket.service.ts>) | Hiện có | Hiện có Staff service; P mở rộng confirmation transaction riêng | Cao | Giữ Staff status/version TK01–TK05 |
+| [apps/core/prisma/schema.prisma](<../../../../../apps/core/prisma/schema.prisma>) | Hiện có | P — chỉ thêm draft/snapshot sau chốt schema | Cao | Migrations, bootstrap compatibility và legacy Ticket |
+| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | Hiện có; P bổ sung Customer draft/confirm wrappers | Trung bình | Không reuse Staff accept để Customer xác nhận |
+| [apps/core/src/tickets/tickets.module.ts](<../../../../../apps/core/src/tickets/tickets.module.ts>) | Hiện có | Module nghiệp vụ Ticket, không đưa vào ConversationService | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
 
 ## 3. Dữ liệu và xác nhận đề xuất
 

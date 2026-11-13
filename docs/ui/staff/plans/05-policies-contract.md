@@ -6,6 +6,20 @@
 
 Đối chiếu **03/11/2026**. Căn cứ: FR-008, UC-007, NFR-001/003/007/008 và Data Model bảng 7–10. **Staff A14/A15/A16/A18/A20 và FE đã triển khai.** Product A17/A19, Customer ownership API và quick lookup/context chat chưa có. Phân loại tài liệu phía Customer tại [Customer documents](../../customer/plans/05-documents-contract.md#2-nguồn-và-phân-loại); trạng thái triển khai từng vai trò được theo dõi trong kế hoạch tương ứng.
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [PL01 — Policy list/detail và lookup Core](policies/01-read-lookup-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc) | [apps/core/src/policies/controllers/staff-policy.controller.ts](<../../../../apps/core/src/policies/controllers/staff-policy.controller.ts>); [apps/core/src/policies/services/policy.service.ts](<../../../../apps/core/src/policies/services/policy.service.ts>) | Cao — Customers policies, Policy Lookup và Inbox panel |
+| [PL02 — Applied version và PDF access](policies/02-applied-documents-access.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/core/src/policies/services/policy.service.ts](<../../../../apps/core/src/policies/services/policy.service.ts>); [apps/core/src/policies/services/policy-storage.service.ts](<../../../../apps/core/src/policies/services/policy-storage.service.ts>) | Cao — Hai role, main policy/terms/endorsement |
+| [PL03 — Lookup và dossier/PDF Staff](policies/03-lookup-dossier-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-policy-lookup.tsx](<../../../../apps/web/src/components/staff-policy-lookup.tsx>); [apps/web/src/components/staff-policies.tsx](<../../../../apps/web/src/components/staff-policies.tsx>) | Trung bình — URL/Back/selection |
+| [Việc 02 — Refresh Policy/PDF không làm mất vùng đang đọc](policies/04-viewer-lifecycle.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-policies.tsx](<../../../../apps/web/src/components/staff-policies.tsx>); [apps/web/src/components/signed-pdf-preview.tsx](<../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Cao — Không mất details/selection/scroll |
+| [PL05 — Quick Policy Lookup trong Inbox Staff](policies/05-inbox-customer-policy-lookup.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc) | [apps/web/src/components/staff-inbox-policy-lookup.tsx](<../../../../apps/web/src/components/staff-inbox-policy-lookup.tsx>); [apps/web/src/components/staff-inbox.tsx](<../../../../apps/web/src/components/staff-inbox.tsx>) | Cao — Selection/paging tại Inbox |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## Hiện trạng
 
 - [x] Customers → danh sách nhiều hợp đồng, phân trang/phí/kỳ đóng tiếp theo; mở chi tiết hợp đồng.
@@ -15,9 +29,9 @@
 - [x] Lookup độc lập bỏ Back to Inbox/Customer profile, CCCD/phone và filter mẫu.
 - [x] Core kiểm session/role/assignment/ownership/phiên bản, cấp signed URL có hạn và audit ý định xem/tải.
 - [x] Product API A17/A19 đã có; quick lookup Inbox (PL05) đã có; đổi linkedPolicy chat và citation theo trang còn P.
-- [ ] Customer list/detail/catalog/view/download theo ownership.
+- [x] Customer list/detail/catalog/view/download theo ownership đã có tại PO01/D01 và UI PO02/D02; kiểm thử hai role là phạm vi riêng.
 - [x] Realtime refetch giữ iframe/src cùng file/version, disclosure/focus/parent scroll; có 26 regression browser Policy/PDF.
-- [ ] E2E tích hợp Core/DB/MinIO và hai vai trò đầy đủ.
+- [x] E2E gateway/Core/DB/MinIO cho Staff và Customer owner: exact applied version, hash/Range/download, foreign owner/assignment denied và scope revoke.
 
 ## Quan hệ dữ liệu và phiên bản
 
@@ -170,13 +184,15 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 ## Phần còn lại
 
 - [x] Refresh nền giữ iframe/src cùng file/version, loại nội dung khi mất quyền; [việc 02 đã triển khai](policies/04-viewer-lifecycle.md#9-ghi-chú-triển-khai).
-- [ ] Browser E2E tự động gateway/Core/DB/MinIO: đúng file/version, tải, expiry/retry, storage/network lỗi, assignment/phiên thay đổi và keyboard/mobile.
+- [x] Browser E2E gateway/Core/DB/MinIO cho exact file/version, tải/hash/Range, expiry/retry, missing object/mạng lỗi, assignment/phiên thay đổi; keyboard/mobile và ba browser theo PL01–PL04. Native PDF toolbar/zoom không nằm trong bằng chứng DOM.
 - [x] Product A17/P01 Core catalog đã có, không phụ thuộc Agent; Staff UI đã nối.
 - [x] Product A19/access P02 Core/MinIO/gateway đã có, vẫn tách product current version với policy applied version.
 - [x] UI Products P03 đã có theo [contract](04-products-contract.md); citation/context Agent thuộc nhánh riêng.
-- [ ] Customer ownership APIs/UI; không dùng Staff API thay quyền Customer.
+- [x] Customer ownership APIs/UI đã có; dùng endpoint owner riêng, không dùng Staff API thay quyền Customer.
 - [x] Quick lookup Inbox tại chỗ qua tab mới độc lập đã triển khai (PL05); xem hồ sơ không làm mất ngữ cảnh chat hoặc đổi linkedPolicy.
-- [ ] Khi thay schema/luồng ghi tài liệu: review mapping kind/applied version, bất biến/checksum và migration an toàn.
+
+
+**Quy tắc khi bảo trì:** Khi thay schema hoặc luồng ghi tài liệu, rà mapping kind/applied version, tính bất biến/checksum và migration an toàn. Đây là yêu cầu áp dụng mỗi lần thay đổi, không phải chức năng còn thiếu.
 
 ## Phase triển khai
 
@@ -211,7 +227,7 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 
 | ID  | Phần còn lại                              | Phase sở hữu                                                                                                    |
 | --- | ----------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| G01 | Staff policy read E; Customer ownership P | Customer PO01/PO02 trong [C04](../../customer/plans/04-policies-contract.md); bổ sung Staff real E2E trong PL03 |
+| G01 | Staff/Customer owner read/PDF E, có gateway/Core/DB/MinIO E2E và ba browser | PO01/PO02/D01/D02, PL01–PL04; Agent citations/context theo nhánh riêng |
 | G02 | Quick Policy Lookup trong Inbox (E); context chat P | [PL05](policies/05-inbox-customer-policy-lookup.md) đã triển khai in-place modal/tab mới; liên kết context chat thuộc Copilot CP05 |
 
 ## Sequence diagram

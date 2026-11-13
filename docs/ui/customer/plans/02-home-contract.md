@@ -2,6 +2,17 @@
 
 05/11/2026 · **Đã triển khai** · [Chung](00-customer-contract.md) · C02.
 
+## Truy vết data model và vị trí code theo phase
+
+Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [H01 — Shell, routes và chuyển tiếp giao diện hiện có](home/01-shell-navigation.md) | users + customer_profiles (Đọc own profile); staff_assignments + customer_profiles + staff_profiles (Đọc) | [apps/web/src/components/customer-workspace.tsx](<../../../../apps/web/src/components/customer-workspace.tsx>); [apps/web/src/components/customer-header.tsx](<../../../../apps/web/src/components/customer-header.tsx>) | Trung bình — Home/Products/Policies/Conversations/Tickets/Account |
+| [H02 — Home từ nguồn dữ liệu có thật](home/02-home-composition.md) | insurance_policies + insurance_products (Đọc); users + customer_profiles (Đọc own profile); staff_assignments + customer_profiles + staff_profiles (Đọc) | [apps/web/src/components/customer-home.tsx](<../../../../apps/web/src/components/customer-home.tsx>); [apps/web/src/components/customer-workspace.tsx](<../../../../apps/web/src/components/customer-workspace.tsx>) | Trung bình — Không đổi model tiền/ngày |
+
+Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+
 ## 1. Căn cứ và giới hạn
 
 Home/dashboard là cách tổ chức UX cho FR-002/008, không một FR Must về metrics. Không tạo counts/summary endpoint hoặc bịa dữ liệu để có dashboard. Giữ profile/contact/chat/account thật, rồi thêm lối vào chức năng đã hoàn tất.

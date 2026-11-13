@@ -2,6 +2,27 @@
 
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I03** · [Contract chung](../03-inbox-contract.md#9-contract-kỹ-thuật-dùng-chung--đề-xuất) · Trước: [I01](01-model-permissions.md), [I02](02-inbox-read-api.md) · Tiếp: [I04](04-staff-inbox-ui.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
+| conversations + conversation_handoffs | conversations.status/assigned_staff_id/control_version/support_origin/created_by_customer_id/direct_assignment_id; handoffs.state/consent_scope/consent_text_version/confirmed_by_customer_id/confirmed_at/accepted_by_staff_id/accepted_at | Create/request/Accept/revoke ghi | Composite FK conversation/customer và assignment/customer/recipient; partial unique một handoff PENDING/ACCEPTED; provenance/consent bất biến | Cao — quyền transcript chỉ sau Direct hợp lệ hoặc Accept, đổi assignment phải thu hồi grant |
+| messages + conversations | messages.sequence/audience/client_message_id/internal_message_id/sender_type/sender_id/content; conversations.next_message_sequence/last_customer_facing_activity_at | Append ghi, không sửa/xóa nội dung cũ | Unique sequence và key theo conversation/sender; counter cấp dưới conversation lock | Cao — Accept tạo SYSTEM duy nhất, send/retry không trùng; send thường không tăng control_version |
+| conversation_command_receipts | actor_id/operation/client_request_id/request_hash/resource_id/result_version | Thêm hoặc đọc để replay | Unique (actor_id,operation,client_request_id); resource_id do service kiểm theo operation | Cao — replay vẫn kiểm quyền; không dùng receipt chat như receipt Ticket |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** Không DDL mới sau I01. Chứng cứ consent tạo từ xác nhận thật, không backfill Accept từ status/assigned_staff_id.
+
+**Nhất quán và hồi quy:** Create/consent/Accept ghi receipt + audit/outbox trong transaction. Accept thêm SYSTEM và sequence atomic; chỉ đọc toàn bộ CUSTOMER_VISIBLE của chính cuộc được đồng ý. Kiểm rollback/replay/reassignment và pending không transcript.
+
 ## 1. Kết quả
 
 Có nguồn tạo request thật từ Customer, Direct có provenance, Staff Accept atomic và A10 đọc toàn bộ Customer-facing history. Không phải tự cấp grant qua fixture để UI chạy. Customer entry API có trước UI Customer I05 để test Core độc lập.
@@ -15,6 +36,15 @@ Phase gồm API entry/read/Accept, **chưa gửi tin người dùng hoặc tích
 Rate limit cho các endpoint ghi đã có từ phase này: helper `services/conversation-rate-limit.service.ts` dùng RateLimitBucket hiện có, quota đề xuất tại [I05 mục 4.1](05-messaging-customer.md#41-quota-local-đề-xuất). I05 chỉ bổ sung quota/send consumer, không đợi tới I05 mới bảo vệ create/request/Accept. Đọc I02 cũng cần read quota khi triển khai endpoint, có thể tạo helper tối thiểu ở I02 rồi mở rộng tại đây.
 
 `http/safe-api.exception.ts` đã bổ sung409 allowlist; foundation không phát raw exception. Assignment mutation dùng revoke/lock I01. I03 không cần migration/schema mới. Có thêm `services/conversation-session.service.ts`, `conversation-events.ts`, `message-cursor.ts` và `conversation-transcript.service.ts`; session/CSRF/quota/locks được dùng chung, không copy auth vào controller.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/conversations/controllers/customer-conversation.controller.ts](<../../../../../apps/core/src/conversations/controllers/customer-conversation.controller.ts>) | Hiện có | Owner entry/request/history | Cao | Customer chat và consent |
+| [apps/core/src/conversations/services/conversation-entry.service.ts](<../../../../../apps/core/src/conversations/services/conversation-entry.service.ts>) | Hiện có | Create AI/Direct với routing version | Cao | Direct assignment provenance |
+| [apps/core/src/conversations/services/conversation-handoff.service.ts](<../../../../../apps/core/src/conversations/services/conversation-handoff.service.ts>) | Hiện có | Consent/Accept/reconcile | Cao | Staff request panel, Customer SYSTEM message |
+| [apps/core/src/conversations/services/conversation-transcript.service.ts](<../../../../../apps/core/src/conversations/services/conversation-transcript.service.ts>) | Hiện có | Transcript gate + before/after sequence | Cao | REST catch-up hai role |
+| [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Một gate cho metadata/transcript/send | Cao | REST Staff/Customer, realtime, future Copilot |
+| [apps/core/src/conversations/services/conversation-command.service.ts](<../../../../../apps/core/src/conversations/services/conversation-command.service.ts>) | Hiện có | Lock, canonical hash, receipt/replay | Cao | Create/request/Accept/send |
 
 ## 3. API spec Customer — đã triển khai
 

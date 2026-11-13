@@ -2,6 +2,22 @@
 
 Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026** · [Chung](../03-inbox-contract.md) · Trước: [I02](02-inbox-read-api.md), [I03](03-handoff-transcript.md) · Tiếp: [I05](05-messaging-customer.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
+| conversations + conversation_handoffs | conversations.status/assigned_staff_id/control_version/support_origin/created_by_customer_id/direct_assignment_id; handoffs.state/consent_scope/consent_text_version/confirmed_by_customer_id/confirmed_at/accepted_by_staff_id/accepted_at | Ghi gián tiếp qua Accept I03 | Composite FK conversation/customer và assignment/customer/recipient; partial unique một handoff PENDING/ACCEPTED; provenance/consent bất biến | Cao — quyền transcript chỉ sau Direct hợp lệ hoặc Accept, đổi assignment phải thu hồi grant |
+
+**Schema/migration:** Không migration; frontend không tự đổi status/consent/grant.
+
+**Nhất quán và hồi quy:** UI key theo actor/resource, giữ accordion/scroll và bỏ response cũ. Accept dùng command key/version I03, không tự mở transcript trước commit. Kiểm I04 keyboard/mobile và không F5.
+
 ## 1. Kết quả để review
 
 Giao diện Staff dùng Core thật: All/Requests/Active, accordion theo khách, search tự động/Enter, Accept request, xem chat cuộn. Không dựng lại màn history bằng các bảng metadata. Composer chưa gửi trong I04; không nút Send/Templates/attachment giả. Tới I05 mới bật chức năng gửi.
@@ -10,18 +26,23 @@ Account/Customers/Policy/PDF và sidebar chung giữ hành vi đã kiểm thử.
 
 ## 2. File và tích hợp
 
-| File hiện có | Thay đổi |
-| --- | --- |
-| `apps/web/src/components/staff-reference-workspace.tsx` | Nhận filter mới/mount Inbox, bỏ logic khung legacy cho Inbox; không sửa data flow Customers/Policies |
-| `apps/web/src/components/staff-reference-template.tsx` | Thay nhãn sidebar All/Requests/Active; bỏ New/chi tiết thừa ở nhánh Inbox |
-| `apps/web/src/components/staff-portal.tsx` | Giữ key theo actor.id, không theo query/route |
-| `apps/web/src/components/auth-screen.tsx` | Truyền session.csrfToken trong memory xuống action Accept; giữ refresh/focus/expiry đã tối ưu |
-| `apps/web/src/app/staff/(workspace)/inbox/page.tsx` và `[conversationId]/page.tsx` | Hiện là route shell; giữ ownership render ở workspace, không mount thêm bản chat trùng |
-| `apps/web/src/lib/auth-api.ts` | coreRequest hiện chỉ ném AuthError(status); không đổi toàn bộ caller để parse lỗi Inbox |
 
 File **cần tạo**: `apps/web/src/lib/conversation-api.ts`, `components/staff-inbox.tsx`, `staff-inbox-directory.tsx`, `conversation-transcript.tsx`, `handoff-request-panel.tsx`. Chỉ thêm hook hỗ trợ khi có lifecycle thực sự cần tách. API wrapper Inbox parse error code/requestId có allowlist, dùng coreApiUrl/credential/no-store hiện có, nhận AbortSignal; không tạo package/network stack mới.
 
 Đọc guide Next trong node_modules theo AGENTS trước viết code, nhất là History API/useSearchParams/navigation. Tailwind4 prefix `tw:`; không stylesheet, inline style, CSS Modules hoặc @apply.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-inbox.tsx](<../../../../../apps/web/src/components/staff-inbox.tsx>) | Hiện có | Selection/request/transcript workspace | Trung bình | Staff shell và tab policy lookup |
+| [apps/web/src/components/staff-inbox-directory.tsx](<../../../../../apps/web/src/components/staff-inbox-directory.tsx>) | Hiện có | Accordion/search/filter/cursor | Trung bình | Deep link, expanded groups, focus |
+| [apps/web/src/components/conversation-transcript.tsx](<../../../../../apps/web/src/components/conversation-transcript.tsx>) | Hiện có | Cuộn và dedup sequence | Trung bình | Staff và Customer dùng chung |
+| [apps/web/src/lib/conversation-api.ts](<../../../../../apps/web/src/lib/conversation-api.ts>) | Hiện có | DTO, CSRF, command key, AbortSignal | Cao | Hai đầu chat và Accept |
+| [apps/web/src/components/staff-reference-workspace.tsx](<../../../../../apps/web/src/components/staff-reference-workspace.tsx>) | Hiện có | Nhận filter mới/mount Inbox, bỏ logic khung legacy cho Inbox; không sửa data flow Customers/Policies | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/src/components/staff-reference-template.tsx](<../../../../../apps/web/src/components/staff-reference-template.tsx>) | Hiện có | Thay nhãn sidebar All/Requests/Active; bỏ New/chi tiết thừa ở nhánh Inbox | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/src/components/staff-portal.tsx](<../../../../../apps/web/src/components/staff-portal.tsx>) | Hiện có | Giữ key theo actor.id, không theo query/route | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/src/components/auth-screen.tsx](<../../../../../apps/web/src/components/auth-screen.tsx>) | Hiện có | Truyền session.csrfToken trong memory xuống action Accept; giữ refresh/focus/expiry đã tối ưu | Cao | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/src/app/staff/(workspace)/inbox/page.tsx](<../../../../../apps/web/src/app/staff/(workspace)/inbox/page.tsx>) | Hiện có | Hiện là route shell; giữ ownership render ở workspace, không mount thêm bản chat trùng | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
+| [apps/web/src/lib/auth-api.ts](<../../../../../apps/web/src/lib/auth-api.ts>) | Hiện có | coreRequest hiện chỉ ném AuthError(status); không đổi toàn bộ caller để parse lỗi Inbox | Cao | Kiểm caller và luồng hiện có mô tả trong hàng này |
 
 ## 3. Bố cục và hành vi
 

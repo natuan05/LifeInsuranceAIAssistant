@@ -1,14 +1,17 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 
-const roles = ['bootstrap', 'migration', 'core', 'admin', 'viewer'];
+const roles = ['bootstrap', 'migration', 'core', 'admin', 'viewer', 'rag_indexer', 'rag_retriever', 'agent_migrator', 'agent_runtime'];
+// Added after the first local release: their DB roles do not exist yet in older databases, so bootstrap can create
+// them with a newly generated credential instead of requiring an original volume.
+const addedLater = new Set(['rag_indexer', 'rag_retriever', 'agent_migrator', 'agent_runtime']);
 // Preflight every supplied value before writing any credential. Never rotate implicitly.
 for (const role of roles) {
   const supplied = process.env[`DB_${role.toUpperCase()}_PASSWORD`] || '';
   const path = `/credentials/${role}/password`;
   if (supplied && (supplied.length < 16 || supplied.length > 128 || supplied.trim() !== supplied || /[\r\n\0]/.test(supplied))) throw new Error(`Invalid DB_${role.toUpperCase()}_PASSWORD; values hidden.`);
   if (supplied && existsSync(path) && readFileSync(path, 'utf8').trim() !== supplied) throw new Error(`DB_${role.toUpperCase()}_PASSWORD conflicts with existing credential volume. Restore its matching value; values hidden.`);
-  if (!existsSync(path) && existsSync('/existing-db/PG_VERSION')) throw new Error('Existing PostgreSQL data requires its original credential volumes. Restore the missing credential before starting.');
+  if (!existsSync(path) && existsSync('/existing-db/PG_VERSION') && !addedLater.has(role)) throw new Error('Existing PostgreSQL data requires its original credential volumes. Restore the missing credential before starting.');
 }
 // Runs only in prepare; each consumer receives only its own credential volume.
 for (const role of roles) {
@@ -16,7 +19,7 @@ for (const role of roles) {
   const path = `${directory}/password`;
   mkdirSync(directory, { recursive: true });
   if (!existsSync(path)) {
-    if (existsSync('/existing-db/PG_VERSION')) {
+    if (existsSync('/existing-db/PG_VERSION') && !addedLater.has(role)) {
       throw new Error('Existing PostgreSQL data requires its original credential volumes. Restore the missing credential before starting.');
     }
     const password = process.env[`DB_${role.toUpperCase()}_PASSWORD`] || randomBytes(32).toString('hex');

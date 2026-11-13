@@ -77,6 +77,10 @@ services:
       DB_CORE_PASSWORD: ${DB_CORE_PASSWORD:-}
       DB_ADMIN_PASSWORD: ${DB_ADMIN_PASSWORD:-}
       DB_VIEWER_PASSWORD: ${DB_VIEWER_PASSWORD:-}
+      DB_RAG_INDEXER_PASSWORD: ${DB_RAG_INDEXER_PASSWORD:-}
+      DB_RAG_RETRIEVER_PASSWORD: ${DB_RAG_RETRIEVER_PASSWORD:-}
+      DB_AGENT_MIGRATOR_PASSWORD: ${DB_AGENT_MIGRATOR_PASSWORD:-}
+      DB_AGENT_RUNTIME_PASSWORD: ${DB_AGENT_RUNTIME_PASSWORD:-}
     volumes:
       - ./scripts/prepare-local.mjs:/prepare-local.mjs:ro
       - postgres_data:/existing-db:ro
@@ -85,6 +89,10 @@ services:
       - credential_core:/credentials/core
       - credential_admin:/credentials/admin
       - credential_viewer:/credentials/viewer
+      - credential_rag_indexer:/credentials/rag_indexer
+      - credential_rag_retriever:/credentials/rag_retriever
+      - credential_agent_migrator:/credentials/agent_migrator
+      - credential_agent_runtime:/credentials/agent_runtime
 
   postgres:
     image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
@@ -119,6 +127,10 @@ services:
       - credential_core:/credentials/core:ro
       - credential_admin:/credentials/admin:ro
       - credential_viewer:/credentials/viewer:ro
+      - credential_rag_indexer:/credentials/rag_indexer:ro
+      - credential_rag_retriever:/credentials/rag_retriever:ro
+      - credential_agent_migrator:/credentials/agent_migrator:ro
+      - credential_agent_runtime:/credentials/agent_runtime:ro
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -177,6 +189,29 @@ services:
       migrate: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }
     restart: "no"
+
+  # Explicitly destructive maintenance command; never part of default up.
+  dev-data-reset:
+    profiles: [maintenance]
+    extends: { service: seed-dev }
+    command: ["node", "dist/cli/reset-dev-data.js", "--compose-local", "--erase-all-app-data"]
+    volumes:
+      - credential_bootstrap:/credentials/bootstrap:ro
+      - credential_storage_root:/credentials/storage-cleanup:ro
+
+  dev-seed-tests:
+    profiles: [tests]
+    extends: { service: core-tests }
+    command: ["node", "--test", "--test-concurrency=1", "test/policy-seed.test.cjs", "test/dev-data-reset.test.cjs"]
+    environment:
+      STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
+    volumes:
+      - credential_bootstrap:/credentials/bootstrap:ro
+
+  dev-policy-reseed:
+    profiles: [maintenance]
+    extends: { service: dev-data-reset }
+    command: ["node", "dist/cli/reset-dev-data.js", "--compose-local", "--replace-policy-fixtures"]
 
   core:
     image: life-insurance-core:local
@@ -286,4 +321,8 @@ volumes:
   credential_core: { name: life-insurance-local-credential-core }
   credential_admin: { name: life-insurance-local-credential-admin }
   credential_viewer: { name: life-insurance-local-credential-viewer }
+  credential_rag_indexer: { name: life-insurance-local-credential-rag-indexer }
+  credential_rag_retriever: { name: life-insurance-local-credential-rag-retriever }
+  credential_agent_migrator: { name: life-insurance-local-credential-agent-migrator }
+  credential_agent_runtime: { name: life-insurance-local-credential-agent-runtime }
   database_ui_data: { name: life-insurance-local-database-ui-data }

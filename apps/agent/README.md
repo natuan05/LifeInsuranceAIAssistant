@@ -12,11 +12,11 @@ Quyết định ngày 27/10/2026: dùng custom LangGraph cho điều phối Agen
 - Business Tools chỉ gọi Core API; không đọc hoặc ghi bảng business.
 - Retrieval chỉ đọc tập tài liệu và phiên bản được Core cấp quyền; Public/Private có thể dùng chung engine.
 - Lưu trạng thái workflow bền vững. Checkpoint cần quyền ghi riêng, không mở quyền ghi business hay RAG index.
-- Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, chuẩn bị đường tách database; xem [thiết kế checkpoint](../../docs/specifications/Agent_Design.md#checkpoint-postgres). Chưa triển khai.
+- Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, chuẩn bị đường tách database; xem [thiết kế checkpoint](../../docs/specifications/Agent_Design.md#checkpoint-postgres). Task 4 đã có store/checkpointer và kiểm thử DB trực tiếp; chưa nối HTTP/Core thật.
 - Phân biệt trạng thái graph với lịch sử hội thoại do Core quản lý; không coi checkpoint là bằng chứng xác nhận Ticket.
 - Nội dung tài liệu và tool output là dữ liệu, không được thay đổi quyền hay chỉ dẫn hệ thống.
 
-Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [tạm chọn HMAC + Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema, profile xác thực và cơ chế lưu/khôi phục cụ thể thuộc đặc tả thực thi. Provider/model, embedding, thư viện checkpoint và web framework chưa chọn; chưa triển khai.
+Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [tạm chọn HMAC + Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema, profile xác thực và cơ chế lưu/khôi phục cụ thể thuộc đặc tả thực thi. Provider/model và embedding chưa chọn (mốc 3 chỉ là cấu hình thử). Nhánh ngày 06/11/2026 đề xuất checkpointer tự viết trên `BaseCheckpointSaver`, profile HMAC `LI-HMAC-SHA256-v1` và Starlette + uvicorn ([contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026)). Task 4 đã có checkpointer có kiểm quyền ghi; HTTP/HMAC còn Task 6. Các phương án này vẫn chờ duyệt G2/G3.
 
 Panel Copilot ở Web chỉ là khung chưa kết nối. Native WebSocket Core hiện có không phải Core–Agent transport/checkpoint hoặc chat stream. Công việc phụ thuộc và điều kiện đóng ở [G02–G07/checklist UI](../../docs/ui/implementation-status.md); không coi UI panel là triển khai Agent.
 
@@ -54,4 +54,76 @@ python -m pip install -e . --group dev
 python -m pytest -p no:cacheprovider
 ```
 
-`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `pytest` 9.2.0. Checkpointer chỉ dùng `InMemorySaver` trong test; thư viện checkpointer, HTTP framework và provider model chọn ở G2–G4.
+`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Ở mốc 2 chỉ dùng `InMemorySaver`; mốc 4 bên dưới bổ sung checkpointer PostgreSQL với `langgraph-checkpoint` 4.3.1. HTTP framework còn ở G3.
+
+## Trạng thái: mốc 3 — Public RAG thử nghiệm
+
+Phần Public của Tasks 7–9: tài liệu → chunk → embedding → hybrid search → câu trả lời có nguồn → báo cáo chất lượng. **Corpus Public vẫn `ai_checked/needs_human_review` (G5 chưa duyệt)**; người dùng cho phép dùng để thử ngày 05/11/2026, mọi chunk ghi trạng thái duyệt và UL049 trang 29 mang cảnh báo nguồn. Cấu hình Gemini trong [`evaluation/trial-config.json`](evaluation/trial-config.json) là cấu hình **thử** theo G4, không phải mặc định hay model được chọn. Private, Copilot, Core thật, checkpoint bền vững và HTTP chưa làm ở mốc này.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `corpus.py` | Inventory 13 PDF/243 trang/7 sản phẩm và checksum; NFC, anchor trang, bỏ dòng lặp đầu/cuối trang, tách ghi chú hiệu đính; parent theo Điều/Phụ lục/mục, child theo khối không cắt câu, bảng tách lặp header; prefix metadata tách khỏi nội dung gốc; dẫn chiếu Điều/Phụ lục phân giải trong cùng tài liệu/phiên bản; ghi index một transaction/tài liệu–phiên bản, chống nạp trùng bằng fingerprint |
+| `retrieval.py` | PostgreSQL FTS + pgvector + RRF trong đúng cặp document/version Core cấp ở mọi câu lệnh; mở rộng parent và một bước dẫn chiếu có cap; năm trạng thái, `degraded` khi embedding lỗi, lỗi keyword/DB là `ERROR`; kiểm model/version/số chiều trước khi so vector |
+| `model.py` | Adapter Gemini qua REST (thư viện chuẩn, không SDK): embedding theo định dạng từng model, sinh quyết định JSON theo schema, đếm token input/output/thinking; lỗi chỉ trả mã đã lọc, key chỉ đi trong header |
+| `evaluation/` | `cases.json` (43 ca Public/ngoài phạm vi/tấn công/lỗi nguồn), `evaluate.py` hai chế độ `retrieval`/`end-to-end`; `mandatory_checks` PASS/FAIL/NOT_RUN tách `quality_metrics` (Recall@k, nDCG@k, MRR, trích dẫn, latency, token, chi phí) |
+
+Quyền DB: thêm role `rag_indexer` (SELECT/INSERT/DELETE `rag`, chỉ dùng offline) và `rag_retriever` (chỉ SELECT `rag`) qua bootstrap/compose; cả hai không có quyền `business`.
+
+Đề xuất cần review cùng PR (chưa phải quyết định):
+
+- Metadata `rag-chunk-v2` trong `RagKnowledgeChunk.metadata`: `kind`, `chunk_key`, `evidence_key`, `parent_key`, `section_key`, `section_parent_keys`, `heading_path`, `clause`, `pages`/`page_end`, `anchor`, `prefix`, `refs`, `issues`, `editorial_notes`, `product`, `approval`, `dataset_version`, `corpus_config_id`, `fingerprint`, `embedding`. Parent cũng là một dòng có vector (cột embedding bắt buộc) nhưng không vào nhánh tìm kiếm. Parent giữ tham chiếu của toàn đoạn; `section_parent_keys` xác định khi nào đã trả đủ mọi phần của Điều. Identity embedding gồm provider/model/version/dimensions/config/input format/normalization, không chỉ config ID.
+- Catalog Public tạm: `document_id` uuid5 theo đường dẫn nguồn, `document_version` = `sha256-` + 12 ký tự checksum PDF, tiêu đề ghép tên sản phẩm. Thay bằng catalog Core ở Task 3; không phải `currentVersion`.
+- Unique `(document_id, document_version, chunk_index)` chỉ cho một không gian vector mỗi tài liệu/phiên bản: so hai embedding phải index lại tuần tự hoặc đổi schema sau review.
+- FTS `simple`, truy vấn OR các từ, `tsvector` tính khi truy vấn (chưa thêm migration/GIN/HNSW); 40/40 ứng viên → 20 hợp nhất → tối đa 8 bằng chứng, RRF 60 chỉ là biến thể thử có `config_id`.
+- Dẫn chiếu tới Chương không được mở rộng; dòng mục lục không tính là dẫn chiếu; dẫn chiếu sang Luật/Điều Khoản Chung/Sản Phẩm Chính là chưa phân giải.
+- Phát hiện khi chunk corpus, chuyển người duyệt G5: TnC Dự Phòng Xanh có tiêu đề “Điều 12” dính vào cuối đoạn 11.2 nên dẫn chiếu tới Điều 12 không tìm thấy đích; TnC Hộ Vệ Xanh không có tiêu đề Điều riêng (Điều nằm trong đoạn/bảng) nên dẫn chiếu Điều trong tài liệu đó chưa phân giải được.
+
+### Chạy với PostgreSQL và Gemini
+
+1. `.env` ở root: thêm `DB_RAG_INDEXER_PASSWORD` và `DB_RAG_RETRIEVER_PASSWORD` (giá trị mẫu trong `.env.example`) rồi `docker compose up -d --build --wait` để tạo hai role.
+2. Dùng `.env` root theo `.env.example`: điền `GEMINI_API_KEY`, DSN indexer/retriever cho đúng DB/cổng và credential đang có. Agent tool chỉ đọc các biến `GEMINI_*`/`LIFE_AGENT_*`; biến môi trường tiến trình ưu tiên hơn file. Không tạo `.env` riêng cho Agent, không đổi credential/volumes để khớp mẫu. Nếu còn file Agent cũ, tự chuyển đúng các biến cần dùng vào root và giữ bản cũ tới khi xác minh; tool không tự sửa hoặc xóa file của thành viên. Indexer DSN chỉ cấp cho job offline. Test DB dùng hai DSN `LIFE_AGENT_TEST_RAG_*` trỏ tới DB synthetic cô lập, không chạy fixture vào dữ liệu ứng dụng đang dùng. Không đưa key/DSN có mật khẩu vào Git, chat hay log.
+3. Từ `apps/agent`, sau khi cài như trên:
+
+```bash
+python -m pytest                       # DB tests chạy khi có LIFE_AGENT_TEST_RAG_*_DSN, không thì skip
+python -m life_agent.corpus --manifest ../../data/public/manifest-manulife-text.json --trial evaluation/trial-config.json --index
+python evaluation/evaluate.py --cases evaluation/cases.json --mode retrieval
+python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end
+```
+
+Lệnh index gọi embedding có tính phí theo cấu hình thử; chỉ chạy khi được phép cho đúng cấu hình/corpus. Schema chunk v2 và fingerprint đầy đủ làm index v1 hoặc identity khác cần được dựng lại có chủ đích; tool không tự chạy reindex hoặc gọi API để nâng dữ liệu. Chạy lại cùng dữ liệu/schema/identity sẽ bỏ qua tài liệu đã nạp.
+
+Báo cáo mặc định ở thư mục dữ liệu người dùng `LifeInsuranceAIAssistant/agent-eval`: Windows dùng `%LOCALAPPDATA%`, macOS dùng `~/Library/Application Support`, Linux dùng `$XDG_STATE_HOME` hoặc `~/.local/state`. `--out` có thể chọn file ngoài repo; đường dẫn trong repo bị từ chối trước khi mở client/gọi model. CLI in đường dẫn tuyệt đối sau khi ghi; khi chưa chạy thì chưa tạo file báo cáo. Đây là file tool trên host, tách với credential runtime trong Docker volumes. Báo cáo gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt/nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` tới khi có `--human-review`; không tự tuyên bố nghiệm thu đạt.
+
+Wrapper model ghi từng attempt, kể cả lỗi; HTTP 429 trả lỗi lượt, không chờ rồi retry ngầm ngoài ngân sách. Retry model cần policy/budget/deadline riêng được review, không mượn chính sách một retry của Business Tools. Các quyết định và regression của đợt sửa được ghi tại [Public RAG review fixes](../../docs/public-rag-review-fixes.md).
+
+## Trạng thái: mốc 4 — Task 4, lưu bền phía Agent
+
+Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2) theo các phương án đề xuất từ nhánh ngày 06/11/2026; việc tích hợp code không tự đóng G2/G3. Chưa có HTTP/HMAC (Task 6), API Core (Task 3, đội application) hay worker nhận việc chạy nền. Vì vậy mới kiểm bằng gọi trực tiếp store và graph, chưa qua Core thật.
+
+| Thành phần (`store.py`, `migrations/`) | Nội dung |
+| --- | --- |
+| `PgRuntimeStore` | `accept_run` (receipt theo attempt, `DUPLICATE`/`CONFLICT`/`IGNORED_STALE`), `revoke` (tombstone cho attempt chưa tới), `claim_execution` (lease, mỗi claim nâng epoch), ledger `open_message`/`reserve`/`settle`, `persist_final`/`persist_progress`, `pending_events`/`ack_event`, `recoverable`, `fence_after_restore` |
+| `FencedPostgresSaver` | Checkpointer LangGraph; `put`, `put_writes`, `delete_thread` kiểm `(thread_id, attempt_id, writer_epoch)` `FOR SHARE` trong cùng transaction. Graph chạy `durability="sync"` |
+| `LeasedStore`, `execute_attempt` | Store của graph gắn lease; receipt `FINALIZED` trả lại event đã lưu, không chạy graph |
+| `migrations/001_durable_runtime.sql`, `python -m life_agent.store migrate` | Bảng trong schema `agent_runtime` (do bootstrap tạo, chủ là `agent_migrator`); runner ghi `schema_migrations` và từ chối file đã áp bị sửa |
+
+`StaleWriter` là `BaseException` để không bị các khối `except Exception` trong graph/adapter nuốt mất rồi tiếp tục gửi request hoặc ghi. Role `agent_runtime` chỉ có DML trên `agent_runtime`; role Core không có quyền trên schema này.
+
+### Chạy
+
+1. `.env` root: thêm `DB_AGENT_MIGRATOR_PASSWORD`, `DB_AGENT_RUNTIME_PASSWORD` (giá trị mẫu ở `.env.example`) rồi `docker compose up -d --build --wait`.
+2. Dùng `.env` root theo `.env.example`: điền `LIFE_AGENT_STORE_MIGRATOR_DSN` và `LIFE_AGENT_STORE_DSN` với đúng cổng/credential đang có; không tạo env riêng cho Agent. Ba DSN `LIFE_AGENT_TEST_STORE_DSN`, `LIFE_AGENT_TEST_STORE_MIGRATOR_DSN`, `LIFE_AGENT_TEST_ADMIN_DSN` chỉ trỏ tới DB synthetic cô lập; role `local_owner` chỉ dùng cho test tách DB, không cấp cho runtime.
+3. Từ `apps/agent`: `python -m life_agent.store migrate`, rồi `python -m pytest tests/test_store.py`.
+
+### Runbook tách `agent_runtime` sang PostgreSQL riêng (bảo trì)
+
+1. Dựng DB đích: tạo role, `CREATE SCHEMA agent_runtime AUTHORIZATION agent_migrator`, cấp quyền như `bootstrap-database.mjs`, chạy `migrate` tới cùng version với nguồn.
+2. Dừng nhận việc: Core ngừng dispatch; chờ các lượt đang chạy kết thúc hoặc revoke chúng; xác nhận không còn event chưa ACK.
+3. Dừng ghi: tắt tiến trình Agent.
+4. Sao chép: `copy_runtime_data(nguồn, đích)` (COPY từng bảng theo thứ tự FK, kiểm cùng version migration). Có thể dùng `pg_dump --schema=agent_runtime` nếu có công cụ.
+5. Kiểm: số dòng từng bảng; đọc lại một thread mẫu bằng checkpointer; event cuối của một attempt mẫu giống nguồn.
+6. Trên đích chạy `fence_after_restore()`: thu hồi receipt `ACCEPTED` và nâng epoch, để writer trước khi tách không ghi được nữa.
+7. Đổi `LIFE_AGENT_STORE_DSN` sang đích, mở lại nhận việc.
+
+Rollback: nếu đích **chưa nhận ghi**, chỉ cần trỏ lại nguồn (nguồn còn nguyên). Nếu đích **đã nhận ghi**, phải chép các dòng mới của đích về nguồn (hoặc giữ đích) rồi chạy `fence_after_restore()` trên bên dùng tiếp. Không chạy hai bên song song, không dual-write/CDC.

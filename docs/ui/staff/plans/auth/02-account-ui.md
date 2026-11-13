@@ -2,6 +2,20 @@
 
 04/11/2026 · **Đã triển khai; baseline UI** · [Contract](../01-auth-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| users + staff_profiles | users.phone/updated_at, staff_profiles.user_id/full_name/department | PATCH ghi phone/full_name; đọc trường readonly | User–StaffProfile 1:1 theo user_id/role; phone unique, User.updated_at là token so sánh | Cao — khóa User rồi kiểm token, cập nhật tên/phone và audit atomic; không sửa department/email/role |
+| users + auth_sessions | users.password_hash/password_changed_at/password_change_recommended/failed_login_attempts/locked_until, auth_sessions.token_hash/csrf_token_hash/expires_at/revoked_at | Login/password/logout ghi | Lock User serialize password/login; phiên mới và thu hồi phiên theo nghiệp vụ | Cao — đổi password ảnh hưởng mọi tab và cả hai role; không ghi hash/token vào log |
+
+**Schema/migration:** Không migration. Web chỉ gọi Core; không ghi trực tiếp profile/session.
+
+**Nhất quán và hồi quy:** Refetch cùng actor giữ draft/focus, 401/role change clear đúng scope. Các mutation là tác động gián tiếp qua AU01; retry auth không lặp PATCH/đổi password.
+
 ## 1. Phạm vi và model
 
 AU01; FR-001 và quyết định hồ sơ Staff. `/staff/login`, `/account`, `/account#change-password`; giữ router theo role.
@@ -9,6 +23,13 @@ AU01; FR-001 và quyết định hồ sơ Staff. `/staff/login`, `/account`, `/a
 ## 2. Vị trí code
 
 `auth-screen.tsx`, `staff-personal-information.tsx`, `staff-profile-editor.tsx`, `staff-account-menu.tsx`, `lib/auth-api.ts`; tất cả dưới apps/web/src.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-personal-information.tsx](<../../../../../apps/web/src/components/staff-personal-information.tsx>) | Hiện có | Hồ sơ readonly + mount editor/password | Trung bình | Account và actor header/sidebar |
+| [apps/web/src/components/staff-profile-editor.tsx](<../../../../../apps/web/src/components/staff-profile-editor.tsx>) | Hiện có | Dirty draft, validation, token và conflict | Trung bình | Cancel/save/409/focus/responsive |
+| [apps/web/src/lib/staff-profile-api.ts](<../../../../../apps/web/src/lib/staff-profile-api.ts>) | Hiện có | GET/PATCH DTO và CSRF | Cao | AU01 token/phone/null |
+| [apps/web/src/components/auth-screen.tsx](<../../../../../apps/web/src/components/auth-screen.tsx>) | Hiện có | Actor/session/CSRF ở memory | Cao | Staff/Customer auth boundary |
 
 ## 3. API và dữ liệu
 
@@ -92,9 +113,20 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
-- [ ] Khi sửa code tiếp: chạy các suite bị ảnh hưởng, ghi kết quả trong phase và dọn fixture/artifact.
+
+**Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
 Giữ nháp/focus khi background refresh, không F5. Session freshness/retry chi tiết AU03; không thêm spinner che toàn workspace mỗi focus.
+
+## Tự động hóa test case
+
+| Suite/vị trí | Phạm vi và giới hạn |
+| --- | --- |
+| [staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Keyboard/focus và editor thật, conflict giữ nháp, mobile và mất phiên; UI regression mock vẫn kiểm riêng lỗi mạng/validation/quota. |
+| [browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Dữ liệu synthetic UUID qua test Docker, session/password trong memory; finally dọn đúng fixture/object, không reset seed |
+| [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
+
+Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
 
 ## Sequence diagram
 
@@ -116,7 +148,7 @@ sequenceDiagram
     else Hợp lệ
         C->>D: Update tên hoặc phone và audit
         D-->>C: COMMIT
-        C-->>W: 200 projection mới; Cancel không request
+        C-->>W: 200 projection mới, Cancel không request
         W-->>U: Cập nhật sau ACK
     end
     opt Timeout hoặc mất ACK

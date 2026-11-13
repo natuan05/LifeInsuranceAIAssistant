@@ -2,11 +2,33 @@
 
 05/11/2026 · **E: list/detail/status + Notifications chung** · [Contract](../07-tickets-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| support_tickets | status/version; đọc assigned_staff_id/customer_id | Ghi gián tiếp qua TK03 | Lock row + expectedVersion/CAS + current assignment; không tạo confirmation evidence | Cao — đủ TicketStatus theo transitions hiện hành, reopen riêng Ticket; ConversationStatus không CLOSED |
+
+**Schema/migration:** Không migration, không browser update DB trực tiếp.
+
+**Nhất quán và hồi quy:** List → detail dùng DTO+allowed actions; dropdown submit expectedVersion, không tự gán actor hoặc chat status. Kiểm Back giữ search/filter, 409 reload đúng vùng, đủ enum và no-op.
+
 ## 1. Phạm vi và code
 
 Tickets riêng /staff/tickets và /staff/tickets/:ticketId. FR-010 read/Accept đã có; người dùng05/11 yêu cầu quản lý status như task, gồm resolve/close/reopen. Không thêm tạo Ticket thủ công, phản hồi, Claim/payment hoặc Agent producer.
 
 Code: apps/web/src/components/staff-tickets.tsx, lib/ticket-api.ts, slot Tickets của staff-reference-workspace.tsx. Dùng useAuthorizedRead/useCooldown, Tailwind/Lexend và session/realtime chung; không dependency mới.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-tickets.tsx](<../../../../../apps/web/src/components/staff-tickets.tsx>) | Hiện có | List/detail/status dropdown | Trung bình | Đổi view không reload trang |
+| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | Status DTO/CSRF/version | Cao | TK03 contract |
+| [apps/web/src/components/staff-reference-workspace.tsx](<../../../../../apps/web/src/components/staff-reference-workspace.tsx>) | Hiện có | Mount Ticket routes và actor scope | Trung bình | Inbox/Customers/Policy giữ nguyên |
+| [apps/web/src/components/use-authorized-read.ts](<../../../../../apps/web/src/components/use-authorized-read.ts>) | Hiện có | Revalidation giữ cùng resource | Cao | Các danh sách Staff dùng chung |
 
 ## 2. Bố cục và điều hướng
 

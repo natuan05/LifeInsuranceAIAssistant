@@ -2,6 +2,21 @@
 
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I02** · [Contract chung](../03-inbox-contract.md#9-contract-kỹ-thuật-dùng-chung--đề-xuất) · Trước: [I01](01-model-permissions.md) · Tiếp: [I03](03-handoff-transcript.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+
+**Schema/migration:** Không migration; dùng index/keyset I01. Không thêm count/unread/status enum.
+
+**Nhất quán và hồi quy:** Scope trước search/filter/cursor. Pending không select nội dung Message; kiểm A08/A09, cursor actor/filter và metadata parity.
+
 ## 1. Kết quả và ranh giới
 
 Staff đọc nhóm khách/cuộc đúng gate, All/Requests/Active, search tên/mã và lazy load từng khách. Pending chỉ metadata Customer chia sẻ. Không counts, preview hoặc AI history. Trong mốc I02 chỉ có read; I03 hiện đã có nguồn tạo request/Accept/transcript thật, public send vẫn ở I05; test dùng fixture synthetic độc lập tự dọn.
@@ -13,6 +28,13 @@ Staff đọc nhóm khách/cuộc đúng gate, All/Requests/Active, search tên/m
 Read quota dùng RateLimitBucket DB qua helper nhỏ `services/conversation-rate-limit.service.ts`, đã áp dụng240 request/phút/actor theo [I05](05-messaging-customer.md#41-quota-local-đề-xuất); tạo phần cần dùng ngay I02, không chờ phase gửi tin hoặc dùng private AuthService.limit.
 
 Không gắn chat vào CustomersModule/PoliciesModule. Không bỏ total ở CustomerService.list: Customers có phân trang riêng. A09 projection tái dùng cho response Accept I03.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/conversations/controllers/staff-inbox.controller.ts](<../../../../../apps/core/src/conversations/controllers/staff-inbox.controller.ts>) | Hiện có | A08 grouped customers/conversations | Cao | Inbox accordion/search/filter |
+| [apps/core/src/conversations/services/staff-inbox.service.ts](<../../../../../apps/core/src/conversations/services/staff-inbox.service.ts>) | Hiện có | Gate + keyset + safe metadata DTO | Cao | A09 và response Accept |
+| [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Một gate cho metadata/transcript/send | Cao | REST Staff/Customer, realtime, future Copilot |
+| [apps/core/src/conversations/dto/inbox-query.dto.ts](<../../../../../apps/core/src/conversations/dto/inbox-query.dto.ts>) | Hiện có | Cursor/filter/search validation | Trung bình | URL deep link và lazy loading |
 
 ## 3. API spec đã triển khai — A08/A09 E
 

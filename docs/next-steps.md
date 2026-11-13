@@ -35,6 +35,8 @@ MVP có [7 sản phẩm: 4 chính, 3 bổ trợ](specifications/Agent_Design.md#
 
 Staff lookup và Customer ownership list/detail/catalog/access/PDF đã có; [Staff policies](ui/staff/plans/05-policies-contract.md), [Customer policies](ui/customer/plans/04-policies-contract.md) và [documents](ui/customer/plans/05-documents-contract.md) sở hữu chi tiết. Quick lookup trong Inbox đã có PL05; mở PDF không tự đổi hợp đồng đang xét của Agent. Đổi linkedPolicy qua UI vẫn là mở rộng chưa chọn, không thay việc xác định hợp đồng trong hội thoại.
 
+- [x] **QA Staff local:** suite browser regression và gateway/Core/DB/MinIO E2E có trong repo cho Auth/Customers/Policies, Chromium/Firefox/WebKit; lỗi mạng/missing object/expiry/revoke theo test case phase. Runner tự dọn fixture/artifact; chưa tuyên bố cấu hình CI hoặc native PDF toolbar/zoom.
+
 <a id="inbox-ticket-relocation"></a>
 ## Inbox/chat và Ticket
 
@@ -42,6 +44,8 @@ Bản thử cũ đã được thay bởi [I01–I06](ui/staff/plans/03-inbox-con
 
 <a id="kế-hoạch-hôm-nay--03112026"></a>
 ## Các mốc nền đã hoàn tất
+
+Ngày **29/10/2026** có fixture tham chiếu Markdown/JSON/15 đáp án; bootstrap hiện dùng [portfolio bốn hồ sơ riêng](../data/synthetic/manulife-demo-v1/README.md) từ `policies.json`, không nhân bản fixture cũ. Mỗi hồ sơ gắn đúng người/sản phẩm/điều khoản, không dùng bổ trợ DEMO-TITAN chưa ánh xạ. Chưa chunk, embedding hoặc chạy Agent/RAG từ bộ này; phí vẫn là dữ liệu thử chưa kiểm định thương mại.
 
 [Retry phiên](ui/staff/plans/auth/03-session-lifecycle.md), [vòng đời Policy/PDF](ui/staff/plans/policies/04-viewer-lifecycle.md) và [Inbox](ui/staff/plans/03-inbox-contract.md) giữ chi tiết/bằng chứng của đợt 03–05/11. Các phase này là baseline để bảo trì, không là danh sách việc phải làm lại.
 

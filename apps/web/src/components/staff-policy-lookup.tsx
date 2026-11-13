@@ -19,7 +19,19 @@ export function StaffPolicyLookup() {
   const page = /^\d+$/.test(rawPage) && Number(rawPage) > 0 && Number(rawPage) <= 100000 ? Number(rawPage) : 1;
   const status = statuses.includes(search.get('status') ?? '') ? search.get('status') ?? '' : '';
   const input = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (input.current) input.current.value = term; }, [term]);
+  const inputEditing = useRef(false);
+  useEffect(() => {
+    const currentTerm = (new URLSearchParams(window.location.search).get('search') ?? '').trim();
+    if (input.current && !inputEditing.current && currentTerm === term) input.current.value = term;
+  }, [term]);
+  useEffect(() => {
+    const restoreSearch = () => {
+      inputEditing.current = false;
+      if (input.current) input.current.value = (new URLSearchParams(window.location.search).get('search') ?? '').trim();
+    };
+    window.addEventListener('popstate', restoreSearch);
+    return () => window.removeEventListener('popstate', restoreSearch);
+  }, []);
   const state = usePolicyRead(JSON.stringify([page, term, status]), signal => lookupPolicies(page, term, status, signal));
 
   function currentParams() {
@@ -41,6 +53,7 @@ export function StaffPolicyLookup() {
   }
 
   function filter(nextPage: number, nextTerm?: string, nextStatus?: string) {
+    if (nextTerm !== undefined) inputEditing.current = false;
     const target = url(selected, nextPage, nextTerm, nextStatus);
     if (target === window.location.pathname + window.location.search) state.retry();
     else window.history.pushState(null, '', target);
@@ -124,6 +137,7 @@ export function StaffPolicyLookup() {
                 defaultValue={term} 
                 maxLength={100} 
                 placeholder="Policy, customer or product" 
+                onChange={() => { inputEditing.current = true; }}
                 onKeyDown={event => {
                   if (event.key === 'Enter') {
                     event.preventDefault();

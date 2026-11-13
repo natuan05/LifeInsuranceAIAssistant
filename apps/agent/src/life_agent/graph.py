@@ -521,8 +521,9 @@ class AgentRunner:
         execution = execution_context(request)
         steps = request["limits"].get("graph_steps_max") or 1
         config = {"configurable": {"thread_id": execution["thread_id"]}, "recursion_limit": steps + 10}
+        # durability="sync": each checkpoint is written (and fenced) before the next step starts.
         out = self._graph.invoke({"incoming": {"message_id": request["message_id"], "text": request["message_text"]}},
-                                 config, context=TrustedContext(execution))
+                                 config, context=TrustedContext(execution), durability="sync")
         return out["event"]
 
 

@@ -2,6 +2,24 @@
 
 Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026 — local một Core process** · [Chung](../03-inbox-contract.md) · Trước: [I01](01-model-permissions.md)–[I05](05-messaging-customer.md) · Tiếp: [I07](../tickets/06-agent-confirmation.md).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+| notifications | recipient_staff_id/conversation_id/kind/dedup_key/is_read/delivered_at | Consumer thêm handoff notification | HANDOFF_REQUESTED target conversation, unique dedup_key; recipient là Staff hiện hợp lệ | Cao — retry không trùng, revoke không gửi nhầm transcript |
+| messages + conversations | messages.sequence/audience/client_message_id/internal_message_id/sender_type/sender_id/content; conversations.next_message_sequence/last_customer_facing_activity_at | Append ghi, không sửa/xóa nội dung cũ | Unique sequence và key theo conversation/sender; counter cấp dưới conversation lock | Cao — Accept tạo SYSTEM duy nhất, send/retry không trùng; send thường không tăng control_version |
+
+**Schema/migration:** I06 đã thêm lease_owner/lease_expires_at Outbox và kind Notification/check constraints. Không cần bảng socket/presence/unread mới. SYSTEM message do I03 append khi Accept, không do WS client.
+
+**Nhất quán và hồi quy:** Nguồn commit trước dispatch; worker claim/lease và recheck recipient, upsert dedup rồi publish. WS chỉ invalidate, REST catch-up theo sequence; kiểm reconnect/reclaim/duplicate/revoke/phiên hết hạn.
+
 ## 1. Kết quả
 
 Staff thấy request mới, Customer/Staff nhận cập nhật tin và trạng thái không F5; mất WS rồi nối lại vẫn tải bù đủ qua REST. Request được lưu bền vững và có thông báo handoff riêng, không cần Ticket. Quyền event giống REST, pending không bị lộ history/preview/sequence.
@@ -28,19 +46,16 @@ Tách bước để review: **I06-A** mở rộng Accept + transcript + tests ti
 
 File dự kiến:
 
-| Vị trí | Việc |
-| --- | --- |
-| Core `realtime/realtime.service.ts` | Gửi frame chat tới peers của actor sau authorization; giữ origin/session/limits/close semantics |
-| Core `outbox/outbox.module.ts`, `services/outbox-dispatcher.service.ts` | Worker local claim/lease/retry/shutdown cho outbox đã có; module mới vì có consumer thật |
-| Core `conversations/services/conversation-event.service.ts` | Event recipient/projection dùng access I01, không LLM/router client |
-| Core `conversations/services/conversation-handoff.service.ts`, `conversation-message.service.ts` | I06-A: append SYSTEM sau chuyển trạng thái Accept, chung transaction/sequence/receipt; không expose browser writer |
-| Core `notifications/notifications.module.ts`, controller/service/DTO | List/read tối thiểu A27/A28, recipient server-controlled |
-| Core `app.module.ts`, Prisma schema/migration | Import consumer thật, thêm lease fields/index cần thiết |
-| Web `lib/realtime.ts` | Frame typed riêng cho chat/notification, không kích auth refresh mỗi message |
-| Web Inbox/Customer/transcript I04/I05 | Revalidate scope, after catch-up/dedup/scroll, clear khi revoke |
-| Web `components/staff-notifications.tsx` | Thông báo request tối thiểu, link tới request/Accept đúng quyền |
 
 Không thêm WebSocket server song song hoặc để browser gửi mutation qua socket; gửi tin vẫn REST/CSRF.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Hiện có | Lease/claim/retry/dispatch | Cao | Chat và Ticket event consumer |
+| [apps/core/src/conversations/services/conversation-event.service.ts](<../../../../../apps/core/src/conversations/services/conversation-event.service.ts>) | Hiện có | Event allowlist và current recipient | Cao | Handoff notification, invalidation hai role |
+| [apps/core/src/realtime/realtime.service.ts](<../../../../../apps/core/src/realtime/realtime.service.ts>) | Hiện có | Session/grant gate trước frame | Cao | Mọi WebSocket subscriber |
+| [apps/web/src/lib/chat-realtime.ts](<../../../../../apps/web/src/lib/chat-realtime.ts>) | Hiện có | Chat invalidation/reconnect | Trung bình | Staff/Customer transcript và directory |
+| [apps/web/src/components/staff-notifications.tsx](<../../../../../apps/web/src/components/staff-notifications.tsx>) | Hiện có | Chuông/target/mark read | Trung bình | Inbox và Tickets dùng chung |
 
 ## 3. Outbox event contract
 

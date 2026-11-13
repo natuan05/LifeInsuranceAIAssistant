@@ -2,6 +2,23 @@
 
 Ngày **03/11/2026**. Trạng thái: **đã triển khai và kiểm chứng ngày 03/11/2026**. Làm sau [01 session retry](../auth/03-session-lifecycle.md), trước [03 chốt Inbox](../03-inbox-contract.md). [Phạm vi hôm nay](../../../../next-steps.md#kế-hoạch-hôm-nay--03112026).
 
+## Data model và phạm vi ảnh hưởng
+
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
+| MinIO/S3 — ngoài PostgreSQL | Object PDF theo storage_bucket/storage_object_key, checksum SHA-256, Content-Type | HEAD + ký GET/Range, không upload từ viewer | Không FK xuyên DB/object store; exact version/checksum do Core đối chiếu | Cao — DB transaction không rollback storage; URL đã cấp còn residual TTL, không log URL/key |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+
+**Schema/migration:** Không migration. Chọn/xem policy không ghi conversations.linked_policy_id; không cập nhật PDF/version/snapshot.
+
+**Nhất quán và hồi quy:** Web không ghi DB trực tiếp; audit access chỉ khi gọi POST cấp PDF, không theo mỗi invalidation. Core vẫn kiểm assignment riêng dù mở từ Inbox. Kiểm race đổi customer/actor, version/revoke và giữ viewer/focus khi refetch cùng tài nguyên.
+
 ## 1. Kết quả cần đạt
 
 Staff mở một policy/điều khoản, đang đọc PDF hoặc mở Policy information; realtime invalidation xuất hiện nhưng quyền và version không đổi → dữ liệu được kiểm lại nền, viewer không bị tháo/dựng lại, không đổi src chỉ vì refetch và không mất lựa chọn/bộ lọc/focus.
@@ -10,16 +27,16 @@ Khi phiên/quyền/version thực sự thay đổi, xử lý theo Core; không g
 
 ## 2. Điểm xuất phát và phạm vi code
 
-| File / thành phần | Điểm cần xử lý |
-| --- | --- |
-| [staff-policies.tsx](../../../../../apps/web/src/components/staff-policies.tsx), usePolicyRead | Trước sửa: gộp logical key/revision gây mất data tạm. Hiện tách key khỏi lượt tải, giữ data cùng key và clear 401/403/404 |
-| StaffPolicyDetail / Documents | Khi data mất tạm thời, Documents/PdfPreview biến mất, state details/chọn phụ lục có thể bị reset |
-| PdfPreview | Đã tách grant khỏi realtime; metadata cha kiểm lại quyền/binding, cùng file/version giữ URL/src còn hạn |
-| [policy-api.ts](../../../../../apps/web/src/lib/policy-api.ts) | Giữ API/binding/version; documentAccess đã truyền AbortSignal qua cả me() và grant request |
-| [staff-policy-lookup.tsx](../../../../../apps/web/src/components/staff-policy-lookup.tsx) | Dùng usePolicyRead cho list; cần bảo toàn search/page/collapse/draft khi refactor hook |
-| [realtime.ts](../../../../../apps/web/src/lib/realtime.ts) | Event hiện không mang resource scope; không bỏ qua reauthorization chỉ vì event không có policyId |
 
 Đọc guide Next trong node_modules/next/dist/docs trước sửa. Không đổi layout/typography hoặc thêm PDF.js, thư viện cache, backend/migration/storage trong việc này.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-policies.tsx](<../../../../../apps/web/src/components/staff-policies.tsx>) | Hiện có | Resource key tách refresh generation | Trung bình | Không mất details/selection/scroll |
+| [apps/web/src/components/signed-pdf-preview.tsx](<../../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Hiện có | URL/source ổn định khi binding không đổi | Cao | PDF ở Products và Customer |
+| [apps/web/src/lib/policy-api.ts](<../../../../../apps/web/src/lib/policy-api.ts>) | Hiện có | Abort stale read/grant | Trung bình | Race đổi actor/version |
+| [apps/web/src/lib/realtime.ts](<../../../../../apps/web/src/lib/realtime.ts>) | Hiện có | Invalidate đúng lifecycle | Cao | Auth boundary và toàn portal |
+| [apps/web/src/components/staff-policy-lookup.tsx](<../../../../../apps/web/src/components/staff-policy-lookup.tsx>) | Hiện có | Dùng usePolicyRead cho list; cần bảo toàn search/page/collapse/draft khi refactor hook | Trung bình | Kiểm caller và luồng hiện có mô tả trong hàng này |
 
 ## 3. Contract và định danh dữ liệu
 
@@ -142,6 +159,18 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - Bằng chứng viewer là iframe DOM identity/src, parent scroll/focus/disclosure và số grant; không tuyên bố đo được page/zoom/scroll bên trong native PDF hoặc E2E Core/DB/MinIO. Tests screenshot/video/trace tắt, artifact được dọn sau kiểm.
 
 Việc 02 đã đạt gate; việc 03 chưa triển khai/review trong lượt này.
+
+**State khi refresh nền:** Policy Lookup giữ cờ đang sửa ô tìm kiếm để response/query effect cũ không ghi đè ký tự mới hoặc chuỗi vừa xóa. Back/Forward chủ động khôi phục từ URL. PolicyInformation giữ open state trong component của đúng policy; Enter/Space/click đổi trạng thái, cập nhật metadata cùng policy không tự đóng. Đổi policy/actor vẫn reset theo resource lifecycle.
+
+## Tự động hóa test case
+
+| Suite/vị trí | Phạm vi và giới hạn |
+| --- | --- |
+| [staff-foundation.integration.spec.mjs](../../../../../apps/web/tests/browser/staff-foundation.integration.spec.mjs) | Expiry dùng clock browser có kiểm soát, reset clock trước grant Core mới, retry mạng/missing object và version inactive xóa viewer. |
+| [browser-staff-fixture.cjs](../../../../../apps/core/test/support/browser-staff-fixture.cjs) | Dữ liệu synthetic UUID qua test Docker, session/password trong memory; finally dọn đúng fixture/object, không reset seed |
+| [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
+
+Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
 
 ## Sequence diagram
 

@@ -110,7 +110,7 @@ export function CustomerAdvisor({
                 <div className="tw:min-w-0 tw:flex-1">
                   <div className="tw:text-[10px] tw:text-slate-400 tw:font-medium">Official Support Email</div>
                   <div className="tw:text-xs tw:font-semibold tw:text-slate-900 tw:truncate">
-                    {currentStaff ? currentStaff.email : 'staff.a@dev.example.invalid'}
+                    {currentStaff ? currentStaff.email : 'Not available'}
                   </div>
                 </div>
               </div>

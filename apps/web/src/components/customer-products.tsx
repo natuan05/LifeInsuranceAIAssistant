@@ -30,6 +30,14 @@ export function CustomerProducts({
   const [documents, setDocuments] = useState<ProductDocument[]>([]);
   const [selectedDoc, setSelectedDoc] = useState<ProductDocument | null>(null);
 
+  function selectProduct(product: Product | null) {
+    setDocuments([]);
+    setSelectedDoc(null);
+    setDocsError('');
+    setDocsLoading(!!product);
+    setSelectedProduct(product);
+  }
+
   // Fetch product list
   useEffect(() => {
     let active = true;
@@ -64,12 +72,7 @@ export function CustomerProducts({
 
   // When a product is selected, fetch its documents
   useEffect(() => {
-    if (!selectedProduct) {
-      setDocuments([]);
-      setSelectedDoc(null);
-      setDocsError('');
-      return;
-    }
+    if (!selectedProduct) return;
 
     const currentProductId = selectedProduct.id;
     let active = true;
@@ -115,7 +118,7 @@ export function CustomerProducts({
         <div className="tw:flex tw:items-center tw:justify-between">
           <button
             type="button"
-            onClick={() => setSelectedProduct(null)}
+            onClick={() => selectProduct(null)}
             className="tw:inline-flex tw:items-center tw:gap-2 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3.5 tw:py-2 tw:text-xs tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:transition-colors tw:cursor-pointer"
           >
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
@@ -350,7 +353,7 @@ export function CustomerProducts({
           {products.map(product => (
             <div
               key={product.id}
-              onClick={() => setSelectedProduct(product)}
+              onClick={() => selectProduct(product)}
               className="tw:rounded-2xl tw:border tw:border-slate-200/80 tw:bg-white tw:p-6 tw:shadow-2xs tw:flex tw:flex-col tw:justify-between tw:gap-4 tw:transition-all tw:hover:shadow-xs tw:hover:border-emerald-300 tw:cursor-pointer tw:group"
             >
               <div className="tw:space-y-3">
@@ -381,7 +384,7 @@ export function CustomerProducts({
                   type="button"
                   onClick={e => {
                     e.stopPropagation();
-                    setSelectedProduct(product);
+                    selectProduct(product);
                   }}
                   className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-xl tw:bg-slate-900 tw:px-3.5 tw:py-2 tw:text-xs tw:font-bold tw:text-white tw:hover:bg-slate-800 tw:shadow-2xs tw:transition-all tw:cursor-pointer"
                 >
