@@ -4,7 +4,7 @@ import { useChatRefresh } from '@/lib/chat-realtime';
 import { ConversationComposer, type ComposerSnapshot } from './conversation-composer';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { acceptConversation, ConversationError, conversationDetail, inboxFilter, reconcileAccept, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
+import { acceptConversation, ConversationError, conversationDetail, inboxFilter, markConversationRead, reconcileAccept, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
 import { realtimeEvent } from '@/lib/realtime';
 import { ConversationTranscript, inboxButton, type TranscriptSnapshot } from './conversation-transcript';
 import { StaffInboxDirectory, type DirectorySnapshot } from './staff-inbox-directory';
@@ -127,14 +127,25 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const refreshLive = useCallback(async (signal: AbortSignal) => {
     const epoch = privacyEpoch.current;
     try {
-      if (selected) { const result = await conversationDetail(selected, signal); if (!signal.aborted && epoch === privacyEpoch.current) { setDetail(result.conversation); setDenied(false); setLoading(false); setLiveRevision(value => value + 1); } }
+      if (selected) {
+        const result = await conversationDetail(selected, signal);
+        if (!signal.aborted && epoch === privacyEpoch.current) {
+          setDetail(result.conversation);
+          setDenied(false);
+          setLoading(false);
+          setLiveRevision(value => value + 1);
+          if (result.conversation.allowedActions.readMessages) {
+            void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => {});
+          }
+        }
+      }
       if (!signal.aborted && epoch === privacyEpoch.current) setDirectoryRevision(value => value + 1);
     } catch (failure) {
       if (signal.aborted || epoch !== privacyEpoch.current) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else setError('Live updates could not be loaded. Please retry.');
     }
-  }, [selected, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError]);
+  }, [selected, csrfToken, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError]);
   useChatRefresh(refreshLive, clearLiveScope, !blocked);
   useEffect(() => {
     const invalidate = (event: Event) => {
@@ -153,14 +164,20 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
     if (!selected || blocked) return;
     const abort = new AbortController(); const epoch = privacyEpoch.current; metadataController.current = abort; queueMicrotask(() => { if (!abort.signal.aborted) setLoading(true); });
     conversationDetail(selected, abort.signal).then(result => {
-      if (!abort.signal.aborted && epoch === privacyEpoch.current) { setDetail(result.conversation); setDenied(false); }
+      if (!abort.signal.aborted && epoch === privacyEpoch.current) {
+        setDetail(result.conversation);
+        setDenied(false);
+        if (result.conversation.allowedActions.readMessages) {
+          void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => {});
+        }
+      }
     }).catch(failure => {
       if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else setError(failure instanceof ConversationError ? failure.message : 'Unable to load this conversation. Retry to continue.');
     }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [selected, revision, blocked, onDenied]);
+  }, [selected, revision, blocked, csrfToken, onDenied]);
   useEffect(() => {
     if (!blocked) return;
     acceptController.current?.abort(); transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear();

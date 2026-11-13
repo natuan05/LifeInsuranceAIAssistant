@@ -77,6 +77,10 @@ export class CommandReceiptDto {
   @ApiProperty({ format: 'uuid' }) conversationId!: string;
   @ApiProperty() controlVersion!: number;
 }
+export class MarkConversationReadResponseDto {
+  @ApiProperty() success!: boolean;
+  @ApiProperty({ format: 'date-time' }) readAt!: string;
+}
 class CitationDto {
   @ApiProperty({ format: 'uuid' }) documentId!: string;
   @ApiProperty({ format: 'uuid' }) versionId!: string;
@@ -91,6 +95,7 @@ export class TranscriptMessageDto {
   @ApiProperty({ type: SenderDto }) sender!: SenderDto;
   @ApiProperty() content!: string;
   @ApiProperty({ format: 'date-time' }) createdAt!: string;
+  @ApiProperty({ format: 'date-time', nullable: true }) readAt!: string | null;
   @ApiProperty({ type: [CitationDto] }) citations!: CitationDto[];
 }
 class TranscriptPageInfoDto {
