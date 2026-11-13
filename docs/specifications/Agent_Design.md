@@ -635,6 +635,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - “Đang tra cứu”, “đang tổng hợp” là tiến độ bên trong `RUNNING`, không thêm trạng thái lượt riêng cho từng bước graph.
 - `COMPLETED` có thể mang câu trả lời, câu hỏi làm rõ hoặc đề xuất Ticket/handoff. Hoàn thành lượt Agent không chứng minh Ticket đã được tạo hoặc yêu cầu bảo hiểm được chấp thuận; kết quả nghiệp vụ phải dựa trên xác nhận của Core.
 - Trạng thái lượt khác attempt/giao callback. Attempt lỗi không tự làm lượt `FAILED`; còn retry/mốc kết thúc/chuyển trạng thái khi thiếu ACK/tiếp quản/ghi nguyên tử. Bộ trạng thái không phê duyệt toàn state machine.
+- **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G2:** lỗi giao nhận của attempt (mất ACK, timeout HTTP) không làm lượt `FAILED`; Core gửi lại đúng attempt đó. Agent báo lỗi kỹ thuật hoặc quá deadline thì lượt `FAILED`, Staff tiếp quản thì `CANCELLED`; không tự tạo attempt mới. State machine và lịch sử ghi nhận nguồn ở [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026); việc review/merge không tự đóng G2/G3.
 
 <a id="agent-input"></a>
 ### Nhóm đầu vào Core gửi Agent
@@ -718,7 +719,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Core gửi mã lượt để liên kết yêu cầu và callback. Core kiểm tra callback rồi ghi nhận trạng thái/kết quả; chỉ công bố câu trả lời hoàn chỉnh đã qua kiểm tra. Web nhận cập nhật qua Core, giao thức Web–Core còn mở.
 - Callback cần xác thực/giao lại/chống trùng/thứ tự/xử lý kết quả muộn/kiểm tiếp quản. Lưu sự kiện chờ giao/khôi phục phải bền vững; callback không tự bảo đảm đúng một lần/sống qua mọi lỗi.
 - ACK/ID lượt–attempt–event theo luật dưới. Cần đặc tả endpoint/schema/ID/mã phản hồi/timeout–retry/đối soát mất ACK. URL callback từ cấu hình tin cậy, không từ LLM/tài liệu.
-- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; chưa chọn FastAPI hoặc cài SDK chỉ từ quyết định HTTP + callback.
+- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; chưa chọn FastAPI hoặc cài SDK chỉ từ quyết định HTTP + callback. **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G3:** dùng Starlette + uvicorn cho HTTP phía Agent (không FastAPI); xem [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
 
 <a id="durable-ack"></a>
 ### ACK sau khi lưu bền vững
@@ -788,6 +789,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Core lưu quyền/giới hạn/thời hạn theo lượt–attempt, thu hồi theo trạng thái. Tra quyền có trạng thái; biết ID/chữ ký dịch vụ không cấp mọi lượt. Token đăng nhập không thành quyền Agent vô hạn.
 - Profile HMAC cần thuật toán/thành phần HTTP–body được ký/biểu diễn chữ ký/thời gian–nonce chống phát lại/clock skew/lưu chống phát lại/quản lý–xoay khóa/đường truyền. Phân biệt transport retry/phát lại trái phép; giữ ID nghiệp vụ chống trùng. Tên HMAC chưa đủ đặc tả an toàn.
 - Auth tách graph/Business Tools để thay khi lên AWS. Chưa chọn IAM/OAuth/mTLS/cloud mới. Tham khảo [HTTP Message Signatures — RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html).
+- **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G3:** dùng profile tự đặt `LI-HMAC-SHA256-v1` (HMAC-SHA-256, ký method/path/timestamp/nonce/hash body/key id, lệch giờ ±120 giây, nonce lưu bền 10 phút, khóa riêng mỗi chiều theo `key_id`), không triển khai đủ RFC 9421. Đặc tả đề xuất ở [contracts mục 12.9](../../contracts/agent-v1.md#129-profile-hmac-g3).
 
 <a id="agent-tools-vs-system-apis"></a>
 ### Phân biệt tool Agent và API hệ thống
@@ -956,6 +958,7 @@ Cơ sở: [LangGraph checkpointers — threads](https://docs.langchain.com/oss/p
 - Worker trong ngữ cảnh này chỉ là tiến trình thực thi Agent/LangGraph. Chưa chọn thêm hàng đợi, Redis/BullMQ hoặc dịch vụ AWS; hội thoại độc lập vẫn có thể xử lý đồng thời.
 - yêu cầu về tính đúng, chưa chọn cơ chế khóa/quyền ghi hoặc thư viện. Kiểm tra quyền một lần trước khi chạy không tự bảo đảm chặn được lần ghi đến muộn; cần thiết kế cách thực thi ràng buộc ngay khi cập nhật checkpoint.
 - Giữ đường tách checkpoint khỏi business database, không đọc business trực tiếp/transaction–join xuyên database. Đồng bộ quyền ghi khi đổi attempt/khôi phục/kiểm cạnh tranh còn mở; chưa triển khai.
+- **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G2:** checkpointer tự viết trên `BaseCheckpointSaver`, kiểm `(thread_id, attempt_id, writer_epoch)` trong cùng transaction với mọi đường ghi; không dùng thẳng `langgraph-checkpoint-postgres`. Core chỉ giao writer mới sau khi kho Agent ACK thu hồi. Khi chưa gửi được thu hồi, Core chặn ngay tool/kết quả của attempt cũ và giữ hội thoại chờ; chấp nhận writer cũ còn ghi checkpoint tới lúc thu hồi tới nơi, không thêm điều kiện lease. Chi tiết, lý do và trạng thái nguồn ở [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
 
 <a id="checkpoint-postgres"></a>
 ### Checkpoint PostgreSQL và đường tách
@@ -1133,7 +1136,7 @@ Có bảng business/rag không chứng minh có Business APIs/retrieval/checkpoi
 | Nội dung cũ/chưa thống nhất | Cách đọc trong tài liệu chuẩn |
 | --- | --- |
 | v0.1 một sản phẩm; v0.2 dự kiến 3 chính/4–5 bổ trợ | MVP 28/10/2026 thay bằng [7 sản phẩm: 4 chính, 3 bổ trợ](#mvp-products). Public/Private cho Customer/Staff; tham gia theo hợp đồng Private, còn mapping phiên bản |
-| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | FastAPI chưa chọn; service auth tạm chọn HMAC + Core tra quyền theo lượt, profile còn mở; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
+| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | Phương án Task 2 từ nhánh ngày 06/11/2026 đề xuất Starlette + uvicorn thay FastAPI và profile `LI-HMAC-SHA256-v1`; còn chờ duyệt G3. Service auth tạm chọn HMAC + Core tra quyền theo lượt theo quyết định 29/10; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
 | Harness, model/vector 768 cố định | Harness đã loại theo người dùng; custom LangGraph đã chọn; model/số chiều còn mở, giữ ứng viên lịch sử ở mục 5 |
 | Scope rỗng vừa `DENIED` vừa `INSUFFICIENT`; lỗi DB cũng `INSUFFICIENT` | Đã chốt [năm trạng thái retrieval](#rag-retrieval-statuses), tách độ đủ/lỗi/thiếu nguồn/không khớp/denied. Scope hợp lệ rỗng `NO_SOURCE`, lỗi scope `ERROR`. Còn schema/nguyên nhân/HTTP; không tiết lộ Private |
 | “Customer ngoài quyền → DENIED, không gọi Core” | Không để Agent/LLM tự xác định quyền. Chỉ có thể dừng trước API nếu đã có kết luận policy tin cậy; cơ chế cụ thể cần chốt |
