@@ -2,6 +2,14 @@
 
 04/11/2026 · **Đã triển khai; baseline FE** · [Contract](../05-policies-contract.md) · [Chung](../00-staff-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Lookup/dossier chỉ dùng DTO Core đã che; rà label/copy/tooltip/search/URL, không tải raw rồi che React. Giữ deep link/Back/no-F5 theo search contract mới.
+
+**Kiểm thử cần bổ sung, chưa chạy:** DOM/network: canary không ở JSON/hidden DOM/history ngoài ma trận; revoke/selection cũ không hồi raw.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

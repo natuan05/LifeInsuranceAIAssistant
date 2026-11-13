@@ -2,6 +2,14 @@
 
 04/11/2026 · **P, hoãn tới đợt Agent** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Context có quyền vẫn phải giảm/che trước provider; frozen view giữ source refs và current grant. Alias scoped conversation/run, mapping/retention review cùng checkpoint, không dùng alias làm quyền.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Contract/fake: khác Customer không dùng chung mapping; canary không trong model request, processor lỗi/revoke không gửi cached raw.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

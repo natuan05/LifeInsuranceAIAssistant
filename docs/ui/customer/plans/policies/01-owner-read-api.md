@@ -2,6 +2,14 @@
 
 05/11/2026 · **Đã triển khai** · [C04](../04-policies-contract.md) · Tiếp: [PO02](02-policy-ui.md), [D01](../documents/01-owner-document-access.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Rà policy.service/policy-snapshot: chủ hợp đồng khác người được bảo hiểm/người thụ hưởng; self-read không mặc nhiên cho mọi định danh trong snapshot. Chốt allowlist từng trường, giữ số liệu/ngày và exact binding.
+
+**Kiểm thử cần bổ sung, chưa chạy:** API: nhiều owner, snapshot canary ở key hợp lệ/key lạ; không rò trường ngoài ma trận, không thay Decimal/null/version khi che.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

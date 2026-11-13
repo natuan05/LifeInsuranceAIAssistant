@@ -2,6 +2,14 @@
 
 Ngày 03/11/2026 · **Kế hoạch đề xuất, chưa implement; mở sau Inbox** · [Chung](../03-inbox-contract.md) · Trước: [I06](../inbox/06-realtime-routing.md) · [Tài liệu Ticket Staff](../07-tickets-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** I07 giảm PII trước draft review; confirmation gắn đúng content/hash/version Core commit. Redaction làm đổi nội dung thì cần review lại, không sửa sau confirm; tách Staff projection khỏi immutable snapshot.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Core/DB: canary draft/summary, đổi sau review vô hiệu confirmation cũ theo contract; Ticket+consume+outbox atomic, replay không trùng, audit/event không raw dư và source refs còn đúng.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

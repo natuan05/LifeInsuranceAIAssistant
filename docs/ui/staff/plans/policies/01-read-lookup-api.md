@@ -2,6 +2,14 @@
 
 04/11/2026 · **Đã triển khai; baseline Core** · [Contract](../05-policies-contract.md) · [Chung](../00-staff-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Rà policy.service/policy-snapshot và DTO list/detail: customer label, người được bảo hiểm/thụ hưởng, policy number theo tác vụ. Giữ assignment/ownership, financial facts và exact binding.
+
+**Kiểm thử cần bổ sung, chưa chạy:** API/DB: list/detail/quick lookup cùng ma trận, snapshot canary không rò; scope trước search/count, Decimal/null không đổi.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

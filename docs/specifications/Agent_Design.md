@@ -362,6 +362,17 @@ Loại tài liệu đề xuất: `TERMS` (quy tắc/điều khoản), `TERMS_APP
 
 **Nguồn đối chiếu ngày 01/11/2026:** [LangChain — Context Engineering Starts with Retrieval, 23/10/2026](https://www.langchain.com/blog/context-engineering-starts-with-retrieval) mô tả Agent quyết định tìm thêm khi phát hiện nhu cầu mới và rủi ro tìm lặp/nạp quá nhiều context. Đây là căn cứ tham khảo cho khám phá trong ngân sách, không tự chọn Deep Agents/subagent hoặc chứng minh đã bao phủ đủ điều kiện bảo hiểm.
 
+<a id="customer-data-redaction"></a>
+### Chuẩn bị giảm/che dữ liệu Customer tại ranh giới model — 12/11/2026
+
+**P — chưa có processor redaction hoặc tích hợp provider thật.** Sáu quy tắc system prompt bên dưới hạn chế thu thập/lặp lại dữ liệu, không thay code bảo vệ đầu vào/đầu ra. Phạm vi và điểm còn mở theo [ma trận Customer](../configuration-and-data.md#customer-sensitive-data).
+
+Code phải xử lý câu hỏi, history, Core tool result, retrieval evidence và context của mọi call model/summary/repair/embedding; gồm retry/resume và Staff Copilot. Giữ actor/scope/IDs điều phối ngoài model; alias không xác thực hoặc cấp quyền. Chỉ giữ dữ liệu cần để giải đáp; chốt cách nhận diện/che và xử lý bỏ sót/che nhầm trước tích hợp thật, không mặc định một regex hoặc LLM judge bảo đảm đủ.
+
+Giữ provenance document/version/anchor và bản nguồn có quyền riêng; đoạn lược bỏ phải phân biệt với trích nguyên văn. Không tự rehydrate alias thành PII trong answer/summary/Ticket. Kiểm output trước persist/delivery; nội dung Customer duyệt phải đúng bản Core commit. Lỗi processor không được fallback gửi raw hoặc phát output chưa kiểm. Checkpoint/log/cache/mapping alias cần quyền và retention riêng; không tự rewrite lịch sử/checkpoint hoặc thay contract evidence trong lượt sửa tài liệu.
+
+Vị trí cần triển khai: `apps/agent/src/life_agent/{context,core_client,graph,model,store}.py`; phối hợp Core projection và corpus/indexer khi có implementation. Test canary synthetic tại fake model/embedding boundary, retry/resume/repair/summary, output/event và source refs; trường nhạy cảm không cần thiết không vượt boundary, tình tiết nghiệp vụ cần thiết vẫn còn. Chưa có kết quả nghiệm thu masking từ graph unit tests hiện tại.
+
 <a id="clarification-sensitive-data"></a>
 ### Hỏi làm rõ và dữ liệu nhạy cảm
 

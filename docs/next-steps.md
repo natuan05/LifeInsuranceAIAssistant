@@ -21,6 +21,10 @@
 
 Đây là bản chỉ dẫn tới task/gate hiện có, không thay thứ tự phụ thuộc của plan hoặc tự cấp quyền chạy mọi task. Logout/hết phiên và retention còn mở theo G3; không chặn phần contracts/fakes độc lập.
 
+## Chuẩn bị bảo vệ thông tin Customer — 12/11/2026
+
+[Ma trận dữ liệu và tiêu chí nghiệm thu](configuration-and-data.md#customer-sensitive-data) là phần **P**, chưa thêm runtime masking. Chốt mức che theo vai trò/mục đích, search email/phone và quyền xem đầy đủ trước code. Thực hiện Core projection → CU01/CU02 và caller → Agent model/embedding/output boundary → hồi quy bằng dữ liệu synthetic. Phần Agent phối hợp gates G1–G4, không tự mở provider/corpus chưa được phép. Không sửa dữ liệu gốc/PDF, không reset DB hoặc coi prompt là redaction; [checklist](ui/implementation-status.md) giữ trạng thái chưa triển khai.
+
 ## Thiết kế, corpus và việc tiếp theo của Agent
 
 MVP có [7 sản phẩm: 4 chính, 3 bổ trợ](specifications/Agent_Design.md#mvp-products). Corpus Public gồm 13 PDF/243 trang và Markdown tương ứng; [processing review](../data/public/manulife/processing-review.md) giữ nguồn/checksum/trạng thái duyệt, gồm lỗi UL049 trang 29. Cỡ chunk, caps expansion và ranking là tham số cần đo; indexer runtime khác quyền retrieval.

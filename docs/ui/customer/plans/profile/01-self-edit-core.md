@@ -10,6 +10,14 @@
 >    - Quota/Rate limit (nếu có writer mutation hồ sơ): **10 patch / phút / actor**.
 >    - Mã lỗi khi stale version / optimistic lock: **409 `PROFILE_CONFLICT`**.
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Tách self-read/PATCH khỏi projection Staff tại CustomerService. Không dùng giá trị đã che để ghi đè raw; giữ profileVersion và audit tối thiểu.
+
+**Kiểm thử cần bổ sung, chưa chạy:** API/DB: self-read đúng chủ, PATCH chỉ changedFields; chuỗi mask không bị lưu thành dữ liệu gốc, conflict/null/unique và audit không rò PII.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase. Tên bảng thuộc schema `business` trừ nơi ghi rõ. Web không truy cập DB trực tiếp.

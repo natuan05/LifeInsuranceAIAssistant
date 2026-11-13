@@ -38,6 +38,16 @@ Prefix REST `/api/v1`; `E` là runtime, không endpoint đề xuất mới.
 
 `GET /staff/customers/:customerId` → `{customer}` allowlist id/fullName/accountCode/email/phone/status/birth/address; không citizenId/KYC. Customer ngoài quyền/không tồn tại cùng404; UserStatus LOCKED của khách không tự bỏ active assignment. Staff lock/session invalid vẫn bị chặn.
 
+<a id="customer-privacy-api"></a>
+### Bổ sung chuẩn bị masking — 12/11/2026, P
+
+Baseline API ở trên **chưa che** email/phone và detail birth/address. Contract dự kiến phải theo [ma trận thông tin Customer](../../../../configuration-and-data.md#customer-sensitive-data); chưa đổi response hoặc chốt định dạng mask từ tài liệu này.
+
+- Core dựng projection Staff riêng sau kiểm assignment, không gửi raw kèm masked value; `GET /customers/me` cần projection self-read riêng, không bị mask nhầm vì cùng dùng `customerView`.
+- Chốt trường/mức che và quyền xem đầy đủ trước đổi DTO; không tự thêm route reveal. Cập nhật `customer-api.ts`, Swagger/types và toàn bộ caller cùng thay đổi. Masking không tự cần migration hoặc đổi dữ liệu `users`/`customer_profiles`.
+- Chốt search email/phone và URL/history/log vì hiện search trên raw có thể lộ qua substring/count. Scope vẫn trước search/page; không dùng kết quả che để cấp quyền hoặc bỏ kiểm quyền.
+- Mở rộng test Core/API/DB: assert JSON không chứa raw ngoài allowlist, input null/Unicode/chuỗi ngắn, khác role/out-of-scope/assignment revoke, ảnh hưởng self-read và search inference. Dùng synthetic canary, chưa đánh dấu test masking pass.
+
 ## 4. Luồng và trạng thái
 
 Cookie Staff → auth/assignment cùng snapshot → filter/count/page hoặc detail → safe DTO. Assignment đổi commit thì request mới recheck; UI không là authority và không đổi phân công.

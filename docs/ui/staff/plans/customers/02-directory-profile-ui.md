@@ -39,6 +39,15 @@ Prefix REST `/api/v1`; `E` là runtime, không endpoint đề xuất mới.
 
 Dùng A05/A06 và A14 policies theo một khách. Enter gửi search; xóa text rồi Enter bỏ lọc; không Search/Clear buttons. Search/page/policyPage giữ theo tab/URL; onSelect Next Link/router, query History API. Không tự gọi auth/me mỗi tìm kiếm.
 
+<a id="customer-privacy-ui"></a>
+### Bổ sung hiển thị dữ liệu đã che — 12/11/2026, P
+
+Hiện bảng render email/phone đầy đủ, detail có ngày sinh/địa chỉ đầy đủ. Theo [ma trận Customer](../../../../configuration-and-data.md#customer-sensitive-data), Core phải loại/che trước response; Web không nhận raw để che bằng CSS/React. Chờ contract CU01 trước đổi client types/render hoặc thêm thao tác xem đầy đủ.
+
+Rà `staff-customer-directory.tsx` và `customer-api.ts`: cell, title/aria-label, copy, search/URL/history, cache/state và response đến muộn. Giữ null/empty riêng với giá trị đã che, Back/no-F5 và clear dữ liệu khi revoke/logout/đổi khách. Liên kết Policy/Inbox/Ticket không tự cấp quyền xem raw.
+
+Kiểm bằng network JSON + DOM/accessibility assertions trên fixture synthetic; raw canary không ở hidden field/tooltip/copy/state ngoài contract. Hồi quy `staff-customers.spec.mjs` và `staff-foundation.integration.spec.mjs` qua gateway khi API được triển khai; không dùng ảnh chụp hoặc chỉ test chuỗi mask để nghiệm thu. Đây là phần P bổ sung, không phủ nhận CU02 baseline đã chạy.
+
 ## 4. Luồng và trạng thái
 
 Bảng khách → profile readonly/breadcrumb → Insurance policies → policy/PDF. Mobile policies trước personal info; null Not provided. Refresh nền giữ bảng/nháp/focus;401/403/404 xóa dữ liệu ngoài quyền, network retry tại vùng. Response cũ không ghi đè lựa chọn mới.

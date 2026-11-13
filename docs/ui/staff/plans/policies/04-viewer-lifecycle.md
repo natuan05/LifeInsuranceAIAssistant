@@ -2,6 +2,14 @@
 
 Ngày **03/11/2026**. Trạng thái: **đã triển khai và kiểm chứng ngày 03/11/2026**. Làm sau [01 session retry](../auth/03-session-lifecycle.md), trước [03 chốt Inbox](../03-inbox-contract.md). [Phạm vi hôm nay](../../../../next-steps.md#kế-hoạch-hôm-nay--03112026).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Giữ grant/PDF theo actor/version, không đồng nhất dossier mask với PDF đã che. Rà filename/download/error, không signed URL trong log hoặc browser cache dùng chung.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Network/storage/DOM: refresh đúng lifecycle, revoke/logout clear; checksum/Range pass không chứng minh PDF redaction.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.

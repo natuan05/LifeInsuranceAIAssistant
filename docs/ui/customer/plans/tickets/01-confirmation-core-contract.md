@@ -11,6 +11,14 @@
 > 3. **Lưu trữ bản thảo & Migration:** Tạo migration mới cho bảng `ticket_drafts` (TTL 30 phút) và bổ sung cột `source_draft_id`, `confirmed_content` (JSONB) cho bảng `support_tickets`.
 > 4. **Trạng thái ban đầu:** Mọi Ticket mới do khách hàng tạo (từ cả hai luồng) **đều khởi tạo với trạng thái `OPEN`** (dù khách hàng đã có hay chưa có chuyên viên phụ trách).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** I07 sở hữu giảm PII trước phát hành draft. Nội dung/hash/version Customer duyệt phải khớp immutable confirmedContent Core commit; đổi nội dung phải review lại, legacy vẫn UNVERIFIED.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Core/DB: confirmation cũ không dùng sau đổi draft, replay không trùng; receipt/outbox/audit không chép raw ngoài contract.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ. Web không truy cập DB trực tiếp.

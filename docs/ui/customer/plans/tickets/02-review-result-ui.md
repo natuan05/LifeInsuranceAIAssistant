@@ -10,6 +10,14 @@
 > 2. **Cho phép chỉnh sửa bản thảo (Draft Edit):** Popup xác nhận cho phép khách hàng sửa trực tiếp tiêu đề, mô tả trước khi bấm xác nhận.
 > 3. **Trạng thái ban đầu:** Mọi vé mới tạo hiển thị badge `Open` (Màu vàng/cam `tw:bg-amber-50 tw:text-amber-700`), chờ nhân viên tư vấn tiếp nhận.
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Review đúng draft Core đã xử lý, không dựng lại từ raw chat/local mock. Nếu nội dung đổi thì review lại theo T01/I07; result/detail chỉ dùng DTO có quyền.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: review khớp receipt/detail, stale draft không báo thành công; canary không ở hidden field/copy/URL, logout clear state.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase. Web không truy cập DB trực tiếp, gọi thông qua API Core T01.

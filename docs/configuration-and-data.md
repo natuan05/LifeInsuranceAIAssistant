@@ -41,6 +41,59 @@
 
 Xem [bộ Private được phép lưu Git](../data/private/manulife-demo-full-v1/README.md); các dữ liệu Private khác vẫn theo quy tắc mặc định.
 
+<a id="customer-sensitive-data"></a>
+## Bảo vệ thông tin cá nhân Customer — chuẩn bị triển khai 12/11/2026
+
+**Trạng thái: P — đặc tả chuẩn bị, chưa triển khai masking/redaction.** API hồ sơ hiện dùng allowlist và kiểm owner/active assignment nhưng trả nguyên tên/email/phone; detail có thêm ngày sinh/địa chỉ. UI hiển thị các giá trị này trực tiếp. Không trả `citizenId`/password hash/token trong DTO hồ sơ là loại bỏ trường, khác với che một phần giá trị. Seed chung hoàn toàn synthetic; việc che dữ liệu không cho phép đưa hồ sơ thật vào seed, Git hoặc phép thử.
+
+### Phạm vi và ma trận dữ liệu đề xuất
+
+Core sở hữu projection theo người nhận và mục đích; Web chỉ render DTO đã được phép. Che bằng CSS, cắt chuỗi ở React hoặc giấu trong DOM không bảo vệ giá trị còn nguyên trong response. Masking không thay auth/assignment/chat grant, không phải ẩn danh không thể khôi phục và không sửa dữ liệu gốc trong DB/PDF.
+
+| Dữ liệu | Staff list/search — P | Staff detail — P | Customer xem hồ sơ bản thân — P | Context gửi model/embedding — P |
+| --- | --- | --- | --- | --- |
+| Tên và mã Customer | Giữ nhãn tối thiểu để phân biệt khách trong scope; chốt mức che tên trước code | Chỉ thông tin cần cho tác vụ đã được cấp quyền | Giữ thông tin của chính chủ theo contract self-read | Dùng alias cục bộ theo lượt/hội thoại; không gửi tên/mã định danh nếu không cần cho câu hỏi |
+| Email/phone | Trả giá trị đã che từ Core, không kèm bản đầy đủ | Mặc định che; quyền/mục đích xem đầy đủ phải được chốt riêng | Đề xuất giữ đầy đủ để chính chủ kiểm tra; không áp projection Staff lên self-read | Loại bỏ hoặc thay nhãn; không dùng làm khóa xác thực/tra quyền từ LLM |
+| Ngày sinh/địa chỉ | Không bổ sung vào list | Đề xuất chỉ năm sinh/khu vực hoặc ẩn; không mặc định trả ngày/địa chỉ đầy đủ | Đề xuất giữ đầy đủ của chính chủ | Nếu cần tính quyền lợi, Core trả tuổi tại mốc/ngữ cảnh cần thiết thay ngày sinh hoặc địa chỉ đầy đủ; không để model suy đoán số liệu |
+| CCCD/hộ chiếu, tài khoản ngân hàng, thông tin sức khỏe | Không thêm vào list | Không mở rộng DTO hiện có; trường đặc biệt cần mục đích/quyền riêng | Không tự mở API mới từ kế hoạch này | Loại định danh không cần thiết; chỉ giữ tình tiết sức khỏe cần giải đáp trong scope, không coi toàn bộ bệnh sử là dữ liệu mặc định được gửi |
+| Số hợp đồng, người được bảo hiểm/người thụ hưởng trong snapshot | Rà các màn Policy/Inbox/Ticket liên quan, không chỉ Customers | Chốt projection theo tác vụ; không sửa binding/version hoặc biến null thành dữ liệu mới | Giữ kiểm ownership/exact document version | Dùng alias và giữ liên kết nguồn do code quản lý; không sửa chứng cứ gốc hoặc metadata trích dẫn |
+
+Chưa chốt số ký tự giữ lại của email/phone/tên, độ chi tiết ngày sinh/địa chỉ, quyền xem bản đầy đủ, thời hạn hiển thị, cơ chế audit hoặc contract lỗi. Ví dụ mask nếu có chỉ dùng chuỗi synthetic; không coi định dạng minh họa là cấu hình runtime. Không tự thêm endpoint reveal, permission mới, dịch vụ DLP hoặc migration trước khi contract được review.
+
+### Luồng xử lý cần triển khai
+
+1. Core kiểm phiên/role/ownership/assignment hoặc transcript grant hiện hành, sau đó dựng DTO theo đích nhận. Phân biệt Customer self-read, Staff list/detail và dữ liệu nội bộ Agent; không tái sử dụng raw Prisma relation làm response.
+2. Staff search vẫn phải lọc scope trước search/count/page. Search email/phone trên dữ liệu gốc có thể làm lộ giá trị qua dò tìm/count dù response đã che; cần chốt giữ, thu hẹp hay bỏ tiêu chí này và giới hạn truy vấn. Không log query string chứa email/phone hoặc đưa các giá trị đó vào analytics; rà URL/history đang giữ search trước khi chọn contract mới.
+3. Trước model hoặc embedding API, code giảm/che dữ liệu trong câu hỏi tự do, lịch sử, tool output, evidence và yêu cầu tóm tắt/repair. Áp cùng quy tắc cho Customer/Staff Copilot, retry/resume; không chỉ thêm system prompt. Scope/actor/run/attempt tin cậy vẫn do code/Core giữ ngoài context model.
+4. Giữ bản gốc ở nơi có quyền nghiệp vụ, tách bản dùng cho model và metadata nguồn. Nếu cần ánh xạ alias, giới hạn theo conversation/run, không log hoặc gửi bảng ánh xạ ra provider; storage/retention/quyền xem cần review cùng checkpoint. Không tự khôi phục dữ liệu đã che vào output. Không thay `documentId/version/anchor` hoặc tuyên bố đoạn đã che là trích nguyên văn; chốt cách biểu diễn phần lược bỏ trong evidence trước khi đổi schema.
+5. Kiểm output trước lưu/phát: câu trả lời, summary, đề xuất Ticket, progress/error và callback không phát lại định danh bị loại không cần thiết. Nội dung Customer xác nhận tạo Ticket phải đúng bản Core sẽ lưu; không che/sửa âm thầm sau xác nhận rồi giữ nguyên hash/xác nhận cũ.
+6. Rà log/audit/error trace, outbox/notification, checkpoint/cache và browser storage. Không ghi request/response/prompt nguyên khối; chỉ metadata allowlist cần thiết. Lỗi xử lý dữ liệu trước external call thì không gửi bản gốc để fallback; lỗi kiểm output thì không công bố bản chưa kiểm. Chốt mã lỗi an toàn trong contract.
+
+**PDF và transcript:** masking profile không che nội dung PDF/signed URL, snapshot hợp đồng hoặc văn bản khách tự nhập. PDF gốc đúng phiên bản và lịch sử Customer-facing theo gate vẫn giữ cơ chế hiện có. Nếu cần bản PDF/transcript đã che cho Staff, phải đặc tả artifact/projection riêng, quyền và provenance trước triển khai; không overwrite file/version hay sửa lịch sử nguồn. Quyền xem toàn bộ lịch sử không tự đồng nghĩa được gửi toàn bộ lịch sử sang provider.
+
+### Data model, vị trí code và thứ tự triển khai
+
+| Phần | Vị trí hiện có cần rà từ root repo | Tác động và phần cần bổ sung |
+| --- | --- | --- |
+| Core profile/Staff search | `apps/core/src/customers/services/customer.service.ts`, `controllers/customer.controller.ts`, `dto/customer-query.dto.ts` | `users`/`customer_profiles`/`staff_assignments` đọc; projection và search contract thay đổi ảnh hưởng self-read lẫn Staff. Không đổi dữ liệu gốc hoặc assignment |
+| Web profile/labels | `apps/web/src/lib/customer-api.ts`, `components/staff-customer-directory.tsx`, `components/customer-account.tsx` | Types/render, empty state, search/URL/history, không giữ raw ở hidden field/title/copy payload. Đồng bộ [CU01](ui/staff/plans/customers/01-assignment-read-api.md#customer-privacy-api) và [CU02](ui/staff/plans/customers/02-directory-profile-ui.md#customer-privacy-ui) |
+| Policy/chat/Ticket và realtime | `apps/core/src/policies/services/policy-snapshot.ts`, `conversations/services/conversation-message.service.ts`, `tickets/services/ticket.service.ts`, `realtime/realtime.service.ts` | Rà tên/người liên quan trong DTO/snapshot/transcript; không phá owner/exact version/chat grant hoặc đưa PII vào WS event. Internal fingerprint không là payload browser |
+| Agent/model boundary | `apps/agent/src/life_agent/context.py`, `core_client.py`, `graph.py`, `model.py`, `store.py` | Có graph với doubles; bộ xử lý dữ liệu, provider adapter và durable store còn P. Áp trước mọi model/embedding call và khi kiểm output; rà parent/ref expansion và indexing khi retrieval được triển khai |
+| Kiểm thử | `apps/core/test/customers.test.cjs`, `apps/web/tests/browser/staff-customers.spec.mjs`, `staff-foundation.integration.spec.mjs`, `apps/agent/tests/test_context.py`, `test_graph.py`, `test_handoff_summary.py` | Mở rộng suite đúng owner; dùng synthetic canary để chứng minh raw không vượt ranh giới. Chưa có kết quả test masking |
+
+Mức ảnh hưởng **cao**: đổi API projection/client types, tìm kiếm, bằng chứng và content xác nhận. Thứ tự: chốt ma trận + search/quyền xem đầy đủ → Core projection và DTO → Web và các caller → Agent outbound/output → hồi quy xuyên module. Các phần độc lập có thể thiết kế bằng fake; không tự cấp quyền chạy provider trả phí/corpus Private từ tài liệu này.
+
+**Migration:** che response/context không tự cần DDL. Chỉ đánh giá migration mới nếu đã chọn lưu mapping alias/audit xem đầy đủ/policy version; ghi rõ owner, retention và transaction trước code. Không thêm cột masked song song chứa dữ liệu có thể lệch bản gốc, không sửa migration đã apply/reset volume hoặc rewrite checkpoint cũ tự động.
+
+### Tiêu chí kiểm thử và điều kiện hoàn tất — chưa chạy
+
+- [ ] Core: raw email/phone/ngày sinh/địa chỉ không tồn tại trong JSON Staff ngoài trường đã duyệt; list/detail đúng role/scope, null/chuỗi ngắn/Unicode xử lý an toàn, Customer self-read không đổi ngoài contract đã chốt.
+- [ ] Search: kiểm dò tìm qua substring/count, ngoài assignment, quota và query log; không coi masking response đã giải quyết rò rỉ search. Không đưa synthetic canary vào URL/log ngoài kỳ vọng kiểm thử.
+- [ ] Web: kiểm DOM/accessibility tree, network response và state/copy/tooltip; không thể khôi phục raw bằng bỏ CSS. Revoke/logout/đổi Customer xóa state, response đến muộn không lộ dữ liệu cũ; không screenshot.
+- [ ] Agent: canary trong user message/history/tool/evidence/table/summary/repair không xuất hiện ở fake model/embedding request, output/callback/log không phát lại. Alias ổn định trong scope, khác Customer không dùng chung mapping; lỗi processor không gửi raw, retry/resume không bypass.
+- [ ] Bằng chứng/Ticket: vẫn truy được document/version/anchor; giữ tình tiết nghiệp vụ cần thiết và phân biệt phần đã che. Nội dung/hash xác nhận khớp bản commit; test nhận diện bỏ sót/che nhầm, không tuyên bố bảo vệ ngữ nghĩa tuyệt đối từ regex hoặc prompt.
+- [ ] E2E gateway/Core/browser dùng fixture cô lập: Staff/Customer, search/detail, Policy/Inbox/Ticket callers và revoke. Chỉ nghiệm thu sau assertions API/network và Agent boundary; có file code hoặc test mock không chứng minh đã bảo vệ dữ liệu thật/cloud.
+
 ## Đồng bộ UI và dữ liệu local — 04/11/2026
 
 [Checklist UI/gap](ui/implementation-status.md) theo dõi phần đã nối API và placeholder. UI không giữ fixture policy/Ticket/Claim như kết quả thật; dữ liệu thiếu không biến thành 0 hoặc xác nhận chi trả. Customer/Staff dev fixtures ở `apps/core/src/cli/dev-accounts.ts`; bootstrap đã có policy/PDF synthetic và corpus Markdown đã chuẩn bị riêng. Chat hai đầu I01–I06, handoff notification và Staff Ticket TK01–TK05 đã có; producer/xác nhận Ticket từ Agent I07 còn kế hoạch. Dữ liệu/RAG do nhánh riêng phụ trách, không coi fixture app là bằng chứng retrieval.

@@ -2,6 +2,14 @@
 
 Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtime/Agent riêng** · [Chung](../03-inbox-contract.md) · Trước: [I03](03-handoff-transcript.md), [I04](04-staff-inbox-ui.md) · Tiếp: [I06](06-realtime-routing.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+
+**Thay đổi của phase:** Giữ message nguồn và command hash/idempotency, không sửa văn bản trước lưu theo policy chưa chốt. Bản gửi Agent thuộc CH02; send error/receipt/audit không echo body hoặc contact dư.
+
+**Kiểm thử cần bổ sung, chưa chạy:** Core/network: retry giữ nội dung/hash, không trùng; canary ở nguồn có quyền không xuất thêm qua error/outbox/fallback Agent.
+
 ## Data model và phạm vi ảnh hưởng
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
