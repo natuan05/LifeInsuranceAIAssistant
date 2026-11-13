@@ -5,6 +5,29 @@
 'use strict';
 
 const RUN_TERMINAL = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
+const ACK_REASONS = {
+  ACCEPTED: [null], DUPLICATE: [null], IGNORED_STALE: ['ATTEMPT_NOT_CURRENT'],
+  CONFLICT: ['PAYLOAD_MISMATCH', 'SEQUENCE_CONFLICT'],
+  REJECTED: ['SCHEMA_INVALID', 'AUTH_FAILED', 'REPLAY_REJECTED', 'UNKNOWN_RUN'],
+};
+
+function exactFields(value, fields) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) &&
+    Object.keys(value).length === fields.length && fields.every(key => Object.hasOwn(value, key));
+}
+
+function durableAckMatches(ack, runId, attemptId, eventId) {
+  return exactFields(ack, ['outcome', 'run_id', 'attempt_id', 'event_id', 'reason']) &&
+    ack.run_id === runId && ack.attempt_id === attemptId && ack.event_id === eventId &&
+    typeof ack.outcome === 'string' && Object.hasOwn(ACK_REASONS, ack.outcome) && ACK_REASONS[ack.outcome].includes(ack.reason);
+}
+
+function revocationAckMatches(ack, runId, attemptId) {
+  return exactFields(ack, ['outcome', 'run_id', 'attempt_id', 'writer_epoch', 'reason']) &&
+    ack.run_id === runId && ack.attempt_id === attemptId &&
+    ['REVOKED', 'ALREADY_REVOKED'].includes(ack.outcome) && ack.reason === null &&
+    Number.isSafeInteger(ack.writer_epoch) && ack.writer_epoch >= 0;
+}
 
 function initialState() {
   return {
@@ -55,15 +78,24 @@ const threadOf = conversationId => `conv:${conversationId}`;
 function runRequest(state, attemptId) {
   const attempt = state.attempts[attemptId];
   const run = state.runs[attempt.runId];
-  return { runId: attempt.runId, attemptId, conversationId: run.conversationId, messageId: run.messageId,
-    threadId: threadOf(run.conversationId), payload: run.payload, fingerprint: attempt.fingerprint };
+  return { schemaVersion: 'agent-v1', runId: attempt.runId, attemptId, conversationId: run.conversationId, messageId: run.messageId,
+    threadId: threadOf(run.conversationId), payload: run.payload, ...run.context, fingerprint: attempt.fingerprint };
+}
+
+// Reduced camel-case representation of the received RunRequest. Payload stands for message content in this model;
+// context carries the remaining wire fields. Transport headers and Core's cached hash/derived thread id are not wire data.
+function receivedRunFingerprint(request) {
+  const { schemaVersion, runId, attemptId, conversationId, messageId, payload, channelType, actor, targetCustomerId,
+    historyView, linkedHistoryView, limits } = request;
+  return fingerprint({ schemaVersion, runId, attemptId, conversationId, messageId, payload, channelType, actor, targetCustomerId,
+    historyView, linkedHistoryView, limits });
 }
 
 function newAttempt(state, runId) {
   const attemptId = id(state, 'att');
   const run = state.runs[runId];
   state.attempts[attemptId] = { runId, state: 'DISPATCHING', fingerprint: null, reason: null };
-  state.attempts[attemptId].fingerprint = fingerprint({ runId, attemptId, messageId: run.messageId, payload: run.payload });
+  state.attempts[attemptId].fingerprint = receivedRunFingerprint(runRequest(state, attemptId));
   run.currentAttemptId = attemptId;
   run.attempts.push(attemptId);
   return attemptId;
@@ -95,6 +127,12 @@ const core = {
     const runId = id(state, 'run');
     state.runs[runId] = { conversationId, messageId: id(state, 'msg'), payload, status: 'QUEUED', currentAttemptId: null,
       attempts: [], progress: { sequence: 0, stage: null }, result: null, failure: null };
+    state.runs[runId].context = { channelType: 'CUSTOMER_SUPPORT', actor: { id: 'customer', role: 'CUSTOMER' },
+      targetCustomerId: 'customer', historyView: { conversation_id: conversationId, through_cursor: null,
+        current_message_id: state.runs[runId].messageId }, linkedHistoryView: null,
+      limits: { deadline_at: '2026-11-12T12:00:00Z', retrieval_calls_max: 3, core_read_requests_max: 4,
+        core_request_timeout_ms: 3000, core_retry_per_call: 1, model_calls_max: null, graph_steps_max: null,
+        turn_token_budget: null, finish_reserve_tokens: null } };
     state.submissions[key] = { runId, fingerprint: fp };
     conversation.queue.push(runId);
     return { kind: 'ACCEPTED', runId };
@@ -121,6 +159,7 @@ const core = {
 
   DISPATCH_ACKED(state, { attemptId, ack }) {
     const attempt = state.attempts[attemptId];
+    if (!attempt || !durableAckMatches(ack, attempt.runId, attemptId, null)) return { kind: 'NOOP' };
     if (attempt.state === 'DISPATCHING' && ['ACCEPTED', 'DUPLICATE'].includes(ack.outcome)) attempt.state = 'ACCEPTED';
     return { kind: 'OK', attemptState: attempt.state };
   },
@@ -171,7 +210,7 @@ const core = {
     const run = state.runs[attempt.runId];
     attempt.state = 'INVALIDATING';
     attempt.reason = reason;
-    if (reason === 'TAKEOVER') {
+    if (reason === 'TAKEOVER' || reason === 'STAFF_TAKEOVER') {
       const conversation = state.conversations[run.conversationId];
       conversation.takenOver = true;
       conversation.controlVersion += 1;
@@ -180,14 +219,18 @@ const core = {
     } else if (reason === 'DEADLINE') {
       run.status = 'FAILED';
       run.failure = { code: 'DEADLINE_EXCEEDED', retryable: false };
+    } else if (reason === 'CANCELLED_BY_CORE' || reason === 'PERMISSION_CHANGED') {
+      run.status = 'CANCELLED';
+      run.failure = { code: reason === 'PERMISSION_CHANGED' ? 'PERMISSION_DENIED' : 'CANCELLED_BY_CORE', retryable: false };
     }
-    return { kind: 'REVOKE_REQUIRED', attemptId, threadId: threadOf(run.conversationId) };
+    return { kind: 'REVOKE_REQUIRED', runId: attempt.runId, attemptId, threadId: threadOf(run.conversationId) };
   },
 
   REVOKE_ACKED(state, { attemptId, ack }) {
     const attempt = state.attempts[attemptId];
-    if (attempt.state !== 'INVALIDATING' || !['REVOKED', 'ALREADY_REVOKED'].includes(ack.outcome)) return { kind: 'NOOP' };
+    if (!attempt || attempt.state !== 'INVALIDATING' || !revocationAckMatches(ack, attempt.runId, attemptId)) return { kind: 'NOOP' };
     attempt.state = 'INVALIDATED';
+    attempt.revokedEpoch = ack.writer_epoch;
     const run = state.runs[attempt.runId];
     if (attempt.reason === 'RETRY' && run.status === 'RUNNING') {
       const next = newAttempt(state, attempt.runId); // same run, same message ledger at the Agent
@@ -221,9 +264,10 @@ const agent = {
   ACCEPT_RUN(state, { request, caps }) {
     const ack = (outcome, reason = null) => ({ outcome, run_id: request.runId, attempt_id: request.attemptId, event_id: null, reason });
     const existing = state.agent.receipts[request.attemptId];
+    const receivedFingerprint = receivedRunFingerprint(request);
     if (existing) {
       if (existing.status === 'REVOKED' && !existing.fingerprint) return { kind: 'ACK', ack: ack('IGNORED_STALE', 'ATTEMPT_NOT_CURRENT') };
-      if (existing.fingerprint !== request.fingerprint) return { kind: 'ACK', ack: ack('CONFLICT', 'PAYLOAD_MISMATCH') };
+      if (existing.fingerprint !== receivedFingerprint) return { kind: 'ACK', ack: ack('CONFLICT', 'PAYLOAD_MISMATCH') };
       if (existing.status === 'REVOKED') return { kind: 'ACK', ack: ack('IGNORED_STALE', 'ATTEMPT_NOT_CURRENT') };
       const pending = Object.values(state.agent.outbound).filter(o => o.event.attempt_id === request.attemptId && !o.acked)
         .map(o => o.event.event_id);
@@ -236,18 +280,25 @@ const agent = {
     }
     state.agent.owners[request.threadId] = { attemptId: request.attemptId, epoch: (previous?.epoch ?? 0) + 1, revoked: false };
     state.agent.receipts[request.attemptId] = { runId: request.runId, messageId: request.messageId, threadId: request.threadId,
-      fingerprint: request.fingerprint, status: 'ACCEPTED', finalEventId: null };
+      fingerprint: receivedFingerprint, status: 'ACCEPTED', finalEventId: null };
     state.agent.ledgers[request.messageId] ??= { caps: { ...caps }, used: Object.fromEntries(Object.keys(caps).map(k => [k, 0])),
       reservations: {} };
     return { kind: 'ACK', ack: ack('ACCEPTED') };
   },
 
   // Control request from Core. Unknown attempts get a tombstone so a dispatch still in flight is refused later.
-  REVOKE(state, { attemptId, threadId }) {
+  REVOKE(state, { runId, attemptId, threadId }) {
+    const ack = (outcome, writerEpoch, reason = null) => ({ kind: 'REVOKE_ACK',
+      ack: { outcome, run_id: runId, attempt_id: attemptId, writer_epoch: writerEpoch, reason } });
     const receipt = state.agent.receipts[attemptId];
+    // A tombstone has no received run payload/run id. Core control is trusted and attempt ids are globally unique;
+    // validate its stored thread, and echo the command's run id in the ACK without consulting Core's store.
+    if (receipt && ((receipt.runId !== null && receipt.runId !== runId) || receipt.threadId !== threadId)) {
+      return ack('REJECTED', null, 'UNKNOWN_RUN');
+    }
     if (!receipt) {
       state.agent.receipts[attemptId] = { runId: null, messageId: null, threadId, fingerprint: null, status: 'REVOKED', finalEventId: null };
-      return { kind: 'REVOKE_ACK', ack: { outcome: 'REVOKED', attempt_id: attemptId } };
+      return ack('REVOKED', state.agent.owners[threadId]?.epoch ?? 0);
     }
     const owner = state.agent.owners[receipt.threadId];
     const owns = owner?.attemptId === attemptId;
@@ -257,7 +308,7 @@ const agent = {
       owner.revoked = true;
     }
     if (receipt.status === 'ACCEPTED') receipt.status = 'REVOKED';
-    return { kind: 'REVOKE_ACK', ack: { outcome: already ? 'ALREADY_REVOKED' : 'REVOKED', attempt_id: attemptId } };
+    return ack(already ? 'ALREADY_REVOKED' : 'REVOKED', owner?.epoch ?? 0);
   },
 
   CLAIM_EXECUTION(state, { attemptId }) {
@@ -311,6 +362,7 @@ const agent = {
 
   EVENT_ACKED(state, { eventId, ack }) {
     const record = state.agent.outbound[eventId];
+    if (!record || !durableAckMatches(ack, record.event.run_id, record.event.attempt_id, eventId)) return { kind: 'KEEP' };
     if (ack.outcome === 'REJECTED') return { kind: 'KEEP' }; // auth/schema problem: incident, not silent drop
     record.acked = ack.outcome;
     return { kind: 'STOP_SENDING', incident: ack.outcome === 'CONFLICT' };
