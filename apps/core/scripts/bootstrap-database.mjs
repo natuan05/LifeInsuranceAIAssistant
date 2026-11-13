@@ -3,7 +3,7 @@ import pg from 'pg';
 
 const connection = { host: process.env.PGHOST ?? 'postgres', port: 5432, database: 'life_insurance', user: 'local_owner', password: readFileSync('/credentials/bootstrap/password', 'utf8').trim() };
 const client = new pg.Client(connection);
-const roles = { app_migrator: 'migration', core_runtime: 'core', admin_runtime: 'admin', db_viewer: 'viewer', rag_indexer: 'rag_indexer', rag_retriever: 'rag_retriever' };
+const roles = { app_migrator: 'migration', core_runtime: 'core', admin_runtime: 'admin', db_viewer: 'viewer', rag_indexer: 'rag_indexer', rag_retriever: 'rag_retriever', agent_migrator: 'agent_migrator', agent_runtime: 'agent_runtime' };
 const literal = value => `'${value.replace(/'/g, "''")}'`;
 try {
   await client.connect();
@@ -33,6 +33,9 @@ try {
   await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE app_migrator IN SCHEMA rag GRANT SELECT ON TABLES TO rag_retriever');
   await client.query('GRANT SELECT, INSERT, DELETE ON ALL TABLES IN SCHEMA rag TO rag_indexer');
   await client.query('GRANT SELECT ON ALL TABLES IN SCHEMA rag TO rag_retriever');
+  // Agent durable runtime (checkpoint, receipts, ledger, outbound events): own schema/roles, no business or rag access.
+  // agent_migrator owns the schema and runs apps/agent migrations; agent_runtime gets DML only, no DDL.
+  await client.query(readFileSync(new URL('./agent-runtime-grants.sql', import.meta.url), 'utf8'));
   await client.query('ALTER DEFAULT PRIVILEGES FOR ROLE app_migrator IN SCHEMA business GRANT USAGE, SELECT ON SEQUENCES TO core_runtime, admin_runtime');
   await client.query('COMMIT');
   console.log('Database roles and namespaces ready; no runtime superuser or DDL grants.');

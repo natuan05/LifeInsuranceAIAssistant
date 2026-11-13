@@ -97,6 +97,8 @@ PostgreSQL từ host: `127.0.0.1:5432`, database `life_insurance`; trong Docker 
 | `local_owner` | `LocalDbOwner-2026!` | `DB_BOOTSTRAP_PASSWORD` | Bootstrap local; không dùng cho ứng dụng hoặc xem DB thường ngày |
 | `rag_indexer` | `LocalDbRagIndexer-2026!` | `DB_RAG_INDEXER_PASSWORD` | Indexer RAG offline của Agent: chỉ SELECT/INSERT/DELETE `rag`, không cấp cho runtime |
 | `rag_retriever` | `LocalDbRagRetriever-2026!` | `DB_RAG_RETRIEVER_PASSWORD` | Retrieval runtime của Agent: chỉ đọc `rag`, không truy cập `business` |
+| `agent_migrator` | `LocalDbAgentMigrate-2026!` | `DB_AGENT_MIGRATOR_PASSWORD` | Chủ schema `agent_runtime`, chạy migration của Agent |
+| `agent_runtime` | `LocalDbAgentRuntime-2026!` | `DB_AGENT_RUNTIME_PASSWORD` | Lưu bền của Agent (checkpoint, receipt, ledger, event): DML `agent_runtime`, không DDL/business/rag |
 
 Mở [DbGate](http://127.0.0.1:5050) để xem DB ngay, không cần nhập password vì service đã tự cấu hình `db_viewer`. Nếu dùng công cụ khác, dùng host/port/database và `db_viewer` trong bảng; không cấp quyền ghi để chỉ xem dữ liệu.
 
@@ -108,7 +110,7 @@ Mở [DbGate](http://127.0.0.1:5050) để xem DB ngay, không cần nhập pass
 
 S3 endpoint từ host: `http://localhost:9000`; trong Docker: `http://minio:9000`, region `ap-southeast-1`, bucket `life-insurance-documents`, path-style. Các access key của reader/writer dành cho chương trình, không phải tài khoản quản trị console.
 
-Hai role `rag_*` được thêm sau bản đầu: máy đã có dữ liệu cần thêm hai biến `DB_RAG_*` vào `.env` riêng rồi chạy lại `docker compose up -d --build --wait`; prepare tạo credential mới chỉ cho hai role này, không đổi role cũ. Nếu để trống, password được sinh ngẫu nhiên trong volume và Agent không biết giá trị.
+Các role `rag_*` và `agent_*` được thêm sau bản đầu: máy đã có dữ liệu cần thêm các biến `DB_RAG_*`, `DB_AGENT_*` vào `.env` riêng rồi chạy lại `docker compose up -d --build --wait`; prepare tạo credential mới chỉ cho các role này, không đổi role cũ. Nếu để trống, password được sinh ngẫu nhiên trong volume và Agent không biết giá trị.
 
 **Máy đã có dữ liệu:** giữ `.env` và volumes hiện tại, không copy đè credential mẫu. Bảng này không tự đổi mật khẩu cũ. Nếu trước đây dùng password ngẫu nhiên, tra các biến `DB_*_PASSWORD` trong `.env` riêng; nếu biến trống, giá trị vẫn nằm trong credential volume tương ứng. Với MinIO, chạy `npm run storage:credentials` để lấy đúng tài khoản hiện dùng vào file riêng ngoài repo. Không chia sẻ các giá trị hiện dùng đó hoặc xóa volumes để chuyển sang mẫu.
 

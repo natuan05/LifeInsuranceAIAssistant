@@ -12,11 +12,11 @@ Quyết định ngày 27/10/2026: dùng custom LangGraph cho điều phối Agen
 - Business Tools chỉ gọi Core API; không đọc hoặc ghi bảng business.
 - Retrieval chỉ đọc tập tài liệu và phiên bản được Core cấp quyền; Public/Private có thể dùng chung engine.
 - Lưu trạng thái workflow bền vững. Checkpoint cần quyền ghi riêng, không mở quyền ghi business hay RAG index.
-- Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, chuẩn bị đường tách database; xem [thiết kế checkpoint](../../docs/specifications/Agent_Design.md#checkpoint-postgres). Chưa triển khai.
+- Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, chuẩn bị đường tách database; xem [thiết kế checkpoint](../../docs/specifications/Agent_Design.md#checkpoint-postgres). Task 4 đã có store/checkpointer và kiểm thử DB trực tiếp; chưa nối HTTP/Core thật.
 - Phân biệt trạng thái graph với lịch sử hội thoại do Core quản lý; không coi checkpoint là bằng chứng xác nhận Ticket.
 - Nội dung tài liệu và tool output là dữ liệu, không được thay đổi quyền hay chỉ dẫn hệ thống.
 
-Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [tạm chọn HMAC + Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema, profile xác thực và cơ chế lưu/khôi phục cụ thể thuộc đặc tả thực thi. Provider/model và embedding chưa chọn (mốc 3 chỉ là cấu hình thử). Ngày 06/11/2026 chọn checkpointer tự viết trên `BaseCheckpointSaver` có kiểm quyền ghi, profile HMAC `LI-HMAC-SHA256-v1` và Starlette + uvicorn ([contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026)); chưa triển khai.
+Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [tạm chọn HMAC + Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema, profile xác thực và cơ chế lưu/khôi phục cụ thể thuộc đặc tả thực thi. Provider/model và embedding chưa chọn (mốc 3 chỉ là cấu hình thử). Nhánh ngày 06/11/2026 đề xuất checkpointer tự viết trên `BaseCheckpointSaver`, profile HMAC `LI-HMAC-SHA256-v1` và Starlette + uvicorn ([contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026)). Task 4 đã có checkpointer có kiểm quyền ghi; HTTP/HMAC còn Task 6. Các phương án này vẫn chờ duyệt G2/G3.
 
 Panel Copilot ở Web chỉ là khung chưa kết nối. Native WebSocket Core hiện có không phải Core–Agent transport/checkpoint hoặc chat stream. Công việc phụ thuộc và điều kiện đóng ở [G02–G07/checklist UI](../../docs/ui/implementation-status.md); không coi UI panel là triển khai Agent.
 
@@ -54,7 +54,7 @@ python -m pip install -e . --group dev
 python -m pytest -p no:cacheprovider
 ```
 
-`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Checkpointer chỉ dùng `InMemorySaver`; thư viện checkpointer và HTTP framework chọn ở G2–G3.
+`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Ở mốc 2 chỉ dùng `InMemorySaver`; mốc 4 bên dưới bổ sung checkpointer PostgreSQL với `langgraph-checkpoint` 4.3.1. HTTP framework còn ở G3.
 
 ## Trạng thái: mốc 3 — Public RAG thử nghiệm
 
@@ -96,3 +96,34 @@ Lệnh index gọi embedding có tính phí theo cấu hình thử; chỉ chạy
 Báo cáo mặc định ở thư mục dữ liệu người dùng `LifeInsuranceAIAssistant/agent-eval`: Windows dùng `%LOCALAPPDATA%`, macOS dùng `~/Library/Application Support`, Linux dùng `$XDG_STATE_HOME` hoặc `~/.local/state`. `--out` có thể chọn file ngoài repo; đường dẫn trong repo bị từ chối trước khi mở client/gọi model. CLI in đường dẫn tuyệt đối sau khi ghi; khi chưa chạy thì chưa tạo file báo cáo. Đây là file tool trên host, tách với credential runtime trong Docker volumes. Báo cáo gồm câu hỏi/câu trả lời Public để người chấm, không ghi prompt/nội dung chunk. Kiểm “không cam kết Claim” và “không báo Ticket đã tạo” là `NOT_RUN` tới khi có `--human-review`; không tự tuyên bố nghiệm thu đạt.
 
 Wrapper model ghi từng attempt, kể cả lỗi; HTTP 429 trả lỗi lượt, không chờ rồi retry ngầm ngoài ngân sách. Retry model cần policy/budget/deadline riêng được review, không mượn chính sách một retry của Business Tools. Các quyết định và regression của đợt sửa được ghi tại [Public RAG review fixes](../../docs/public-rag-review-fixes.md).
+
+## Trạng thái: mốc 4 — Task 4, lưu bền phía Agent
+
+Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2) theo các phương án đề xuất từ nhánh ngày 06/11/2026; việc tích hợp code không tự đóng G2/G3. Chưa có HTTP/HMAC (Task 6), API Core (Task 3, đội application) hay worker nhận việc chạy nền. Vì vậy mới kiểm bằng gọi trực tiếp store và graph, chưa qua Core thật.
+
+| Thành phần (`store.py`, `migrations/`) | Nội dung |
+| --- | --- |
+| `PgRuntimeStore` | `accept_run` (receipt theo attempt, `DUPLICATE`/`CONFLICT`/`IGNORED_STALE`), `revoke` (tombstone cho attempt chưa tới), `claim_execution` (lease, mỗi claim nâng epoch), ledger `open_message`/`reserve`/`settle`, `persist_final`/`persist_progress`, `pending_events`/`ack_event`, `recoverable`, `fence_after_restore` |
+| `FencedPostgresSaver` | Checkpointer LangGraph; `put`, `put_writes`, `delete_thread` kiểm `(thread_id, attempt_id, writer_epoch)` `FOR SHARE` trong cùng transaction. Graph chạy `durability="sync"` |
+| `LeasedStore`, `execute_attempt` | Store của graph gắn lease; receipt `FINALIZED` trả lại event đã lưu, không chạy graph |
+| `migrations/001_durable_runtime.sql`, `python -m life_agent.store migrate` | Bảng trong schema `agent_runtime` (do bootstrap tạo, chủ là `agent_migrator`); runner ghi `schema_migrations` và từ chối file đã áp bị sửa |
+
+`StaleWriter` là `BaseException` để không bị các khối `except Exception` trong graph/adapter nuốt mất rồi tiếp tục gửi request hoặc ghi. Role `agent_runtime` chỉ có DML trên `agent_runtime`; role Core không có quyền trên schema này.
+
+### Chạy
+
+1. `.env` root: thêm `DB_AGENT_MIGRATOR_PASSWORD`, `DB_AGENT_RUNTIME_PASSWORD` (giá trị mẫu ở `.env.example`) rồi `docker compose up -d --build --wait`.
+2. Dùng `.env` root theo `.env.example`: điền `LIFE_AGENT_STORE_MIGRATOR_DSN` và `LIFE_AGENT_STORE_DSN` với đúng cổng/credential đang có; không tạo env riêng cho Agent. Ba DSN `LIFE_AGENT_TEST_STORE_DSN`, `LIFE_AGENT_TEST_STORE_MIGRATOR_DSN`, `LIFE_AGENT_TEST_ADMIN_DSN` chỉ trỏ tới DB synthetic cô lập; role `local_owner` chỉ dùng cho test tách DB, không cấp cho runtime.
+3. Từ `apps/agent`: `python -m life_agent.store migrate`, rồi `python -m pytest tests/test_store.py`.
+
+### Runbook tách `agent_runtime` sang PostgreSQL riêng (bảo trì)
+
+1. Dựng DB đích: tạo role, `CREATE SCHEMA agent_runtime AUTHORIZATION agent_migrator`, cấp quyền như `bootstrap-database.mjs`, chạy `migrate` tới cùng version với nguồn.
+2. Dừng nhận việc: Core ngừng dispatch; chờ các lượt đang chạy kết thúc hoặc revoke chúng; xác nhận không còn event chưa ACK.
+3. Dừng ghi: tắt tiến trình Agent.
+4. Sao chép: `copy_runtime_data(nguồn, đích)` (COPY từng bảng theo thứ tự FK, kiểm cùng version migration). Có thể dùng `pg_dump --schema=agent_runtime` nếu có công cụ.
+5. Kiểm: số dòng từng bảng; đọc lại một thread mẫu bằng checkpointer; event cuối của một attempt mẫu giống nguồn.
+6. Trên đích chạy `fence_after_restore()`: thu hồi receipt `ACCEPTED` và nâng epoch, để writer trước khi tách không ghi được nữa.
+7. Đổi `LIFE_AGENT_STORE_DSN` sang đích, mở lại nhận việc.
+
+Rollback: nếu đích **chưa nhận ghi**, chỉ cần trỏ lại nguồn (nguồn còn nguyên). Nếu đích **đã nhận ghi**, phải chép các dòng mới của đích về nguồn (hoặc giữ đích) rồi chạy `fence_after_restore()` trên bên dùng tiếp. Không chạy hai bên song song, không dual-write/CDC.

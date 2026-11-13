@@ -43,7 +43,7 @@ Inbox đích All/Requests/Active, không counts hoặc Closed. Migration 2026110
 ## Trạng thái và thao tác ghi
 
 - Core giữ lịch sử hội thoại và trạng thái tiếp quản. Agent giữ trạng thái graph bền vững để có thể tiếp tục sau gián đoạn.
-- Quyền đọc RAG và quyền ghi checkpoint phải tách khỏi quyền business. Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, có đường tách sang database riêng; xem [thiết kế checkpoint](specifications/Agent_Design.md#checkpoint-postgres). Tên schema/role, thư viện, quy tắc lưu/xóa và chi tiết chuyển còn mở; chưa triển khai checkpoint.
+- Quyền đọc RAG và quyền ghi checkpoint phải tách khỏi quyền business. Quyết định ngày 29/10/2026: checkpoint dùng PostgreSQL hiện có với schema/tài khoản riêng, có đường tách sang database riêng; xem [thiết kế checkpoint](specifications/Agent_Design.md#checkpoint-postgres). Task 4 đã có schema/role `agent_runtime`, role `agent_migrator`, checkpointer PostgreSQL có kiểm quyền ghi và runbook tách DB bằng bảo trì; kiểm bằng DB và tiến trình thật, chưa nối Core/HTTP. Đây là triển khai phương án để review, không tự đóng G2/G3; retention còn mở. Xem [mốc 4 Agent](../apps/agent/README.md#trạng-thái-mốc-4--task-4-lưu-bền-phía-agent).
 - Phiên Runtime không thay thế checkpoint bền vững. Đã chốt [mỗi hội thoại Core một thread LangGraph](specifications/Agent_Design.md#conversation-thread-mapping) và [attempt hết hiệu lực không được ghi đè checkpoint hiện hành](specifications/Agent_Design.md#checkpoint-write-ownership). Còn định dạng ID, ngữ cảnh actor/quyền khi resume và cơ chế thực thi quyền ghi khi nhiều tiến trình hoặc người tiếp quản thay đổi.
 - Agent chỉ đề xuất Ticket. Core phải xác minh xác nhận hợp lệ gắn với nội dung được duyệt, kiểm tra quyền và chống trùng trước khi ghi.
 - Theo SRS UC-005, Ticket và outbox được ghi cùng giao dịch; chỉ báo thành công sau commit. Thông báo lỗi không làm mất Ticket đã lưu. Queue và cách phát lại còn cần thiết kế.
@@ -140,6 +140,8 @@ Các khác biệt/ràng buộc quan trọng so với nguồn:
 | db_viewer | SELECT 19 bảng ứng dụng, không sửa/xóa dữ liệu |
 | rag_indexer | Indexer RAG offline: SELECT/INSERT/DELETE `rag`, không quyền business; không cấp cho Agent runtime |
 | rag_retriever | Retrieval Agent: chỉ SELECT `rag`, không quyền business/ghi index |
+| agent_migrator | Chủ schema `agent_runtime`, chạy migration Agent; không quyền business/rag |
+| agent_runtime | DML `agent_runtime` (checkpoint, receipt, ledger, event); không DDL, business hay ghi rag. Core không có quyền trên schema này |
 
 
 Credential ở volumes riêng; không tự rotate role password đã tồn tại hoặc dùng local_owner cho Core/tool. Không DDL/superuser cho runtime. Migration runner cập nhật quyền metadata để Core/tool kiểm compatibility.
