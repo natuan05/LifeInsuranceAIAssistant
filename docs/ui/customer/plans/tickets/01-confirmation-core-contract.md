@@ -1,103 +1,98 @@
-# T01 — Customer contract trong Core Ticket I07
+# T01 — Customer Ticket Core Contract và Migration
 
-04/11/2026 · **P, chưa triển khai** · [C07](../07-tickets-contract.md) · [I07 canonical](../../../staff/plans/tickets/06-agent-confirmation.md).
+04/11/2026 · **Cập nhật quyết định chốt 13/11/2026** · [C07](../07-tickets-contract.md) · [I07 canonical](../../../staff/plans/tickets/06-agent-confirmation.md).
+
+> [!IMPORTANT]
+> **Quyết định người dùng chốt (13/11/2026):**
+> 1. **Luồng tạo Ticket:** Hỗ trợ song song cả hai luồng:
+>    - Luồng qua AI Agent đề xuất từ hội thoại chat.
+>    - Luồng Khách hàng tự mở Form tạo Ticket thủ công trên giao diện.
+> 2. **Chỉnh sửa nội dung bản thảo:** Khách hàng **được phép chỉnh sửa** nội dung draft (tiêu đề, mô tả, gắn hợp đồng) trước khi xác nhận. Thao tác chỉnh sửa tạo revision/version mới trên server và băm lại hash.
+> 3. **Lưu trữ bản thảo & Migration:** Tạo migration mới cho bảng `ticket_drafts` (TTL 30 phút) và bổ sung cột `source_draft_id`, `confirmed_content` (JSONB) cho bảng `support_tickets`.
+> 4. **Trạng thái ban đầu:** Mọi Ticket mới do khách hàng tạo (từ cả hai luồng) **đều khởi tạo với trạng thái `OPEN`** (dù khách hàng đã có hay chưa có chuyên viên phụ trách).
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
-| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
-| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc nền; P tạo Ticket và immutable confirmed snapshot qua I07 | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
-| TicketDraft / confirmed snapshot — P, chưa có bảng/cột | Dự kiến owner/conversation/draftVersion/contentHash/confirmationTextVersion/expiresAt/consumedTicketId và SupportTicket sourceDraftId/confirmedContent | DDL + ghi dự kiến, chưa triển khai | Tên bảng/cột/FK/unique/retention phải chốt trong migration spec I07; không lấy ai_summary làm consent | Cao — Customer confirm, Agent draft, Ticket DTO và outbox phải cùng nội dung bất biến |
-| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
-| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Kiểm tra phân công hiện hành; vé tạo mới vẫn khởi tạo trạng thái OPEN | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject | Đọc | Draft liên kết đúng conversationId của Customer; Ticket độc lập với transcript | Cao — Không tự động chuyển chat mode khi tạo Ticket |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at + **source_draft_id** + **confirmed_content** | Ghi Ticket mới (`status = OPEN`), snapshot confirmedContent | Ticket Code duy nhất; status ban đầu luôn là OPEN; idempotencyKey chống trùng | Cao — list/detail/status và notification dùng chung Ticket scope |
+| ticket_drafts (Bảng mới) | id/conversation_id/customer_id/version/payload/payload_hash/state/expires_at/created_at | DDL + CRUD draft server-side (TTL 30p) | Owner FK customer_id; state DRAFT/CONFIRMED/EXPIRED/SUPERSEDED; version tăng khi sửa | Cao — Lưu bản thảo tin cậy từ Agent, kiểm soát xác nhận và chống ghi đè |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi tạo Ticket/draft | actor_id → User.id; không lưu PII/credential vào log | Cao — truy vết hành vi nghiệp vụ tuân thủ NFR-002 |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status | Thêm trong transaction nguồn | Transactional Outbox phát sự kiện TICKET_CREATED để thông báo cho Staff | Cao — bảo đảm tính toàn vẹn sự kiện |
 
-**Schema/migration:** P — migration mới cho draft/snapshot/hash/unique consume, chưa tồn tại trong schema hiện hành. Không backfill confirmed content từ AI hoặc reset Ticket cũ.
+**Schema/migration:** Migration mới thêm bảng `ticket_drafts` và thêm 2 cột `source_draft_id` (UUID nullable, FK tới `ticket_drafts`), `confirmed_content` (JSONB nullable) vào bảng `support_tickets`.
 
-**Nhất quán và hồi quy:** Dự kiến lock owner/draft/routing, compare version/hash/expiry, snapshot+Ticket+consume draft+outbox atomic. Cancel không ghi Ticket; retry cùng intent không tạo trùng, legacy giữ UNVERIFIED. Chưa coi phần P là API/schema đã chạy.
+**Nhất quán và hồi quy:** Khởi tạo `status = OPEN` cho mọi Ticket mới. Draft có TTL 30 phút; khi khách sửa draft thì tăng `version` và cập nhật `payload_hash`. Xác nhận draft chuyển draft sang `CONFIRMED` và tạo Ticket trong cùng 1 transaction. Cancel không ghi Ticket; retry cùng idempotencyKey trả về kết quả Ticket đã commit.
 
 ## Vị trí code và mức ảnh hưởng
 
-
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
-| `apps/core/src/tickets/controllers/customer-ticket.controller.ts` | Dự kiến — chưa có file | P — owner draft/read/confirm endpoint | Cao | Customer review, service identity Agent |
-| `apps/core/src/tickets/services/ticket-draft.service.ts` | Dự kiến — chưa có file | P — trusted draft/version/hash và consume once | Cao | Ticket creation/idempotency/expiry |
-| [apps/core/src/tickets/services/ticket.service.ts](<../../../../../apps/core/src/tickets/services/ticket.service.ts>) | Hiện có | Hiện có Staff service; P mở rộng confirmation transaction riêng | Cao | Giữ Staff status/version TK01–TK05 |
-| [apps/core/prisma/schema.prisma](<../../../../../apps/core/prisma/schema.prisma>) | Hiện có | P — chỉ thêm draft/snapshot sau chốt schema | Cao | Migrations, bootstrap compatibility và legacy Ticket |
-| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | Hiện có; P bổ sung Customer draft/confirm wrappers | Trung bình | Không reuse Staff accept để Customer xác nhận |
+| `apps/core/src/tickets/controllers/customer-ticket.controller.ts` | Dự kiến | Controller phục vụ Customer: draft, edit draft, confirm ticket, manual create, my tickets | Cao | Customer review/edit, manual form, creation idempotency |
+| `apps/core/src/tickets/services/ticket-draft.service.ts` | Dự kiến | Quản lý draft: tạo, sửa revision (version+hash), expire sau 30 phút, consume once | Cao | Ticket creation/idempotency/expiry |
+| [apps/core/src/tickets/services/ticket.service.ts](<../../../../../apps/core/src/tickets/services/ticket.service.ts>) | Hiện có | Mở rộng method tạo Ticket cho Customer với status OPEN | Cao | Giữ Staff status/version TK01–TK05 |
+| [apps/core/prisma/schema.prisma](<../../../../../apps/core/prisma/schema.prisma>) | Hiện có | Thêm bảng `ticket_drafts` và các trường mới trên `support_tickets` | Cao | Migrations, bootstrap compatibility |
+| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | Bổ sung API client cho Customer: getDraft, updateDraft, confirmDraft, createManualTicket, getMyTickets | Trung bình | Tách bạch quyền với Staff |
 
 ## 1. Ownership công việc
 
-Triển khai một module `apps/core/src/tickets/` theo I07: customer controller, draft/ticket/accessservices, DTO và migration mới. Bảng TicketDraft + fields confirmed snapshot/version/hash là **đề xuất I07**, chưa schema hiện hành. Không backfill summary legacy thành nội dung Customer đã xác nhận. Các bước dưới là phần Customer trong cùng I07, không một lần implementation thứ hai.
+Mọi nghiệp vụ Ticket phía Customer được tích hợp vào module [apps/core/src/tickets/](file:///e:/UET/Project/github/LifeInsuranceAIAssistant/apps/core/src/tickets/). Dùng chung bảng `support_tickets` với Staff, không tạo bảng hay module Ticket thứ hai.
 
-## 2. API spec P — giữ I07 làm nguồn DTO
+## 2. API spec Customer (Đã chốt 13/11/2026)
 
-| API | Body/response tối thiểu |
+| Method & Endpoint | Mô tả & Body / Response tối thiểu |
 | --- | --- |
-| GET `/customers/me/conversations/:conversationId/ticket-drafts/:draftId` | `{draft:{id,version,state,confirmedTicket,title,description,policyId,sourceMessageIds,expiresAt},confirmation:{textVersion,text}}` |
-| POST `/customers/me/tickets` | `{clientRequestId,draftId,expectedDraftVersion,confirmation:{confirmed:true,textVersion:'ticket-v1'}}` →201first/200 replay `{ticket:{id,ticketCode,status,confirmedAt},replayed}` |
-| GET `/customers/me/tickets/by-client-request-id/:clientRequestId` | Own receipt hoặc safe 404;404 chưa chứng minh chưa commit |
-| GET `/customers/me/tickets/:ticketId` | Own persisted confirmedContent/status/code và link cuộc nếu còn quyền, không ghi chú nội bộ Staff |
+| `GET /api/v1/customers/me/conversations/:conversationId/ticket-drafts/:draftId` | Đọc thông tin draft để hiển thị popup xác nhận: `{draft:{id,version,state,title,description,policyId,expiresAt},confirmation:{textVersion,text}}` |
+| `PUT /api/v1/customers/me/conversations/:conversationId/ticket-drafts/:draftId` | **Khách hàng chỉnh sửa nội dung draft**: Body `{expectedVersion:number,title:string,description:string,policyId?:string}` $\rightarrow$ Server cập nhật draft, tăng version, hash lại và trả về draft mới. |
+| `POST /api/v1/customers/me/tickets` | **Xác nhận tạo vé từ draft**: Body `{clientRequestId:UUID,draftId:UUID,expectedDraftVersion:number,confirmation:{confirmed:true,textVersion:'ticket-v1'}}` $\rightarrow$ Core tạo Ticket trạng thái **`OPEN`**, trả về `{ticket:{id,ticketCode,status:'OPEN',confirmedAt},replayed:boolean}` |
+| `POST /api/v1/customers/me/tickets/manual` | **Khách hàng tự tạo vé thủ công qua Form**: Body `{clientRequestId:UUID,title:string,description:string,policyId?:string}` $\rightarrow$ Core tạo Ticket trạng thái **`OPEN`**, trả về `{ticket:{id,ticketCode,status:'OPEN',createdAt}}` |
+| `GET /api/v1/customers/me/tickets` | **Xem danh sách vé của chính mình**: Phân trang, lọc theo trạng thái (`OPEN`, `IN_PROGRESS`, `RESOLVED`, `CLOSED`). Thay thế mock data trên Web. |
+| `GET /api/v1/customers/me/tickets/:ticketId` | **Xem chi tiết vé của mình**: Bao gồm `ticketCode`, `status`, `confirmedContent`, thời gian tạo, chuyên viên tiếp nhận (nếu có). |
+| `GET /api/v1/customers/me/tickets/by-client-request-id/:clientRequestId` | Tra cứu idempotency receipt khi gặp timeout mạng. |
 
-Prefix `/api/v1`, UUID được validate, CSRF/Origin cho POST, GET no-store. Không nhận customerId/confirmedContent/source/confirmedAt/status do browser tự khai. Draft thuộc chính Customer/đúng cuộc CUSTOMER_SUPPORT, nguồn đúng Customer-visible và policy owner; receipt chỉ actor gốc. 400 validation,401/403 auth,404 ngoài owner,409 draft stale/expired/đã xác nhận/xung đột idempotency,429 quota. Quota cụ thể theo I07 cần chốt trước code; không reuse quota gửi tin như một giả định.
+- **Bảo mật & Phân quyền:** Session `CUSTOMER`, Origin, CSRF token. Header `Cache-Control: no-store`.
+- **Validation:** `title` 1–255 ký tự; `description` 1–4000 ký tự; `policyId` (nếu có) phải thuộc quyền sở hữu của Customer.
+- **Rate Limit:** 10 request/phút/actor cho thao tác tạo Ticket/chỉnh sửa draft.
 
-Trusted `proposeDraft` chỉ gọi sau service identity CH02, không endpoint browser `{source:'AGENT'}`. **Sửa nội dung draft** cần server revision/version mới/hash và review lại; I07 chưa có revision HTTP route cụ thể. Nếu muốn bật Edit ở T02 phải cập nhật I07 với DTO/authorization/supersede semantics trước, không gửi content tùy ý trong POST confirm. Đợt đầu có thể review chỉ đọc + Cancel/yêu cầu Agent chỉnh, không nút Edit giả.
+## 3. Transaction và quy tắc khởi tạo trạng thái `OPEN`
 
-## 3. Transaction và luồng
+1. **Khởi tạo trạng thái `OPEN`**: Khi khách hàng tạo Ticket thành công (từ Agent gợi ý hoặc Form thủ công), trạng thái luôn được lưu là **`OPEN`** (`status = OPEN`), `assignedStaffId = null` (hoặc giữ reference chuyên viên phụ trách nhưng status vẫn là `OPEN` chờ Accept).
+2. **Atomic Transaction:**
+   - Đọc và khóa draft (nếu tạo từ draft). Kiểm tra trạng thái draft (`DRAFT`), so sánh `version`, kiểm tra hạn dùng `expiresAt` (TTL 30 phút).
+   - Kiểm tra trùng lặp `clientRequestId` (idempotency key).
+   - Sinh mã vé `ticketCode` duy nhất (VD: `TK-7703`).
+   - Lưu `support_tickets` với `status = 'OPEN'`, lưu snapshot `confirmedContent`.
+   - Cập nhật draft sang trạng thái `CONFIRMED`.
+   - Ghi sự kiện vào `outbox_events` (`TICKET_CREATED`) để hệ thống realtime thông báo đến nhân viên.
+   - Commit transaction.
+3. Chuyên viên tư vấn khi vào trang [Staff Tickets](file:///e:/UET/Project/github/LifeInsuranceAIAssistant/apps/web/src/components/staff-tickets.tsx) sẽ nhìn thấy vé ở danh sách `OPEN` và bấm **Tiếp nhận (Accept)** để chuyển sang `IN_PROGRESS` theo đúng quy trình TK03 đã có.
 
-Lock draft/routing theo I07/I01 → tra receipt cùng key → kiểm draft hiện hành/hash/expiry/xác nhận rõ ràng → cấp code unique → insert immutable confirmedContent/source version/actor xác nhận → draft CONFIRMED + Ticket outbox → commit. Staff được phân công hợp lệ thì ASSIGNED, chưa có thì OPEN theo đề xuất I07 cần review; không trả lỗi chỉ vì notification chưa tới. Retry cùng key/hash trả 200; key mới cùng draft trả 409, không tạo Ticket thứ hai. Accept Ticket/notification/link không cấp quyền lịch sử AI.
+## 4. Test cases dự kiến
 
-```mermaid
-sequenceDiagram
-  participant A as Trusted Agent
-  participant C as Core Ticket
-  participant W as Customer
-  participant D as PostgreSQL
-  A->>C: proposeDraft qua service identity
-  W->>C: GET draft own version
-  C-->>W: Chính nội dung + confirmation text
-  W->>C: POST explicit confirm + version + client key
-  C->>D: Snapshot + Ticket + draft state + outbox atomic
-  D-->>C: Commit
-  C-->>W: ticketCode/status/replayed
-```
+### T01-T01 — Tạo Ticket qua Agent gợi ý & Khởi tạo status OPEN
+- C-A nhận draft từ Agent (status DRAFT, version 1).
+- C-A gửi `POST /customers/me/tickets` kèm confirmation hợp lệ.
+- Kết quả: Ticket được tạo thành công với status `OPEN`, `confirmedContent` khớp draft, draft chuyển `CONFIRMED`.
 
-## 4. Test cases
+### T01-T02 — Chỉnh sửa draft trước khi xác nhận (Draft Revision)
+- C-A gọi `PUT .../ticket-drafts/:draftId` sửa tiêu đề và mô tả với `expectedVersion = 1`.
+- Core kiểm tra và cập nhật draft lên `version = 2`, cập nhật `payload_hash` mới.
+- C-A confirm với `expectedDraftVersion = 2`.
+- Kết quả: Ticket lưu đúng nội dung sau khi sửa. Thử confirm với version cũ (version 1) bị từ chối 409 Conflict.
 
-Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+### T01-T03 — Khách hàng tự tạo Ticket thủ công qua Form
+- C-A mở modal tạo vé trên Web, nhập tiêu đề, mô tả và chọn hợp đồng.
+- Gửi `POST /customers/me/tickets/manual`.
+- Kết quả: Ticket được tạo thành công với status `OPEN`, xuất hiện ngay trong danh sách vé của khách hàng.
 
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
-
-### T01-T01 — Review draft owner và confirmation hợp lệ
-
-**Lớp kiểm thử:** API + DB dự kiến.
-**Điều kiện và dữ liệu:** I07 có trusted draft D-A của C-A version n; C-B không owner.
-
-**Các bước:**
-
-1. C-A GET draft rồi confirm=false/bỏ confirmation.
-2. Thử C-B đọc/xác nhận D-A.
-3. C-A confirm đúng version/textVersion bằng key mới.
-
-**Kết quả mong đợi:** Chưa xác nhận không Ticket; cross-owner bị chặn; chỉ exact draft/version server có confirmation hợp lệ mới tạo business record.
-
-### T01-T02 — Draft stale/expired và payload giả
-
-**Lớp kiểm thử:** API dự kiến.
-**Điều kiện và dữ liệu:** D-A đã được sửa lên n+1 hoặc hết hạn; browser có token n.
-
-**Các bước:**
-
-1. Confirm bằng n.
-2. Gửi thêm customerId/status/confirmedAt/confirmedContent/source=AGENT.
-3. Đối chiếu DB.
-
-**Kết quả mong đợi:** Stale/expired conflict; field quyền/bằng chứng do client gửi bị từ chối; không Ticket hoặc snapshot giả.
+### T01-T04 — Hết hạn bản thảo (TTL 30 phút)
+- Draft quá thời hạn 30 phút mà khách hàng chưa xác nhận.
+- C-A cố gắng confirm draft $\rightarrow$ Core từ chối với mã lỗi `409 DRAFT_EXPIRED`. Không có Ticket nào được tạo.
 
 ### T01-T03 — Đồng thời, receipt và rollback
 

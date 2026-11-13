@@ -22,7 +22,11 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 ## 1. Ranh giới nghiệp vụ
 
-Ticket là yêu cầu nghiệp vụ: Agent đề xuất nội dung → Customer xem và xác nhận → Core tạo Ticket + outbox atomic. Nó không là trạng thái cuộc chat. Handoff/Direct/Accept chat không tự tạo Ticket. Xem/nhận/đóng Ticket không cho Staff đọc AI chat riêng hoặc thay Accept chat.
+**Quyết định chốt (13/11/2026):**
+- Ticket hỗ trợ cả hai luồng: (1) Agent đề xuất nội dung $\rightarrow$ Customer xem xét & xác nhận $\rightarrow$ Core tạo Ticket; (2) Customer tự tạo qua Form thủ công trên giao diện.
+- Khách hàng được phép chỉnh sửa nội dung bản thảo draft (tiêu đề, mô tả, gắn hợp đồng) trước khi bấm xác nhận.
+- Trạng thái khởi tạo: Mọi Ticket mới tạo (dù khách đã có hay chưa có chuyên viên phụ trách) **đều khởi tạo với trạng thái `OPEN`**. Chuyên viên tiếp nhận bằng cách bấm Accept để chuyển sang `IN_PROGRESS`.
+- Ticket không là trạng thái cuộc chat. Handoff/Direct/Accept chat không tự tạo Ticket. Xem/nhận/đóng Ticket không cho Staff đọc AI chat riêng hoặc thay Accept chat.
 
 I07 là nhánh tiếp theo, không chặn nghiệm thu Inbox I06. Không ghép Copilot, attachments, Claim/payment, close/resolve hoặc form Staff tự tạo Ticket vào phase này. Agent dùng custom LangGraph, HTTP + callback JSON và tạm chốt HMAC theo Agent Design; profile xác thực, runtime store/checkpointer và G2/G3 còn phải review; **không tích hợp draft thật trước contract Agent riêng**. Có thể kiểm Core confirmation/Ticket với draft fixture trusted trong test container, phải báo đó là integration test, không AI thật.
 
@@ -97,7 +101,7 @@ Không nhận confirmedContent/actor/customerId/status từ body để thay draf
 
 `{ticket:{id,ticketCode,status,confirmedAt},replayed:boolean}`.
 
-Có Staff hợp lệ hiện hành → status ASSIGNED và assignedStaffId; chưa có/Staff không khả dụng → OPEN/assignedStaffId null, Ticket vẫn được tạo thành công và event chờ routing. Không báo thất bại chỉ vì thông báo chưa giao. Đây là đề xuất routing Ticket riêng, khác việc Direct/request chat chưa có Staff trả 409; cần review trước code.
+Quy tắc trạng thái ban đầu (Chốt 13/11/2026): Mọi Ticket do Customer tạo (từ Agent proposal hay Form thủ công) **luôn khởi tạo ở trạng thái `OPEN`**, dù khách hàng đã có hay chưa có Staff phụ trách. Khi Staff phụ trách vào danh sách vé sẽ thấy vé ở trạng thái `OPEN` và bấm **Tiếp nhận (Accept)** để chuyển sang `IN_PROGRESS` (theo đúng luồng TK03 đã triển khai). Điều này bảo đảm tính nhất quán và không tự động gán việc khi Staff chưa xác nhận tiếp nhận.
 
 Reconcile `GET /api/v1/customers/me/tickets/by-client-request-id/:clientRequestId`: chỉ Ticket của actor; 200 minimal receipt hoặc safe 404, không có kết quả chưa chứng minh chưa commit. Replay cùng POST/key/payload an toàn. Cùng draft/key mới trả 409 DRAFT_ALREADY_CONFIRMED, không tạo Ticket thứ hai; GET draft của owner khi state CONFIRMED trả confirmedTicket={id,ticketCode} để mở kết quả đã tạo. Replay key gốc vẫn200. Không tạo receipt giả cho key mới.
 

@@ -622,7 +622,16 @@ export function CustomerWorkspace({
 
             {/* View 6: Support Tickets */}
             {isTickets && (
-              <CustomerTickets onOpenChat={() => setActiveTab('chat')} />
+              <CustomerTickets
+                onOpenChat={() => setActiveTab('chat')}
+                csrfToken={csrfToken}
+                blocked={blocked}
+                policies={policies.map((p) => ({
+                  id: p.id,
+                  policyNumber: p.policyNumber,
+                  productName: p.product?.name,
+                }))}
+              />
             )}
 
             {/* View 7: Profile & Security */}
