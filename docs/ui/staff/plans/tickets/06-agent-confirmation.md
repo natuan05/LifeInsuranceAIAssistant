@@ -23,7 +23,7 @@ Source có CustomerTicketController, TicketDraftService, Customer Ticket UI và 
 | [ticket-api.ts](../../../../../apps/web/src/lib/ticket-api.ts) | Client Customer/Staff theo đúng quyền |
 | [tickets.module.ts](../../../../../apps/core/src/tickets/tickets.module.ts) | Đăng ký controller/service trong module Ticket |
 
-**Các điểm review còn phải xử lý:** kiểm `confirmed=true` và phiên bản lời xác nhận, request hash trên replay, khóa/CAS draft, registry mã lỗi và lời gọi Auth, projection confirmedContent cho Staff. Integration Agent cần trusted proposal/service contract theo Agent Design. Chưa ghi các phần này là test pass.
+**Phase 2 đã sửa phần Application:** buộc confirmed=true/textVersion=ticket-v1, chuẩn hóa trước validation/hash, request fingerprint khi replay, khóa/CAS draft và projection snapshot cơ bản cho Staff/Customer. Có kiểm Core/DB/gateway và browser, gồm retry/mất ACK/concurrency. Integration Agent, sáu nhóm/source refs và trusted proposal/service contract vẫn chưa triển khai trong phase này.
 
 ## 3. Data model và phạm vi ảnh hưởng
 
@@ -33,10 +33,10 @@ Source có CustomerTicketController, TicketDraftService, Customer Ticket UI và 
 | staff_assignments | Đọc recipient/routing | Routing nhất quán với transaction tạo Ticket |
 | conversations | Kiểm owner khi draft liên kết cuộc chat | Giữ transcript grant riêng |
 | ticket_drafts | customer/conversation/policy, title/description, version, payload_hash, state, expires_at | TTL **30 phút**; mỗi sửa hợp lệ tăng version/hash; sourceDraftId unique khi consume |
-| support_tickets | status, source_draft_id, confirmed_content, idempotency_key, version | OPEN lúc tạo; snapshot chính xác nội dung Customer đã duyệt/gửi, bất biến sau tạo |
+| support_tickets | status, source_draft_id, confirmed_content, request_fingerprint, idempotency_key, version | OPEN lúc tạo; snapshot chính xác nội dung Customer đã duyệt/gửi, bất biến sau tạo |
 | audit_logs, outbox_events | Ghi cùng transaction Ticket | Metadata tối thiểu, event TICKET_CREATED và chống trùng delivery |
 
-Schema draft/snapshot đã có trong source migration. Dữ liệu legacy thiếu snapshot tiếp tục được ghi nhận là LEGACY_UNVERIFIED. Yêu cầu mở rộng thêm field/source refs phải có schema contract cụ thể trước khi tạo migration bổ sung.
+Schema draft/snapshot và migration 202611140001_ticket_request_fingerprint đã có trong source. Dữ liệu legacy thiếu snapshot tiếp tục được ghi nhận là LEGACY_UNVERIFIED. Yêu cầu mở rộng thêm field/source refs phải có schema contract cụ thể trước khi tạo migration bổ sung.
 
 Mức ảnh hưởng cao ở Customer confirmation/manual form, Staff detail/status, notification và bảo toàn nguồn. Core sở hữu nghiệp vụ; Agent dùng Business API.
 
@@ -86,7 +86,7 @@ Prefix `/api/v1`. Source controller hiện có các route sau; bảng mô tả c
 
 Title trim 1–255 ký tự, description trim 1–4000 ký tự; policy phải thuộc Customer. Actor lấy từ session, các mutation theo Origin/CSRF/JSON và quota mục tiêu **10 request/phút/actor** đã ghi ở T01. Controller hiện trả 200 cho create/confirm và replay. UUID/unknown fields/query/role cần kiểm tra theo contract API.
 
-Draft phải còn DRAFT, đúng owner/cuộc, chưa hết hạn và đúng version. `confirmed:false`, textVersion sai hoặc thiếu xác nhận phải bị từ chối. Response thành công chỉ sau commit. Yêu cầu mã lỗi 409 cho STALE_DRAFT/DRAFT_EXPIRED/DRAFT_ALREADY_CONFIRMED và IDEMPOTENCY_CONFLICT cần được hoàn thiện trong error registry và tests.
+Draft phải còn DRAFT, đúng owner/cuộc, chưa hết hạn và đúng version. `confirmed:false`, textVersion sai hoặc thiếu xác nhận phải bị từ chối. Response thành công chỉ sau commit. Registry đã có STALE_DRAFT/DRAFT_EXPIRED/DRAFT_ALREADY_CONFIRMED/DRAFT_NOT_EDITABLE cùng IDEMPOTENCY_CONFLICT. Phase 0 đã kiểm bốn lỗi draft qua HTTP; Phase 2 đã kiểm fingerprint/replay và cạnh tranh bằng DB thật, thêm safe503 khi hết lượt cấp mã.
 
 ## 5. Transaction, replay và UI
 
@@ -121,7 +121,7 @@ Dùng fixture hoàn toàn synthetic trong harness cô lập. Bảng là tiêu ch
 
 - [x] Hai luồng tạo Ticket, sửa draft và trạng thái OPEN đã được duyệt.
 - [x] Source có schema/controller/service/UI Customer Ticket.
-- [ ] Sửa các điểm review tại mục 2 và chạy tests Core/API/DB/browser.
+- [x] Phase 2 đã sửa phần Application tại mục 2 và kiểm Core/API/DB/browser; các ca summary/nguồn còn theo mục riêng.
 - [x] Giữ đầy đủ sáu nhóm summary Agent và nguồn đã được duyệt theo phương án A.
 - [ ] Review/triển khai handoffPayload, revision/hash, DTO nguồn và snapshot theo thiết kế trên.
 - [ ] Nghiệm thu các ca summary/nguồn với Agent/Core/UI thật theo phạm vi được mở.

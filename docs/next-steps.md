@@ -4,14 +4,14 @@
 
 ## Trình tự rà soát đã thống nhất
 
-Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Spec chưa được thực thi, không bao gồm code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
+Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–2 đã triển khai và kiểm qua Docker/gateway; Phase 3–5 còn kế hoạch. Spec không bao gồm code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
 
 ## Đã có
 
 - Core/Web/Docker gateway/PostgreSQL/MinIO, auth/session, tài khoản/hồ sơ, Staff assignment và tra cứu Customers.
 - Staff Policies/Products/PDF, Inbox I01–I06: Direct, Customer consent, Staff Accept, lịch sử/gửi tin/realtime/handoff notification.
 - Customer Home, Products, Policies/PDF theo ownership và nền chat hai đầu; dùng tài khoản được cấp sẵn, không tự đăng ký. Hồ sơ Customer chỉ đọc theo C08/PF01/PF02; Customer notification center theo phase sở hữu.
-- Staff Ticket TK01–TK05 đã có read/Accept/status/UI/notification. Customer I07/T01/T02 đã có source hai luồng thủ công và draft Agent, tạo OPEN; cần sửa lỗi review và nghiệm thu tích hợp nguồn Agent.
+- Staff Ticket TK01–TK05 đã có read/Accept/status/UI/notification. Customer I07/T01/T02 đã có source hai luồng thủ công và draft Core, tạo OPEN; Phase 2 đã sửa phần Application về validation/replay/CAS/snapshot/receipt. Trước khi đóng nghiệm thu Phase 2, bổ sung ca browser A2-04 đổi Customer actor khi manual/confirm pending theo [checklist Application](application-code-alignment-spec.md). Nguồn Agent thật và summary/refs tiếp tục theo I07.
 - Corpus Markdown và thiết kế Agent đã có. Task 1 có contracts/schema/fixtures/tests để review G1, Task 5 có graph và unit tests với fake adapters. Source còn có Public RAG/adapter Gemini thử nghiệm và checkpointer PostgreSQL theo các mốc 3/4 của Agent README. Provider Gemini API cho model sinh/embedding đã chốt ngày 13/11/2026. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. HTTP/Core end-to-end, limits và nghiệm thu tiếp tục theo gates.
 
 ## Thứ tự tiếp theo
@@ -27,7 +27,7 @@ Phần Application đã có source được đối chiếu và đặc tả tại
 
 ## Bảo vệ thông tin Customer
 
-[Ma trận dữ liệu](configuration-and-data.md#customer-sensitive-data) giữ các quyết định và tiêu chí CU01/CU02. Code còn cần che mặc định email/phone, Hiện/Ẩn để liên hệ, search chỉ tên/mã và projection năm sinh/tỉnh-thành đã xác minh. Họ tên/mã Customer và policyNumber đầy đủ trong scope đã khớp source. Agent dùng system prompt và dữ liệu synthetic theo B, không thêm bộ lọc định danh bằng code.
+[Ma trận dữ liệu](configuration-and-data.md#customer-sensitive-data) giữ các quyết định và tiêu chí CU01/CU02. Core/Web đã che mặc định email/phone, Hiện/Ẩn từng trường sau reauthorize, search chỉ tên/mã. Staff DTO dùng birthYear/provinceCity, hiện trả null vì chưa có nguồn xác minh. Họ tên/mã Customer và policyNumber đầy đủ trong scope đã khớp source. Agent dùng system prompt và dữ liệu synthetic theo B, không thêm bộ lọc định danh bằng code.
 
 Copilot xác định hợp đồng từ câu hỏi/lịch sử được phép, mơ hồ thì hỏi lại. Policy Lookup/PDF chỉ đọc. Không bổ sung ô chọn hợp đồng hoặc API lưu lựa chọn. CP01/CP04 sở hữu tích hợp và kiểm thử theo [quyết định chuẩn](specifications/Agent_Design.md#copilot-policy-selection).
 

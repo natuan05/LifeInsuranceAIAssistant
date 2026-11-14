@@ -26,7 +26,7 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 | C04 | Đã nối API local | PO01/PO02 danh sách/chi tiết hợp đồng, quyền lợi, lịch phí theo ownership | 5/5 browser tests pass |
 | C05 | Đã nối API local | D01/D02 xem/tải PDF hợp đồng sở hữu qua MinIO presigned URL | Tích hợp SignedPdfPreview |
 | C06 | I03–I06 và CH01 đã nối | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM trong Customer shell | CH02/CH03 Agent trả lời thật/citations |
-| C07 | Source API/UI có; cần hoàn thiện review | Migration draft/snapshot, manual-create, draft read/edit/confirm và own list/detail | Hai luồng đã duyệt; sửa xác nhận/replay/concurrency và nghiệm thu nguồn Agent theo I07/T01/T02 |
+| C07 | Application Phase 2 đã triển khai; còn một ca kiểm browser | Manual-create, draft read/edit/confirm, validation/replay/CAS/snapshot/receipt và own list/detail | Kiểm A2-04 đổi actor khi Ticket pending; tích hợp nguồn Agent thật và sáu nhóm summary/source refs theo I07/T01/T02 |
 | C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Hồ sơ chỉ đọc theo PF01/02; kiểm thử hồi quy và masking theo phạm vi riêng |
 | C09 | Source có schema/API/UI; cần review | Chat/SYSTEM, recipient Customer, read/read-all, message.readAt, chuông/realtime và cleanup | Hoàn thiện DTO/event; sửa gộp theo chu kỳ đọc chat, giữ id/bật unread khi có tin mới; đổi cleanup từ mỗi giờ sang khi khởi động + mỗi 24 giờ theo phương án B; chạy tests N01/N02, retention 30 ngày chung Customer/Staff |
 | S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; regression + gateway/Core/DB E2E trên Chromium/Firefox/WebKit | Auth mở rộng ngoài MVP theo yêu cầu riêng |
@@ -52,22 +52,22 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 
 ## Bảo vệ dữ liệu Customer — bổ sung 12/11/2026
 
-**P, chưa triển khai che/hiện liên hệ theo quyết định mới.** API hiện kiểm owner/assignment và loại citizenId/hash/token khỏi DTO hồ sơ, nhưng tên/email/phone trả nguyên; detail có ngày sinh/địa chỉ nguyên. UI chưa che một phần. Prompt Agent hạn chế dữ liệu nhạy cảm chưa thay lớp xử lý trước provider. Không coi dữ liệu seed synthetic là bằng chứng hệ thống đã che dữ liệu thật.
+**Phase 1 đã triển khai Core/Web.** Staff list/detail nhận email/phone đã che, Hiện/Ẩn từng trường qua API kiểm quyền và audit metadata. Search chỉ tên/mã; Staff detail dùng birthYear/provinceCity, hiện null vì chưa có nguồn xác minh. Customer self-read giữ nguyên. Kiểm bằng fixture synthetic qua API/DB/gateway/browser, không kết luận về triển khai cloud.
 
-- [x] Email/phone Staff list/detail che mặc định theo định dạng A, có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Runtime masking/API reveal/UI còn P trong CU01/CU02.
+- [x] Email/phone Staff list/detail che mặc định theo định dạng A, có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core/Web đã triển khai theo CU01/CU02.
 - [x] Số hợp đồng Staff hiển thị đầy đủ theo phân công/gate tài nguyên, chốt A ngày 14/11 và khớp source hiện tại.
-- [ ] CU01-T07/CU02-T06 kiểm reauthorize/audit/Hiện-Ẩn/revoke, PL01-T05 kiểm policyNumber đầy đủ theo scope.
+- [x] CU01-T07/CU02-T06 kiểm reauthorize/audit/Hiện-Ẩn/revoke; hồi quy Policy/PDF giữ gate tài nguyên.
 - [x] Search Customer đã chốt A: chỉ tên/mã, không email/phone.
-- [ ] Sửa Core filter/Swagger và Web placeholder, kiểm CU01-T02 và URL/Back/page; source vẫn tìm email/phone.
+- [x] Core filter/Swagger/Web placeholder chỉ tên/mã; kiểm search/count/URL/Back/page.
 - [x] Staff detail chỉ năm sinh/tỉnh-thành đã xác minh, thiếu căn cứ thì ẩn đã chốt A.
-- [ ] Đặc tả nguồn xác minh và DTO/projection Staff, đồng bộ UI và kiểm CU01-T05; source còn raw birth/address.
+- [x] DTO/projection Staff và UI theo CU01-T05; chưa có nguồn xác minh nên null từng trường, không raw birth/address.
 - [x] Định dạng A đã chốt cho email giữ 1 ký tự đầu và phone giữ 2 số cuối, phần bị che dùng `***`.
-- [ ] Triển khai Core projection/DTO/Web và kiểm CU01-T06, runtime hiện còn raw email/phone.
+- [x] Core projection/DTO/Web và CU01-T06; API mặc định không raw email/phone.
 - [x] Họ tên/mã Customer đã chốt A. Staff có active assignment hợp lệ xem đầy đủ, source hiện đã khớp.
-- [ ] Chốt policy các trường còn mở, audit và contract lỗi theo ma trận dữ liệu. [Đặc tả dữ liệu](../configuration-and-data.md#customer-sensitive-data).
-- [ ] Core projection Staff/self riêng và UI Customers cùng các caller Policy/Inbox/Ticket theo CU01/CU02; không raw ở JSON/DOM/cache ngoài contract.
+- [x] Phạm vi profile Staff, reveal/audit metadata và lỗi an toàn đã chốt, triển khai theo CU01/CU02. Trường năm sinh/tỉnh-thành chưa có nguồn xác minh trả null; không coi việc thiếu nguồn là policy chưa chốt. [Đặc tả dữ liệu](../configuration-and-data.md#customer-sensitive-data).
+- [x] Tách Staff/self và UI Customers; Policy/Inbox/Ticket chỉ nhận tên/mã trong DTO Customer, không có contact card raw.
 - [x] Bộ lọc trước Gemini chốt B ngày 14/11 theo source/plan. MVP có sáu quy tắc system prompt trong prompts.py và test đối chiếu thiết kế, dùng dữ liệu synthetic.
-- [ ] Tests synthetic API/network/DOM/Agent boundary và hồi quy gateway; chưa có test masking chạy hoặc xác nhận trạng thái cloud.
+- [x] Tests synthetic Core/API/DB và browser Customers/PDF qua gateway; không xác nhận trạng thái cloud hoặc nghiệm thu Agent từ Phase 1.
 
 ## Phần tiếp theo
 
@@ -92,7 +92,9 @@ Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff U
 - [x] I01–I06: model/gate/legacy/metadata/consent/Accept/history/send/UI/realtime đã triển khai; pending không đọc A10.
 - [x] Chốt pending chỉ metadata, sau Accept toàn bộ lịch sử Customer-facing; bỏ counts/Closed chat đích, tách handoff và Ticket trong tài liệu.
 - [x] Consent/request/Accept/handoff notification/SYSTEM không tự tạo Ticket, fence nền đã có I01–I06.
-- [ ] Hoàn thiện Ticket thủ công và draft Agent theo I07/T01/T02: sửa draft trước xác nhận, tạo OPEN, snapshot/outbox atomic, replay/concurrency và Agent writer contract.
+- [x] Application Phase 2: manual/draft Core, validation/CAS/fingerprint/snapshot/receipt và retry Web; có kiểm Core/DB/gateway/browser.
+- [ ] A2-04: ca browser Ticket chuyên biệt đổi Customer actor khi manual/confirm pending; source có binding nhưng chưa đủ bằng chứng để đóng tiêu chí này.
+- [ ] Tích hợp Agent writer, sáu nhóm summary/source refs theo I07/T01/T02; chưa nghiệm thu Agent thật.
 - [x] Product A17/P01 Core/gateway:10 test HTTP/PostgreSQL +1 gateway pass, lint/build pass;78 test hồi quy chat pass. Không browser E2E/UI Products.
 - [x] Product A19/access P02:13 Core/HTTP/MinIO test +1 gateway pass;88 regression pass (10 P01 +78 chat), lint/build pass. Không browser E2E/UI Products.
 - [x] Staff Products P03:17 browser test mock +1 E2E Core/PostgreSQL/MinIO th?t;93 regression Account/Session/Customers/Policy/Inbox pass; t?ng111 pass, kh?ng flaky.
@@ -112,7 +114,7 @@ Mã gap/điều kiện đóng nằm duy nhất tại [G01–G09](staff/plans/REA
 | FR-003 / UC-003 | Staff list/detail/search/phân trang đúng assignment đã nối; có Core tests và regression FE, chưa E2E đầy đủ |
 | FR-005/006/007 | Chat Customer–Staff/consent/Accept/send/realtime đã có; Agent có graph/adapter/store, luồng AI trả lời/Copilot qua Core và UI chưa được nghiệm thu, không đánh dấu đủ FR-005/007 |
 | FR-008 / UC-007 | Staff/Customer policy/PDF và product catalog/documents/UI đã có. Retrieval AI và mapping nguồn áp dụng cho RAG là phần Agent riêng; không nghiệm thu từ UI đọc PDF |
-| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. Source có Customer draft/manual/confirmation; I07 còn lỗi review và thiếu tích hợp nguồn Agent/summary; AI Copilot còn phần triển khai; không đánh dấu đủ nhóm FR |
+| FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. Phase 2 đã sửa Customer draft/manual/confirmation, replay/CAS/snapshot/receipt; I07 còn tích hợp nguồn Agent/summary; AI Copilot còn phần triển khai; không đánh dấu đủ nhóm FR |
 | NFR-001/002 | Baseline auth/assignment/CSRF/allowlist/synthetic ở API hiện có; retrieval/tool scope chưa làm |
 | NFR-003 | Staff đọc DB/snapshot và exact document version; AI safety/retrieval pipeline chưa làm |
 | NFR-005/006 | Handoff outbox/realtime local có I06; Ticket+outbox nghiệp vụ còn I07. Chưa đo workload/SLA thông báo5 giây, không suy từ test local |

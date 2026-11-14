@@ -1,9 +1,10 @@
-import { coreRequest } from './auth-api';
+import { AuthError, coreRequest } from './auth-api';
 export const ticketStatuses = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const;
+export type ConfirmedContent = { title: string; description: string; policyId: string | null; policyNumber: string | null; contentHash: string; confirmedAt: string; draftVersion: number | null; textVersion: string | null };
 export type TicketStatus = typeof ticketStatuses[number];
 export type TicketItem = { id: string; ticketCode: string; title: string; status: TicketStatus; createdAt: string; customer: { id: string; fullName: string; accountCode: string } };
 export type TicketList = { items: TicketItem[]; pageInfo: { hasMore: boolean; nextCursor: string | null } };
-export type Ticket = TicketItem & { version: number; policy: { id: string; policyNumber: string } | null; confirmedAt: string; confirmationSource: 'LEGACY_UNVERIFIED'; confirmedContent: null; aiSummary: string | null; allowedActions: { accept: boolean; transitions: TicketStatus[] }; chatLink: { conversationId: string; capability: 'REQUEST_METADATA' | 'TRANSCRIPT'; href: string } | null };
+export type Ticket = TicketItem & { version: number; policy: { id: string; policyNumber: string } | null; confirmedAt: string; confirmationSource: 'CUSTOMER_SUBMITTED' | 'CUSTOMER_CONFIRMED' | 'LEGACY_UNVERIFIED'; confirmedContent: ConfirmedContent | null; aiSummary: string | null; allowedActions: { accept: boolean; transitions: TicketStatus[] }; chatLink: { conversationId: string; capability: 'REQUEST_METADATA' | 'TRANSCRIPT'; href: string } | null };
 export function listTickets(filters: string, cursor: string | null, signal: AbortSignal) {
   const query = new URLSearchParams(filters); query.set('limit', '20'); if (cursor) query.set('cursor', cursor);
   return coreRequest<TicketList>(`staff/tickets?${query}`, { signal });
@@ -43,7 +44,8 @@ export type CustomerTicketDetail = {
   policyId?: string | null;
   policyNumber?: string | null;
   conversationId?: string | null;
-  confirmedContent?: Record<string, unknown> | null;
+  confirmedContent?: ConfirmedContent | null;
+  confirmationSource?: 'CUSTOMER_SUBMITTED' | 'CUSTOMER_CONFIRMED' | 'LEGACY_UNVERIFIED';
   assignedStaff?: {
     id: string;
     fullName: string;
@@ -94,11 +96,10 @@ export function customerReadTicket(ticketId: string, signal: AbortSignal) {
 }
 
 export function customerCreateManualTicket(
-  payload: { title: string; description: string; policyId?: string },
+  payload: { clientRequestId: string; title: string; description: string; policyId?: string | null },
   csrfToken: string,
   signal: AbortSignal,
 ) {
-  const clientRequestId = crypto.randomUUID();
   return coreRequest<{
     ticket: { id: string; ticketCode: string; status: TicketStatus; createdAt: string };
     replayed: boolean;
@@ -111,7 +112,7 @@ export function customerCreateManualTicket(
       'X-CSRF-Token': csrfToken,
     },
     body: JSON.stringify({
-      clientRequestId,
+      clientRequestId: payload.clientRequestId,
       title: payload.title,
       description: payload.description,
       policyId: payload.policyId || undefined,
@@ -129,7 +130,7 @@ export function customerGetDraft(conversationId: string, draftId: string, signal
 export function customerUpdateDraft(
   conversationId: string,
   draftId: string,
-  payload: { expectedVersion: number; title: string; description: string; policyId?: string },
+  payload: { expectedVersion: number; title: string; description: string; policyId?: string | null },
   csrfToken: string,
   signal: AbortSignal,
 ) {
@@ -149,13 +150,13 @@ export function customerUpdateDraft(
 }
 
 export function customerConfirmTicket(
+  clientRequestId: string,
   draftId: string,
   expectedDraftVersion: number,
   textVersion: string,
   csrfToken: string,
   signal: AbortSignal,
 ) {
-  const clientRequestId = crypto.randomUUID();
   return coreRequest<{
     ticket: { id: string; ticketCode: string; status: TicketStatus; confirmedAt: string };
     replayed: boolean;
@@ -179,3 +180,33 @@ export function customerConfirmTicket(
   });
 }
 
+
+export type CustomerTicketReceipt = { ticket: { id: string; ticketCode: string; status: string; createdAt: string; confirmedAt: string }; replayed: boolean };
+export const customerTicketReceipt = (key: string, signal: AbortSignal) => coreRequest<CustomerTicketReceipt>(`customers/me/tickets/by-client-request-id/${encodeURIComponent(key)}`, { signal });
+export type CustomerTicketIntent = { key: string } & ({ operation: 'MANUAL'; title: string; description: string; policyId: string | null } |
+  { operation: 'CONFIRM'; draftId: string; version: number; textVersion: string });
+export class TicketOutcomeUnknown extends Error {
+  constructor() { super('The result is not confirmed yet. Check and retry this request before starting another.'); }
+}
+export async function submitCustomerTicketIntent(intent: CustomerTicketIntent, csrfToken: string, signal: AbortSignal, checkFirst: boolean) {
+  const receipt = async () => {
+    try { return await customerTicketReceipt(intent.key, AbortSignal.any([signal, AbortSignal.timeout(15000)])); }
+    catch (error) { if (error instanceof AuthError && error.status === 404) return null; throw error; }
+  };
+  if (checkFirst) {
+    const existing = await receipt(); signal.throwIfAborted();
+    if (existing) return existing;
+  }
+  try {
+    const attempt = AbortSignal.any([signal, AbortSignal.timeout(15000)]);
+    return intent.operation === 'MANUAL'
+      ? await customerCreateManualTicket({ clientRequestId: intent.key, title: intent.title, description: intent.description, policyId: intent.policyId }, csrfToken, attempt)
+      : await customerConfirmTicket(intent.key, intent.draftId, intent.version, intent.textVersion, csrfToken, attempt);
+  } catch (error) {
+    signal.throwIfAborted();
+    if (error instanceof AuthError && error.status < 500) throw error;
+    try { const result = await receipt(); signal.throwIfAborted(); if (result) return result; }
+    catch (receiptError) { signal.throwIfAborted(); if (receiptError instanceof AuthError && [401, 403].includes(receiptError.status)) throw receiptError; }
+    throw new TicketOutcomeUnknown();
+  }
+}

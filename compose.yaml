@@ -152,6 +152,7 @@ services:
     environment:
       PGHOST: postgres
       I01_TEST_DATABASE: life_insurance
+      TEST_CORS_ORIGINS: ${CORE_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080}}
     volumes:
       - credential_admin:/credentials/admin:ro
       - credential_core:/credentials/core:ro

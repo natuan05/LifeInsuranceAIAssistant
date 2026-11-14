@@ -23,6 +23,8 @@ const {OutboxDispatcherService}=require('../dist/outbox/services/outbox-dispatch
 const {WebSocket}=require('ws');
 const {configureHttp}=require('../dist/http/http-foundation');
 process.env.NODE_ENV='test';
+const origin=(process.env.TEST_CORS_ORIGINS||'http://localhost:8080').split(',')[0].trim();
+process.env.CORS_ORIGINS=origin;
 const runId=randomUUID(),users=[],tickets=[],chats=[],policies=[],products=[];
 const client=(role)=>new PrismaClient({adapter:new PrismaPg({host:process.env.PGHOST,database:process.env.I01_TEST_DATABASE,user:role+'_runtime',password:readFileSync('/credentials/'+role+'/password','utf8').trim(),max:5})});
 const admin=client('admin'),core=client('core');
@@ -54,7 +56,7 @@ before(async()=>{
  assignment=await admin.staffAssignment.create({data:{staffId:staff.id,customerId:customer.id,operatorId:runId}});
  for(const status of ['OPEN','ASSIGNED','IN_PROGRESS','RESOLVED','CLOSED','ASSIGNED','ASSIGNED'])await fixture(status);
  await fixture('ASSIGNED',other.id);await fixture('OPEN',null);
- app=await NestFactory.create(TestModule,{logger:false});configureHttp(app,{origins:['http://localhost:8080'],docsEnabled:true});
+ app=await NestFactory.create(TestModule,{logger:false});configureHttp(app,{origins:[origin],docsEnabled:true});
  await app.listen(0,'127.0.0.1');base=await app.getUrl();
 });
 after(async()=>{try{
@@ -123,7 +125,7 @@ test('cursor expiry and Core restart require a fresh first page',()=>{
 test('detail projects legacy metadata without pretending AI summary is confirmed content',async()=>{
  for(let i=0;i<5;i++){const {ticket}= (await get('/'+tickets[i])).body;
  assert.equal(ticket.confirmationSource,'LEGACY_UNVERIFIED');assert.equal(ticket.confirmedContent,null);assert.equal(ticket.aiSummary,'AI_ONLY_SENTINEL');
- assert.equal(ticket.version,0);assert.equal(ticket.policy,null);assert.equal(ticket.chatLink,null);assert.equal(ticket.allowedActions.accept,i===1);assert(!('conversationId'in ticket));}
+ assert.equal(ticket.version,0);assert.equal(ticket.policy,null);assert.equal(ticket.chatLink,null);assert.equal(ticket.allowedActions.accept,i===0||i===1);assert(!('conversationId'in ticket));}
 });
 test('Ticket link never grants private AI or cross-customer transcript access; direct chat may link',async()=>{
  const privateChat=await admin.conversation.create({data:{customerId:customer.id,channelType:'CUSTOMER_SUPPORT',supportOrigin:'AI',status:'AI_ACTIVE',createdByCustomerId:customer.id}});chats.push(privateChat.id);
@@ -183,7 +185,7 @@ test('gateway exposes read APIs and Swagger describes safe response schemas',asy
 
 // TK03 command regressions share the synthetic session/assignment fixture and teardown.
 async function accept(id,version=0,who=staff,expected=200,headers={},gateway=false) {
- const response=await fetch((gateway?'http://gateway':base)+'/api/v1/staff/tickets/'+id+'/accept',{method:'POST',headers:{Cookie:who.cookie,Origin:'http://localhost:8080','Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':who.csrf,...headers},body:JSON.stringify({expectedVersion:version})});
+ const response=await fetch((gateway?'http://gateway':base)+'/api/v1/staff/tickets/'+id+'/accept',{method:'POST',headers:{Cookie:who.cookie,Origin:origin,'Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':who.csrf,...headers},body:JSON.stringify({expectedVersion:version})});
  assert.equal(response.status,expected);const body=await response.json();
  assert.equal(response.headers.get('cache-control'),'no-store');return {body,response};
 }
@@ -201,9 +203,10 @@ test('TK03 concurrent acceptance and replay commit one transition/audit/event wi
  assert.deepEqual(await admin.conversation.findUnique({where:{id:chat.id}}),before);
  await assert.rejects(core.$transaction(tx=>new ConversationAccessService().requireTranscript(tx,staff.id,chat.id)),e=>e.getStatus()===404);
 });
-test('TK03 stale version and non-ASSIGNED states cannot transition or produce side effects',async()=>{
+test('TK03 stale versions and terminal states cannot Accept; assigned OPEN can',async()=>{
  const ticket=await fixture();assert.equal((await accept(ticket.id,9,staff,409)).body.code,'STALE_TICKET');
- for(const status of ['OPEN','RESOLVED','CLOSED']){const row=await fixture(status);await accept(row.id,0,staff,409);assert.equal((await admin.supportTicket.findUnique({where:{id:row.id}})).version,0);}
+ for(const status of ['RESOLVED','CLOSED']){const row=await fixture(status);await accept(row.id,0,staff,409);assert.equal((await admin.supportTicket.findUnique({where:{id:row.id}})).version,0);}
+ const open=await fixture('OPEN');assert.equal((await accept(open.id)).body.ticket.status,'IN_PROGRESS');
  await accept(ticket.id,0,other,404);await accept(randomUUID(),0,staff,404);
  assert.equal(await admin.auditLog.count({where:{targetId:ticket.id}}),0);
 });
@@ -212,7 +215,7 @@ test('TK03 CSRF, origin, role and strict body validation protect writes',async()
  await accept(ticket.id,0,staff,403,{'X-CSRF-Token':'bad'});await accept(ticket.id,0,staff,403,{Origin:'http://invalid.example'});
  await accept(ticket.id,0,customer,403);
  for(const value of [-1,1.5,'0',null,2147483647])await accept(ticket.id,value,staff,400);
- const response=await fetch(base+'/api/v1/staff/tickets/'+ticket.id+'/accept',{method:'POST',headers:{Cookie:staff.cookie,Origin:'http://localhost:8080','Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':staff.csrf},body:JSON.stringify({expectedVersion:0,status:'IN_PROGRESS'})});assert.equal(response.status,400);
+ const response=await fetch(base+'/api/v1/staff/tickets/'+ticket.id+'/accept',{method:'POST',headers:{Cookie:staff.cookie,Origin:origin,'Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':staff.csrf},body:JSON.stringify({expectedVersion:0,status:'IN_PROGRESS'})});assert.equal(response.status,400);
  assert.equal((await admin.supportTicket.findUnique({where:{id:ticket.id}})).status,'ASSIGNED');
 });
 test('TK03 replay still checks current assignment and locked Staff; locked Customer is serviceable',async()=>{
@@ -249,16 +252,20 @@ async function ticketEvent(row,type='TICKET_CREATED'){
  return admin.outboxEvent.create({data:{aggregateType:'TICKET',aggregateId:row.id,eventType:type,payload:{schemaVersion:1,version:row.version},status:'PROCESSING',leaseOwner:'synthetic-held',leaseExpiresAt:new Date(Date.now()+3600000)}});
 }
 async function notifications(who=staff,id=null,expected=200){
- const response=await fetch(base+'/api/v1/staff/notifications'+(id?'/'+id+'/read':''),{method:id?'POST':'GET',headers:{Cookie:who.cookie,Origin:'http://localhost:8080','X-Auth-Request':'1','X-CSRF-Token':who.csrf,...(id?{'Content-Type':'application/json'}:{})},...(id?{body:'{}'}:{})});assert.equal(response.status,expected);return response.json();
+ const response=await fetch(base+'/api/v1/staff/notifications'+(id?'/'+id+'/read':''),{method:id?'POST':'GET',headers:{Cookie:who.cookie,Origin:origin,'X-Auth-Request':'1','X-CSRF-Token':who.csrf,...(id?{'Content-Type':'application/json'}:{})},...(id?{body:'{}'}:{})});assert.equal(response.status,expected);return response.json();
 }
 test('TK05 creation consumer deduplicates concurrent delivery and exposes safe Ticket target; read does not Accept',async()=>{
  const row=await fixture(),event=await ticketEvent(row),service=app.get(TicketEventService);
  await Promise.all(Array.from({length:3},()=>service.route(event)));
- assert.equal(await admin.notification.count({where:{ticketId:row.id}}),1);
+ const created=await admin.notification.findMany({where:{ticketId:row.id},select:{kind:true,recipientStaffId:true,recipientCustomerId:true}});
+ assert.deepEqual(created.sort((a,b)=>a.kind.localeCompare(b.kind)),[
+  {kind:'SUPPORT_TICKET_CREATED',recipientStaffId:null,recipientCustomerId:customer.id},
+  {kind:'TICKET_CREATED',recipientStaffId:staff.id,recipientCustomerId:null},
+ ]);
  const items=(await notifications()).items,item=items.find(x=>x.target.id===row.id);assert(item);assert.equal(item.kind,'TICKET_CREATED');assert.equal(item.target.type,'TICKET');assert.equal(item.title,'New support ticket');assert(!JSON.stringify(item).includes(row.title));
  await notifications(staff,item.id);await notifications(staff,item.id);assert.equal((await admin.supportTicket.findUnique({where:{id:row.id}})).status,'ASSIGNED');
  assert(!(await notifications(other)).items.some(x=>x.target.id===row.id));await notifications(other,item.id,404);await notifications(customer,item.id,403);
- const denied=await fetch(base+'/api/v1/staff/notifications/'+item.id+'/read',{method:'POST',headers:{Cookie:staff.cookie,Origin:'http://localhost:8080','Content-Type':'application/json','X-Auth-Request':'1'},body:'{}'});assert.equal(denied.status,403);
+ const denied=await fetch(base+'/api/v1/staff/notifications/'+item.id+'/read',{method:'POST',headers:{Cookie:staff.cookie,Origin:origin,'Content-Type':'application/json','X-Auth-Request':'1'},body:'{}'});assert.equal(denied.status,403);
 });
 test('TK05 scope loss filters list/read and suppresses creation before routing, including locked Staff',async()=>{
  const row=await fixture(),event=await ticketEvent(row),service=app.get(TicketEventService);await service.route(event);const item=await admin.notification.findFirst({where:{ticketId:row.id}});
@@ -273,11 +280,11 @@ test('TK05 worker retry after notification commit deduplicates; lease loss canno
  const row=await fixture(),event=await ticketEvent(row),events=app.get(TicketEventService);
  const failed=new OutboxDispatcherService({prisma:core},{},{publishTicket:async()=>{throw new Error('Synthetic delivery failure');}},events);
  await admin.outboxEvent.update({where:{id:event.id},data:{leaseOwner:failed.owner,retryCount:1}});await failed.process({...event,retryCount:1});
- assert.equal((await admin.outboxEvent.findUnique({where:{id:event.id}})).status,'PENDING');assert.equal(await admin.notification.count({where:{ticketId:row.id}}),1);assert.equal((await admin.supportTicket.findUnique({where:{id:row.id}})).status,'ASSIGNED');
+ assert.equal((await admin.outboxEvent.findUnique({where:{id:event.id}})).status,'PENDING');assert.equal(await admin.notification.count({where:{ticketId:row.id}}),2);assert.equal((await admin.supportTicket.findUnique({where:{id:row.id}})).status,'ASSIGNED');
  await admin.outboxEvent.update({where:{id:event.id},data:{status:'PROCESSING',leaseOwner:failed.owner,retryCount:8}});await failed.process({...event,retryCount:8});assert.equal((await admin.outboxEvent.findUnique({where:{id:event.id}})).status,'FAILED_DLQ');
  let count=0;const good=new OutboxDispatcherService({prisma:core},{},{publishTicket:async()=>{count++;}},events);
  await good.process({...event,retryCount:1});assert.equal(count,0);
- await admin.outboxEvent.update({where:{id:event.id},data:{status:'PROCESSING',leaseOwner:good.owner}});await good.process({...event,retryCount:1});await good.process({...event,retryCount:1});assert.equal(count,1);assert.equal(await admin.notification.count({where:{ticketId:row.id}}),1);assert.equal((await admin.outboxEvent.findUnique({where:{id:event.id}})).status,'PUBLISHED');
+ await admin.outboxEvent.update({where:{id:event.id},data:{status:'PROCESSING',leaseOwner:good.owner}});await good.process({...event,retryCount:1});await good.process({...event,retryCount:1});assert.equal(count,1);assert.equal(await admin.notification.count({where:{ticketId:row.id}}),2);assert.equal((await admin.outboxEvent.findUnique({where:{id:event.id}})).status,'PUBLISHED');
 });
 test('TK05 accepted events validate source/version and do not trust arbitrary kind or future version',async()=>{
  const row=await fixture('IN_PROGRESS');await admin.supportTicket.update({where:{id:row.id},data:{version:1}});row.version=1;
@@ -287,7 +294,7 @@ test('TK05 accepted events validate source/version and do not trust arbitrary ki
  await admin.outboxEvent.update({where:{id:event.id},data:{payload:{schemaVersion:99,version:1}}});await assert.rejects(service.route(event));
 });
 async function liveSocket(who){
- const frames=[],ws=new WebSocket(base.replace('http:','ws:')+'/api/v1/realtime',{headers:{Cookie:who.cookie,Origin:'http://localhost:8080'}});ws.on('message',x=>frames.push(JSON.parse(String(x))));ws.on('error',()=>{});
+ const frames=[],ws=new WebSocket(base.replace('http:','ws:')+'/api/v1/realtime',{headers:{Cookie:who.cookie,Origin:origin}});ws.on('message',x=>frames.push(JSON.parse(String(x))));ws.on('error',()=>{});
  await new Promise((resolve,reject)=>{ws.once('open',resolve);ws.once('error',reject);});return {ws,frames};
 }
 test('TK05 WebSocket only invalidates authorized Staff, rechecks scope before send and never carries Ticket/chat content',async()=>{
@@ -300,7 +307,7 @@ test('TK05 WebSocket only invalidates authorized Staff, rechecks scope before se
  }finally{await admin.staffAssignment.update({where:{id:assignment.id},data:{isActive:true,endedAt:null}});sockets.forEach(x=>x.ws.close());}
 });
 async function patchStatus(row,status,expectedVersion,who=staff,expected=200,extra={}){
- const response=await fetch(base+'/api/v1/staff/tickets/'+row.id+'/status',{method:'PATCH',headers:{Cookie:who.cookie,Origin:'http://localhost:8080','Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':who.csrf,...extra},body:JSON.stringify({status,expectedVersion})});assert.equal(response.status,expected);return response.json();
+ const response=await fetch(base+'/api/v1/staff/tickets/'+row.id+'/status',{method:'PATCH',headers:{Cookie:who.cookie,Origin:origin,'Content-Type':'application/json','X-Auth-Request':'1','X-CSRF-Token':who.csrf,...extra},body:JSON.stringify({status,expectedVersion})});assert.equal(response.status,expected);return response.json();
 }
 test('Ticket workflow permits sequential resolution, closure and explicit reopening with current transitions',async()=>{
  await admin.rateLimitBucket.updateMany({where:{clientToken:tokenHash(staff.id.toLowerCase()),endpointGroup:'TICKET_ACCEPT'},data:{requestCount:0,windowStart:new Date()}});

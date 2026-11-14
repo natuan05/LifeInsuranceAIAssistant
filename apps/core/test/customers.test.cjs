@@ -14,14 +14,16 @@ const { CustomerController } = require('../dist/customers/controllers/customer.c
 const { CustomerService } = require('../dist/customers/services/customer.service');
 const { configureHttp } = require('../dist/http/http-foundation');
 const { AccountProvisioningService } = require('../dist/accounts/services/account-provisioning.service');
-const input = JSON.parse(readFileSync(0, 'utf8'));
-const origin = 'http://localhost:3000';
+const input = process.env.PGHOST ? null : JSON.parse(readFileSync(0, 'utf8'));
+const { ConversationRateLimitService } = require('../dist/conversations/services/conversation-rate-limit.service');
+const { ConversationCommandService } = require('../dist/conversations/services/conversation-command.service');
+const origin = (process.env.TEST_CORS_ORIGINS || 'http://localhost:8080').split(',')[0].trim();
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = origin;
-const adapter = (user, password) => new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 3 });
-const admin = new PrismaClient({ adapter: adapter('admin_runtime', input.password) });
-const core = new PrismaClient({ adapter: adapter('core_runtime', input.corePassword) });
+const adapter = (user, password) => new PrismaPg({ host: process.env.PGHOST || '127.0.0.1', ...(input ? { port: input.port } : {}), database: process.env.I01_TEST_DATABASE || 'life_insurance', user, password, max: 3 });
+const admin = new PrismaClient({ adapter: adapter('admin_runtime', (input?.password ?? readFileSync('/credentials/admin/password', 'utf8').trim())) });
+const core = new PrismaClient({ adapter: adapter('core_runtime', (input?.corePassword ?? readFileSync('/credentials/core/password', 'utf8').trim())) });
 class TestModule {}
-Module({ controllers: [AuthController, CustomerController], providers: [AuthService, CustomerService, { provide: DatabaseService, useValue: { prisma: core } }] })(TestModule);
+Module({ controllers: [AuthController, CustomerController], providers: [AuthService, CustomerService, ConversationCommandService, ConversationRateLimitService, { provide: DatabaseService, useValue: { prisma: core } }] })(TestModule);
 const accounts = [], sessions = {};
 const suffix = Date.now().toString();
 const password = 'Synthetic-Profile-12345';
@@ -61,11 +63,11 @@ after(async () => {
   if (ids.length) await admin.$transaction(async tx => {
     await tx.authSession.deleteMany({ where: { userId: { in: ids } } });
     await tx.staffAssignment.deleteMany({ where: { OR: [{ staffId: { in: ids } }, { customerId: { in: ids } }] } });
-    await tx.auditLog.deleteMany({ where: { targetId: { in: ids } } });
+    await tx.auditLog.deleteMany({ where: { OR: [{ targetId: { in: ids } }, { actorId: { in: ids } }] } });
     await tx.customerProfile.deleteMany({ where: { userId: { in: ids } } });
     await tx.staffProfile.deleteMany({ where: { userId: { in: ids } } });
     await tx.user.deleteMany({ where: { id: { in: ids } } });
-    await tx.rateLimitBucket.deleteMany({ where: { clientToken: { in: accounts.map(a => tokenHash(a.email)) }, endpointGroup: 'AUTH_LOGIN' } });
+    await tx.rateLimitBucket.deleteMany({ where: { clientToken: { in: accounts.flatMap(a => [tokenHash(a.email), tokenHash(a.id)]) } } });
   });
   await core.$disconnect(); await admin.$disconnect();
 });
@@ -77,7 +79,7 @@ test('authentication, role checks and strict query/UUID validation prevent ident
   assert.equal((await get('staff/customers', sessions[ca.id])).status, 403);
   assert.equal((await get(`staff/customers/${ca.id}`, sessions[ca.id])).status, 403);
   for (const query of ['page=0', 'page=abc', 'pageSize=51', 'pageSize=0', 'page=1&page=2', `staffId=${accounts[1].id}`, 'role=STAFF',
-    'query=unapproved', 'search=a&search=b', 'search=%00', 'search=' + 'a'.repeat(101)]) {
+    'query=unapproved', 'search=a&search=b', 'search=%00', 'search=%0ASynthetic', 'search=Synthetic%09', 'search=%0D%0ASynthetic', 'search=' + 'a'.repeat(101)]) {
     assert.equal((await get('staff/customers?' + query, sessions[a.id])).status, 400);
   }
   assert.equal((await get(`customers/me?customerId=${accounts[4].id}`, sessions[ca.id])).status, 400);
@@ -120,7 +122,7 @@ test('Search filters the entire assigned set before pagination/count and cannot 
   assert.equal(all.total, 2); assert.equal(all.items.length, 1);
   const next = await search('Synthetic Profile', '&pageSize=1&page=2');
   assert.equal(next.total, 2); assert.notEqual(next.items[0].id, all.items[0].id);
-  assert.equal((await search(ca.email.toUpperCase())).items[0].id, ca.id);
+  assert.equal((await search(ca.email.toUpperCase())).total, 0);
   for (const foreign of [cb, unassigned, b]) {
     const absent = await search(foreign.email);
     assert.equal(absent.total, 0); assert.deepEqual(absent.items, []);
@@ -130,14 +132,15 @@ test('Search filters the entire assigned set before pagination/count and cannot 
   assert.equal((await get('staff/customers?search=Synthetic', sessions[ca.id])).status, 403);
 });
 
-test('Phone search and LIKE wildcard characters are literal, not a way to broaden the assignment scope', async () => {
+test('Phone is excluded from search and LIKE wildcard characters are literal, not a way to broaden the assignment scope', async () => {
   const [a, , ca] = accounts;
   const original = await admin.customerProfile.findUniqueOrThrow({ where: { userId: ca.id } });
   const phone = '+84' + suffix.slice(-10);
   try {
     await admin.user.update({ where: { id: ca.id }, data: { phone } });
     await admin.customerProfile.update({ where: { userId: ca.id }, data: { fullName: 'Synthetic 100%_Literal\\Name' } });
-    for (const term of [phone, '%', '_', '\\', '100%_Literal\\']) {
+    assert.equal((await json('staff/customers?search=' + encodeURIComponent(phone), sessions[a.id])).total, 0);
+    for (const term of ['%', '_', '\\', '100%_Literal\\']) {
       const body = await json('staff/customers?search=' + encodeURIComponent(term), sessions[a.id]);
       assert.equal(body.total, 1, term); assert.equal(body.items[0].id, ca.id);
     }
@@ -146,6 +149,78 @@ test('Phone search and LIKE wildcard characters are literal, not a way to broade
     await admin.user.update({ where: { id: ca.id }, data: { phone: null } });
   }
 });
+
+
+test('A1 projections mask contacts and omit unverified birth/address while self-read is unchanged', async () => {
+  const [staff, , customer] = accounts;
+  const detail = (await json(`staff/customers/${customer.id}`, sessions[staff.id])).customer;
+  assert.equal(detail.email, 'p***'); assert.equal(detail.phone, null);
+  assert.equal(detail.birthYear, null); assert.equal(detail.provinceCity, null);
+  assert.equal('birth' in detail, false); assert.equal('address' in detail, false);
+  assert.equal((await json('customers/me', sessions[customer.id])).customer.email, customer.email);
+  const { maskContact } = require('../dist/customers/services/customer.service');
+  for (const [field, input, output] of [['email', null, null], ['email', 'x', '***'], ['email', '\uD83D\uDE00@example.invalid', '\uD83D\uDE00***'],
+    ['phone', null, null], ['phone', '1', '***'], ['phone', '12', '***'], ['phone', '+84 (123) 456', '***56']]) {
+    assert.equal(maskContact(field, input), output);
+  }
+});
+
+test('A1 reveal validates writes, active scope, one field and metadata-only committed audit', async () => {
+  const [staff, otherStaff, customer, , foreign] = accounts;
+  const current = await fetch(`${base}/api/v1/auth/me`, { headers: { Cookie: sessions[staff.id] } });
+  const { csrfToken } = await current.json();
+  const post = (id, body, cookie = sessions[staff.id], overrides = {}) => fetch(`${base}/api/v1/staff/customers/${id}/contact-reveal`, {
+    method: 'POST', headers: { Cookie: cookie, Origin: origin, 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': csrfToken, ...overrides }, body: JSON.stringify(body),
+  });
+  for (const body of [{}, { field: 'address' }, { field: 'email', extra: true }, { field: ['email'] }]) assert.equal((await post(customer.id, body)).status, 400);
+  for (const overrides of [{ Origin: '' }, { 'X-CSRF-Token': '' }, { 'X-Auth-Request': '' }]) assert.equal((await post(customer.id, { field: 'email' }, undefined, overrides)).status, 403);
+  assert.equal((await post(customer.id, { field: 'email' }, '')).status, 401);
+  for (const id of [foreign.id, randomUUID()]) assert.equal((await post(id, { field: 'email' })).status, 404);
+  const response = await post(customer.id, { field: 'email' });
+  assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
+  assert.deepEqual(await response.json(), { customerId: customer.id, field: 'email', value: customer.email });
+  assert.deepEqual(await (await post(customer.id, { field: 'phone' })).json(), { customerId: customer.id, field: 'phone', value: null });
+  const audits = await admin.auditLog.findMany({ where: { actorId: staff.id, action: 'CUSTOMER_CONTACT_REVEALED' } });
+  assert.equal(audits.length, 4); assert.equal(audits.filter(a => a.outcome === 'FAILURE').length, 2);
+  for (const row of audits) { assert.deepEqual(Object.keys(row.metadata), ['field']); assert.doesNotMatch(JSON.stringify(row), /profile\.|@synthetic|csrf|password/i); }
+  // Denied attempts targeting a missing UUID also need cleanup by actor.
+  await admin.auditLog.deleteMany({ where: { actorId: { in: [staff.id, otherStaff.id] }, action: 'CUSTOMER_CONTACT_REVEALED' } });
+});
+
+
+for (const revocation of ['assignment', 'session']) {
+  test(`A1 reveal rechecks ${revocation} after waiting for the shared user lock`, async () => {
+  const [staff, , customer] = accounts;
+  const { csrfToken } = await (await get('auth/me', sessions[staff.id])).json();
+  let release, acquired;
+  const gate = new Promise(resolve => { release = resolve; });
+  const ready = new Promise(resolve => { acquired = resolve; });
+  const writer = admin.$transaction(async tx => {
+    const ids = [staff.id, customer.id].sort();
+    const { Prisma } = require('../dist/generated/prisma/client');
+    await tx.$queryRaw`SELECT id FROM business.users WHERE id::text IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`;
+    acquired(); await gate;
+    if (revocation === 'assignment') await tx.staffAssignment.updateMany({ where: { customerId: customer.id, isActive: true }, data: { isActive: false, endedAt: new Date() } });
+    else await tx.authSession.updateMany({ where: { userId: staff.id }, data: { revokedAt: new Date() } });
+  }, { timeout: 15000 });
+  let response;
+  try {
+    await ready;
+    const pending = fetch(`${base}/api/v1/staff/customers/${customer.id}/contact-reveal`, { method: 'POST', headers: {
+      Cookie: sessions[staff.id], Origin: origin, 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': csrfToken,
+    }, body: JSON.stringify({ field: 'email' }) });
+    const early = await Promise.race([pending.then(() => 'finished'), new Promise(resolve => setTimeout(() => resolve('waiting'), 200))]);
+    assert.equal(early, 'waiting');
+    release(); await writer; response = await pending;
+    assert.equal(response.status, revocation === 'assignment' ? 404 : 401);
+  } finally {
+    release(); await writer;
+    if (revocation === 'assignment') await admin.staffAssignment.updateMany({ where: { customerId: customer.id, staffId: staff.id }, data: { isActive: true, endedAt: null } });
+    else await admin.authSession.updateMany({ where: { userId: staff.id }, data: { revokedAt: null } });
+  }
+});
+
+}
 
 test('committed reassignment/unassignment takes effect on the next request without re-login', async () => {
   const [a, b, ca] = accounts;
@@ -157,7 +232,7 @@ test('committed reassignment/unassignment takes effect on the next request witho
   assert.equal((await get(`staff/customers/${ca.id}`, sessions[a.id])).status, 404);
   assert.equal((await json('staff/customers', sessions[a.id])).total, 1);
   assert.equal((await json('staff/customers?search=' + encodeURIComponent(ca.email), sessions[a.id])).total, 0);
-  assert.equal((await json('staff/customers?search=' + encodeURIComponent(ca.email), sessions[b.id])).total, 1);
+  assert.equal((await json('staff/customers?search=' + encodeURIComponent(ca.accountCode), sessions[b.id])).total, 1);
   assert.equal((await json(`staff/customers/${ca.id}`, sessions[b.id])).customer.id, ca.id);
   assert.equal((await json('customers/me', sessions[ca.id])).staff.id, b.id);
   await admin.staffAssignment.updateMany({ where: { customerId: ca.id, isActive: true }, data: { isActive: false, endedAt: new Date() } });
@@ -178,4 +253,17 @@ test('locked/revoked/expired actors cannot read; unavailable Staff contact and e
   assert.equal((await get('staff/customers', sessions[b.id])).status, 401);
   await admin.authSession.updateMany({ where: { userId: unassigned.id }, data: { createdAt: new Date(Date.now() - 60000), expiresAt: new Date(Date.now() - 1000) } });
   assert.equal((await get('customers/me', sessions[unassigned.id])).status, 401);
+});
+
+test('A1 reveal quota returns safe 429 with retry metadata', async () => {
+  const staff = accounts[0];
+  const { csrfToken } = await (await get('auth/me', sessions[staff.id])).json();
+  await admin.rateLimitBucket.upsert({ where: { clientToken_endpointGroup: { clientToken: tokenHash(staff.id), endpointGroup: 'CUSTOMER_CONTACT_REVEAL' } },
+    create: { clientToken: tokenHash(staff.id), endpointGroup: 'CUSTOMER_CONTACT_REVEAL', windowStart: new Date(), requestCount: 30 },
+    update: { windowStart: new Date(), requestCount: 30 } });
+  const response = await fetch(`${base}/api/v1/staff/customers/${accounts[3].id}/contact-reveal`, { method: 'POST', headers: {
+    Cookie: sessions[staff.id], Origin: origin, 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': csrfToken,
+  }, body: JSON.stringify({ field: 'email' }) });
+  assert.equal(response.status, 429); assert.equal((await response.json()).code, 'RATE_LIMITED');
+  assert.ok(Number(response.headers.get('retry-after')) > 0);
 });

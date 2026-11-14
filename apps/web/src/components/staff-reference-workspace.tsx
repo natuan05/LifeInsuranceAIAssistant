@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { useRouter, usePathname, useSearchParams, useParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 import { AuthError, type Actor } from '@/lib/auth-api';
-import { assignedCustomer, assignedCustomers, type Customer, type CustomerList } from '@/lib/customer-api';
+import { assignedCustomer, assignedCustomers, type StaffCustomer, type CustomerList } from '@/lib/customer-api';
 import { AccountMenu } from './staff-account-menu';
 import { StaffPolicyLookup } from './staff-policy-lookup';
 import { StaffTickets } from './staff-tickets';
@@ -51,7 +51,7 @@ export function StaffReferenceWorkspace({ actor, csrfToken, pending, error: sess
     const selected = params.customerId ?? null;
     const [revision, setRevision] = useState(0);
     const [list, setList] = useState<CustomerList | null>(null);
-    const [detail, setDetail] = useState<Customer | null>(null);
+    const [detail, setDetail] = useState<StaffCustomer | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const browsingCustomers = active === 'customers';
@@ -168,7 +168,7 @@ export function StaffReferenceWorkspace({ actor, csrfToken, pending, error: sess
                 </div>
             </header>
         ),
-        customerDirectory: account ? accountContent : active === 'products' ? <StaffProducts key={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} /> : active === 'lookup' ? <StaffPolicyLookup key={actor.id} /> : active === 'customers' ? <StaffCustomerDirectory list={list} detail={detail} selected={selected} loading={loading} error={error} page={page} searchTerm={customerSearch} onSearch={term => { const normalized = term.trim(); if (normalized === customerSearch && page === 1 && !selected) { setLoading(true); setRevision(v => v + 1); } else window.history.pushState(null, '', customerUrl(null, 1, normalized)); }} onRetry={() => { setLoading(true); setRevision(v => v + 1); }} onSelect={id => router.push(customerUrl(id))} onBack={() => router.push(customerUrl())} onPage={p => window.history.pushState(null, '', customerUrl(null, p))}/> : active === 'tickets' ? <StaffTickets key={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} /> : <StaffInbox csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} />,
+        customerDirectory: account ? accountContent : active === 'products' ? <StaffProducts key={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} /> : active === 'lookup' ? <StaffPolicyLookup key={actor.id} /> : active === 'customers' ? <StaffCustomerDirectory actorId={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} contactRevision={revision} onDenied={status => { setDetail(null); setError('Customer profile is no longer available.'); if (status === 401) router.replace('/staff/login'); else setRevision(v => v + 1); }} list={list} detail={detail} selected={selected} loading={loading} error={error} page={page} searchTerm={customerSearch} onSearch={term => { const normalized = term.trim(); if (normalized === customerSearch && page === 1 && !selected) { setLoading(true); setRevision(v => v + 1); } else window.history.pushState(null, '', customerUrl(null, 1, normalized)); }} onRetry={() => { setLoading(true); setRevision(v => v + 1); }} onSelect={id => router.push(customerUrl(id))} onBack={() => router.push(customerUrl())} onPage={p => window.history.pushState(null, '', customerUrl(null, p))}/> : active === 'tickets' ? <StaffTickets key={actor.id} csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} /> : <StaffInbox csrfToken={csrfToken} blocked={Boolean(sessionError) || pending} />,
         accountMenu: <AccountMenu actor={actor} pending={pending} onSignOut={onSignOut}/>,
         customerNav: <Link href="/staff/customers" className={"nav-item-btn tw:w-full tw:flex tw:items-center tw:gap-3 tw:px-3 tw:py-2.5 tw:rounded-xl tw:text-xs tw:font-medium tw:transition-all tw:no-underline " + (active === "customers" ? "active tw:bg-blue-50 tw:text-blue-700 tw:font-semibold tw:shadow-xs" : "tw:text-slate-600 tw:hover:text-slate-900 tw:hover:bg-slate-100/70")} data-category="customers"><span className={"nav-item-left tw:flex tw:items-center tw:gap-3 tw:min-w-0"}><svg className={"nav-item-icon tw:w-[18px] tw:h-[18px] tw:shrink-0 " + (active === "customers" ? "tw:text-blue-600" : "tw:text-slate-400")} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="12" cy="7" r="4"/><path d="M4 22v-4a8 8 0 0 1 16 0v4"/></svg><span className={"nav-item-label tw:truncate tw:[.inbox-nav-col.collapsed_&]:hidden"}>Customers</span></span></Link>,
         sectionTitle,

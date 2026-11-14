@@ -6,9 +6,9 @@ const customers = Array.from({ length: 23 }, (_, index) => ({
   id: `browser-customer-${index + 1}`,
   accountCode: `CUS-TEST-${String(index + 1).padStart(3, '0')}`,
   fullName: `Synthetic ${index < 12 ? 'Alpha' : 'Beta'} ${String(index + 1).padStart(2, '0')}`,
-  email: `customer.browser.${index + 1}@dev.example.invalid`,
-  phone: index === 0 ? null : `+9990000${String(index + 1).padStart(4, '0')}`,
-  status: index === 1 ? 'LOCKED' : 'ACTIVE', birth: null, address: null,
+  email: 'c***',
+  phone: index === 0 ? null : `***${String(index + 1).padStart(2, '0')}`,
+  status: index === 1 ? 'LOCKED' : 'ACTIVE', birthYear: null, provinceCity: null,
 }));
 const directory = page => page.getByRole('region', { name: 'Customer management' });
 const input = page => page.getByRole('searchbox', { name: 'Search customers', exact: true });
@@ -36,13 +36,19 @@ async function setup(page, path = '/staff/customers', options = {}) {
     }, csrfToken: 'synthetic-browser-csrf' }, state.expired ? 401 : 200);
     if (url.pathname.startsWith('/api/v1/staff/customers')) {
       state.requests.push(url);
+      if (url.pathname.endsWith('/contact-reveal')) {
+        if (state.beforeReveal) await state.beforeReveal();
+        if (state.revealFailure) return json({}, state.revealFailure);
+        const id = url.pathname.split('/').at(-2), field = request.postDataJSON().field;
+        return json({ customerId: id, field, value: field === 'email' ? `${id}@synthetic.invalid` : '+99900001234' });
+      }
       const isList = url.pathname === '/api/v1/staff/customers';
       const failure = isList ? state.listFailure : state.detailFailure;
       if (failure === 'network') return route.abort('failed');
       if (failure) { if (failure === 401) state.expired = true; return json({}, failure); }
       if (isList) {
         const term = (url.searchParams.get('search') || '').toLowerCase();
-        const items = state.items.filter(customer => [customer.fullName, customer.accountCode, customer.email, customer.phone || ''].some(value => value.toLowerCase().includes(term)));
+        const items = state.items.filter(customer => [customer.fullName, customer.accountCode].some(value => value.toLowerCase().includes(term)));
         const pageNumber = Number(url.searchParams.get('page') || 1), pageSize = Number(url.searchParams.get('pageSize') || 10);
         const response = { items: items.slice((pageNumber - 1) * pageSize, pageNumber * pageSize), total: items.length, page: pageNumber, pageSize };
         if (state.beforeList) await state.beforeList(url);
@@ -102,9 +108,9 @@ test('keyboard search trims query, resets page and clear discards unsent draft w
 test('search can return a customer outside the initial page and distinguishes empty results', async ({ page }) => {
   const state = await setup(page);
   await expect(view(page, customers[22])).toHaveCount(0);
-  await search(page, customers[22].email); await expect(rows(page)).toHaveCount(1);
+  await search(page, customers[22].accountCode); await expect(rows(page)).toHaveCount(1);
   await expect(view(page, customers[22])).toBeVisible();
-  expect(state.requests.at(-1).searchParams.get('search')).toBe(customers[22].email);
+  expect(state.requests.at(-1).searchParams.get('search')).toBe(customers[22].accountCode);
   await search(page, 'no-synthetic-match');
   await expect(page.getByText('No customers match your search.', { exact: true })).toBeVisible();
   await expect(alert(page)).toHaveCount(0); await expect(input(page)).toBeVisible();
@@ -225,5 +231,62 @@ for (const width of [375, 768, 1600]) {
     }
     await breadcrumb(page).press('Enter'); await expect(rows(page)).toHaveCount(10);
     expect(state.documents).toHaveLength(1);
+  });
+}
+
+
+test('A1 contact reveal is explicit, field-scoped, reversible and never stored in browser storage', async ({ page }) => {
+  const state = await setup(page); await view(page).click();
+  const raw = `${customers[0].id}@synthetic.invalid`;
+  await expect(page.getByText(raw, { exact: true })).toHaveCount(0);
+  expect(state.requests.filter(url => url.pathname.endsWith('contact-reveal'))).toHaveLength(0);
+  await expect(page.locator('a[href^="mailto:"], a[href^="tel:"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show email', exact: true }).click();
+  await expect(page.getByRole('link', { name: raw, exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Show phone', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => JSON.stringify([Object.entries(localStorage), Object.entries(sessionStorage)]))).not.toContain(raw);
+  await page.getByRole('button', { name: 'Hide email', exact: true }).click();
+  await expect(page.getByText(raw, { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Show email', exact: true }).click();
+  await expect(page.getByRole('link', { name: raw, exact: true })).toBeVisible();
+  await breadcrumb(page).click(); await view(page, customers[1]).click();
+  await expect(page.getByText(raw, { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Show email', exact: true })).toBeVisible();
+  expect(state.documents).toHaveLength(1);
+});
+
+for (const action of ['hide', 'switch', 'revoke', 'logout']) {
+  test(`A1 late reveal is discarded after ${action}`, async ({ page }) => {
+    const state = await setup(page); await view(page).click();
+    let release; const held = new Promise(resolve => { release = resolve; });
+    state.beforeReveal = () => held;
+    await page.getByRole('button', { name: 'Show email', exact: true }).click();
+    await expect.poll(() => state.requests.filter(url => url.pathname.endsWith('contact-reveal')).length).toBe(1);
+    if (action === 'hide') await page.getByRole('button', { name: 'Hide email', exact: true }).click();
+    if (action === 'switch') { await breadcrumb(page).click(); await view(page, customers[1]).click(); }
+    if (action === 'revoke') { state.detailFailure = 404; await state.invalidate(); await expect(alert(page)).toBeVisible(); }
+    if (action === 'logout') { state.expired = true; state.detailFailure = 401; await state.invalidate(); await expect(page).toHaveURL(/staff\/login/); }
+    release();
+    await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+    expect(await page.locator('body').textContent()).not.toContain(`${customers[0].id}@synthetic.invalid`);
+  });
+}
+
+for (const mode of ['unavailable', 'denied']) {
+  test(`A1 copy contact handles ${mode} clipboard without crashing`, async ({ page }) => {
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.addInitScript(mode => {
+      Object.defineProperty(navigator, 'clipboard', { configurable: true, value: mode === 'unavailable' ? undefined : {
+        writeText: () => Promise.reject(new DOMException('Clipboard access denied', 'NotAllowedError')),
+      } });
+    }, mode);
+    await setup(page); await view(page).click();
+    await page.getByRole('button', { name: 'Show email', exact: true }).click();
+    await page.getByRole('button', { name: 'Copy email', exact: true }).click();
+    await expect(directory(page).getByRole('alert')).toHaveText('Unable to copy contact.');
+    expect(errors).toEqual([]);
+    await page.getByRole('button', { name: 'Hide email', exact: true }).click();
+    await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+    await expect(directory(page).getByRole('alert')).toHaveCount(0);
   });
 }

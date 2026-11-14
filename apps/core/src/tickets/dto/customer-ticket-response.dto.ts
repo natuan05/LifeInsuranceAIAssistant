@@ -26,7 +26,8 @@ export class CustomerTicketDetailDto {
   @ApiPropertyOptional() policyId?: string | null;
   @ApiPropertyOptional() policyNumber?: string | null;
   @ApiPropertyOptional() conversationId?: string | null;
-  @ApiPropertyOptional() confirmedContent?: Record<string, unknown> | null;
+  @ApiProperty({ enum: ['CUSTOMER_SUBMITTED', 'CUSTOMER_CONFIRMED', 'LEGACY_UNVERIFIED'] }) confirmationSource!: string;
+  @ApiPropertyOptional({ type: Object, nullable: true }) confirmedContent?: Record<string, unknown> | null;
   @ApiPropertyOptional() assignedStaff?: {
     id: string;
     fullName: string;

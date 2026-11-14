@@ -6,7 +6,9 @@ export class AuthError extends Error {
   constructor(public readonly status: number, public readonly retryAfter?: number) {
     super(status === 401 ? 'Invalid email or password, incorrect portal, locked account, or expired session.'
       : status === 400 ? 'Enter a valid email address and password.'
-      : status === 429 ? 'Too many attempts. Try again in 15 minutes.'
+      : status === 429 ? (retryAfter
+        ? `Too many attempts. Try again in ${retryAfter} seconds.`
+        : 'Too many attempts. Try again later.')
         : status === 403 ? 'Unable to verify your request. Refresh the page and try again.'
           : 'Unable to connect. Please try again.');
   }

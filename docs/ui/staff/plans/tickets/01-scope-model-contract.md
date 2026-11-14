@@ -28,7 +28,7 @@ OPEN và ASSIGNED trả allowedActions.accept=true khi đúng scope; Staff Accep
 
 SupportTicket giữ các trường/quan hệ hiện có và thêm **version Int NOT NULL default0**, CHECK version>=0 qua migration mới 202611040003_ticket_foundation. Đây là migration thứ 8, không thêm bảng; dữ liệu cũ backfill0. Không sửa migration đã apply, xóa Ticket, đổi status/recipient/confirmedAt/AI content hoặc tạo confirmation evidence.
 
-Schema đã có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. Staff projection hiện còn trả LEGACY_UNVERIFIED/null cho mọi row; I07 cần hoàn thiện phân biệt Ticket mới có snapshot với legacy, không backfill từ aiSummary/extractedDetails.
+Schema đã có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. Phase 2 đã project snapshot cơ bản hợp lệ thành CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED; legacy/invalid vẫn LEGACY_UNVERIFIED/null, không backfill từ aiSummary/extractedDetails. requestFingerprint nullable/CHECK được thêm bằng migration 202611140001.
 
 ## 3. Code và API boundary
 

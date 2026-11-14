@@ -40,19 +40,15 @@ Prefix REST `/api/v1`; `E` là runtime, không endpoint đề xuất mới.
 Dùng A05/A06 và A14 policies theo một khách. Enter gửi search; xóa text rồi Enter bỏ lọc; không Search/Clear buttons. Search/page/policyPage giữ theo tab/URL; onSelect Next Link/router, query History API. Không tự gọi auth/me mỗi tìm kiếm.
 
 <a id="customer-privacy-ui"></a>
-### Bổ sung hiển thị dữ liệu đã che — 12/11/2026, P
+### Hiển thị dữ liệu đã che — 14/11/2026, E
 
-Hiện bảng render email/phone đầy đủ, detail có ngày sinh/địa chỉ đầy đủ. Theo [ma trận Customer](../../../../configuration-and-data.md#customer-sensitive-data), Core phải loại/che trước response; Web không nhận raw để che bằng CSS/React. Phương án A đã duyệt 13/11/2026: che email/phone Customer ở cả list/detail, có Show/Hide (Hiện/Ẩn) từng trường theo cập nhật 14/11 để Staff liên hệ sau reauthorize từ Core. Định dạng A đã duyệt trong CU01 cho email dạng `m***` và phone dạng `***12`, thiếu dữ liệu giữ null. Web render projection Core theo cùng định dạng tại list/detail. Kiểm CU01-T06 cùng việc đổi DTO/render.
+Web dùng StaffCustomer riêng với email/phone đã che từ Core; Customer self-read và Staff self-edit giữ contract riêng. Search gợi ý `Name or customer code`, gọi Core trên toàn tập theo assignment, giữ URL/page/Back và focus.
 
-Ngày sinh/địa chỉ đã chốt A: detail Staff chỉ hiển thị năm sinh và tỉnh/thành từ DTO Core đã xác minh. Thay nhãn Date of birth/Address bằng Birth year/Province or city khi contract được triển khai; null hiện Not provided, không lấy raw cũ từ cache để lấp thiếu. Không parse address/date ở React hoặc giữ raw trong tooltip/copy/state. Source hiện vẫn render birth/address đầy đủ; đổi client types/render và kiểm CU01-T05 cùng Core, chưa nghiệm thu.
+Staff detail dùng Birth year/Province or city, null hiện Not provided. Source chưa có căn cứ xác minh nên hiện trả null từng trường, không parse date/address ở Web hoặc lấy raw từ cache để lấp thiếu.
 
-Search đã chốt A: chỉ tên/mã Customer; placeholder mục tiêu là `Name or customer code`. Source UI còn gợi ý email/phone và Core còn tìm các trường này, phải sửa cùng CU01; không lọc riêng các rows đã tải ở Web. URL cũ chứa search vẫn được Core xử lý chỉ theo tên/mã; không tự điền contact vào search/deep-link hoặc log query raw. Kiểm API/network/DOM: token chỉ có ở email/phone không sinh kết quả, tên/mã và Back/page vẫn đúng.
+Mỗi trường liên hệ có Show/Hide riêng. Show mới gọi API reveal với CSRF; pending/cancel/error tại chỗ. Response hợp lệ cho hiển thị, Copy và mailto/tel; Hide xóa raw. Không prefetch, browser storage hoặc URL. State chỉ thuộc actor/Customer/request đang mở; đổi Customer, logout, revoke/invalidation hủy request và bỏ response muộn. Quyền vẫn do Core kiểm lại.
 
-Họ tên/mã Customer đã chốt A ngày 13/11. List/detail hiển thị đầy đủ fullName/accountCode cho Staff có phân công hợp lệ theo scope Core. Source hiện đã khớp phần này. Kiểm tên Unicode/dài/trùng, mã Customer và quyền/revoke khi cập nhật DTO privacy.
-
-Rà `staff-customer-directory.tsx` và `customer-api.ts`: cell, title/aria-label, copy, search/URL/history, cache/state và response đến muộn. Giữ null/empty riêng với giá trị đã che, Back/no-F5 và clear dữ liệu khi revoke/logout/đổi khách. Contact card ở Policy/Inbox/Ticket dùng cùng thao tác reveal và kiểm lại quyền Core.
-
-Kiểm network JSON + DOM/accessibility bằng fixture synthetic. Trước khi bấm Hiện, response và state chỉ có mask, không prefetch raw. Sau response reveal hợp lệ, trường đã yêu cầu được hiển thị đầy đủ và có copy/mailto/tel tương ứng. Ẩn/đổi Customer/logout/revoke xóa raw, abort/ignore response cũ. Hồi quy staff-customers.spec.mjs và staff-foundation.integration.spec.mjs qua gateway, API reveal/UI còn P. [Quyết định chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+Policy/Inbox/Ticket hiện dùng tên/mã Customer, không có contact card raw. Nếu thêm contact card, phải dùng cùng policy [Hiện/Ẩn](../../../../configuration-and-data.md#staff-contact-reveal). Kiểm network/DOM tại CU02-T06; mock kiểm race UI, gateway thật kiểm Core/DB, không dùng mock thay nghiệm thu quyền.
 
 ## 4. Luồng và trạng thái
 
@@ -130,10 +126,10 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 - [x] Hiển thị đầy đủ họ tên/mã Customer trong scope Staff đã duyệt, khớp source hiện tại.
 - [x] Định dạng email/phone A đã duyệt cho Staff list/detail.
-- [ ] Đồng bộ DTO/render với Core và kiểm CU01-T06 bằng network/DOM, gồm null/chuỗi ngắn/Unicode.
+- [x] Đồng bộ DTO/render; Core kiểm null/chuỗi ngắn/Unicode theo CU01-T06.
 - [x] Search tên/mã Customer, không email/phone đã duyệt.
-- [ ] Đồng bộ placeholder/search với Core, kiểm token email/phone, URL cũ/Back/page và network; source chưa sửa.
-- [ ] Đồng bộ nhãn/DTO năm sinh-tỉnh/thành, kiểm null từng trường, network/DOM và cache/response muộn; source còn raw birth/address.
+- [x] Placeholder/search chỉ tên/mã; kiểm URL/Back/page và email/phone không trả kết quả.
+- [x] Nhãn/DTO năm sinh-tỉnh/thành, null từng trường và loại raw birth/address; kiểm response muộn.
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.
@@ -162,7 +158,7 @@ Account/Policy/Inbox không hồi quy. Hồ sơ đã có nav **Customer support*
 
 ### CU02-T06 — Hiện/Ẩn thông tin liên hệ
 
-**P — chưa chạy.** Kiểm nút bằng bàn phím, pending/double-click, lỗi tại chỗ, email/phone thiếu, đổi Customer khi request đang chờ và revoke/logout khi đang hiện. Kiểm network, DOM và state của contact card tại Customers/Policy/Inbox/Ticket.
+**Đã có kiểm thử Phase 1.** Kiểm Show/Hide riêng trường, không prefetch raw, mailto chỉ sau reveal, không browser storage; response muộn sau Ẩn/đổi khách/revoke/logout bị bỏ. Mock kiểm race UI; gateway/Core thật kiểm mask/reveal/quyền. Policy/Inbox/Ticket hiện không có contact card raw.
 
 **Kết quả mong đợi.** Mặc định chỉ mask, click Hiện mới gọi reveal riêng trường đang chọn. Response hợp lệ cho hiển thị/copy/mailto/tel, nút Ẩn trả lại mask và xóa raw khỏi state/DOM. Revoke/đổi khách không hiển thị response cũ. Raw không vào URL/browser storage/cache dùng chung. Search không tự thêm email/phone. Phối hợp CU01-T07.
 

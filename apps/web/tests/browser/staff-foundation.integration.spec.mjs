@@ -92,6 +92,17 @@ test('real Customers: pagination, keyboard support links, Back and scoped hidden
     await search.fill(data.owner.accountCode); await search.press('Enter');
     await expect(region.locator('tbody tr')).toHaveCount(1);
     await page.getByRole('button', { name: `View profile ${data.owner.fullName}`, exact: true }).click();
+    const profile = await context.request.get(`/api/v1/staff/customers/${data.owner.id}`);
+    const staffView = (await profile.json()).customer;
+    expect(staffView.email).toBe(data.owner.email[0] + '***');
+    expect(staffView.birthYear).toBeNull(); expect(staffView.provinceCity).toBeNull();
+    expect(staffView).not.toHaveProperty('birth'); expect(staffView).not.toHaveProperty('address');
+    expect((await (await context.request.get(`/api/v1/staff/customers?search=${encodeURIComponent(data.owner.email)}`)).json()).total).toBe(0);
+    await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Show email', exact: true }).click();
+    await expect(page.getByRole('link', { name: data.owner.email, exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Hide email', exact: true }).click();
+    await expect(page.locator('a[href^="mailto:"]')).toHaveCount(0);
     const support = page.getByRole('navigation', { name: 'Customer support' });
     await support.getByRole('link', { name: 'Conversations', exact: true }).focus(); await page.keyboard.press('Enter');
     await expect(page).toHaveURL(new RegExp(`/staff/inbox\\?customerId=${data.owner.id}$`));

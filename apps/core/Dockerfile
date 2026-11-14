@@ -18,7 +18,7 @@ FROM migrator AS test
 COPY data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json /app/data/synthetic/manulife-demo-v1/
 COPY data/public/manifest-manulife-text.json /app/data/public/manifest-manulife-text.json
 COPY data/public/manulife/text/ /app/data/public/manulife/text/
-RUN npm run build
+RUN npm run build && chown -R node:node src/generated
 COPY apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf /app/apps/core/dist/cli/assets/
 CMD ["node", "--test", "test/conversation-permissions.test.cjs"]
 

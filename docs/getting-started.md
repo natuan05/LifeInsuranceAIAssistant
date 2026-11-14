@@ -318,7 +318,7 @@ Customer tới `/customer`, Staff tới `/staff/customers`; `/staff` redirect v�
 
 Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Đổi thành công tắt lời nhắc, thu hồi mọi phiên cũ và cấp phiên mới cho thiết bị hiện tại. Phiên website có hạn tuyệt đối 8 giờ.
 
-Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Phạm vi search đã chốt 13/11: chỉ tên/mã Customer trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Code hiện còn tìm email/phone và UI còn gợi ý hai trường này; thay đổi theo [CU01/CU02](ui/staff/plans/02-customers-contract.md) chưa triển khai. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
+Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Phạm vi search đã chốt 13/11: chỉ tên/mã Customer trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Theo [CU01/CU02](ui/staff/plans/02-customers-contract.md), Staff nhận email/phone đã che; bấm Show mới lấy riêng trường liên hệ qua API kiểm quyền, Hide xóa khỏi UI. Staff detail dùng birthYear/provinceCity nullable, hiện chưa có nguồn xác minh nên hiển thị Not provided. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
 
 Staff có Products và Policy Lookup riêng trong Tools. Tickets hiển thị danh sách rồi mở chi tiết riêng; dropdown status hỗ trợ resolve/close/reopen đúng workflow Core. Notifications ở toolbar chung, popup không nằm trong cột cuộn. Search Products/Customers/Policy Lookup dùng Enter; xóa nội dung rồi Enter để bỏ từ khóa, không có nút Search/Clear. Products tự mở PDF đầu tiên và bộ chọn khi nhiều tài liệu; phiên bản mới chuyển chủ động. Inbox tìm tên/mã khách bằng debounce/Enter, All/Requests/Active không counts. Pending chỉ metadata; Customer đồng ý chia sẻ và Staff Accept mới mở toàn bộ lịch sử Customer-facing của cuộc đó. Direct hợp lệ là luồng riêng; phân công không cho Staff đọc chat AI riêng. Không nút Refresh Inbox/chat hoặc “Message saved.”; ACK/realtime cập nhật đúng vùng, Retry khi lỗi. Handoff/Accept không tạo Ticket.
 
@@ -462,7 +462,7 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-**Đồng bộ source 14/11.** Dev reset hiện liệt kê 19 bảng và thiếu ticket_drafts. verify-models.mjs còn kiểm cố định 17 bảng. Hai script cần cập nhật/kiểm với schema 20 model và 13 migrations trước nghiệm thu quy trình maintenance. [Theo dõi source](source-review.md).
+**Đồng bộ source 14/11.** Dev reset hiện liệt kê 19 bảng và thiếu ticket_drafts. verify-models.mjs còn kiểm cố định 17 bảng. Hai script cần cập nhật/kiểm với schema 20 model và 14 migrations trước nghiệm thu quy trình maintenance. [Theo dõi source](source-review.md).
 
 Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs và Customer owner list/detail/catalog/view/download APIs đã có; UI hai role dùng API đúng scope riêng. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 
@@ -495,6 +495,29 @@ npm run test:http --workspace @life-insurance/core
 ~~~
 
 Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Browser mock và gateway E2E có giới hạn riêng ở checklist UI, không thay kiểm quyền Core/DB/MinIO.
+
+<a id="phase-0-tests"></a>
+### Kiểm tra Application Phase 0–2 trong Docker
+
+Sau `docker compose up -d --build --wait`, chạy từ root repo:
+
+~~~powershell
+docker compose --profile tests build core-tests
+docker compose --profile tests run --rm --no-deps core-tests npm run typecheck
+docker compose --profile tests run --rm --no-deps core-tests node --test test/customer-ticket-boundary.test.cjs test/customers.test.cjs test/http-foundation.test.cjs test/ticket-foundation.test.cjs test/tickets-read.test.cjs
+~~~
+
+Phase 2 có migration `202611140001_ticket_request_fingerprint`, tự áp dụng trong luồng Compose chung. Migration chỉ thêm fingerprint nullable/CHECK, không sửa hoặc backfill Ticket cũ. Suite boundary kiểm validation, replay, CAS/cạnh tranh, policy, rollback và quota bằng DB thật; suite Customers kiểm projection/search/reveal, quyền và audit của Phase 1.
+
+Kiểm Customers và Ticket Customer/Staff qua gateway trên Chromium, Firefox và WebKit:
+
+~~~powershell
+node apps/web/scripts/test-staff.mjs ticket-flow.integration.spec.mjs --grep 'staff-customers.spec|real Customers|real policy PDF|ticket-flow.integration|save failure 429|repeated 500/403/429'
+~~~
+
+Runner giữ báo cáo trong thư mục tạm của hệ điều hành và tự dọn sau chạy. Fixture tạo tài khoản, hợp đồng, conversation/draft/Ticket hoàn toàn synthetic riêng, không dùng seed của thành viên. Kiểm manual và draft Core cơ bản, gồm mất ACK/receipt và response muộn sau đóng form; không gọi Agent/model thật. Dialog draft nhận deep link `/customer?conversationId=<id>&ticketDraftId=<id>`; ID trong URL không cấp quyền đọc/xác nhận.
+
+Docker tự generate Prisma client từ schema repo; generated code trên host bị loại khỏi build context. Test image cho user `node` quyền regenerate thư mục client, không cần `--user root`. Suite boundary tạo tài khoản/session/conversation/draft synthetic riêng, gọi cả HTTP nội bộ container và gateway, rồi tự dọn fixture, kể cả Ticket/outbox/audit nếu request tạo Ticket ngoài dự kiến. Origin test lấy từ TEST_CORS_ORIGINS do Compose suy ra từ CORE_CORS_ORIGINS hoặc GATEWAY_PORT ở root, không cố định cổng 8080. Không reset DB/volumes, đổi credential hoặc chạy Web/Core trên host. Credential runtime vẫn trong Docker volumes; các lệnh này không xuất file credential lên host. Tài khoản dev dùng chung theo [Dev accounts](#dev-accounts), seed/lấy thông tin mẫu bằng `npm run bootstrap:dev`.
 
 ### 9.1. Kiểm thử browser Staff và E2E hệ thống thật
 

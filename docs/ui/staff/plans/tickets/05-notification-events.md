@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
 
 **Thay đổi của phase:** Ticket+outbox atomic nhưng payload tối thiểu, không nhân bản confirmedContent/PII vào notification/WS/log. Consumer/API recheck recipient.
 
@@ -201,7 +201,9 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] Lease/retry/DLQ/dedup, Ticket đã commit độc lập delivery.
 - [x] WS minimal + session/Ticket recheck; UI routing/catch-up không F5.
 - [x] Core/migration/browser tests và fixture cleanup; docs/index đồng bộ.
-- [ ] I07 producer tạo Ticket bằng xác nhận hợp lệ và snapshot thật.
+- [x] Application Phase 2 tạo Ticket/snapshot cơ bản bằng xác nhận hợp lệ; Ticket/audit/outbox commit nguyên tử, có kiểm rollback bằng DB thật.
+- [ ] Phase 3 sửa version của event tạo Ticket và delivery tới Customer, kể cả khi chưa có Staff phụ trách; không lấy việc outbox đã ghi làm bằng chứng notification đã giao.
+- [ ] I07 tích hợp nguồn Agent thật và sáu nhóm summary/source refs; ngoài Phase 2.
 **Phần mở rộng chưa chọn:** Benchmark/SLA/multi-replica/cloud không thuộc checklist hoàn thiện Staff local.
 
 

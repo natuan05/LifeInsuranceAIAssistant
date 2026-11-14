@@ -13,6 +13,7 @@ import { CustomerHome } from './customer-home';
 import { CustomerPolicies } from './customer-policies';
 import { CustomerProducts } from './customer-products';
 import { CustomerAdvisor } from './customer-advisor';
+import { CustomerTicketConfirmation } from './customer-ticket-confirmation';
 import { CustomerTickets } from './customer-tickets';
 import { CustomerAccount } from './customer-account';
 import { CustomerAccountMenu } from './customer-account-menu';
@@ -46,6 +47,16 @@ export function CustomerWorkspace({
   const params = useParams<{ policyId?: string }>();
   const searchParams = useSearchParams();
   const selectedConversation = searchParams.get('conversationId');
+  const selectedDraft = searchParams.get('ticketDraftId');
+  const [draftLocation, setDraftLocation] = useState<{ conversationId: string; draftId: string } | null>(null);
+  if (selectedConversation && selectedDraft && (draftLocation?.conversationId !== selectedConversation || draftLocation.draftId !== selectedDraft)) {
+    setDraftLocation({ conversationId: selectedConversation, draftId: selectedDraft });
+  }
+  const [ticketToView, setTicketToView] = useState<string | null>(null);
+  function closeTicketDraft() {
+    const next = new URL(window.location.href); next.searchParams.delete('ticketDraftId');
+    window.history.replaceState(null, '', next.pathname + next.search);
+  }
 
   const isPolicyRoute = pathname?.startsWith('/customer/policies');
 
@@ -240,7 +251,6 @@ export function CustomerWorkspace({
   const iconClass = (isActive: boolean) =>
     `tw:w-4 tw:h-4 tw:shrink-0 ${isActive ? 'tw:text-blue-600' : 'tw:text-slate-400'}`;
 
-  const customerInitial = (actor.fullName || 'Customer').charAt(0).toUpperCase();
 
   return (
     <div className="tw:h-[100dvh] tw:w-full tw:overflow-hidden tw:bg-slate-50 tw:flex tw:font-staff">
@@ -436,11 +446,6 @@ export function CustomerWorkspace({
                   </svg>
                   {!sidebarCollapsed && <span className="tw:truncate">Support Tickets</span>}
                 </div>
-                {!sidebarCollapsed && (
-                  <span className="tw:text-[11px] tw:font-bold tw:bg-slate-100 tw:text-slate-600 tw:px-1.5 tw:py-0.5 tw:rounded-full">
-                    1
-                  </span>
-                )}
               </button>
             </div>
 
@@ -620,17 +625,17 @@ export function CustomerWorkspace({
               <CustomerConversations csrfToken={csrfToken} blocked={blocked} />
             )}
 
+            {isChat && draftLocation && <CustomerTicketConfirmation
+              actorId={actor.id} conversationId={draftLocation.conversationId} draftId={draftLocation.draftId} csrfToken={csrfToken}
+              isOpen={Boolean(selectedConversation && selectedDraft)} blocked={blocked}
+              onClose={closeTicketDraft} onSuccess={ticket => { setTicketToView(ticket.id); setActiveTab('tickets'); }} />}
             {/* View 6: Support Tickets */}
             {isTickets && (
-              <CustomerTickets
+              <CustomerTickets key={actor.id}
+                initialTicketId={ticketToView}
                 onOpenChat={() => setActiveTab('chat')}
                 csrfToken={csrfToken}
                 blocked={blocked}
-                policies={policies.map((p) => ({
-                  id: p.id,
-                  policyNumber: p.policyNumber,
-                  productName: p.product?.name,
-                }))}
               />
             )}
 

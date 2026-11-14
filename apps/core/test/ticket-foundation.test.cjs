@@ -71,10 +71,10 @@ test('unassigned OPEN tickets do not create a global or customer-assignment queu
   assert.equal(await read(tx => tx.supportTicket.count({ where: access.staffScope(staffA.id) })),
     await admin.supportTicket.count({ where: access.staffScope(staffA.id) }));
 });
-test('only ASSIGNED has the future accept capability; status does not grant chat', async () => {
-  for (const status of ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']) {
+test('assigned OPEN and ASSIGNED tickets allow Accept; later statuses do not', async () => {
+  for (const status of ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']) {
     const { ticket } = await fixture(staffA.id, status);
-    assert.equal((await read(tx => access.requireTicket(tx, staffA.id, ticket.id))).allowedActions.accept, false);
+    assert.equal((await read(tx => access.requireTicket(tx, staffA.id, ticket.id))).allowedActions.accept, ['OPEN', 'ASSIGNED'].includes(status));
   }
 });
 test('assignment revocation and reassignment do not transfer ticket recipient authority', async () => {

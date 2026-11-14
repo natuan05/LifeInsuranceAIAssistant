@@ -1,6 +1,6 @@
 # Mô hình Dữ liệu & Từ điển Dữ liệu (Data Model & Data Dictionary)
 
-> **Đối chiếu source 14/11/2026:** Prisma có 20 model ứng dụng và 13 migrations, mới nhất 202611130001_customer_ticket_drafts_and_confirmed_content. Source có TicketDraft, SupportTicket.sourceDraftId/confirmedContent, recipient Notification Customer/Staff và Message.readAt. Nội dung summary sáu nhóm/source registry, validation/replay/concurrency và tích hợp Agent tiếp tục theo I07/T01/T02, Notification theo N01/N02. [TicketDraft](#bảng-20-ticket_drafts), [I07](../ui/staff/plans/tickets/06-agent-confirmation.md), [N02](../ui/customer/plans/notifications/02-conditional-center.md).
+> **Đối chiếu source 14/11/2026:** Prisma có 20 model ứng dụng và 14 migrations; mới nhất 202611140001_ticket_request_fingerprint. Application Phase 2 đã bổ sung nullable requestFingerprint, validation/replay/CAS và snapshot Ticket cơ bản. Sáu nhóm/source registry Agent và các thay đổi Notification/read-status vẫn theo phase riêng.
 
 > **Cập nhật local 03/11/2026 — đã migration enum:** ConversationStatus chỉ còn AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus.CLOSED giữ nguyên. Migration 202611030001_remove_conversation_closed chuyển Customer Support CLOSED cũ về AI_ACTIVE/controller NULL, bảo toàn lịch sử/liên kết/thời gian và audit trạng thái/controller cũ; không tạo consent/Accept/grant. Copilot CLOSED chưa review sẽ chặn migration và rollback. Assignment/assignedStaffId đơn lẻ không đủ quyền xem lịch sử AI: pending chỉ metadata, sau Accept mới toàn bộ transcript Customer-facing trong cuộc đó. Inbox không counts/conversationCode; handoff khác SupportTicket. [Spec](../ui/staff/plans/inbox/00-inbox-spec.md#2-data-model-hiện-có-và-đích-thay-đổi), [quyết định nguồn](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026).
 
@@ -236,7 +236,8 @@ erDiagram
         int version "TK01: NOT NULL DEFAULT 0; >= 0"
         varchar idempotency_key UK "Chống tạo trùng NFR-005"
         uuid source_draft_id FK,UK "NULL"
-        jsonb confirmed_content "NULL"
+        jsonb confirmed_content "NULL; snapshot schemaVersion=1"
+        varchar request_fingerprint "NULL legacy; SHA-256 cho request mới"
         timestamptz confirmed_at
         timestamptz created_at
     }
@@ -522,7 +523,8 @@ erDiagram
 | **version** | INTEGER | NOT NULL DEFAULT 0, CHECK >=0 | TK01: token concurrency cho Ticket; legacy backfill0, không là bằng chứng consent/content đã xác nhận. Mutation TK03 sẽ increment atomic. |
 | **confirmed_at** | TIMESTAMPTZ(3) | NOT NULL, Core ghi | Thời điểm xác nhận do Core ghi trong workflow tạo Ticket. |
 | **source_draft_id** | UUID | UNIQUE, nullable, FK ticket_drafts(id), RESTRICT | Draft nguồn của Ticket, manual/legacy có thể null. |
-| **confirmed_content** | JSONB | nullable | Snapshot nội dung được xác nhận, schema đầy đủ summary/nguồn tiếp tục theo I07. |
+| **confirmed_content** | JSONB | nullable | Snapshot cơ bản schemaVersion=1: source, title/description/policyId/policyNumber, contentHash, confirmedAt, draftId/draftVersion/textVersion. Core ghi trong transaction tạo; immutable qua API. Sáu nhóm summary/nguồn Agent tiếp tục theo I07. |
+| **request_fingerprint** | VARCHAR(64) | nullable, CHECK null hoặc SHA-256 hex | Phase 2: hash actor + operation + input tạo Ticket đã chuẩn hóa; request mới bắt buộc có. Legacy giữ null, không backfill bằng nội dung hiện tại. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm bản ghi được ghi bền vững vào cơ sở dữ liệu. |
 
 ---

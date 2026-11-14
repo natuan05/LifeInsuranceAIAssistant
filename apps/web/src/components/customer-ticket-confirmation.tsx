@@ -1,293 +1,98 @@
 'use client';
-
-import { useEffect, useState } from 'react';
-import {
-  customerGetDraft,
-  customerUpdateDraft,
-  customerConfirmTicket,
-  type TicketDraft,
-} from '@/lib/ticket-api';
-
-interface CustomerTicketConfirmationProps {
-  conversationId: string;
-  draftId: string;
-  csrfToken: string;
-  isOpen: boolean;
-  onClose: () => void;
-  onSuccess: (ticket: { id: string; ticketCode: string; status: string }) => void;
+import { useEffect, useRef, useState } from 'react';
+import { customerGetDraft, customerUpdateDraft, submitCustomerTicketIntent, type CustomerTicketIntent, type DraftWithConfirmation } from '@/lib/ticket-api';
+import { CustomerTicketPolicySelect } from './customer-ticket-policy-select';
+import { AuthError } from '@/lib/auth-api';
+interface Props {
+  actorId: string; conversationId: string; draftId: string; csrfToken: string; isOpen: boolean; blocked?: boolean;
+  onClose: () => void; onSuccess: (ticket: { id: string; ticketCode: string; status: string }) => void;
 }
-
-export function CustomerTicketConfirmation({
-  conversationId,
-  draftId,
-  csrfToken,
-  isOpen,
-  onClose,
-  onSuccess,
-}: CustomerTicketConfirmationProps) {
-  const [draft, setDraft] = useState<TicketDraft | null>(null);
-  const [confirmationText, setConfirmationText] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Edit mode state
-  const [isEditing, setIsEditing] = useState(false);
-  const [editTitle, setEditTitle] = useState('');
-  const [editDesc, setEditDesc] = useState('');
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  // Submitting confirm
-  const [confirming, setConfirming] = useState(false);
+export function CustomerTicketConfirmation(props: Props) {
+  return <DraftScope key={`${props.actorId}:${props.conversationId}:${props.draftId}:${props.csrfToken}`} {...props} />;
+}
+function DraftScope(props: Props) {
+  const [pendingIntent, setPendingIntent] = useState<CustomerTicketIntent | null>(null);
+  return props.isOpen && !props.blocked ? <DraftDialog {...props} pendingIntent={pendingIntent} setPendingIntent={setPendingIntent} /> : null;
+}
+function DraftDialog({ conversationId, draftId, csrfToken, onClose, onSuccess, pendingIntent, setPendingIntent }: Props & {
+  pendingIntent: CustomerTicketIntent | null; setPendingIntent: (intent: CustomerTicketIntent | null) => void;
+}) {
+  const [result, setResult] = useState<DraftWithConfirmation | null>(null);
+  const [editing, setEditing] = useState(false), [title, setTitle] = useState(''), [description, setDescription] = useState(''), [policyId, setPolicyId] = useState('');
+  const [busy, setBusy] = useState(false), [error, setError] = useState(''), [unresolved, setUnresolved] = useState(Boolean(pendingIntent)), [revision, setRevision] = useState(0);
+  const command = useRef<AbortController | null>(null), intent = useRef<CustomerTicketIntent | null>(pendingIntent);
+  const dialog = useRef<HTMLDivElement>(null), closeCallback = useRef(onClose);
+  useEffect(() => { closeCallback.current = onClose; }, [onClose]);
+  useEffect(() => {
+    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialog.current?.focus();
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { event.preventDefault(); command.current?.abort(); command.current = null; closeCallback.current(); }
+    };
+    document.addEventListener('keydown', escape);
+    return () => { document.removeEventListener('keydown', escape); if (previous?.isConnected) previous.focus(); };
+  }, []);
 
   useEffect(() => {
-    if (!isOpen || !draftId || !conversationId) return;
-
-    let active = true;
-    const controller = new AbortController();
-
-    async function fetchDraft() {
-      setLoading(true);
-      setError(null);
-      try {
-        const res = await customerGetDraft(conversationId, draftId, controller.signal);
-        if (!active) return;
-        setDraft(res.draft);
-        setEditTitle(res.draft.title);
-        setEditDesc(res.draft.description);
-        setConfirmationText(res.confirmation.text);
-      } catch (err: unknown) {
-        if (!active) return;
-        setError(err instanceof Error ? err.message : 'Không thể tải bản nháp yêu cầu hỗ trợ.');
-      } finally {
-        if (active) setLoading(false);
+    const controller = new AbortController(); command.current = controller;
+    void customerGetDraft(conversationId, draftId, AbortSignal.any([controller.signal, AbortSignal.timeout(15000)])).then(value => {
+      if (controller.signal.aborted) return;
+      setResult(value); setTitle(value.draft.title); setDescription(value.draft.description); setPolicyId(value.draft.policyId || ''); setError('');
+    }).catch(() => { if (!controller.signal.aborted) setError('Unable to load this draft.'); }).finally(() => { if (command.current === controller) command.current = null; });
+    return () => { controller.abort(); command.current?.abort(); command.current = null; };
+  }, [conversationId, draftId, revision]);
+  function close() { command.current?.abort(); command.current = null; onClose(); }
+  async function save() {
+    if (!result || command.current || unresolved || !title.trim() || !description.trim()) return;
+    const controller = new AbortController(); command.current = controller; setBusy(true); setError('');
+    try {
+      const value = await customerUpdateDraft(conversationId, draftId, { expectedVersion: result.draft.version, title: title.trim(), description: description.trim(), policyId: policyId || null }, csrfToken, AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]));
+      if (controller.signal.aborted || command.current !== controller) return;
+      setResult(value); setTitle(value.draft.title); setDescription(value.draft.description); setPolicyId(value.draft.policyId || ''); setEditing(false);
+    } catch { if (!controller.signal.aborted) setError('Unable to save. Reload the draft and review its latest revision before confirming.'); }
+    finally { if (command.current === controller) { command.current = null; setBusy(false); } }
+  }
+  async function confirm() {
+    if (command.current || editing || (!result && !intent.current) || (result?.draft.state !== 'DRAFT' && !intent.current)) return;
+    const checking = Boolean(intent.current);
+    if (!intent.current) intent.current = { key: crypto.randomUUID(), operation: 'CONFIRM', draftId, version: result!.draft.version, textVersion: result!.confirmation.textVersion };
+    setPendingIntent(intent.current);
+    const current = intent.current, controller = new AbortController(); command.current = controller; setBusy(true); setUnresolved(true); setError('');
+    try {
+      const receipt = await submitCustomerTicketIntent(current, csrfToken, controller.signal, checking);
+      if (controller.signal.aborted || command.current !== controller || intent.current !== current) return;
+      intent.current = null; setPendingIntent(null); onSuccess(receipt.ticket); onClose();
+    } catch (cause) {
+      if (!controller.signal.aborted) {
+        if (cause instanceof AuthError && [400, 404, 409].includes(cause.status)) {
+          intent.current = null; setPendingIntent(null); setUnresolved(false);
+          setResult(null); setEditing(false);
+          setError('This draft cannot be confirmed from the current review. Reload the draft and review its latest state.');
+        } else setError(cause instanceof Error ? cause.message : 'Check this request before submitting again.');
       }
     }
-
-    fetchDraft();
-
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [isOpen, conversationId, draftId]);
-
-  if (!isOpen) return null;
-
-  const handleSaveEdit = async () => {
-    if (!draft) return;
-    if (!editTitle.trim()) {
-      setError('Tiêu đề không được để trống.');
-      return;
-    }
-    if (!editDesc.trim()) {
-      setError('Nội dung mô tả không được để trống.');
-      return;
-    }
-
-    setSavingEdit(true);
-    setError(null);
-    try {
-      const controller = new AbortController();
-      const res = await customerUpdateDraft(
-        conversationId,
-        draftId,
-        {
-          expectedVersion: draft.version,
-          title: editTitle.trim(),
-          description: editDesc.trim(),
-          policyId: draft.policyId || undefined,
-        },
-        csrfToken,
-        controller.signal,
-      );
-      setDraft(res.draft);
-      setIsEditing(false);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Lỗi khi cập nhật bản thảo.');
-    } finally {
-      setSavingEdit(false);
-    }
-  };
-
-  const handleConfirm = async () => {
-    if (!draft) return;
-    setConfirming(true);
-    setError(null);
-    try {
-      const controller = new AbortController();
-      const res = await customerConfirmTicket(
-        draft.id,
-        draft.version,
-        'ticket-v1',
-        csrfToken,
-        controller.signal,
-      );
-      onSuccess(res.ticket);
-      onClose();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Không thể tạo yêu cầu hỗ trợ. Vui lòng thử lại.');
-    } finally {
-      setConfirming(false);
-    }
-  };
-
-  return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="tw:fixed tw:inset-0 tw:z-50 tw:flex tw:items-center tw:justify-center tw:bg-slate-900/50 tw:p-4 tw:backdrop-blur-xs"
-    >
-      <div className="tw:w-full tw:max-w-lg tw:rounded-2xl tw:bg-white tw:p-6 tw:shadow-xl tw:border tw:border-slate-100 tw:space-y-4 tw:animate-in tw:fade-in-50">
-        
-        {/* Header */}
-        <div className="tw:flex tw:items-center tw:justify-between tw:border-b tw:border-slate-100 tw:pb-3">
-          <div className="tw:flex tw:items-center tw:gap-2">
-            <span className="tw:h-2 tw:w-2 tw:rounded-full tw:bg-emerald-500" />
-            <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">
-              {isEditing ? 'Chỉnh sửa Yêu cầu Hỗ trợ (Draft)' : 'Xác nhận Yêu cầu Hỗ trợ do AI đề xuất'}
-            </h3>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="tw:text-slate-400 tw:hover:text-slate-600 tw:p-1 tw:rounded-lg tw:cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
-
-        {/* Body */}
-        {loading ? (
-          <div className="tw:py-8 tw:text-center tw:text-xs tw:text-slate-500">
-            <div className="tw:inline-block tw:w-5 tw:h-5 tw:border-2 tw:border-emerald-600 tw:border-t-transparent tw:rounded-full tw:animate-spin tw:mb-2" />
-            <p>Đang tải bản nháp yêu cầu...</p>
-          </div>
-        ) : error ? (
-          <div className="tw:p-3 tw:rounded-xl tw:bg-red-50 tw:border tw:border-red-200 tw:text-xs tw:text-red-700">
-            {error}
-          </div>
-        ) : draft ? (
-          <div className="tw:space-y-3 tw:text-xs">
-            {isEditing ? (
-              <div className="tw:space-y-3">
-                <div>
-                  <label className="tw:block tw:font-semibold tw:text-slate-700 tw:mb-1">
-                    Tiêu đề yêu cầu
-                  </label>
-                  <input
-                    type="text"
-                    value={editTitle}
-                    onChange={(e) => setEditTitle(e.target.value)}
-                    maxLength={255}
-                    className="tw:w-full tw:rounded-xl tw:border tw:border-slate-200 tw:px-3 tw:py-2 tw:text-xs tw:focus:outline-hidden tw:focus:border-emerald-500"
-                  />
-                </div>
-                <div>
-                  <label className="tw:block tw:font-semibold tw:text-slate-700 tw:mb-1">
-                    Nội dung chi tiết
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={editDesc}
-                    onChange={(e) => setEditDesc(e.target.value)}
-                    maxLength={4000}
-                    className="tw:w-full tw:rounded-xl tw:border tw:border-slate-200 tw:px-3 tw:py-2 tw:text-xs tw:focus:outline-hidden tw:focus:border-emerald-500"
-                  />
-                </div>
-              </div>
-            ) : (
-              <div className="tw:space-y-2.5">
-                <div className="tw:bg-slate-50 tw:p-3.5 tw:rounded-xl tw:border tw:border-slate-200/70 tw:space-y-2">
-                  <div>
-                    <span className="tw:text-slate-400 tw:font-medium tw:block">Tiêu đề:</span>
-                    <span className="tw:font-bold tw:text-slate-900 tw:text-sm">{draft.title}</span>
-                  </div>
-                  <div>
-                    <span className="tw:text-slate-400 tw:font-medium tw:block">Nội dung tóm tắt:</span>
-                    <p className="tw:text-slate-700 tw:whitespace-pre-line tw:mt-0.5">{draft.description}</p>
-                  </div>
-                  {draft.policyNumber && (
-                    <div>
-                      <span className="tw:text-slate-400 tw:font-medium tw:block">Hợp đồng liên quan:</span>
-                      <span className="tw:font-mono tw:font-semibold tw:text-emerald-700">{draft.policyNumber}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="tw:bg-emerald-50/60 tw:border tw:border-emerald-200/60 tw:p-3 tw:rounded-xl tw:flex tw:items-start tw:gap-2">
-                  <span className="tw:text-emerald-600 tw:mt-0.5">ℹ️</span>
-                  <p className="tw:text-[11px] tw:text-emerald-800">
-                    {confirmationText || 'Tôi xác nhận yêu cầu hỗ trợ với nội dung trên.'}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        ) : null}
-
-        {/* Footer */}
-        <div className="tw:flex tw:items-center tw:justify-between tw:pt-3 tw:border-t tw:border-slate-100">
-          {!isEditing && draft && (
-            <button
-              type="button"
-              disabled={confirming}
-              onClick={() => setIsEditing(true)}
-              className="tw:text-xs tw:font-semibold tw:text-slate-600 tw:hover:text-slate-900 tw:cursor-pointer tw:underline"
-            >
-              Chỉnh sửa nội dung
-            </button>
-          )}
-
-          <div className="tw:flex tw:items-center tw:gap-2 tw:ml-auto">
-            {isEditing ? (
-              <>
-                <button
-                  type="button"
-                  disabled={savingEdit}
-                  onClick={() => {
-                    setIsEditing(false);
-                    if (draft) {
-                      setEditTitle(draft.title);
-                      setEditDesc(draft.description);
-                    }
-                  }}
-                  className="tw:px-3 tw:py-1.5 tw:rounded-xl tw:border tw:border-slate-200 tw:text-slate-600 tw:text-xs tw:font-semibold tw:hover:bg-slate-50 tw:cursor-pointer"
-                >
-                  Hủy sửa
-                </button>
-                <button
-                  type="button"
-                  disabled={savingEdit}
-                  onClick={handleSaveEdit}
-                  className="tw:px-3.5 tw:py-1.5 tw:rounded-xl tw:bg-emerald-600 tw:text-white tw:text-xs tw:font-bold tw:hover:bg-emerald-700 tw:cursor-pointer tw:shadow-xs"
-                >
-                  {savingEdit ? 'Đang lưu...' : 'Lưu thay đổi'}
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  type="button"
-                  disabled={confirming}
-                  onClick={onClose}
-                  className="tw:px-3.5 tw:py-1.5 tw:rounded-xl tw:border tw:border-slate-200 tw:text-slate-600 tw:text-xs tw:font-semibold tw:hover:bg-slate-50 tw:cursor-pointer"
-                >
-                  Hủy bỏ
-                </button>
-                <button
-                  type="button"
-                  disabled={confirming || loading || !draft}
-                  onClick={handleConfirm}
-                  className="tw:px-4 tw:py-1.5 tw:rounded-xl tw:bg-emerald-600 tw:text-white tw:text-xs tw:font-bold tw:hover:bg-emerald-700 tw:cursor-pointer tw:shadow-xs tw:flex tw:items-center tw:gap-1.5"
-                >
-                  {confirming ? 'Đang gửi...' : 'Xác nhận tạo yêu cầu'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
+    finally { if (command.current === controller) { command.current = null; setBusy(false); } }
+  }
+  const field = 'tw:w-full tw:rounded-xl tw:border tw:border-slate-300 tw:p-2 tw:text-sm';
+  return <div ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="ticket-confirm-title" className="tw:fixed tw:inset-0 tw:z-50 tw:flex tw:items-center tw:justify-center tw:bg-slate-900/50 tw:p-4">
+    <div className="tw:w-full tw:max-w-lg tw:max-h-[90dvh] tw:overflow-y-auto tw:space-y-4 tw:rounded-2xl tw:bg-white tw:p-6 tw:shadow-xl">
+      <h2 id="ticket-confirm-title" className="tw:text-lg tw:font-bold">Review support ticket</h2>
+      {error && <p role="alert" className="tw:text-sm tw:text-red-700">{error}</p>}
+      {!result ? <p role="status">{error ? 'Reload the draft to continue.' : 'Loading draft...'}</p> : editing ? <div className="tw:space-y-3">
+        <label className="tw:block">Ticket title<input className={field} value={title} maxLength={255} disabled={busy} onChange={event => setTitle(event.target.value)} /></label>
+        <label className="tw:block">Description<textarea className={field} value={description} maxLength={4000} disabled={busy} onChange={event => setDescription(event.target.value)} /></label>
+        <CustomerTicketPolicySelect value={policyId} onChange={setPolicyId} disabled={busy} />
+      </div> : <section className="tw:space-y-2 tw:text-sm">
+        <h3 className="tw:font-semibold">{result.draft.title}</h3><p className="tw:whitespace-pre-wrap tw:break-words">{result.draft.description}</p>
+        <p>{result.draft.policyNumber || 'No related policy'} &middot; Revision {result.draft.version}</p>
+        <p>{result.confirmation.text}</p><p className="tw:text-xs tw:text-slate-500">{result.confirmation.textVersion}</p>
+      </section>}
+      <div className="tw:flex tw:flex-wrap tw:gap-3 tw:text-sm">
+        <button type="button" onClick={close}>Close</button>
+        {!unresolved && <button type="button" disabled={busy} onClick={() => { setResult(null); setEditing(false); setRevision(v => v + 1); }}>Reload draft</button>}
+        {result && !unresolved && !editing && <button type="button" disabled={busy || result.draft.state !== 'DRAFT'} onClick={() => setEditing(true)}>Edit draft</button>}
+        {editing ? <button type="button" disabled={busy} onClick={() => void save()}>Save and review</button> : <button type="button" disabled={busy || (!result && !unresolved) || (result?.draft.state !== 'DRAFT' && !unresolved)} onClick={() => void confirm()}>{busy ? 'Checking...' : unresolved ? 'Check and retry' : 'Confirm ticket'}</button>}
       </div>
     </div>
-  );
+  </div>;
 }

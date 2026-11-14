@@ -13,7 +13,6 @@ import {
   Req,
 } from '@nestjs/common';
 import {
-  ApiBadRequestResponse,
   ApiCookieAuth,
   ApiForbiddenResponse,
   ApiNotFoundResponse,
@@ -24,7 +23,7 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import type { IncomingMessage } from 'node:http';
-import { AuthService } from '../../auth/services/auth.service';
+import { CustomerTicketQuery } from '../dto/customer-ticket-query.dto';
 import { ConfirmTicketDto } from '../dto/confirm-ticket.dto';
 import { CreateManualTicketDto } from '../dto/create-manual-ticket.dto';
 import { CreateTicketDraftDto } from '../dto/create-ticket-draft.dto';
@@ -44,7 +43,6 @@ import { TicketService } from '../services/ticket.service';
 @Controller('customers/me')
 export class CustomerTicketController {
   constructor(
-    private readonly auth: AuthService,
     private readonly tickets: TicketService,
     private readonly drafts: TicketDraftService,
   ) {}
@@ -53,14 +51,16 @@ export class CustomerTicketController {
   @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Customer views proposed ticket draft' })
   @ApiOkResponse({ type: TicketDraftResponseDto })
-  @ApiNotFoundResponse({ description: 'Draft not found or expired' })
+  @ApiNotFoundResponse({ description: 'Draft not found or outside the current Customer/conversation.' })
+  @ApiResponse({ status: 409, description: 'Ticket draft has expired.' })
   async getDraft(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Param('conversationId', new ParseUUIDPipe()) conversationId: string,
     @Param('draftId', new ParseUUIDPipe()) draftId: string,
   ) {
-    const { actor } = await this.auth.me(request);
-    return this.drafts.getDraft(actor.id, conversationId, draftId);
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.drafts.getDraft(request, conversationId, draftId);
   }
 
   @Put('conversations/:conversationId/ticket-drafts/:draftId')
@@ -70,12 +70,13 @@ export class CustomerTicketController {
   @ApiResponse({ status: 409, description: 'Stale version or expired draft' })
   async updateDraft(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Param('conversationId', new ParseUUIDPipe()) conversationId: string,
     @Param('draftId', new ParseUUIDPipe()) draftId: string,
     @Body() dto: UpdateTicketDraftDto,
   ) {
-    const { actor } = await this.auth.authorizeWrite(request);
-    return this.drafts.updateDraft(actor.id, conversationId, draftId, dto);
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.drafts.updateDraft(request, conversationId, draftId, dto);
   }
 
   @Post('conversations/:conversationId/ticket-drafts/propose')
@@ -84,11 +85,12 @@ export class CustomerTicketController {
   @ApiOkResponse({ type: TicketDraftResponseDto })
   async proposeDraft(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Param('conversationId', new ParseUUIDPipe()) conversationId: string,
     @Body() dto: CreateTicketDraftDto,
   ) {
-    const { actor } = await this.auth.authorizeWrite(request);
-    return this.drafts.proposeDraft(actor.id, conversationId, dto);
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.drafts.proposeDraft(request, conversationId, dto);
   }
 
   @Post('tickets')
@@ -99,8 +101,10 @@ export class CustomerTicketController {
   @ApiResponse({ status: 409, description: 'Stale draft version or already confirmed' })
   async confirmTicket(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Body() dto: ConfirmTicketDto,
   ) {
+    if (Object.keys(query).length) throw new BadRequestException();
     return this.tickets.customerConfirm(request, dto);
   }
 
@@ -111,8 +115,10 @@ export class CustomerTicketController {
   @ApiResponse({ status: 200, description: 'Ticket created or replayed successfully' })
   async createManualTicket(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Body() dto: CreateManualTicketDto,
   ) {
+    if (Object.keys(query).length) throw new BadRequestException();
     return this.tickets.customerCreateManual(request, dto);
   }
 
@@ -122,17 +128,9 @@ export class CustomerTicketController {
   @ApiOkResponse({ type: CustomerTicketListResponseDto })
   async listTickets(
     @Req() request: IncomingMessage,
-    @Query('status') status?: string,
-    @Query('search') search?: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
+    @Query() query: CustomerTicketQuery,
   ) {
-    return this.tickets.customerList(request, {
-      status,
-      search,
-      page: page ? Number(page) : 1,
-      pageSize: pageSize ? Number(pageSize) : 10,
-    });
+    return this.tickets.customerList(request, query);
   }
 
   @Get('tickets/:ticketId')
@@ -142,8 +140,10 @@ export class CustomerTicketController {
   @ApiNotFoundResponse({ description: 'Ticket not found or not owned by customer' })
   async getTicketDetail(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Param('ticketId', new ParseUUIDPipe()) ticketId: string,
   ) {
+    if (Object.keys(query).length) throw new BadRequestException();
     return this.tickets.customerDetail(request, ticketId);
   }
 
@@ -153,8 +153,10 @@ export class CustomerTicketController {
   @ApiNotFoundResponse({ description: 'Ticket receipt not found' })
   async getReceipt(
     @Req() request: IncomingMessage,
+    @Query() query: Record<string, unknown>,
     @Param('clientRequestId', new ParseUUIDPipe()) clientRequestId: string,
   ) {
+    if (Object.keys(query).length) throw new BadRequestException();
     return this.tickets.customerReceipt(request, clientRequestId);
   }
 }

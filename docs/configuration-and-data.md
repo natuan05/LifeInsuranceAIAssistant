@@ -54,7 +54,7 @@ ACK và dữ liệu được giữ cho đối soát. Pending delivery tiếp t�
 <a id="customer-sensitive-data"></a>
 ## Bảo vệ thông tin cá nhân Customer — chuẩn bị triển khai
 
-**Code hiện tại:** API kiểm owner/active assignment và loại citizenId/hash/token khỏi DTO hồ sơ, nhưng còn trả raw email/phone, ngày sinh/địa chỉ; Staff search vẫn có email/phone. Các thay đổi dưới đây đã chốt nhưng chưa triển khai đầy đủ.
+**Code hiện tại:** API giữ owner/active assignment, tách Staff DTO và che email/phone mặc định; Hiện/Ẩn từng trường qua API riêng. Staff search chỉ tên/mã; birthYear/provinceCity trả null khi chưa có nguồn xác minh. Customer self-read giữ nguyên.
 
 ### Phạm vi và ma trận dữ liệu: đã chốt và còn đề xuất
 
@@ -71,10 +71,10 @@ Core dựng DTO theo người nhận; Web render DTO đó. Mask bằng CSS khôn
 
 **Định dạng che:** email giữ ký tự đầu + `***`, che cả domain; phone `***` + hai chữ số cuối. Ví dụ synthetic `minh@example.test` → `m***`, `0900000012` → `***12`. Thiếu giữ null; quá ngắn để vừa giữ vừa che thì `***`. Phần phone giữ lại lấy từ chữ số nguồn. Kiểm Unicode/null/chuỗi ngắn tại CU01-T06.
 
-**Năm sinh/tỉnh-thành:** DTO Staff đề xuất `birthYear: number|null`, `provinceCity: string|null`, thay raw birth/address. Không suy từ tuổi/LLM, không cắt địa chỉ tự do hoặc coi non-null là đã xác minh. Schema chưa có tỉnh/thành và metadata xác minh; CU01 cần đặc tả nguồn/persistence trước code.
+**Năm sinh/tỉnh-thành:** DTO Staff dùng `birthYear: number|null`, `provinceCity: string|null`, thay raw birth/address. Không suy từ tuổi/LLM, không cắt địa chỉ tự do hoặc coi non-null là đã xác minh. Schema chưa có tỉnh/thành và metadata xác minh; Hiện Core trả null từng trường; việc thêm nguồn xác minh/persistence cần đặc tả riêng.
 
 <a id="staff-contact-reveal"></a>
-**Hiện/Ẩn liên hệ — đã chốt, triển khai P:** áp dụng từng trường email/phone, cả contact card tại Customers/Policy/Inbox/Ticket. Core kiểm lại session/role/assignment/quyền Customer khi bấm, chỉ trả trường được yêu cầu qua response no-store. Audit chỉ metadata actor/Customer/trường/thời điểm/kết quả/requestId, không ghi giá trị liên hệ.
+**Hiện/Ẩn liên hệ — đã triển khai tại Customers:** áp dụng từng trường email/phone, cả contact card tại Customers/Policy/Inbox/Ticket. Core kiểm lại session/role/assignment/quyền Customer khi bấm, chỉ trả trường được yêu cầu qua response no-store. Audit chỉ metadata actor/Customer/trường/thời điểm/kết quả/requestId, không ghi giá trị liên hệ.
 
 UI chỉ tạo copy/mailto/tel từ response reveal hợp lệ. Raw chỉ nằm trong state contact đang mở; xóa khi Ẩn, đổi Customer, logout hoặc revoke. Không lưu URL/browser storage/cache dùng chung. Response muộn phải khớp Customer/request và quyền hiện hành. CU01-T07/CU02-T06 sở hữu kiểm thử.
 
@@ -83,7 +83,7 @@ UI chỉ tạo copy/mailto/tel từ response reveal hợp lệ. Raw chỉ nằm 
 
 **Dữ liệu gửi model — B:** dùng sáu quy tắc system prompt và dữ liệu synthetic theo [chính sách Agent](specifications/Agent_Design.md#mvp-model-data-policy). Không bổ sung bộ lọc định danh bằng code. Prompt không phải cơ chế che dữ liệu; quyền reveal Staff phục vụ liên hệ trên UI.
 
-### Luồng xử lý cần triển khai
+### Luồng xử lý
 
 1. Core kiểm session/role/ownership/assignment hoặc transcript grant, dựng projection đúng người nhận. Không trả raw Prisma relation.
 2. Search chỉ fullName/accountCode; bỏ email/phone khỏi predicate, Swagger và gợi ý Web. Giữ scope trước count/page, trim/literal/case-insensitive/quota. Token chỉ khớp email/phone không trả Customer hoặc tăng total; URL query cũ cũng chỉ so tên/mã. Không log raw search.
@@ -100,15 +100,16 @@ UI chỉ tạo copy/mailto/tel từ response reveal hợp lệ. Raw chỉ nằm 
 | Caller | `apps/core/src/policies/services/policy-snapshot.ts`, `conversations/services/conversation-message.service.ts`, `tickets/services/ticket.service.ts`, `realtime/realtime.service.ts` | Cùng projection/gate, không phá binding/version/transcript grant |
 | Agent | `apps/agent/src/life_agent/prompts.py`, `context.py`, `graph.py`, `model.py` | System prompt/quyền/scope/Finalize theo phạm vi B |
 
-Thứ tự kỹ thuật: đặc tả nguồn xác minh → Core projection/search/reveal → Web và caller → hồi quy synthetic. Che response không tự cần DDL; nguồn xác minh nếu cần persistence phải review migration trong CU01. Không thêm cột masked song song, reset volume hoặc sửa dữ liệu gốc. Đợt đồng bộ tài liệu chưa thực hiện các bước này.
+Thứ tự kỹ thuật: đặc tả nguồn xác minh → Core projection/search/reveal → Web và caller → hồi quy synthetic. Che response không tự cần DDL; nguồn xác minh nếu cần persistence phải review migration trong CU01. Không thêm cột masked song song, reset volume hoặc sửa dữ liệu gốc. Phase 1 đã triển khai projection/search/reveal và UI Customers; Policy/Inbox/Ticket hiện chỉ dùng tên/mã ở DTO Customer, không có contact card nhận raw hồ sơ.
 
-### Tiêu chí kiểm thử và điều kiện hoàn tất — chưa chạy
+### Tiêu chí kiểm thử và điều kiện hoàn tất
 
 - [x] Đã chốt phạm vi hiển thị, định dạng che, Hiện/Ẩn liên hệ, search và năm sinh/tỉnh-thành như trên.
-- [ ] CU01-T05/T06/T07 và CU02-T06: projection, nguồn xác minh, Unicode/null/chuỗi ngắn, search/count/scope, reveal/audit/no-store, lỗi và response muộn.
+- [x] CU01-T05/T06/T07 và CU02-T06: projection, nguồn xác minh, Unicode/null/chuỗi ngắn, search/count/scope, reveal/audit/no-store, lỗi và response muộn.
 - [ ] PL01-T05 cùng caller Policy/Inbox/Ticket: số hợp đồng đầy đủ đúng scope, contact mặc định che.
-- [ ] Browser/API: raw không có trong DTO/DOM/tooltip/copy trước reveal; hide/revoke/logout/đổi Customer xóa state.
-- [ ] Hồi quy gateway/Core/browser bằng fixture synthetic cô lập; Agent kiểm sáu quy tắc prompt/quyền/contract. Không coi test DTO hoặc prompt là nghiệm thu che PDF hay bộ lọc model.
+- [x] Browser/API: raw không có trong DTO/DOM/tooltip/copy trước reveal; hide/revoke/logout/đổi Customer xóa state.
+- [x] Phase 0–2 hồi quy gateway/Core/browser Customers, policy PDF và Ticket bằng fixture synthetic cô lập theo [Getting Started](getting-started.md#phase-0-tests).
+- [ ] Nghiệm thu Agent tích hợp về sáu quy tắc prompt/quyền/contract; ngoài Phase 0–2. Không coi test DTO hoặc prompt là nghiệm thu che PDF hay bộ lọc model.
 
 ## Đồng bộ UI và dữ liệu local — 04/11/2026
 

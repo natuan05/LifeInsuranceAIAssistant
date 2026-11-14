@@ -1,10 +1,12 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { StaffCustomerPolicies } from './staff-policies';
-import type { Customer, CustomerList } from '@/lib/customer-api';
+import { AuthError } from '@/lib/auth-api';
+import { revealCustomerContact } from '@/lib/customer-api';
+import type { StaffCustomer, CustomerList } from '@/lib/customer-api';
 
-export function StaffCustomerDirectory({ 
+export function StaffCustomerDirectory({ actorId, csrfToken, blocked, contactRevision, onDenied,
   list, 
   detail, 
   selected, 
@@ -18,8 +20,13 @@ export function StaffCustomerDirectory({
   onBack, 
   onPage 
 }: {
+  actorId: string;
+  csrfToken: string;
+  blocked: boolean;
+  contactRevision: number;
+  onDenied: (status: number) => void;
   list: CustomerList | null;
-  detail: Customer | null;
+  detail: StaffCustomer | null;
   selected: string | null;
   loading: boolean;
   error: string;
@@ -119,7 +126,7 @@ export function StaffCustomerDirectory({
                   autoComplete="off" 
                   defaultValue={searchTerm} 
                   maxLength={100} 
-                  placeholder="Name, customer code, email or phone" 
+                  placeholder="Name or customer code"
                   className="tw:w-full tw:pl-10 tw:pr-4 tw:py-2.5 tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white tw:text-xs tw:text-slate-900 tw:placeholder:text-slate-400 tw:focus:outline-hidden tw:focus:border-blue-500 tw:focus:ring-2 tw:focus:ring-blue-100 tw:transition-all" 
                 />
               </div>
@@ -246,7 +253,7 @@ export function StaffCustomerDirectory({
         )}
 
         {/* Customer Detail Dossier View */}
-        {!loading && !error && selected && detail && (
+        {!loading && !error && selected && detail && detail.id === selected && (
           <div className="directory-profile tw:grid tw:grid-cols-1 tw:lg:grid-cols-3 tw:gap-6 tw:items-start policies-first">
             {/* Policies section (Takes 2 cols) */}
             <div className="tw:lg:col-span-2">
@@ -267,16 +274,15 @@ export function StaffCustomerDirectory({
               <dl className="tw:space-y-3.5 tw:text-xs">
                 {[
                   ['Customer code', detail.accountCode],
-                  ['Email', detail.email],
-                  ['Phone', detail.phone],
-                  ['Date of birth', detail.birth],
-                  ['Address', detail.address]
+                  ['Year of birth', detail.birthYear?.toString()],
+                  ['Province / city', detail.provinceCity]
                 ].map(([k, v]) => (
                   <div key={k} className="tw:border-b tw:border-slate-100 tw:pb-3 tw:last:border-0 tw:last:pb-0">
                     <dt className="tw:text-[11px] tw:font-medium tw:text-slate-400 tw:mb-0.5">{k}</dt>
                     <dd className="tw:font-semibold tw:text-slate-900 tw:break-words">{v || 'Not provided'}</dd>
                   </div>
                 ))}
+                {!blocked && <ContactFields key={`${actorId}:${detail.id}:${contactRevision}`} customer={detail} csrfToken={csrfToken} onDenied={onDenied} />}
               </dl>
               <nav aria-label="Customer support" className="tw:mt-5 tw:flex tw:flex-wrap tw:gap-2 tw:border-t tw:border-slate-200 tw:pt-4">
                 <Link href={`/staff/inbox?customerId=${encodeURIComponent(detail.id)}`} prefetch={false}
@@ -294,4 +300,65 @@ export function StaffCustomerDirectory({
       </div>
     </section>
   );
+}
+
+function ContactFields({ customer, csrfToken, onDenied }: { customer: StaffCustomer; csrfToken: string; onDenied: (status: number) => void }) {
+  return <>{(['email', 'phone'] as const).map(field => <ContactField key={field} customerId={customer.id} field={field} masked={customer[field]} csrfToken={csrfToken} onDenied={onDenied} />)}</>;
+}
+
+function ContactField({ customerId, field, masked, csrfToken, onDenied }: {
+  customerId: string; field: 'email' | 'phone'; masked: string | null; csrfToken: string; onDenied: (status: number) => void;
+}) {
+  const [revealed, setRevealed] = useState<{ value: string | null } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  const active = useRef<AbortController | null>(null);
+  useEffect(() => () => { active.current?.abort(); active.current = null; }, []);
+  function hide() {
+    active.current?.abort(); active.current = null;
+    setRevealed(null); setPending(false); setError('');
+  }
+  async function show() {
+    const controller = new AbortController(); active.current?.abort(); active.current = controller;
+    setPending(true); setError('');
+    try {
+      const result = await revealCustomerContact(customerId, field, csrfToken, AbortSignal.any([controller.signal, AbortSignal.timeout(15000)]));
+      if (active.current !== controller || controller.signal.aborted) return;
+      if (result.customerId !== customerId || result.field !== field) throw new Error('Unexpected contact response');
+      setRevealed({ value: result.value });
+    } catch (cause) {
+      if (active.current !== controller || controller.signal.aborted) return;
+      setRevealed(null);
+      if (cause instanceof AuthError && [401, 403, 404].includes(cause.status)) onDenied(cause.status);
+      else setError('Unable to show contact. Try again.');
+    } finally {
+      if (active.current === controller) { active.current = null; setPending(false); }
+    }
+  }
+  async function copy() {
+    if (!revealed?.value) return;
+    try {
+      await navigator.clipboard.writeText(revealed.value);
+    } catch {
+      setError('Unable to copy contact.');
+    }
+  }
+  const label = field === 'email' ? 'Email' : 'Phone';
+  const value = revealed ? revealed.value : masked;
+  return <div className="tw:border-b tw:border-slate-100 tw:pb-3">
+    <dt className="tw:text-[11px] tw:font-medium tw:text-slate-400">{label}</dt>
+    <dd className="tw:font-semibold tw:text-slate-900 tw:break-words">
+      {revealed?.value ? <a className="tw:text-blue-700 tw:underline" href={`${field === 'email' ? 'mailto:' : 'tel:'}${revealed.value}`}>{value}</a> : <span>{value || 'Not provided'}</span>}
+      <button type="button" aria-label={`${revealed || pending ? 'Hide' : 'Show'} ${label.toLowerCase()}`} aria-expanded={Boolean(revealed)}
+        onClick={revealed || pending ? hide : () => void show()}
+        className="tw:ml-3 tw:rounded tw:px-2 tw:py-1 tw:text-blue-700 tw:underline tw:focus-visible:outline-2">
+        {pending ? 'Cancel' : revealed ? 'Hide' : 'Show'}
+      </button>
+      {revealed?.value && <button type="button" aria-label={`Copy ${label.toLowerCase()}`}
+        className="tw:ml-2 tw:rounded tw:px-2 tw:py-1 tw:text-blue-700 tw:underline tw:focus-visible:outline-2"
+        onClick={() => void copy()}>Copy</button>}
+      {pending && <span role="status" className="tw:ml-2">Loading contact...</span>}
+      {error && <span role="alert" className="tw:block tw:text-red-700">{error}</span>}
+    </dd>
+  </div>;
 }

@@ -20,7 +20,7 @@ Form thủ công là chức năng Customer trong phạm vi đã chọn. Handoff/
 | Customer API | Xác thực/validation/CSRF theo I07 | `apps/core/src/tickets/controllers/customer-ticket.controller.ts` |
 | Web | Hai luồng tạo, theo dõi kết quả và receipt | `apps/web/src/components/customer-tickets.tsx`, `customer-ticket-confirmation.tsx`, `lib/ticket-api.ts` |
 
-Source có migration draft/snapshot và các thành phần trên. Các lỗi review về xác nhận/replay/concurrency cùng ánh xạ summary Agent được theo dõi tại I07. Mức ảnh hưởng cao ở nội dung xác nhận, snapshot, quyền và notification.
+Source có migration draft/snapshot và các thành phần trên. Phase 2 đã sửa validation/replay/concurrency và snapshot cơ bản của Application; ánh xạ summary/nguồn Agent tiếp tục tại I07. Mức ảnh hưởng cao ở nội dung xác nhận, snapshot, quyền và notification.
 
 ## 3. Luồng
 
@@ -35,5 +35,5 @@ Source có migration draft/snapshot và các thành phần trên. Các lỗi rev
 
 - [x] Phạm vi hai luồng, chỉnh sửa draft, own list/detail và OPEN đã chốt.
 - [x] Có code schema/API/UI trong source.
-- [ ] Hoàn thiện các lỗi review I07 và chạy tests T01/T02.
+- [x] Phần Application I07/T01/T02: validation, khóa/CAS, fingerprint, snapshot, receipt và hồi quy Core/browser.
 - [ ] Nghiệm thu luồng Agent khi trusted proposal và summary mapping hoàn tất.

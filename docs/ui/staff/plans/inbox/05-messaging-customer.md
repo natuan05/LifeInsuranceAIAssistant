@@ -4,7 +4,7 @@ Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtim
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
 
 **Thay đổi của phase:** Giữ message nguồn và command hash/idempotency, không sửa văn bản trước lưu theo policy chưa chốt. Bản gửi Agent thuộc CH02; send error/receipt/audit không echo body hoặc contact dư.
 

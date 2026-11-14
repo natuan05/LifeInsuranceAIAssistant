@@ -453,6 +453,7 @@ model SupportTicket {
   idempotencyKey   String             @unique @map("idempotency_key") @db.VarChar(255)
   confirmedAt      DateTime           @map("confirmed_at") @db.Timestamptz(3)
   sourceDraftId    String?            @unique @map("source_draft_id") @db.Uuid
+  requestFingerprint String? @map("request_fingerprint") @db.VarChar(64)
   confirmedContent Json?              @map("confirmed_content") @db.JsonB
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   conversation     Conversation?      @relation(fields: [conversationId], references: [id], onDelete: Restrict)

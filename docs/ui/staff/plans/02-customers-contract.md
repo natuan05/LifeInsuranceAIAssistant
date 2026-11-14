@@ -2,9 +2,9 @@
 
 [Chỉ mục Staff](../README.md) · [API](00-staff-contract.md#api-theo-chức-năng) · [Policies](05-policies-contract.md) · [Khoảng trống](README.md#phần-còn-lại-theo-chức-năng)
 
-Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; Inbox/Ticket theo khách chưa có.
+Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; hồ sơ có liên kết Inbox/Ticket theo khách.
 
-**Bảo vệ email/phone — cập nhật Hiện/Ẩn 14/11/2026, runtime còn P:** Staff mặc định nhận giá trị đã che ở cả danh sách và chi tiết Customer. Staff có Show/Hide từng trường để liên hệ, Core kiểm lại quyền/phân công và audit khi reveal. Core projection, Web và các caller theo [CU01/CU02](customers/01-assignment-read-api.md#customer-privacy-api) và [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data); API hiện vẫn trả raw, cần sửa và kiểm thử. Search đã chốt A: chỉ tên/mã Customer, bỏ email/phone; source Core/Swagger/placeholder còn cần đồng bộ theo CU01/CU02. Ngày sinh/địa chỉ Staff detail đã chốt A: chỉ năm sinh/tỉnh-thành đã xác minh, thiếu căn cứ thì ẩn từng trường; DTO/source còn cần sửa theo CU01/CU02. Định dạng A đã duyệt cho email giữ 1 ký tự đầu và phone giữ 2 số cuối, phần bị che dùng `***`. Core projection và Web render cần triển khai/kiểm CU01-T06.
+**Bảo vệ email/phone — đã triển khai 14/11/2026:** Staff mặc định nhận giá trị đã che ở cả danh sách và chi tiết Customer. Staff có Show/Hide từng trường để liên hệ, Core kiểm lại quyền/phân công và audit khi reveal. Core projection, Web và các caller theo [CU01/CU02](customers/01-assignment-read-api.md#customer-privacy-api) và [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data); Core trả projection Staff đã che và API reveal riêng. Search đã chốt A: chỉ tên/mã Customer, bỏ email/phone; Core/Swagger/placeholder đã đồng bộ theo CU01/CU02. Ngày sinh/địa chỉ Staff detail đã chốt A: chỉ năm sinh/tỉnh-thành đã xác minh, thiếu căn cứ thì ẩn từng trường; DTO dùng birthYear/provinceCity; chưa có nguồn xác minh nên trả null. Định dạng A đã duyệt cho email giữ 1 ký tự đầu và phone giữ 2 số cuối, phần bị che dùng `***`. Core projection và Web render đã triển khai, có kiểm thử CU01-T06.
 
 ## Truy vết data model và vị trí code theo phase
 
@@ -25,10 +25,10 @@ Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến 
 - [x] Deep link/breadcrumb/Back–Forward; tìm kiếm/phân trang/retry không F5 hoặc remount workspace.
 - [x] Loading/empty/no match/error/retry; request cũ bị hủy; 401/403/404 xóa dữ liệu riêng.
 - [x] Realtime refresh nền cho list/hồ sơ cùng query, giữ dữ liệu trong lúc chờ; kiểm phiên khi focus/visible vẫn có.
-- [x] Có 15 regression browser Chromium với API/WebSocket giả lập.
+- [x] Có regression browser với API/WebSocket giả lập và kiểm Customers qua gateway/Core thật.
 - [x] Hồ sơ khách có Conversations/Tickets mở màn nghiệp vụ với customerId; Core giữ kiểm assignment/Direct/consent, không nhúng chat vào Customers.
 
-**Hiện liên hệ — cập nhật 14/11/2026, triển khai P.** Email/phone mặc định che theo A ngày 13/11 và có Hiện/Ẩn để Staff liên hệ. API reveal kiểm lại quyền/phân công, ghi audit metadata và trả riêng trường cần dùng. CU01/CU02 sở hữu DTO/nút/state/revoke và tests CU01-T07/CU02-T06. [Quyết định chuẩn](../../../configuration-and-data.md#staff-contact-reveal).
+**Hiện liên hệ — triển khai 14/11/2026.** Email/phone mặc định che theo A ngày 13/11 và có Hiện/Ẩn để Staff liên hệ. API reveal kiểm lại quyền/phân công, ghi audit metadata và trả riêng trường cần dùng. CU01/CU02 sở hữu DTO/nút/state/revoke và tests CU01-T07/CU02-T06. [Quyết định chuẩn](../../../configuration-and-data.md#staff-contact-reveal).
 
 ## API hiện có
 
@@ -38,8 +38,9 @@ Prefix `/api/v1`; actor/role từ session. Session, assignment và list/count đ
 | --- | --- |
 | A05 GET /staff/customers | page 1–100000 (default 1), pageSize 1–50 (default 10), search tùy chọn; `{items,total,page,pageSize}` |
 | A06 GET /staff/customers/:customerId | UUID; `{customer}` đúng active assignment; ngoài quyền/không tồn tại cùng 404 |
+| POST /staff/customers/:customerId/contact-reveal | `{field:"email"\|"phone"}`; `{customerId,field,value}`; Staff/Origin/CSRF, no-store, audit metadata |
 
-List item: `{id,fullName,accountCode,email,phone,status}`. Họ tên/mã Customer đã chốt A ngày 13/11, hiển thị đầy đủ cho Staff có active assignment hợp lệ, khớp source hiện tại. Source detail hiện thêm birth/address nullable, FE hiện “Not provided” khi thiếu. Đích đã duyệt là năm sinh/tỉnh-thành đã xác minh (DTO đề xuất birthYear/provinceCity nullable), không raw birth/address trong Staff profile; chưa triển khai. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
+List item: `{id,fullName,accountCode,email,phone,status}`. Họ tên/mã Customer đã chốt A ngày 13/11, hiển thị đầy đủ cho Staff có active assignment hợp lệ, khớp source hiện tại. Detail dùng birthYear/provinceCity nullable và không có raw birth/address. Chưa có nguồn xác minh nên cả hai trả null, UI hiện “Not provided”. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
 
 **Contract search A ngày 13/11:** chỉ fullName/accountCode. Source hiện vẫn tìm cả email/phone; cần bỏ hai predicate này, cập nhật Swagger/placeholder và chạy CU01-T02, chưa nghiệm thu thay đổi. Search giữ trim, tối đa 100 ký tự, chuỗi con không phân biệt hoa thường; rỗng/space tương đương bỏ lọc. Không tự bỏ dấu hoặc suy diễn loại dữ liệu từ chuỗi tìm kiếm. `%`, `_`, backslash là ký tự thường. Query lạ/lặp/sai kiểu/control chars/quá dài trả 400. Scope và search áp trước count/phân trang, không tìm trên riêng trang hiện tại; thứ tự userId tăng dần. Trang vượt phạm vi có items rỗng nhưng giữ total.
 
@@ -146,6 +147,7 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | --- | --- | --- |
 | A05 E | GET /staff/customers | search/page/pageSize trong toàn tập active assignment; [Customers](02-customers-contract.md#api-hiện-có) |
 | A06 E | GET /staff/customers/:customerId | Hồ sơ đúng assignment; không citizenId/KYC |
+| E | POST /staff/customers/:customerId/contact-reveal | Hiện một trường email/phone sau kiểm quyền và CSRF; no-store/audit |
 
 | Route | Trạng thái |
 | --- | --- |

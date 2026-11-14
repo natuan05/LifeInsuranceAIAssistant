@@ -165,7 +165,7 @@ function TicketDetail({ id, csrfToken, blocked, onAccepted, back }: { id: string
           </div>
 
           {/* AI Context Summary Card (Matching user mockup layout) */}
-          {ticket.aiSummary && (
+          {ticket.aiSummary && !ticket.confirmedContent && (
             <div className="tw:rounded-2xl tw:border tw:border-indigo-200/80 tw:bg-gradient-to-b tw:from-indigo-50/40 tw:to-white tw:p-4 tw:sm:p-5 tw:shadow-2xs tw:min-w-0 tw:overflow-hidden">
               <div className="tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2 tw:mb-3">
                 <div className="tw:flex tw:items-center tw:gap-2 tw:min-w-0">
@@ -173,11 +173,11 @@ function TicketDetail({ id, csrfToken, blocked, onAccepted, back }: { id: string
                     ✨
                   </span>
                   <h3 className="tw:text-xs tw:font-bold tw:uppercase tw:tracking-wider tw:text-indigo-900 tw:break-words">
-                    AI Case Summary
+                    Legacy summary
                   </h3>
                 </div>
                 <span className="tw:inline-flex tw:items-center tw:px-2 tw:py-0.5 tw:rounded-full tw:text-[10px] tw:font-bold tw:bg-emerald-50 tw:text-emerald-700 tw:border tw:border-emerald-200/60 tw:shrink-0">
-                  ✓ Verified Proposal
+                  Unverified content
                 </span>
               </div>
               <p className="tw:whitespace-pre-wrap tw:break-words tw:text-xs tw:leading-relaxed tw:text-slate-700">
@@ -190,10 +190,15 @@ function TicketDetail({ id, csrfToken, blocked, onAccepted, back }: { id: string
           <div className="tw:rounded-2xl tw:border tw:border-slate-200/80 tw:bg-white tw:p-4 tw:sm:p-5 tw:text-xs tw:shadow-2xs tw:min-w-0">
             <h3 className="tw:font-bold tw:text-slate-800 tw:mb-1 tw:break-words">Customer confirmation notice</h3>
             <p className="tw:text-slate-500 tw:leading-relaxed tw:break-words">
-              This legacy ticket has no saved snapshot of the content confirmed by the customer. Its confirmation time does not verify the AI summary below.
+              {ticket.confirmedContent ? (ticket.confirmationSource === 'CUSTOMER_SUBMITTED' ? 'Submitted by the customer.' : 'Draft content confirmed by the customer.') : 'This legacy ticket has no saved snapshot of the content confirmed by the customer. Its confirmation time does not verify this legacy summary.'}
             </p>
           </div>
 
+          {ticket.confirmedContent && <section aria-label="Confirmed ticket content" className="tw:rounded-xl tw:border tw:border-slate-200 tw:p-4 tw:text-sm">
+            <h3 className="tw:font-semibold">{ticket.confirmedContent.title}</h3>
+            <p className="tw:whitespace-pre-wrap tw:break-words">{ticket.confirmedContent.description}</p>
+            <p>{ticket.confirmedContent.policyNumber || 'No related policy'}</p>
+          </section>}
           {/* Bottom Actions */}
           <div className="tw:flex tw:flex-wrap tw:items-center tw:gap-3">
             {unknown && (

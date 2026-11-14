@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
 
 **Thay đổi của phase:** Rà customer labels/title/summary/extractedDetails/confirmedContent trong DTO. Recipient/assignment không cho mọi PII hay transcript; projection không sửa immutable snapshot, legacy vẫn UNVERIFIED.
 
@@ -12,11 +12,11 @@
 
 **Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
 
-**Liên hệ Customer — cập nhật 14/11/2026, triển khai P.** Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+**Liên hệ Customer — cập nhật 14/11/2026.** Hiện không có contact card raw trong chức năng này. Hiện/Ẩn tại Customers đã triển khai theo CU01/CU02; Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
 
 ## Data model và phạm vi ảnh hưởng
 
-**Bổ sung 13/11/2026 — summary Agent, phương án A:** Staff detail khi đúng Ticket scope phải đọc được snapshot sáu nhóm và projection nguồn đã duyệt theo [I07](06-agent-confirmation.md#ticket-handoff-content). List giữ nội dung tối thiểu. Hiện source detail còn dùng LEGACY_UNVERIFIED/null cho mọi row; cần sửa để phân biệt snapshot mới và legacy, đồng thời giữ kiểm quyền nguồn/transcript. Khi nguồn hiện không còn quyền xem, trả trạng thái nguồn không khả dụng thay vì đổi snapshot hoặc lấy version mới.
+**Bổ sung 13/11/2026 — summary Agent, phương án A:** Staff detail khi đúng Ticket scope phải đọc được snapshot sáu nhóm và projection nguồn đã duyệt theo [I07](06-agent-confirmation.md#ticket-handoff-content). List giữ nội dung tối thiểu. Phase 2 đã phân biệt snapshot cơ bản CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED và legacy LEGACY_UNVERIFIED/null. Sáu nhóm/source refs vẫn chưa triển khai; giữ kiểm quyền nguồn/transcript. Khi nguồn hiện không còn quyền xem, trả trạng thái nguồn không khả dụng thay vì đổi snapshot hoặc lấy version mới.
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
@@ -89,7 +89,7 @@ Không nhận query. Response:
 | --- | --- |
 | customer | id/fullName/accountCode như list |
 | policy | null hoặc id/policyNumber cùng Customer; hợp đồng lịch sử được giữ dù sản phẩm inactive; không benefitsSnapshot/storage fields |
-| confirmationSource / confirmedContent | LEGACY_UNVERIFIED / null. Không suy snapshot từ confirmedAt/aiSummary/extractedDetails |
+| confirmationSource / confirmedContent | CUSTOMER_SUBMITTED hoặc CUSTOMER_CONFIRMED với snapshot cơ bản hợp lệ; LEGACY_UNVERIFIED/null cho bản ghi thiếu hoặc sai snapshot. Không suy từ confirmedAt/aiSummary/extractedDetails |
 | aiSummary | Nullable, tách riêng như nội dung AI chưa có bằng chứng xác nhận; UI ghi đúng nhãn |
 | allowedActions.accept | status===ASSIGNED, chỉ capability cho TK03, mutation endpoint thuộc TK03 |
 | chatLink | null nếu không cùng Customer/không qua I01; không lộ conversationId ngoài field này |

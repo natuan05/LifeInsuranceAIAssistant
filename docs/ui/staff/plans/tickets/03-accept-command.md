@@ -183,7 +183,7 @@ PATCH /api/v1/staff/tickets/:ticketId/status body {expectedVersion,status}; sess
 | --- | --- |
 | OPEN / ASSIGNED / IN_PROGRESS / RESOLVED / CLOSED | Chọn trực tiếp bất kỳ status nào trong 5 giá trị; không bắt buộc đi tuần tự |
 
-Người dùng05/11 chốt dropdown luôn đủ 5 status, cho phép chọn trực tiếp. Không claim Ticket unassigned hoặc đổi recipient. Core trả 4 status còn lại trong allowedActions.transitions; FE thêm current status để hiển thị đủ 5. Target đã là current status trả 200 current, không thêm audit/event; đây là reconcile trạng thái, không receipt của thao tác. Thay đổi thật kiểm expectedVersion sau khóa, CAS, version+1, audit+outbox atomic. Giữ POST accept tương thích, chỉ ASSIGNED→IN_PROGRESS và replay IN_PROGRESS như trước.
+Người dùng05/11 chốt dropdown luôn đủ 5 status, cho phép chọn trực tiếp. Không claim Ticket unassigned hoặc đổi recipient. Core trả 4 status còn lại trong allowedActions.transitions; FE thêm current status để hiển thị đủ 5. Target đã là current status trả 200 current, không thêm audit/event; đây là reconcile trạng thái, không receipt của thao tác. Thay đổi thật kiểm expectedVersion sau khóa, CAS, version+1, audit+outbox atomic. Giữ POST accept tương thích, OPEN/ASSIGNED có recipient và active assignment hợp lệ → IN_PROGRESS; replay IN_PROGRESS giữ nguyên trạng thái.
 
 ASSIGNED→IN_PROGRESS phát TICKET_ACCEPTED; các bước còn lại phát TICKET_STATUS_CHANGED, payload {schemaVersion:1,version}. Consumer/dedup/realtime như TK05. Migration thứ 10 202611050002_ticket_status_notifications chỉ mở rộng kind/typed-target CHECK, không thêm cột/bảng/enum. Đóng/mở lại Ticket không sửa chat/handoff/grant và không thực hiện Claim/payment.
 

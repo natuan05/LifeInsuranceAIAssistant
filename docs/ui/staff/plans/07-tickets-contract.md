@@ -49,7 +49,7 @@ Yêu cầu người dùng05/11 đã mở lifecycle resolve/close/reopen Ticket; 
 
 Nhánh đọc/tiếp nhận **có thể triển khai trước Agent** theo [TK01](tickets/01-scope-model-contract.md) → [TK02 read](tickets/02-staff-read-api.md) → [TK03 accept](tickets/03-accept-command.md) → [TK04 UI](tickets/04-list-detail-ui.md) → [TK05 events](tickets/05-notification-events.md). TK01 đã triển khai nền version/policy/legacy projection; TK02 đã có read API; TK03 A23 Accept đã có; TK04 UI đã nối; TK05 consumer events đã E; I07 producer tạo riêng còn P. Quyền đã chốt active assignment **và** Ticket recipient chính Staff; không unassigned/global OPEN queue. Staff khóa mất quyền; Customer khóa vẫn được phục vụ, không mở grant chat.
 
-Schema source có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. I07 sở hữu hai luồng tạo OPEN. Staff detail hiện còn dùng projection LEGACY_UNVERIFIED/null cho mọi row; cần hoàn thiện phân biệt snapshot mới với legacy và giữ kiểm quyền riêng của Ticket.
+Schema source có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. I07 sở hữu hai luồng tạo OPEN. Phase 2 đã tách snapshot cơ bản CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED và LEGACY_UNVERIFIED/null, giữ kiểm quyền riêng của Ticket. Sáu nhóm/nguồn Agent còn theo I07.
 
 Nguồn tạo Ticket thủ công và draft Agent do [I07](tickets/06-agent-confirmation.md) cùng Customer T01/T02 sở hữu. Không endpoint tạo Ticket giả, không nhét seed cá nhân vào bootstrap; fixture test không chứng minh Agent. SRS nguồn chưa yêu cầu toàn workflow xử lý→hoàn tất→phản hồi; người dùng05/11 chọn bổ sung status resolve/close/reopen ở TK03, không thêm phản hồi/Claim/payment.
 

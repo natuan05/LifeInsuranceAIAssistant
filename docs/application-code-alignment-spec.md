@@ -1,6 +1,6 @@
 # Spec sửa code Application theo tài liệu đã chốt
 
-**Ngày đối chiếu:** 14/11/2026 · **Source:** `main@ca36235` · **Trạng thái:** đặc tả sửa chữa, chưa thực hiện sửa code.
+**Ngày đối chiếu:** 14/11/2026 · **Baseline:** `main@ca36235`; thay đổi Phase 0–2 ở working tree · **Trạng thái:** Phase 0–2 đã triển khai; Phase 2 còn ca kiểm đổi actor khi Ticket đang pending; Phase 3–5 còn kế hoạch.
 
 ## 1. Phạm vi và căn cứ
 
@@ -13,35 +13,35 @@ Căn cứ nghiệp vụ: [quyền và dữ liệu](configuration-and-data.md#cus
 ### Mức độ bằng chứng
 
 - **S — xác nhận từ source:** đã đọc trực tiếp nhánh xử lý, DTO hoặc caller liên quan; chưa đồng nghĩa đã tái hiện qua DB/browser.
-- **T — có kết quả kiểm tra:** chạy compiler trong đợt này.
+- **T — có kết quả kiểm tra:** đã chạy compiler hoặc test tương ứng; phạm vi và suite được chỉ rõ ở tiêu chí nghiệm thu, không suy ra toàn hệ thống đã đạt.
 - **R — rủi ro cần test cạnh tranh:** source thiếu cơ chế bảo vệ hoặc có nhánh đáng ngờ; chưa kết luận hậu quả runtime nếu chưa có test.
 
-Đã chạy `node node_modules/typescript/bin/tsc -p apps/web/tsconfig.json --noEmit --incremental false`: **pass**. Lệnh tương ứng cho Core: **fail**, gồm thiếu đối số Auth và mã lỗi draft chưa đăng ký. Các lỗi thiếu `ticketDraft/readAt/recipientCustomerId/confirmedContent` còn liên quan Prisma client local cũ; schema source đã có những thành phần này. Phải generate client đúng schema trước khi đánh giá lại lỗi kiểu. Chưa chạy DB, API hoặc browser E2E trong đợt viết spec.
+Core typecheck sau generate trong Docker và Web typecheck đều pass; Core/Web build và stack qua gateway hoạt động. Phase 0–2 có kiểm HTTP/DB thật và browser qua gateway bằng fixture synthetic; suite và lệnh chạy theo [Getting Started](getting-started.md#phase-0-tests). Phase 1 bổ sung projection Staff, search tên/mã và Hiện/Ẩn liên hệ; Phase 2 bổ sung validation, khóa/CAS, fingerprint, snapshot và đối soát Web. Checklist từng phase bên dưới chỉ xác nhận phần Application; Phase 3–5 và nguồn Agent thật chưa nghiệm thu.
 
 ### Những nền hiện có cần bảo toàn
 
 | Phần đã đọc source | Hiện trạng và giới hạn kết luận |
 | --- | --- |
 | Auth/session, Staff self-profile | Có kiểm phiên/role/CSRF, logout và self-edit Staff; không phát hiện quyết định mới buộc đổi các luồng này. Hồi quy khi sửa transaction/quyền. |
-| Customer profile | Self-read đã có, không có API Customer tự sửa; giữ nguyên. Staff projection/search cần sửa theo Phase 1. |
+| Customer profile | Self-read đã có, không có API Customer tự sửa; giữ nguyên. Staff projection/search và Hiện/Ẩn liên hệ đã sửa theo Phase 1. |
 | Policy/Product/PDF | Có owner/assignment, catalog và exact-version access; chưa phát hiện chênh lệch cần phase chức năng riêng. Hồi quy các caller khi đổi profile. |
 | Inbox/chat hai đầu | Có Direct, consent/Accept, grant, create cuộc AI mới và không có chat Close. Sửa read-status/notification trong Phase 3–4; không triển khai AI trả lời. |
-| Ticket | Có Staff read/Accept/status và Customer manual/draft/edit/confirm/list/detail/receipt. Còn các chênh lệch Phase 0/2/3. |
-| Tool local | Schema source có 20 model/13 migrations; verify/reset chưa theo kịp, xem Phase 5. |
+| Ticket | Có Staff read/Accept/status và Customer manual/draft/edit/confirm/list/detail/receipt. Phase 0/2 đã xử lý nền, validation, replay/CAS và snapshot; event/notification tiếp tục ở Phase 3. |
+| Tool local | Schema source có 20 model/14 migrations; verify/reset chưa theo kịp, xem Phase 5. |
 
 ## 2. Danh mục chênh lệch
 
 | ID | Hiện trạng code và căn cứ | Hành vi phải đạt | Phase |
 | --- | --- | --- | --- |
-| APP-01 · S/T | [CustomerTicketController](../apps/core/src/tickets/controllers/customer-ticket.controller.ts) gọi authorizeWrite thiếu client; [SafeApiException](../apps/core/src/http/safe-api.exception.ts) chưa có bốn mã lỗi draft mà service đang dùng. | Compile đúng; auth/role và lỗi draft có contract an toàn. | 0 |
-| APP-02 · S | [CustomerService](../apps/core/src/customers/services/customer.service.ts) dùng chung customerView cho self/Staff, trả raw email/phone/birth/address. [Web types](../apps/web/src/lib/customer-api.ts) cũng dùng chung Customer. | Tách DTO theo người nhận, mask/reveal đúng quyền, chỉ năm sinh/tỉnh-thành đã xác minh cho Staff. | 1 |
-| APP-03 · S | CustomerService.list còn search email/phone; [Staff directory](../apps/web/src/components/staff-customer-directory.tsx) còn gợi ý/hiển thị các trường cũ. | Search chỉ fullName/accountCode; giữ scope/count/page và URL/Back. | 1 |
-| APP-04 · S | [Confirm DTO](../apps/core/src/tickets/dto/confirm-ticket.dto.ts) chỉ IsBoolean/nonempty textVersion; [TicketService](../apps/core/src/tickets/services/ticket.service.ts) không buộc confirmed=true. DTO text kiểm độ dài trước trim; [draft service](../apps/core/src/tickets/services/ticket-draft.service.ts) hash trước trim. | Chỉ xác nhận hợp lệ được commit; nội dung chuẩn hóa và hash khớp revision lưu. | 2 |
-| APP-05 · S | TicketService replay chỉ đối chiếu key/customer; [ticket-api](../apps/web/src/lib/ticket-api.ts) sinh UUID mới mỗi lần gọi manual/confirm, chưa có wrapper receipt. | Replay kiểm operation/nội dung; Web giữ key của intent và đối soát khi chưa rõ kết quả. | 2 |
-| APP-06 · S/R | Draft update/confirm đọc version rồi update theo id; auth Customer mutation ở ngoài transaction. Đã có unique source_draft_id nên không kết luận có thể lưu hai Ticket/draft. | Chặn stale edit/confirm, recheck phiên/quyền trong transaction; race trả lỗi nghiệp vụ thay vì P2002/500. | 2 |
-| APP-07 · S | Staff projectDetail luôn dùng [legacyTicketConfirmation](../apps/core/src/tickets/dto/ticket-confirmation.ts), không select snapshot mới; Web Ticket type cố định confirmedContent=null. | Hiển thị snapshot đã xác nhận khi hợp lệ, giữ legacy chưa xác minh cho bản ghi thiếu snapshot. | 2 |
-| APP-08 · S/R | Customer Ticket list nhận query rời, ép Number/status as any; Customer methods chưa gọi quota Ticket như phía Staff. | DTO strict, phân trang ổn định, quota và read/auth snapshot đúng scope. Đầu vào sai không thành lỗi Prisma/500. | 2 |
-| APP-09 · S | [Draft dialog](../apps/web/src/components/customer-ticket-confirmation.tsx) chỉ sửa title/description, giữ policy cũ và hardcode ticket-v1; Ticket UI còn nhãn Việt/alert. | Sửa được policy thuộc owner, dùng confirmation server trả, xử lý tại chỗ và English labels theo contract UI. | 2 |
+| APP-01 · S/T | **Đã sửa Phase 0:** route draft dùng auth/role Customer trong transaction service; [SafeApiException](../apps/core/src/http/safe-api.exception.ts) có đủ bốn mã lỗi draft 409. | Compile đúng; auth/role và lỗi draft có contract an toàn. | 0 |
+| APP-02 · S | [CustomerService](../apps/core/src/customers/services/customer.service.ts) đã tách self/Staff; Staff chỉ nhận email/phone đã che, birthYear/provinceCity null khi chưa xác minh. [Web types](../apps/web/src/lib/customer-api.ts) đã tách Customer/StaffCustomer và state reveal riêng. | Tách DTO theo người nhận, mask/reveal đúng quyền, chỉ năm sinh/tỉnh-thành đã xác minh cho Staff. | 1 |
+| APP-03 · S | CustomerService.list đã bỏ search email/phone; [Staff directory](../apps/web/src/components/staff-customer-directory.tsx) đã đồng bộ tên/mã, projection và Hiện/Ẩn. | Search chỉ fullName/accountCode; giữ scope/count/page và URL/Back. | 1 |
+| APP-04 · S | DTO/service đã trim trước validation/hash, buộc confirmed=true và ticket-v1; policy đúng owner. | Giữ kiểm tại HTTP và invariant service; không có side effect khi từ chối. | 2 |
+| APP-05 · S | Ticket mới lưu requestFingerprint; replay kiểm actor/operation/input. Web giữ intent/key và tra receipt khi chưa rõ kết quả. | Legacy không đủ input gốc trả conflict; raw không vào browser storage. | 2 |
+| APP-06 · S | Draft edit/confirm dùng chung khóa routing → draft, reauthorize và CAS version/state/expiry. | Unique source_draft_id giữ nguyên; đã kiểm các race bằng DB thật. | 2 |
+| APP-07 · S | Staff/Customer project snapshot cơ bản hợp lệ thành CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED; Web hiển thị nội dung lưu. | Legacy/invalid giữ LEGACY_UNVERIFIED/null; sáu nhóm Agent còn ngoài phạm vi. | 2 |
+| APP-08 · S | Own list dùng DTO strict, order createdAt DESC/id DESC, read snapshot và quota Customer riêng. | Validation 400, rate limit 429/Retry-After; count/items cùng scope. | 2 |
+| APP-09 · S | Draft dialog sửa/bỏ policy, review revision và giữ confirmation text/version server; UI English, success tại chỗ rồi mở detail persisted. | Không nối nguồn draft Agent thật hoặc summary/refs trong Phase 2. | 2 |
 | APP-10 · S | [conversation-api](../apps/web/src/lib/conversation-api.ts) dùng link/nested notification/markedCount, Core trả target/flat/count. markConversationRead gọi role-specific URL, controller hiện có là [common read](../apps/core/src/conversations/controllers/common-conversation.controller.ts). | Một DTO thống nhất và đúng route read; chuông điều hướng đúng resource. | 3 |
 | APP-11 · S | Ticket create producer thiếu version trong event; [consumer](../apps/core/src/tickets/services/ticket-event.service.ts) yêu cầu version và return trước nhánh Customer nếu không có Staff. | Event hợp lệ, Customer nhận thông báo Ticket của mình kể cả chưa có Staff phụ trách. | 3 |
 | APP-12 · S/R | [ConversationEventService](../apps/core/src/conversations/services/conversation-event.service.ts) chọn message mới nhất khi xử lý bất kỳ MESSAGE_COMMITTED; [markAsRead](../apps/core/src/conversations/services/conversation-message.service.ts) cũng phát event cùng loại, không chỉ rõ message. | Xử lý đúng message/sender/mốc của event; đọc chat không bị hiểu thành có tin mới. | 4 |
@@ -57,21 +57,26 @@ Phase 1/2 độc lập về nghiệp vụ sau Phase 0; Phase 3 dùng producer Ti
 
 ## 4. Phase 0 — Sửa lỗi nền Core Ticket
 
-**Phạm vi:** APP-01. Owner: Customer T01 và I07, chỉ phần Core Application.
+**Phạm vi:** APP-01. Owner: Customer T01 và I07, chỉ phần Core Application. **Đã hoàn tất A0-01–03.** Test tại [customer-ticket-boundary.test.cjs](../apps/core/test/customer-ticket-boundary.test.cjs); lệnh Docker dùng chung tại [Getting Started](getting-started.md#phase-0-tests). Test image cho user node regenerate Prisma client; không dùng generated code trên host, không thêm migration trong Phase 0.
 
 1. Sửa lời gọi authorizeWrite theo signature có client; mọi route Customer draft phải kiểm role CUSTOMER. Không chỉ truyền thêm đối số để compiler hết lỗi rồi bỏ qua transaction/quyền.
 2. Đăng ký lỗi an toàn HTTP 409: DRAFT_EXPIRED, STALE_DRAFT, DRAFT_ALREADY_CONFIRMED, DRAFT_NOT_EDITABLE. Không trả stack/SQL/draft của người khác.
 3. Giữ endpoint draft hiện có theo đúng quyền; không biến route propose hiện tại thành API tích hợp Agent hoặc bằng chứng nguồn Agent đã được triển khai.
 4. Generate Prisma client từ schema repo theo quy trình build/typecheck, không sửa hoặc commit generated code. Chạy lại compiler để phân biệt lỗi source còn thật với client cũ.
+5. GET draft hết hạn chỉ đọc expiresAt rồi trả DRAFT_EXPIRED; không UPDATE trạng thái trong read transaction rồi rollback. Kiểm GET vẫn trả 409 khi writer khác giữ row lock.
 
 **File sửa:** CustomerTicketController, TicketDraftService, SafeApiException và wiring/module cần thiết. AuthService giữ contract, không nới quyền.
 
 **Nghiệm thu A0:**
-- A0-01: Core typecheck sau generate pass; Web typecheck vẫn pass.
-- A0-02: thiếu/hết phiên → 401; sai role → 403; thiếu/sai Origin hoặc CSRF bị từ chối trước mutation.
-- A0-03: từng mã draft trả 409 safe envelope; draft ngoài owner/cuộc trả 404, không lộ nội dung.
+- [x] A0-01: Core typecheck sau generate pass; Web typecheck vẫn pass.
+- [x] A0-02: thiếu/hết phiên → 401; sai role → 403; thiếu/sai Origin hoặc CSRF bị từ chối trước mutation.
+- [x] A0-03: từng mã draft trả 409 safe envelope; draft ngoài owner/cuộc trả 404, không lộ nội dung.
+
+**Bằng chứng:** `customer-ticket-boundary.test.cjs` kiểm HTTP/DB/gateway, gồm GET draft hết hạn khi writer giữ khóa; đã kiểm thêm Origin khác mặc định. Build/typecheck dùng image Docker từ schema repo.
 
 ## 5. Phase 1 — Projection, search và Hiện/Ẩn liên hệ Staff
+
+**Trạng thái:** Đã triển khai Core/Web và kiểm bằng fixture synthetic. Không có migration hoặc thay dữ liệu gốc.
 
 **Phạm vi:** APP-02/03. Owner: [CU01/CU02](ui/staff/plans/02-customers-contract.md). Các API dưới dùng prefix /api/v1.
 
@@ -82,11 +87,12 @@ Phase 1/2 độc lập về nghiệp vụ sau Phase 0; Phase 3 dùng producer Ti
 | GET /customers/me | Giữ self-read theo contract hiện có; không áp mask Staff lên Customer hoặc Staff contact của Customer. |
 | GET /staff/customers | Giữ items/total/page/pageSize. items có id/fullName/accountCode/status/email/phone; email/phone là bản che hoặc null. Search chỉ fullName/accountCode. |
 | GET /staff/customers/:customerId | customer dùng Staff DTO riêng; thay birth/address bằng birthYear:number\|null, provinceCity:string\|null. Không có raw hoặc bản sao trong field phụ. |
-| POST /staff/customers/:customerId/contact-reveal | Body duy nhất {field:"email"\|"phone"}. Response {customerId,field,value:string\|null}; no-store, current Staff session/CSRF/Origin và active assignment. Đây là endpoint đích còn cần triển khai theo CU01. |
+| POST /staff/customers/:customerId/contact-reveal | Body duy nhất {field:"email"\|"phone"}. Response {customerId,field,value:string\|null}; no-store, current Staff session/CSRF/Origin và active assignment. Endpoint đã triển khai theo CU01. |
 
 - Email: ký tự đầu + ***; che cả domain. Phone: *** + hai chữ số cuối. Thiếu null; quá ngắn để vừa giữ vừa che thì ***. Full name/accountCode/policyNumber vẫn đầy đủ trong scope đã duyệt.
 - Source hiện chưa có tỉnh/thành hoặc metadata xác minh. **Đối với dữ liệu hiện chưa có căn cứ xác minh, trả null cho từng trường birthYear/provinceCity**; không suy từ tuổi, LLM hoặc cắt address tự do. Phase này không tự tạo quy trình xác minh hoặc coi birth non-null là đã xác minh.
 - Reveal theo thứ tự lock dùng chung users → Customer → assignment; recheck auth/role/assignment trong transaction trước đọc. Ngoài scope/không tồn tại cùng 404. Audit metadata actor/Customer/field/requestId/kết quả, không raw.
+- Quota kỹ thuật theo actor dùng bucket hiện có: đọc hồ sơ/search 240/phút, reveal 30/phút; vượt trả safe429/Retry-After. Audit dùng outcome SUCCESS/FAILURE theo ràng buộc DB.
 - UI chỉ gọi reveal sau bấm Hiện, từng trường độc lập; pending/error tại chỗ. Raw chỉ trong state contact đang mở, xóa khi Ẩn/đổi khách/logout/revoke. Không prefetch raw, browser storage hoặc mailto/tel/copy trước reveal. Response muộn phải khớp Customer/request còn hiệu lực.
 - Bỏ email/phone khỏi Swagger search, placeholder và predicate/count. Search query cũ cũng chỉ so tên/mã; giữ literal/trim/case, active assignment trước count/page và Back/Forward.
 
@@ -95,13 +101,17 @@ Phase 1/2 độc lập về nghiệp vụ sau Phase 0; Phase 3 dùng producer Ti
 **Schema:** mask/reveal không cần cột masked; không thêm migration chỉ để hiển thị null khi thiếu nguồn xác minh.
 
 **Nghiệm thu A1:**
-- A1-01: list/detail/default network/DOM không có raw liên hệ; null/Unicode/chuỗi ngắn đúng định dạng; self-read không đổi.
-- A1-02: token chỉ có trong email/phone không ảnh hưởng items/total; tên/mã vẫn tìm đúng, scope/page/URL/Back không hồi quy.
-- A1-03: reveal đúng field/owner/assignment, null, field lạ, CSRF và audit; giữ request qua revoke/đổi khách/logout không làm raw xuất hiện lại.
-- A1-04: birth/address đầy đủ không còn trong Staff DTO; nguồn chưa xác minh trả null; Policy/PDF/policyNumber và Staff self-edit giữ hành vi cũ.
+- [x] A1-01: list/detail/default network/DOM không có raw liên hệ; null/Unicode/chuỗi ngắn đúng định dạng; self-read không đổi.
+- [x] A1-02: token chỉ có trong email/phone không ảnh hưởng items/total; tên/mã vẫn tìm đúng, scope/page/URL/Back không hồi quy; ký tự điều khiển bị từ chối trước trim.
+- [x] A1-03: reveal đúng field/owner/assignment, null, field lạ, CSRF và audit; giữ request qua revoke/đổi khách/logout không làm raw xuất hiện lại.
+- [x] A1-04: birth/address đầy đủ không còn trong Staff DTO; nguồn chưa xác minh trả null; Policy/PDF/policyNumber và Staff self-edit giữ hành vi cũ.
 - Đối chiếu CU01-T05/T06/T07 và CU02-T06; mở rộng suite customers.test.cjs, staff-customers.spec.mjs và staff-foundation.integration.spec.mjs.
 
+**Bằng chứng:** `customers.test.cjs` kiểm API/DB, projection/search/reveal/quota và reauthorize dưới khóa; `staff-customers.spec.mjs` kiểm DOM/state/response muộn; `staff-foundation.integration.spec.mjs` kiểm Customers, Policy/PDF và Staff self-edit qua gateway. Browser mock chỉ chứng minh hành vi UI; quyền và dữ liệu lưu được kiểm ở Core/DB.
+
 ## 6. Phase 2 — Tính đúng đắn của Ticket đã có
+
+**Trạng thái:** Đã triển khai Core/Web bằng fixture synthetic; còn kiểm thử chuyên biệt A2-04 về đổi actor khi Ticket đang pending. Migration `202611140001_ticket_request_fingerprint` chỉ thêm cột nullable và CHECK, không backfill hoặc sửa bản ghi cũ.
 
 **Phạm vi:** APP-04–09. Owner: [Customer T01/T02](ui/customer/plans/07-tickets-contract.md), TK02/TK04 và phần Application I07.
 
@@ -122,11 +132,12 @@ Luồng ghi đích: authorize → lock routing → reauthorize trong tx → look
 - Tái dùng lockCustomer/lock của ConversationCommandService, giữ thứ tự users → Customer → assignment → conversation nếu có → draft/Ticket. Manual không cần tạo conversation hoặc grant mới.
 - PUT draft dùng CAS theo id/customerId/conversationId/state=DRAFT/version/expiry; thất bại trả lỗi nghiệp vụ. Hash canonical dựa đúng title/description/policyId đã chuẩn hóa. Confirm và edit phải dùng cùng thứ tự khóa.
 - Giữ unique source_draft_id hiện có. Hai key confirm cùng draft chỉ một commit; bên thua nhận DRAFT_ALREADY_CONFIRMED hoặc STALE_DRAFT phù hợp, không raw unique violation. Không dùng SELECT kiểm trước làm thay thế unique constraint.
-- Lưu **requestFingerprint** bất biến cho request tạo Ticket mới bằng migration bổ sung nullable trên support_tickets, map SQL request_fingerprint varchar(64), CHECK null hoặc SHA-256 hex hợp lệ. Hash bao gồm actor và operation; manual gồm title/description/policyId chuẩn hóa, confirm gồm draftId/expectedDraftVersion/confirmed/textVersion. Snapshot ghi revision/content hash tương ứng.
+- Lưu **requestFingerprint** bất biến cho request tạo Ticket mới bằng migration 202611140001_ticket_request_fingerprint bổ sung nullable trên support_tickets, map SQL request_fingerprint varchar(64), CHECK null hoặc SHA-256 hex hợp lệ. Hash bao gồm actor và operation; manual gồm title/description/policyId chuẩn hóa, confirm gồm draftId/expectedDraftVersion/confirmed/textVersion. Snapshot ghi revision/content hash tương ứng.
 - Giữ unique idempotency_key; cùng actor/key/operation/input trả Ticket cũ sau reauthorize, khác operation/input → 409 IDEMPOTENCY_CONFLICT. Key của actor khác không trả tài nguyên ngoài quyền. Legacy thiếu fingerprint chỉ replay khi xác minh đủ input gốc; không đoán, không backfill bằng nội dung hiện tại.
 - Ticket OPEN, recipient từ assignment hiện hành; Staff Accept → IN_PROGRESS. Cấp ticketCode có unique constraint và retry có giới hạn khi collision; không vòng lặp vô hạn hoặc retry toàn bộ lỗi nghiệp vụ.
+- Cấp mã dùng không gian UUID, thử tối đa ba transaction khi va chạm mã; hết lượt trả safe503 TICKET_CODE_UNAVAILABLE. Retry giữ key/input cũ. Unique source_draft_id và idempotency_key vẫn được ánh xạ sang conflict an toàn.
 - Snapshot của Ticket mới bất biến sau tạo. Staff/Customer projection trả đúng title/description/policy và confirmation tương ứng. Legacy thiếu snapshot không được suy ra xác nhận từ aiSummary/confirmedAt.
-- Đích DTO Staff: confirmationSource là CUSTOMER_SUBMITTED cho form manual, CUSTOMER_CONFIRMED cho draft được xác nhận, LEGACY_UNVERIFIED cho bản ghi không đủ snapshot. Chỉ project snapshot hợp lệ theo nguồn tạo do Core kiểm soát; Web không tự khai nguồn. Cập nhật type hiện đang cố định null.
+- Đích DTO Staff: confirmationSource là CUSTOMER_SUBMITTED cho form manual, CUSTOMER_CONFIRMED cho draft được xác nhận, LEGACY_UNVERIFIED cho bản ghi không đủ snapshot. Chỉ project snapshot hợp lệ theo nguồn tạo do Core kiểm soát; Web không tự khai nguồn. Types/Swagger/Web đã cập nhật theo projection này.
 - Không dựa vào update EXPIRED rồi throw trong cùng tx để lưu trạng thái hết hạn: expiresAt là căn cứ từ chối, không cho nhánh expire ghi đè draft đã CONFIRMED.
 
 ### 6.3. Web và đối soát
@@ -141,13 +152,16 @@ Luồng ghi đích: authorize → lock routing → reauthorize trong tx → look
 **File sửa:** TicketService/TicketDraftService/CustomerTicketController, DTO Ticket/draft/query, ticket-confirmation.ts, schema/migration mới; ticket-api.ts, customer-tickets.tsx, customer-ticket-confirmation.tsx, Staff Ticket detail/types.
 
 **Nghiệm thu A2:**
-- A2-01: false/missing confirmation, version lời xác nhận sai, text rỗng sau trim, policy sai owner và unknown fields không tạo Ticket/audit-success/outbox.
-- A2-02: same key/same input replay một Ticket; same key/different input hoặc operation → 409; other actor không đọc receipt.
-- A2-03: hai key cùng draft, hai edit cùng version, edit song song confirm, expiry và logout/reassignment trước commit: kết quả theo lock/CAS, snapshot không stale, không 500/raw SQL.
-- A2-04: mất ACK ở manual/confirm → Web tra key cũ và không tạo thêm Ticket; đổi actor/đóng modal/response muộn không áp vào UI mới.
-- A2-05: query NaN/fraction/ngoài range/status lạ/query thừa → 400; pagination tie ổn định, scope/count nhất quán, quota → 429.
-- A2-06: Staff đọc Ticket mới thấy snapshot; legacy vẫn chưa xác minh; status/Accept/chatLink không thay grant. Sửa/bỏ policy rồi review/confirm đúng revision.
+- [x] A2-01: false/missing confirmation, version lời xác nhận sai, text rỗng sau trim, policy sai owner và unknown fields không tạo Ticket/audit-success/outbox; NUL/lone surrogate bị từ chối trước ghi DB.
+- [x] A2-02: same key/same input replay một Ticket; same key/different input hoặc operation → 409; other actor không đọc receipt.
+- [x] A2-03: hai key cùng draft, hai edit cùng version, edit song song confirm, expiry và logout/reassignment trước commit: kết quả theo lock/CAS, snapshot không stale, không 500/raw SQL.
+- [x] A2-04 · mất ACK ở manual/confirm → Web tra key cũ và không tạo thêm Ticket; đóng modal/response muộn không áp vào UI mới.
+- [ ] A2-04 · kiểm browser chuyên biệt đổi Customer actor khi manual/confirm đang pending: intent/review cũ bị bỏ và response muộn không áp vào UI actor mới. Source đã có binding theo actor/session; test session chung chưa thay thế ca Ticket này.
+- [x] A2-05: query NaN/fraction/ngoài range/status lạ/query thừa → 400; pagination tie ổn định, scope/count nhất quán, quota → 429.
+- [x] A2-06: Staff đọc Ticket mới thấy snapshot; legacy vẫn chưa xác minh; status/Accept/chatLink không thay grant. Sửa/bỏ policy rồi review/confirm đúng revision; bộ chọn không làm mất policy ngoài trang đầu.
 - Test DB cạnh tranh phải chạy thật trong harness; không dùng mock để kết luận khóa/CAS. Mở rộng ticket-foundation.test.cjs, tickets-read.test.cjs và ticket-flow.integration.spec.mjs; thêm suite Customer Ticket theo chức năng nếu hiện chưa có.
+
+**Bằng chứng:** `customer-ticket-boundary.test.cjs`, `ticket-foundation.test.cjs` và `tickets-read.test.cjs` kiểm API/DB, replay/CAS/rollback/quota/snapshot và quyền; `ticket-flow.integration.spec.mjs` kiểm manual/draft/receipt, mất ACK, stale review, Retry-After và policy ngoài trang đầu trên ba browser qua gateway. Nguồn draft là fixture Core, không phải Agent thật.
 
 ## 7. Phase 3 — Contract Notification và Ticket event
 
@@ -233,6 +247,8 @@ NotificationsService chạy một lần khi bootstrap và mỗi **86_400_000 ms*
 Các lệnh chung hiện có: `npm run typecheck`, `npm run test:customers`, `npm run test:browser:staff`. Suite Core/DB và reset chạy trong test service/harness Docker hiện có theo [Getting Started](getting-started.md), bổ sung runner theo chức năng khi thiếu; không chạy reset trên dữ liệu đang dùng hoặc dựng Web/Core bằng npm trên host.
 
 ## 10. Điều kiện hoàn tất
+
+Checklist này áp dụng cho toàn bộ Phase 0–5, vì vậy chưa đánh dấu hoàn tất chỉ từ kết quả Phase 0–2. Checklist A0/A1/A2 ở trên phân biệt phần đã kiểm với ca còn thiếu; các mục A3–A5 còn kế hoạch.
 
 - [ ] APP-01–15 được sửa và có bằng chứng test tương ứng A0–A5; rủi ro R được kiểm bằng test phù hợp.
 - [ ] Main build/typecheck và các suite Application bị ảnh hưởng pass sau generate; không lấy Web typecheck thay kiểm contract JSON/API.
