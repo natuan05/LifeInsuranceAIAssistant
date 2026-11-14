@@ -2,7 +2,6 @@
 
 > **Đối chiếu 06/11/2026 theo application main 05/11:** Local có Web/Core/Auth/Customers/Policies/Products/Conversations/Realtime/Outbox/Notifications/Tickets, Staff và Customer policy/PDF, Customer Home/Products, chat I01–I06 và Staff Ticket TK01–TK05. Tạo/xác nhận Ticket từ Agent I07 và Copilot chưa có trong baseline này; không nghiệm thu Agent từ API/UI App. Sơ đồ là kiến trúc logic đích; External IdP/cloud còn là định hướng. Xem [tiến độ](../ui/implementation-status.md), [architecture](../architecture.md), [source review](../source-review.md).
 
-> **Tài liệu tổng hợp từ:** `Application Architecture.pdf` và `Component Responsible.pdf`  
 > **Hệ thống:** Life Insurance Customer Service Application
 
 > **Đã chốt 30/10/2026 — tra cứu hợp đồng:** Core giữ sản phẩm chính và danh sách bổ trợ tối thiểu theo [thiết kế dữ liệu hợp đồng](Contract_Data_Design.md), tận dụng JSONB hiện có. Người được bảo hiểm, gói, hạn mức và điều khoản tra qua Private RAG theo hợp đồng/tài liệu/phiên bản do Core cấp quyền. Agent không truy cập business DB; không thêm module hoặc bảng trong quyết định này. API và validation chưa triển khai.
@@ -36,7 +35,7 @@ flowchart TB
     end
 
     ID["External Identity Provider"]
-    M["External Model API"]
+    M["External Model API<br/>(Gemini API)"]
 
     %% Channels to Core
     P -->|"requests and chat"| A
@@ -62,6 +61,7 @@ flowchart TB
     H -.->|"customer conversation started"| N
     T -.->|"ticket committed"| N
     N -->|"authorized staff updates"| S
+    N -->|"authorized customer notifications"| P
 
     %% Styling
     classDef channel fill:#EAF2FF,stroke:#3568A8,color:#15365C
@@ -96,7 +96,7 @@ flowchart TB
 | **Conversation and Human Handoff** | Quản lý lịch sử/lượt và quyền chat. Cuộc AI chỉ chuyển sau Customer consent và Staff Accept; trước Accept chỉ metadata. Direct là luồng riêng; assignment/Ticket không tự cấp quyền transcript. |
 | **Ticket Management** | Quản lý Ticket, trạng thái và liên kết hội thoại. Agent chỉ đề xuất; Core ghi Ticket + outbox sau xác nhận hợp lệ và kiểm quyền/chống trùng. Nhận/đổi trạng thái Ticket không thay quyền đọc chat. |
 | **Document Catalog and Access** | Quản lý danh mục và quyền truy cập tài liệu; xác định phạm vi tài liệu được phép sử dụng hoặc cung cấp cho từng người dùng. |
-| **In-app Notification and Delivery** | Phát và phân phối thông báo khi có hội thoại mới hoặc Ticket đã được lưu thành công; chỉ hiển thị thông tin cho Staff có quyền nhận thông báo. |
+| **In-app Notification and Delivery** | Phát notification theo owner/recipient Customer hoặc Staff qua outbox; Customer có center và chat/SYSTEM theo N01/N02, trạng thái đọc riêng cho notification và message, retention notification 30 ngày chung cho cả Customer và Staff, áp dụng read/unread; không xóa Ticket/Message nguồn. |
 
 ---
 
@@ -115,7 +115,7 @@ flowchart TB
 | Thành phần (Component) | Trách nhiệm (Responsibilities) |
 | :--- | :--- |
 | **External Identity Provider** | Cung cấp dịch vụ xác thực danh tính người dùng (đăng nhập, xác minh token). Quyền truy cập tài nguyên nghiệp vụ vẫn do Core kiểm soát hoàn toàn. |
-| **External Model API** | Cung cấp mô hình AI bên ngoài (LLM/Embedding) để xử lý ngôn ngữ tự nhiên, tạo câu trả lời, tóm tắt hội thoại và tạo embedding cho truy vấn khi cần. |
+| **External Model API** | Gemini API là provider model sinh và embedding của MVP theo quyết định 13/11/2026. Model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Limits và nghiệm thu tiếp tục theo G4. |
 
 ---
 
@@ -133,3 +133,5 @@ flowchart TB
    Customer xác nhận chia sẻ cuộc AI → Core lưu handoff request và phát thông báo → Staff Accept → mở transcript Customer-facing và chat tiếp. Handoff không tạo Ticket.
 6. **Tạo Ticket:**
    Agent đề xuất nội dung → Customer xác nhận → Core kiểm quyền/idempotency và commit Ticket + outbox → báo mã và giao thông báo Staff bất đồng bộ. Ticket không tự cấp quyền chat.
+7. **Mở chat AI mới sau Staff**
+   Customer chọn New AI chat → Core tạo conversation mới qua create/receipt hiện có → Agent dùng thread/context riêng. Cuộc cũ vẫn theo trạng thái và allowedActions hiện hành, dừng trao đổi không tạo Close. UI/create đã có, tích hợp Agent/Core còn P theo [quyết định chuẩn](Agent_Design.md#new-ai-chat-after-staff).

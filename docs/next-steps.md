@@ -2,47 +2,47 @@
 
 Đồng bộ 06/11/2026 theo application main 05/11. [Agent Design](specifications/Agent_Design.md) là chuẩn nghiệp vụ Agent; [plan Agent/RAG](superpowers/plans/2026-10-31-agent-rag-implementation.md) là chuẩn triển khai. Tài liệu UI không tự thêm khả năng Agent hoặc biến proposal thành quyết định. [Tiến độ UI](ui/implementation-status.md), [Staff plans](ui/staff/plans/README.md) và [Customer plans](ui/customer/plans/README.md) ghi E/P theo chức năng; các kết quả kiểm thử có ngày thuộc đợt tương ứng, chưa chạy lại từ việc sửa Markdown.
 
+## Trình tự rà soát đã thống nhất
+
+Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Spec chưa được thực thi, không bao gồm code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
+
 ## Đã có
 
 - Core/Web/Docker gateway/PostgreSQL/MinIO, auth/session, tài khoản/hồ sơ, Staff assignment và tra cứu Customers.
 - Staff Policies/Products/PDF, Inbox I01–I06: Direct, Customer consent, Staff Accept, lịch sử/gửi tin/realtime/handoff notification.
-- Customer Home, Products, Policies/PDF theo ownership và nền chat hai đầu; dùng tài khoản được cấp sẵn, không tự đăng ký. Profile edit/Customer notification center giữ trạng thái trong phase sở hữu.
-- Staff Ticket TK01–TK05: read/Accept/status/UI/notification. Chưa có producer I07 từ đề xuất Agent + xác nhận Customer; không coi Ticket UI là E2E tạo Ticket.
-- Corpus Markdown và thiết kế Agent đã có; Task 1 có contracts/schema/fixtures/tests để review G1. Task 5 có graph và unit tests với fake model/Core/retrieval/store sau review 07/11; chưa nghiệm thu HTTP/Core/provider/retrieval/checkpoint thật từ các test này.
+- Customer Home, Products, Policies/PDF theo ownership và nền chat hai đầu; dùng tài khoản được cấp sẵn, không tự đăng ký. Hồ sơ Customer chỉ đọc theo C08/PF01/PF02; Customer notification center theo phase sở hữu.
+- Staff Ticket TK01–TK05 đã có read/Accept/status/UI/notification. Customer I07/T01/T02 đã có source hai luồng thủ công và draft Agent, tạo OPEN; cần sửa lỗi review và nghiệm thu tích hợp nguồn Agent.
+- Corpus Markdown và thiết kế Agent đã có. Task 1 có contracts/schema/fixtures/tests để review G1, Task 5 có graph và unit tests với fake adapters. Source còn có Public RAG/adapter Gemini thử nghiệm và checkpointer PostgreSQL theo các mốc 3/4 của Agent README. Provider Gemini API cho model sinh/embedding đã chốt ngày 13/11/2026. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. HTTP/Core end-to-end, limits và nghiệm thu tiếp tục theo gates.
 
 ## Thứ tự tiếp theo
 
 1. **G1 — review contracts:** đối chiếu schema/fixtures với Agent Design và API hội thoại hiện có; sửa hai điểm review về giới hạn thực thi và validation ngày/giờ trước khi đóng G1. Tên/DTO kỹ thuật đề xuất chưa tự thành API đã duyệt.
-2. **G2/G3 — runtime protocol:** theo Tasks 2–4/6 chốt storage ownership, transaction/fencing, budget reservation, durable ACK/callback và recovery. Không dùng checkpoint hoặc Message JSON thay lifecycle/ledger; không tự dựng module/queue mới chỉ từ bản đồ file cũ.
+2. **G2/G3 — runtime protocol:** framework HTTP Starlette + uvicorn và profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026. Task 6 phía Agent có code trên `origin/agent/task-6-http-delivery` tại `5043e8d`, chưa merge main. Theo Tasks 2–4/6 hoàn thiện storage ownership, transaction/fencing, budget reservation, durable ACK/callback và recovery. Không dùng checkpoint hoặc Message JSON thay lifecycle/ledger; không tự dựng module/queue mới chỉ từ bản đồ file cũ.
 3. **Phối hợp Core — Task 3:** ánh xạ contract Agent vào create/list/history/send/consent/Accept/fence/receipt đã có; giữ Core sở hữu quyền. Run metadata và Copilot linked-history snapshot là phần mới; route/module/DDL cuối phải qua review trong plan, không dựng lại chat App.
 4. **Graph/context — Task 5:** Prepare → Agent → Execute tools → Finalize; bốn tool, một tool/vòng, context theo từng tin và budgets đã chốt. Copilot chỉ tra cứu, giải thích, tóm tắt; không soạn nháp Customer hoặc Use draft.
-5. **Corpus/retrieval/evaluation — Tasks 7–9:** review nguồn/mapping G5, metadata parent–child/refs; hybrid FTS + pgvector + RRF đúng scope/version. Chọn cấu hình thử model/embedding theo G4 trước API trả phí; không mặc định model/số chiều hoặc suy approval từ việc lưu Git.
+5. **Corpus/retrieval/evaluation — Tasks 7–9:** review nguồn/mapping G5, metadata parent–child/refs; hybrid FTS + pgvector + RRF đúng scope/version. Provider Gemini API đã chọn cho model sinh/embedding. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Review limits, tham số retrieval, chi phí/quota và tiêu chí nghiệm thu theo G4 trước các phép chạy phụ thuộc.
 6. **Tích hợp — Task 10:** kiểm quyền thật, FIFO/reopen/recovery/takeover, citations và Copilot internal qua Core. Ticket proposal-only tới khi G6 và I07 có phần triển khai xác nhận/Core commit; không coi proposal là Ticket đã tạo.
 
-Đây là bản chỉ dẫn tới task/gate hiện có, không thay thứ tự phụ thuộc của plan hoặc tự cấp quyền chạy mọi task. Logout/hết phiên và retention còn mở theo G3; không chặn phần contracts/fakes độc lập.
+Đây là bản chỉ dẫn tới task/gate hiện có, không thay thứ tự phụ thuộc của plan hoặc tự cấp quyền chạy mọi task. Logout/hết phiên đã chốt B ngày 14/11, Core tiếp tục xử lý các yêu cầu đã nhận theo quyền hiện hành và người dùng login lại xem. Tích hợp session/service/run và tests còn P trong CH02-T08/CH03-T07/AU03-T05/CP04-T04, các phần G2/G3 khác tiếp tục để sau theo yêu cầu.
 
-## Chuẩn bị bảo vệ thông tin Customer — 12/11/2026
+## Bảo vệ thông tin Customer
 
-[Ma trận dữ liệu và tiêu chí nghiệm thu](configuration-and-data.md#customer-sensitive-data) là phần **P**, chưa thêm runtime masking. Chốt mức che theo vai trò/mục đích, search email/phone và quyền xem đầy đủ trước code. Thực hiện Core projection → CU01/CU02 và caller → Agent model/embedding/output boundary → hồi quy bằng dữ liệu synthetic. Phần Agent phối hợp gates G1–G4, không tự mở provider/corpus chưa được phép. Không sửa dữ liệu gốc/PDF, không reset DB hoặc coi prompt là redaction; [checklist](ui/implementation-status.md) giữ trạng thái chưa triển khai.
+[Ma trận dữ liệu](configuration-and-data.md#customer-sensitive-data) giữ các quyết định và tiêu chí CU01/CU02. Code còn cần che mặc định email/phone, Hiện/Ẩn để liên hệ, search chỉ tên/mã và projection năm sinh/tỉnh-thành đã xác minh. Họ tên/mã Customer và policyNumber đầy đủ trong scope đã khớp source. Agent dùng system prompt và dữ liệu synthetic theo B, không thêm bộ lọc định danh bằng code.
 
-## Thiết kế, corpus và việc tiếp theo của Agent
-
-MVP có [7 sản phẩm: 4 chính, 3 bổ trợ](specifications/Agent_Design.md#mvp-products). Corpus Public gồm 13 PDF/243 trang và Markdown tương ứng; [processing review](../data/public/manulife/processing-review.md) giữ nguồn/checksum/trạng thái duyệt, gồm lỗi UL049 trang 29. Cỡ chunk, caps expansion và ranking là tham số cần đo; indexer runtime khác quyền retrieval.
-
-[Dữ liệu hợp đồng tối thiểu](specifications/Contract_Data_Design.md) dùng InsurancePolicy.productId và benefitsSnapshot với mã bổ trợ/mức đầy đủ; không thêm Party/Coverage/Binding chỉ để tra cứu. Danh sách chưa đầy đủ không chứng minh không tham gia. Chi tiết đọc toàn bộ hồ sơ hợp đồng được Core cấp đúng quyền/phiên bản, gồm phụ lục; không có ACL theo Điều.
-
-[Fixture synthetic rút gọn](../data/synthetic/manulife-demo-v1/README.md) có bộ đáp án riêng, chưa ánh xạ hết rider thương mại. [Private demo đầy đủ](../data/private/manulife-demo-full-v1/README.md) được phép lưu Git nhưng vẫn synthetic=false, chưa human/RAG approval. Không tự seed/chunk/embed; PDF/bản thô/ảnh/định danh thật vẫn ngoài Git.
-
-[Mở rộng data model dự kiến](specifications/Data_Model.md#iii-mở-rộng-agentrag-dự-kiến--chưa-là-schema-đã-triển-khai) tách Core run/attempt/event, Agent checkpoint/receipt/fence/ledger/outbound và metadata RAG. Chưa có DDL cuối thì giữ proposal, không tăng số bảng baseline.
+Copilot xác định hợp đồng từ câu hỏi/lịch sử được phép, mơ hồ thì hỏi lại. Policy Lookup/PDF chỉ đọc. Không bổ sung ô chọn hợp đồng hoặc API lưu lựa chọn. CP01/CP04 sở hữu tích hợp và kiểm thử theo [quyết định chuẩn](specifications/Agent_Design.md#copilot-policy-selection).
 
 ## Phần policy/PDF đã có và còn lại
 
-Staff lookup và Customer ownership list/detail/catalog/access/PDF đã có; [Staff policies](ui/staff/plans/05-policies-contract.md), [Customer policies](ui/customer/plans/04-policies-contract.md) và [documents](ui/customer/plans/05-documents-contract.md) sở hữu chi tiết. Quick lookup trong Inbox đã có PL05; mở PDF không tự đổi hợp đồng đang xét của Agent. Đổi linkedPolicy qua UI vẫn là mở rộng chưa chọn, không thay việc xác định hợp đồng trong hội thoại.
+Staff lookup và Customer ownership list/detail/catalog/access/PDF đã có; [Staff policies](ui/staff/plans/05-policies-contract.md), [Customer policies](ui/customer/plans/04-policies-contract.md) và [documents](ui/customer/plans/05-documents-contract.md) sở hữu chi tiết. Quick lookup trong Inbox đã có PL05; mở PDF không tự đổi hợp đồng đang xét của Agent. Hợp đồng được xác định từ câu hỏi/lịch sử được phép theo B ngày 14/11.
 
 - [x] **QA Staff local:** suite browser regression và gateway/Core/DB/MinIO E2E có trong repo cho Auth/Customers/Policies, Chromium/Firefox/WebKit; lỗi mạng/missing object/expiry/revoke theo test case phase. Runner tự dọn fixture/artifact; chưa tuyên bố cấu hình CI hoặc native PDF toolbar/zoom.
 
 <a id="inbox-ticket-relocation"></a>
 ## Inbox/chat và Ticket
+
+Lịch sử chat Core trong MVP đã chốt A ngày 14/11, giữ để xem lại và chưa tự xóa theo thời gian. CH01-T06 theo dõi hồi quy history/quyền khi mở cuộc mới và chạy Notification cleanup. Dữ liệu khôi phục Agent giữ trong MVP theo A ngày 14/11, log/audit/cache và production còn cần chốt. [Chính sách chuẩn](configuration-and-data.md#mvp-chat-history-retention).
+
+Quyết định 14/11/2026 dùng New AI chat sau hỗ trợ Staff. Create/receipt và nút Web đã có, còn kiểm tích hợp Agent/Core với context/thread riêng và callback đúng cuộc. Cuộc cũ đọc/gửi theo trạng thái/grant hiện hành. CH01-T05, CH02-T05/T06 và I03-T06 theo dõi hồi quy, dừng nhắn không cần trạng thái Close hoặc command kết thúc. [Nghiệp vụ chuẩn](specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 Bản thử cũ đã được thay bởi [I01–I06](ui/staff/plans/03-inbox-contract.md). Assignment không cho xem chat AI riêng; pending chỉ metadata; Customer consent + Staff Accept mới mở toàn bộ lịch sử Customer-facing của chính cuộc. Handoff/Direct/Ticket là các nghiệp vụ riêng; Ticket không tạo transcript grant. Copilot dùng thread riêng và source view cố định theo từng câu hỏi Staff.
 

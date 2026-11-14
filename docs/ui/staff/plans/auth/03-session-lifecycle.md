@@ -48,6 +48,8 @@ GET `/api/v1/auth/me`, cookie hiện tại, credentials include, cache no-store.
 
 Đổi password/logout/login vẫn theo code hiện có. Không giữ nội dung riêng sau 401 hoặc sau khi đổi actor. Xử lý lỗi refresh phiên nền giữ chính sách fail-closed hiện tại; việc giữ nguyên UI trên lỗi auth mạng nền cần thiết kế riêng, không mở rộng ngầm ở bản sửa này.
 
+**Tích hợp Agent — B chốt 14/11/2026, còn P.** Logout thu hồi phiên Web, session hết hạn làm API/WS từ chối và UI clear dữ liệu riêng. Yêu cầu AI đã được Core nhận, gồm run đang chạy/queued, tiếp tục theo run/actor/resource authorization hiện hành. Login lại cùng actor fetch history/current run bằng phiên mới. Request chưa được nhận vẫn cần session hợp lệ. [Chính sách chuẩn](../../../../specifications/Agent_Design.md#agent-logout-session-policy).
+
 ## 4. Các bước triển khai
 
 1. Đưa luồng tải phiên thành một hàm có thể dùng cho initial load, focus/visibility/realtime và nút retry; chọn callback/ref hoặc cơ chế tương đương, tránh hai bản logic.
@@ -117,6 +119,12 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 **Kết quả mong đợi:** Timeout cho phục hồi tại chỗ;401 về login; Customer không render Staff. Không chấp nhận next trỏ ra domain ngoài.
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+### AU03-T05 — Phiên hết hiệu lực và Agent xử lý nền
+
+**P — tích hợp Agent/Core chưa chạy.** Qua gateway, chuẩn bị Customer/Staff có run AI hoặc Copilot đã nhận, logout hoặc hết expiresAt, rồi cho Core nhận callback. Thử đọc/gửi từ phiên cũ, login lại cùng actor và actor khác, đổi assignment/quyền/tài khoản giữa chừng.
+
+**Kết quả mong đợi.** Session cũ bị chặn và client clear profile/contact reveal/chat/Copilot. Run đã nhận tiếp tục theo quyền hiện hành, phiên mới cùng actor đọc đúng lịch sử/current run, không tự gửi lại hoặc tạo trùng. Actor khác không kế thừa task/result, mất quyền vẫn theo revoke/fence. Lỗi mạng đơn thuần theo auth lifecycle hiện hành. Race nhận request/logout phối hợp CH02-T08.
 
 ## 6. Thứ tự kiểm và Docker
 

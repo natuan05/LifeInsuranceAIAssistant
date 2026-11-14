@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Projection title/preview theo recipient/mục đích, không contact/bệnh sử/transcript dư từ Customer relation. Mark-read không tăng quyền; phối hợp producer I06/TK05.
 
@@ -18,7 +18,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
 | staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
-| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Đọc | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — không có recipient Customer; lọc current target scope trước cursor |
+| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Đọc | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — luồng Staff dùng recipient_staff_id; bảng chung đã có recipient_customer_id theo N01/N02; lọc current target scope trước cursor |
 | conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
 | support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
 | notifications | id/recipient_staff_id/is_read | POST read cập nhật is_read | Recheck recipient và target, lặp lại idempotent; không sửa ticket/conversation | Trung bình — read notification không Accept Ticket/chat hoặc read receipt tin nhắn |
@@ -29,7 +29,11 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 ## 1. Phạm vi và model
 
-FR-013/NFR-001/005/006, Notification.recipientStaffId và conversationId/ticketId nullable. Chưa recipient Customer.
+Retention đã duyệt 13/11/2026: notification Staff và Customer cùng 30 ngày theo created_at, bất kể is_read. Cleanup bảng chung không xóa Ticket/Message hoặc audit nguồn. Source tại NotificationsService; cutoff/lỗi DB và read/unread cho cả hai role được kiểm theo [N01/N02](../../../customer/plans/09-notifications-contract.md). Phương án B đã duyệt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source vẫn lặp mỗi giờ, cần đổi interval và kiểm timer theo N02-T09.
+
+FR-013/NFR-001/005/006, Notification.recipientStaffId và conversationId/ticketId nullable. Source đã có recipientCustomerId; API Customer và message read status thuộc N01/N02, Staff vẫn dùng scope riêng.
+
+**Gộp tin nhắn — phương án A:** CUSTOMER_MESSAGE_UNREAD gộp đến khi Staff đọc chat. Mark-read/read-all chỉ đổi isRead; tin mới cùng chu kỳ giữ id và bật unread lại. Consumer hiện tìm isRead=false nên chưa khớp; cần nhận diện chu kỳ bền vững, kiểm retry/race/restart theo N02-T05/T10. Không thay đổi lifecycle notification handoff/Ticket từ quy tắc gộp tin nhắn này.
 
 ## 2. Vị trí code
 
@@ -126,7 +130,7 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
-Không duplicate worker/notification module. Không thêm Customer center hoặc unread badge Inbox; Ticket event contract đã có ở TK05; producer I07 riêng.
+NO01 dùng module notification chung, phụ trách projection Staff. Customer center/read status thuộc N01/N02 đã duyệt; Ticket event theo TK05 và producer I07. Không thêm unread badge Inbox từ phase này.
 
 ## Sequence diagram
 

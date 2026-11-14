@@ -7,7 +7,7 @@
 
 Thiết kế hiện hành ở đây; mục 1–8 giữ chi tiết/căn cứ. [Mục 9](#remaining-work) tách quyết định cần chọn, đặc tả cần hoàn thiện, tham số cần thử. Đề xuất nguồn cũ mục 5/10 không ghi đè quyết định đã chốt.
 
-**Bổ sung ngày 01/11/2026:** chủ động tìm điều kiện trong [ngân sách token từng lượt](#bounded-evidence-exploration), [system prompt cho hỏi làm rõ/dữ liệu nhạy cảm](#clarification-sensitive-data), [tóm tắt Ticket kèm bối cảnh bàn giao](#ticket-handoff-summary), Copilot [tóm tắt gần hoặc từ đầu theo yêu cầu](#copilot-summary-scope) và [cập nhật context theo từng lượt Staff hỏi](#copilot-linked-history-sync), không soạn nháp câu trả lời cho Customer. Chọn [Managed Model API cho model sinh/embedding](#managed-model-api), đã có [tiêu chí chọn embedding](#embedding-selection-criteria) và [hai nhóm tiêu chí nghiệm thu](#agent-acceptance-groups); chưa chọn tên model/số chiều hoặc có kết quả đo. Logout/hết phiên tạm bỏ qua theo người dùng, không tự chốt chính sách.
+**Bổ sung ngày 01/11/2026:** chủ động tìm điều kiện trong [ngân sách token từng lượt](#bounded-evidence-exploration), [system prompt cho hỏi làm rõ/dữ liệu nhạy cảm](#clarification-sensitive-data), [tóm tắt Ticket kèm bối cảnh bàn giao](#ticket-handoff-summary), Copilot [tóm tắt gần hoặc từ đầu theo yêu cầu](#copilot-summary-scope) và [cập nhật context theo từng lượt Staff hỏi](#copilot-linked-history-sync), không soạn nháp câu trả lời cho Customer. Chọn [Managed Model API cho model sinh/embedding](#managed-model-api), đã có [tiêu chí chọn embedding](#embedding-selection-criteria) và [hai nhóm tiêu chí nghiệm thu](#agent-acceptance-groups); Ngày 13/11/2026 chốt Gemini 3.8 Flash và Gemini Embedding 2, 1536 chiều làm cặp model MVP. Các chỉ số chất lượng/vận hành tiếp tục được đo theo G4. Logout/hết phiên đã chốt B ngày 14/11/2026, yêu cầu AI Core đã tiếp nhận tiếp tục xử lý và người dùng đăng nhập lại xem lịch sử.
 
 ### Ranh giới và phương án đã chọn
 
@@ -21,7 +21,7 @@ Thiết kế hiện hành ở đây; mục 1–8 giữ chi tiết/căn cứ. [M�
 | Retrieval | PostgreSQL FTS + pgvector, RRF; [metadata, parent–child và tham chiếu chéo](#metadata-context). Đánh giá thêm reranker trước khi chọn bắt buộc; embedding lỗi có thể dùng keyword-only trong scope hợp lệ |
 | Phạm vi hợp đồng | [Toàn bộ hồ sơ thuộc hợp đồng được cấp quyền](#whole-contract-retrieval), gồm phụ lục/tài liệu kèm theo. Retrieval chọn đoạn liên quan; không gửi cả hồ sơ vào mỗi model call |
 | Trạng thái | [Một hội thoại–một thread](#conversation-thread-mapping); Core xếp FIFO, mỗi hội thoại một lượt đang xử lý. Checkpoint PostgreSQL riêng schema/quyền, có đường tách database bằng bảo trì |
-| Giao tiếp | [HTTP + callback JSON](#core-agent-callback), ACK sau lưu bền vững; tạm chọn HMAC + Core tra quyền theo run/attempt. Chỉ công bố kết quả đầy đủ đã kiểm tra |
+| Giao tiếp | [HTTP + callback JSON](#core-agent-callback), ACK sau lưu bền vững; HMAC LI-HMAC-SHA256-v1 đã chốt, Core tra quyền theo run/attempt. Chỉ công bố kết quả đầy đủ đã kiểm tra |
 | Thao tác ghi | Agent đề xuất; Core kiểm quyền/nghiệp vụ. Ticket cần xác nhận và chống trùng; Staff tiếp quản chặn Agent theo Core. Attempt hết hiệu lực không được ghi đè checkpoint hiện hành |
 
 Đánh đổi: custom LangGraph chủ động workflow, nhóm tự lo state/khôi phục; hybrid search/parent–child hỗ trợ nhiều cách hỏi, thêm bước cần đo. Chung PostgreSQL giảm thành phần local; schema/role/pool độc lập giữ đường tách checkpoint, chưa cách ly tải. Bản tổng hợp không thêm Multi-Agent, AgentCore Harness, Redis/BullMQ hoặc dịch vụ cloud.
@@ -52,7 +52,7 @@ Giới hạn thử đã chốt: **3 lần retrieval/tin**; riêng hai tool đọ
 - **Đã chốt:** hành vi và ranh giới ở trên cùng mục chi tiết có xác nhận. Không mở lại chỉ vì chưa có schema hoặc code.
 - **Đặc tả thực thi:** nhóm kỹ thuật hoàn thiện schema, giao thức, cơ chế concurrency/khôi phục thành một gói để review; không cần xin chọn từng tên trường hoặc mã lỗi thông thường.
 - **Thử nghiệm:** cấu hình chunk/search/model/context cần đo trên cùng bộ câu hỏi; không biến số ví dụ từ nguồn thành cam kết production.
-- **Quyết định còn mở:** xem [mục 9](#remaining-work); bản tổng hợp này không tự chọn model/provider, luồng xác nhận Ticket chi tiết hoặc cơ chế khóa.
+- **Trạng thái quyết định:** [mục 9](#remaining-work) ghi các lựa chọn đã chốt và phần còn review. Model/provider, luồng Ticket, logout/hết phiên, retention MVP và ngữ cảnh hợp đồng Copilot đã có quyết định trong repo. Đặc tả storage/fence, phần source RAG và cấu hình production tiếp tục theo trạng thái tại từng mục.
 
 ## 1. Nguồn và trạng thái quyết định
 
@@ -79,11 +79,11 @@ Context Agent [riêng theo từng hội thoại](#conversation-context), ngườ
 <a id="managed-model-api"></a>
 **Đã chốt với người dùng ngày 01/11/2026 — cách sử dụng model cho MVP:** gọi Managed Model API cho cả model sinh và embedding. Đã cân nhắc tự vận hành model; chọn API để tập trung phát triển Agent/RAG và thử model, chấp nhận phụ thuộc quota/độ trễ/giá/chính sách dữ liệu của nhà cung cấp. Không tự vận hành model trong phạm vi MVP hiện tại.
 
-- Chưa chốt provider, tên/phiên bản model sinh, model embedding hoặc số chiều. Chọn cấu hình cụ thể sau đối chiếu tài liệu và đánh giá trên corpus/câu hỏi synthetic của dự án; không suy model tiếng Việt tốt nhất chỉ từ quảng bá hoặc benchmark chung.
+- **Đã chốt ngày 13/11/2026 — phương án B:** Gemini API (Google) là provider cho model sinh và embedding của MVP. **Cặp model MVP, phương án A đã chốt cùng ngày:** Gemini 3.8 Flash (`gemini-3.8-flash`) cho model sinh và Gemini Embedding 2 (`gemini-embedding-2`), 1536 chiều. Limits, timeout/retry, ngưỡng chất lượng và điều kiện xử lý dữ liệu tiếp tục theo G4. Đánh giá trên corpus/câu hỏi synthetic của dự án. [Gemini 3.8 Flash](https://aistudio.google.com/docs/models/gemini-3.8-flash), [Gemini Embedding](https://aistudio.google.com/docs/embeddings).
 - API model không thay custom LangGraph, retrieval PostgreSQL FTS/pgvector hoặc quyền Core. Chưa chọn managed RAG/agent hosting của nhà cung cấp từ quyết định này.
-- Chỉ dùng dữ liệu sinh hoàn toàn giả lập theo phạm vi PoC. Điều kiện dữ liệu, cấu hình token/timeout/retry, khóa embedding tương thích và đánh giá chi phí vẫn cần hoàn thiện; chưa gọi API trả phí, cài dependency hoặc tạo embedding.
+- Phạm vi PoC dùng dữ liệu sinh hoàn toàn giả lập và corpus Public được duyệt cho phép thử. Điều kiện dữ liệu, token/timeout/retry, khóa embedding tương thích và chi phí tiếp tục theo G4/G5. Source có adapter Gemini/Public RAG thử nghiệm và checkpointer PostgreSQL theo các mốc trong [Agent README](../../apps/agent/README.md). Cấu hình model trong trial-config.json giữ trạng thái thử nghiệm.
 
-**Định hướng thiết kế:** một Orchestrator; Public/Private chung RAG engine, khác chính sách. Thành phần logic, không bắt tách microservice/package. AgentCore Runtime hướng hosting; FastAPI/provider/model/embedding chưa chốt. Checkpoint chọn [PostgreSQL hiện có với schema/tài khoản riêng](#checkpoint-postgres), chuẩn bị đường tách database. Custom LangGraph không phê duyệt toàn bộ RAG nguồn.
+**Định hướng thiết kế:** một Orchestrator; Public/Private chung RAG engine, khác chính sách. Thành phần logic, không bắt tách microservice/package. AgentCore Runtime hướng hosting; Gemini API đã chọn cho model sinh/embedding. Framework HTTP phía Agent đã chốt Starlette + uvicorn ngày 13/11/2026. Model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. Checkpoint chọn [PostgreSQL hiện có với schema/tài khoản riêng](#checkpoint-postgres), chuẩn bị đường tách database. Custom LangGraph không phê duyệt toàn bộ RAG nguồn.
 
 Mã truy vết: **AG-01** một Orchestrator; **AG-02** RAG tách Business Tools; **AG-03** Core thực thi quyền/cung cấp Business API (hai nguồn đặt tên khác); **AG-04** evidence-first; **AG-05** Ticket cần xác nhận; **AG-06** fail-closed. **AG-DB-01** đề xuất một PostgreSQL instance/database, schema `business`/`rag`, pgvector, kho PDF S3/MinIO. Local có hai schema, chưa object storage Agent. Chung instance không cách ly tài nguyên; cân nhắc tách khi cần hiệu năng/bảo mật/phục hồi/scale độc lập. Phụ thuộc nguồn ADR-DATA-001/002/003, ADR-APP-003, ADR-AI-01/02, NFR-001–008; mã không thay trạng thái quyết định repo.
 
@@ -125,7 +125,7 @@ Sản phẩm đã chốt. Người dùng xác nhận **28/10/2026**: chính/bổ
 
 Ngoài phạm vi PoC: Multi-Agent, kho tri thức nội bộ Staff, upload/ingestion trong ứng dụng, phê duyệt Claim, cam kết chi trả và tự sửa hợp đồng. Phép tính nghiệp vụ thuộc code/API có kiểm soát, không giao cho LLM tự tính.
 
-Nguồn: nhiều LLM/tool call hoặc vòng hỏi lại vẫn một Agent. Chỉ cân nhắc Multi-Agent khi cần workflow/quyền/tool/phối hợp chuyên trách và lợi bảo trì; số tài liệu/người dùng không đủ lý do đổi kiến trúc.
+Nhiều LLM/tool call hoặc vòng hỏi lại vẫn thuộc một Agent.
 
 ## 3. Thành phần và luồng điều phối
 
@@ -184,7 +184,7 @@ Loop Agent–Execute tools đánh giá sau từng kết quả; không bắt mọ
 3. Tin mới: khởi tạo công việc/ngân sách mới. Khôi phục cùng tin: giữ tiến trình/ngân sách đã dùng; retry không cấp lại ngân sách.
 4. Chuẩn bị context cho node Agent.
 
-Node Agent hiểu “cái thứ hai”/đổi hợp đồng; Prepare không diễn giải. Chưa rõ nhu cầu thì không tự gọi overview/RAG. Lưu/khôi phục bộ đếm/schema state cần đặc tả; chưa triển khai.
+Node Agent hiểu “cái thứ hai”/đổi hợp đồng; Prepare không diễn giải. Chưa rõ nhu cầu thì không tự gọi overview/RAG. Source Agent đã có state/ledger/checkpointer; review và tích hợp Core theo G1–G3.
 
 <a id="agent-node-output"></a>
 #### Node Agent — hai dạng đầu ra
@@ -198,7 +198,7 @@ Node Agent hiểu “cái thứ hai”/đổi hợp đồng; Prepare không di�
 
 Kết quả trả lời/hỏi lại/từ chối: `ANSWER`/`CLARIFICATION`/`REFUSAL` đã chốt. LLM chọn bước; code kiểm dạng/điều phối; graph/adapter/Core kiểm thực thi/quyền.
 
-Giao tiếp logic giữa node; chưa cố định JSON/schema/SDK provider. Đầu ra model sai/lỗi model đặc tả riêng; lỗi trước Execute tools không mặc định thuộc Finalize. Chưa triển khai.
+Schema node/model và adapter Gemini đã có trong source Agent. Đây là giao tiếp logic giữa node, không thay contract HTTP. Lỗi trước Execute tools không mặc định thuộc Finalize; tích hợp Core và lỗi liên tầng tiếp tục review G1–G3.
 
 <a id="agent-clarification-turn"></a>
 #### Node Agent — hỏi làm rõ
@@ -207,7 +207,7 @@ Giao tiếp logic giữa node; chưa cố định JSON/schema/SDK provider. Đ�
 
 Khách trả lời: tin/lượt mới do Core tạo; Prepare nạp context/mục chờ cho Agent hiểu nối tiếp. Ngân sách mới; resume cùng tin giữ ngân sách đã dùng. Vẫn tuần tự, không chặn tin trả lời phía sau.
 
-Ví dụ: Agent hỏi A/B, hoàn tất lượt; khách chọn “B” ở lượt mới dựa mục chờ; Core kiểm quyền trước đọc. Đồng bộ mục chờ với kết quả Core đã nhận/schema state/hành vi khác cần đặc tả; chưa triển khai.
+Ví dụ: Agent hỏi A/B, hoàn tất lượt; khách chọn “B” ở lượt mới dựa mục chờ; Core kiểm quyền trước đọc. Source graph/context đã có; đồng bộ mục chờ với kết quả Core đã nhận còn cần nghiệm thu tích hợp.
 
 <a id="one-tool-per-cycle"></a>
 #### Node Agent — gọi từng tool trong loop
@@ -216,7 +216,7 @@ Ví dụ: Agent hỏi A/B, hoàn tất lượt; khách chọn “B” ở lượ
 
 Giữ loop Agent → Execute tools → Agent; một tool logic/vòng, không nhiều tool đồng thời. Không giới hạn một tool/toàn lượt. Adapter retry theo luật đã chốt, vẫn tiêu ngân sách.
 
-Ví dụ: overview → Agent → Private RAG → Agent → Private RAG bổ sung nếu cần → Agent → Finalize; trong bốn request Core/ba retrieval mỗi tin. Khác FIFO một lượt/hội thoại; hội thoại khác có thể đồng thời. Model trả nhiều tool call/schema thực thi cần đặc tả; chưa triển khai.
+Ví dụ: overview → Agent → Private RAG → Agent → Private RAG bổ sung nếu cần → Agent → Finalize; trong bốn request Core/ba retrieval mỗi tin. Khác FIFO một lượt/hội thoại; hội thoại khác có thể đồng thời. Source graph đã thực thi một tool/vòng; schema và xử lý đầu ra nhiều tool call tiếp tục review G1 và nghiệm thu tích hợp.
 
 <a id="execute-tools-node"></a>
 #### Node Execute tools
@@ -227,7 +227,7 @@ Ví dụ: overview → Agent → Private RAG → Agent → Private RAG bổ sung
 2. Thực thi qua adapter: Business Tool gọi Core; RAG dùng phạm vi tài liệu/phiên bản do Core cấp. Áp dụng timeout/retry đã chốt cho từng loại thao tác; không tự áp timeout Core cho RAG.
 3. Ghi kết quả thực tế hoặc lỗi, nguồn bằng chứng và bộ đếm vào state, rồi trả về Agent đánh giá.
 
-Core từ chối quyền/lượt vô hiệu: dừng theo luật đã chốt. Node kiểm thực thi/gọi tool, không xác minh LLM hiểu đúng ý khách. Schema lỗi/state, bộ đếm khi khôi phục cần đặc tả; chưa triển khai.
+Core từ chối quyền/lượt vô hiệu: dừng theo luật đã chốt. Node kiểm thực thi/gọi tool, không xác minh LLM hiểu đúng ý khách. Source Agent đã có xử lý tool/state/ledger; schema và bộ đếm khi khôi phục còn review/tích hợp theo G1–G3.
 
 <a id="finalize-node"></a>
 #### Node Finalize
@@ -242,7 +242,7 @@ Core từ chối quyền/lượt vô hiệu: dừng theo luật đã chốt. Nod
 
 LLM trong Agent đánh giá độ đủ/nội dung trước đó. Trích dẫn hợp lệ về cấu trúc/tham chiếu không chứng minh diễn giải đúng; Finalize không mặc định thêm model judge riêng mỗi lượt.
 
-Finalize chuẩn bị kết quả; Core kiểm lượt hợp lệ/lưu. Schema/phong bì lỗi kỹ thuật/luật kiểm cụ thể cần đặc tả; chưa triển khai.
+Finalize chuẩn bị kết quả; Core kiểm lượt hợp lệ/lưu. Code Finalize và schema đề xuất đã có trong source Agent; phong bì lỗi và commit kết quả Core còn review/tích hợp theo G1–G3.
 
 <a id="finalize-output-repair"></a>
 **Sửa đầu ra đã chốt ngày 30/10/2026:** khi Finalize phát hiện lỗi cấu trúc hoặc tham chiếu trích dẫn, trả lỗi cụ thể về Agent để sửa tối đa **một lần**, rồi kiểm tra lại. Ví dụ: thiếu trường hoặc ID bằng chứng không tồn tại. Agent sửa dựa trên bằng chứng hiện có.
@@ -362,21 +362,17 @@ Loại tài liệu đề xuất: `TERMS` (quy tắc/điều khoản), `TERMS_APP
 
 **Nguồn đối chiếu ngày 01/11/2026:** [LangChain — Context Engineering Starts with Retrieval, 23/10/2026](https://www.langchain.com/blog/context-engineering-starts-with-retrieval) mô tả Agent quyết định tìm thêm khi phát hiện nhu cầu mới và rủi ro tìm lặp/nạp quá nhiều context. Đây là căn cứ tham khảo cho khám phá trong ngân sách, không tự chọn Deep Agents/subagent hoặc chứng minh đã bao phủ đủ điều kiện bảo hiểm.
 
-<a id="customer-data-redaction"></a>
-### Chuẩn bị giảm/che dữ liệu Customer tại ranh giới model — 12/11/2026
+<a id="mvp-model-data-policy"></a>
+### Dữ liệu gửi model trong MVP
 
-**P — chưa có processor redaction hoặc tích hợp provider thật.** Sáu quy tắc system prompt bên dưới hạn chế thu thập/lặp lại dữ liệu, không thay code bảo vệ đầu vào/đầu ra. Phạm vi và điểm còn mở theo [ma trận Customer](../configuration-and-data.md#customer-sensitive-data).
+**B đã chốt 14/11/2026:** dùng sáu quy tắc system prompt và dữ liệu synthetic, không bổ sung bộ lọc định danh bằng code. Core kiểm quyền/scope; Finalize kiểm cấu trúc, tham chiếu và action. Prompt không bảo đảm ngăn mọi dữ liệu nhạy cảm do khách tự nhập được gửi model.
 
-Code phải xử lý câu hỏi, history, Core tool result, retrieval evidence và context của mọi call model/summary/repair/embedding; gồm retry/resume và Staff Copilot. Giữ actor/scope/IDs điều phối ngoài model; alias không xác thực hoặc cấp quyền. Chỉ giữ dữ liệu cần để giải đáp; chốt cách nhận diện/che và xử lý bỏ sót/che nhầm trước tích hợp thật, không mặc định một regex hoặc LLM judge bảo đảm đủ.
-
-Giữ provenance document/version/anchor và bản nguồn có quyền riêng; đoạn lược bỏ phải phân biệt với trích nguyên văn. Không tự rehydrate alias thành PII trong answer/summary/Ticket. Kiểm output trước persist/delivery; nội dung Customer duyệt phải đúng bản Core commit. Lỗi processor không được fallback gửi raw hoặc phát output chưa kiểm. Checkpoint/log/cache/mapping alias cần quyền và retention riêng; không tự rewrite lịch sử/checkpoint hoặc thay contract evidence trong lượt sửa tài liệu.
-
-Vị trí cần triển khai: `apps/agent/src/life_agent/{context,core_client,graph,model,store}.py`; phối hợp Core projection và corpus/indexer khi có implementation. Test canary synthetic tại fake model/embedding boundary, retry/resume/repair/summary, output/event và source refs; trường nhạy cảm không cần thiết không vượt boundary, tình tiết nghiệp vụ cần thiết vẫn còn. Chưa có kết quả nghiệm thu masking từ graph unit tests hiện tại.
+Source đã có [prompts.py](../../apps/agent/src/life_agent/prompts.py) và [test_prompts.py](../../apps/agent/tests/test_prompts.py); [Task 5 Step 4a](../superpowers/plans/2026-10-31-agent-rag-implementation.md#task-5-bốn-node-graph-tool-budgets-và-context-theo-từng-message) giữ phạm vi prompt-only. Che/Hiện thông tin liên hệ trên UI Staff theo [ma trận Customer](../configuration-and-data.md#customer-sensitive-data).
 
 <a id="clarification-sensitive-data"></a>
 ### Hỏi làm rõ và dữ liệu nhạy cảm
 
-**Đã chốt với người dùng ngày 01/11/2026:** trước mắt đưa các quy tắc sau vào system prompt của Agent. Đây là quyết định thiết kế cho MVP; chưa triển khai prompt hoặc bộ lọc trong code.
+**Đã chốt với người dùng ngày 01/11/2026:** trước mắt đưa các quy tắc sau vào system prompt của Agent. MVP đã có code prompts.py và test_prompts.py cho sáu quy tắc. Người dùng chốt B ngày 14/11/2026 theo source/plan hiện hành, không thêm bộ lọc định danh bằng code.
 
 > - Chỉ hỏi thông tin cần thiết để giải đáp yêu cầu, ưu tiên thông tin không nhạy cảm.
 > - Không yêu cầu mật khẩu, OTP, thông tin thanh toán, giấy tờ định danh hoặc hồ sơ y tế.
@@ -387,9 +383,9 @@ Vị trí cần triển khai: `apps/agent/src/life_agent/{context,core_client,gr
 
 Agent có thể hỏi thêm thông tin không nhạy cảm hoặc giải thích điều kiện cần đối chiếu khi phát hiện điều kiện mới trong tài liệu. Thông tin khách trả lời vẫn là khách cung cấp, chưa thành dữ liệu nghiệp vụ đã xác minh. [Yêu cầu chủ động tìm trong ngân sách lượt](#bounded-evidence-exploration) đã chốt; khả năng nhận diện/tìm đủ điều kiện vẫn cần đánh giá theo mục 9.2.
 
-**Giới hạn và phần còn mở:** system prompt hướng dẫn hành vi, không bảo đảm model luôn tuân thủ hoặc ngăn dữ liệu khách tự gõ được gửi tới model. Chưa chốt/triển khai bộ lọc trước model, kiểm soát câu hỏi bằng code, xử lý dữ liệu nhạy cảm trong checkpoint/kết quả chờ giao hoặc chính sách lưu/xóa. Finalize hiện kiểm cấu trúc/tham chiếu/action, chưa được coi là bộ chặn câu hỏi nhạy cảm. Quyết định này không mở phạm vi sử dụng dữ liệu thật; PoC vẫn chỉ dùng dữ liệu sinh hoàn toàn giả lập.
+**Giới hạn và phần còn mở:** system prompt hướng dẫn hành vi, không bảo đảm model luôn tuân thủ hoặc ngăn dữ liệu khách tự gõ được gửi tới model. Phạm vi xử lý dữ liệu nhạy cảm trong checkpoint/kết quả chờ giao và thời hạn lưu dữ liệu vận hành còn cần review. Finalize hiện kiểm cấu trúc/tham chiếu/action, chưa được coi là bộ chặn câu hỏi nhạy cảm. Quyết định này không mở phạm vi sử dụng dữ liệu thật; PoC vẫn chỉ dùng dữ liệu sinh hoàn toàn giả lập.
 
-**Nguồn đã kiểm tra ngày 01/11/2026:** [OWASP LLM02:2025](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/) nêu rủi ro dữ liệu sức khỏe/tài chính/credentials và giới hạn của chỉ dẫn trong system prompt. [LangChain PII middleware](https://docs.langchain.com/oss/python/langchain/middleware/built-in#pii-detection) có các điểm kiểm input/output/tool results và detector tùy chỉnh; không tự có trong custom LangGraph của dự án. Khả năng phát hiện PII cụ thể không tự kiểm soát được câu hỏi thu thập dữ liệu như “Bạn mắc bệnh gì?”. Các nguồn là căn cứ tham khảo, chưa chọn thư viện/dịch vụ hoặc thêm model guardrail riêng.
+**Nguồn đã kiểm tra ngày 01/11/2026:** [OWASP LLM02:2025](https://genai.owasp.org/llmrisk/llm022025-sensitive-information-disclosure/) nêu rủi ro dữ liệu sức khỏe/tài chính/credentials và giới hạn của chỉ dẫn trong system prompt.
 
 ## 5. Thiết kế RAG
 
@@ -432,7 +428,7 @@ Quyết định người dùng chốt ghi riêng dưới. Bước/tham số kế
 
 Ví dụ: đang nói về bổ trợ X trong hợp đồng A, khách hỏi “còn thời gian chờ thì sao?” thì query có thể là “thời gian chờ của bổ trợ X”. Phạm vi Private theo hợp đồng A vẫn do adapter/Core xác minh, không lấy từ câu query làm quyền truy cập.
 
-Nếu chưa rõ khách hỏi sản phẩm/bổ trợ nào thì hỏi làm rõ. Query chỉ giúp tìm nội dung; phạm vi hợp đồng, tài liệu và phiên bản do Core kiểm soát. Tên trường/schema input chi tiết sẽ hoàn thiện cùng giao diện retrieval; chưa triển khai.
+Nếu chưa rõ khách hỏi sản phẩm/bổ trợ nào thì hỏi làm rõ. Query chỉ giúp tìm nội dung; phạm vi hợp đồng, tài liệu và phiên bản do Core kiểm soát. Schema đề xuất và adapter retrieval đã có; scope/Core và nghiệm thu tiếp tục theo G1/G4/G5.
 
 <a id="hybrid-retrieval"></a>
 ### Hybrid search làm phương án nền
@@ -441,7 +437,7 @@ Nếu chưa rõ khách hỏi sản phẩm/bổ trợ nào thì hỏi làm rõ. Q
 
 - Cả hai nhánh áp dụng cùng scope tài liệu/phiên bản do Core cấp trước khi chọn tập kết quả. Tên sản phẩm, mã Điều hoặc mã hợp đồng trong query chỉ là gợi ý thu hẹp/tra cứu trong phạm vi đã cho phép.
 - Vector hỗ trợ cách diễn đạt khác với tài liệu; từ khóa bổ sung khớp thuật ngữ/tên/mã. Hiệu quả phải đo trên corpus và bộ câu hỏi, không coi keyword trong embedding là bộ lọc chính xác.
-- **Đã chốt baseline keyword ngày 31/10/2026:** PostgreSQL full-text search + pgvector + RRF cho MVP. FTS không phải BM25; chưa thêm thư viện/extension BM25/dịch vụ search. Có thể thử BM25 sau nếu cần. Tiếng Việt/chuẩn hóa/query/ranking/index cần thiết kế/đo; chưa triển khai.
+- **Đã chốt baseline keyword ngày 31/10/2026:** PostgreSQL full-text search + pgvector + RRF cho MVP. FTS không phải BM25; chưa thêm thư viện/extension BM25/dịch vụ search. Source Public RAG đã có FTS + pgvector + RRF; tiếng Việt/chuẩn hóa/query/ranking/index tiếp tục đo và nghiệm thu theo G4/G5.
 - **Đã chốt ngày 29/10/2026:** RRF hợp nhất thứ hạng; thử reranker chấm cặp câu hỏi–đoạn trên ứng viên hợp nhất. Chỉ bắt buộc reranker sau so chất lượng/độ trễ cùng corpus/bộ hỏi. Chưa chọn model/hằng số/trọng số RRF/số ứng viên/ngưỡng; giá trị nguồn vẫn thử nghiệm. Hai nhánh chạy đồng thời còn đề xuất.
 - Đo chọn đúng bằng chứng/phủ điều kiện–ngoại lệ/độ trễ/chi phí. Điểm không chứng minh đủ căn cứ; mở rộng phải giữ tham chiếu bắt buộc dù điểm thấp. Rerank trước/sau mở rộng cần đánh giá, chưa cố định pipeline.
 - Chưa benchmark; đo từng nhánh/toàn retrieval dưới tải. Đã chốt [embedding lỗi → keyword-only](#embedding-fallback); keyword lỗi → vector-only/deadline/retry nội bộ còn mở. Fallback không phải hybrid đầy đủ, không chứng minh không có quyền lợi.
@@ -511,7 +507,7 @@ Nguồn thử chunk: khoản dưới 500 ký tự gộp khoản sau **trong cùn
 | `doc_type`, `chunk_type` | Loại tài liệu; loại chunk: `BENEFIT`, `EXCLUSION`, `WAITING_PERIOD`, `DEFINITION`, `DISEASE_DEF`, `CLAIM_PROCEDURE`, `TABLE`, `GENERAL` |
 | `embedding_model`, `dataset_version` | Ghi model và số chiều; tăng dataset version khi dựng lại, phục vụ truy vết/tương thích |
 
-Chunk/query cùng model/số chiều/cấu hình embedding tương thích; **không khớp thì từ chối so sánh vector**. Embed chunk ngoài ứng dụng và query runtime dùng [Managed Model API đã chốt](#managed-model-api); provider/model/số chiều và cấu hình còn mở. Repo không cố định 768 chiều. Embedding Private gửi nội dung provider: PoC chỉ giả lập. Trước dữ liệu thật phải đánh giá privacy/compliance/chuyển dữ liệu provider hoặc ra nước ngoài; chưa xác nhận đáp ứng.
+Chunk/query cùng model/số chiều/cấu hình embedding tương thích; **không khớp thì từ chối so sánh vector**. Embed chunk ngoài ứng dụng và query runtime dùng [Managed Model API đã chốt](#managed-model-api); Gemini API đã chọn làm provider. Model embedding MVP đã chốt gemini-embedding-2, 1536 chiều. Giữ identity model/version/dimensions/config giữa corpus và query, nghiệm thu retrieval theo G4. Embedding Private gửi nội dung provider: PoC chỉ giả lập. Trước dữ liệu thật phải đánh giá privacy/compliance/chuyển dữ liệu provider hoặc ra nước ngoài; chưa xác nhận đáp ứng.
 
 Ứng viên **trong bản nguồn được đọc ngày 27/10/2026 (metadata file sửa gần nhất 24/10/2026), không phải lựa chọn hay xác minh tính năng hiện tại**: `gemini-embedding-001` ra 768 chiều; Titan Text Embeddings V2 mặc định 1024 hoặc 512/256, nguồn ghi không có 768. Dù nhiều provider sinh, mỗi index khóa model embedding tương thích; đổi model phải dựng/đánh giá lại toàn embeddings/index.
 
@@ -578,7 +574,7 @@ Các mã này là trạng thái logic của retrieval, chưa ánh xạ cố đ�
 | `degraded` | Có đang dùng phương án tìm kiếm giảm khả năng hay không |
 | `error` | Thông tin lỗi đã lọc khi truy xuất thất bại |
 
-`missing`/`conflicts` rỗng không bảo đảm đủ/nhất quán; Agent vẫn xét theo câu hỏi. Trace ID/thời gian/điểm để quan sát, không tự gửi hết LLM. Schema bằng chứng/thiếu/mâu thuẫn/lỗi cần đặc tả; chưa triển khai.
+`missing`/`conflicts` rỗng không bảo đảm đủ/nhất quán; Agent vẫn xét theo câu hỏi. Trace ID/thời gian/điểm để quan sát, không tự gửi hết LLM. Schema đề xuất và adapter retrieval đã có; tiếp tục review schema và nghiệm thu chất lượng/tích hợp.
 
 <a id="retrieval-issue-reporting"></a>
 **Ranh giới tạo `missing[]`/`conflicts[]` đã chốt cho MVP ngày 31/10/2026:** tool chỉ báo vấn đề cấu trúc/tham chiếu hoặc cảnh báo nguồn sẵn có. Ví dụ dẫn Điều chưa lấy được đích.
@@ -645,8 +641,8 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 
 - “Đang tra cứu”, “đang tổng hợp” là tiến độ bên trong `RUNNING`, không thêm trạng thái lượt riêng cho từng bước graph.
 - `COMPLETED` có thể mang câu trả lời, câu hỏi làm rõ hoặc đề xuất Ticket/handoff. Hoàn thành lượt Agent không chứng minh Ticket đã được tạo hoặc yêu cầu bảo hiểm được chấp thuận; kết quả nghiệp vụ phải dựa trên xác nhận của Core.
-- Trạng thái lượt khác attempt/giao callback. Attempt lỗi không tự làm lượt `FAILED`; còn retry/mốc kết thúc/chuyển trạng thái khi thiếu ACK/tiếp quản/ghi nguyên tử. Bộ trạng thái không phê duyệt toàn state machine.
-- **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G2:** lỗi giao nhận của attempt (mất ACK, timeout HTTP) không làm lượt `FAILED`; Core gửi lại đúng attempt đó. Agent báo lỗi kỹ thuật hoặc quá deadline thì lượt `FAILED`, Staff tiếp quản thì `CANCELLED`; không tự tạo attempt mới. State machine và lịch sử ghi nhận nguồn ở [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026); việc review/merge không tự đóng G2/G3.
+- Lỗi truyền request hoặc mất ACK cần đối soát theo receipt của run/attempt/event. Agent báo lỗi thực thi hoặc hết deadline kết thúc lượt bằng FAILED theo chính sách A bên dưới. Cách lưu trạng thái, giao nhận và bảo vệ checkpoint tiếp tục theo review G2/G3.
+- **A đã chốt ngày 14/11/2026:** Agent báo lỗi kỹ thuật hoặc hết deadline thì lượt `FAILED`, UI báo lỗi để Customer chủ động gửi lại hoặc hỏi tiếp. Lượt đã thất bại không tự chạy lại hoặc tạo attempt mới. Mất ACK/timeout giao nhận được đối soát và gửi lại cùng ID theo receipt. Chi tiết tích hợp/fence còn theo G2/G3 và [chính sách lượt lỗi](#failed-turn-policy).
 
 <a id="agent-input"></a>
 ### Nhóm đầu vào Core gửi Agent
@@ -696,6 +692,13 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 
 **Nguồn đã kiểm tra ngày 01/11/2026:** [LangChain — Context engineering in agents](https://docs.langchain.com/oss/python/langchain/context-engineering) phân biệt state được lưu và context đưa vào từng model call. [When Agent Context Goes Stale, cập nhật 06/10/2026](https://arxiv.org/abs/2610.05281) nghiên cứu rủi ro quan sát cũ khi nguồn thay đổi trên workspace; chỉ tham khảo cho việc quản lý độ mới context liên kết, chưa chọn framework hoặc coi kết quả nghiên cứu đã kiểm chứng trên hội thoại bảo hiểm.
 
+<a id="copilot-policy-selection"></a>
+**Hợp đồng làm ngữ cảnh Copilot — B chốt ngày 14/11/2026.** MVP dùng Policy Lookup để xem hợp đồng. Staff nêu rõ hợp đồng khi hỏi hoặc chuyển sang hợp đồng khác, Copilot dùng câu hỏi và lịch sử được phép để hiểu ngữ cảnh. Khi chưa xác định được hợp đồng thì hỏi lại trước khi đọc dữ liệu riêng. Không bổ sung ô chọn hợp đồng hoặc API đổi `linkedPolicyId`.
+
+Số hợp đồng trong câu hỏi là tham số lựa chọn dữ liệu. Core vẫn xác minh hợp đồng thuộc Customer đang hỗ trợ, phân công/grant của Staff và phiên bản nguồn được cấp quyền. LLM không tự đổi Customer hoặc mở rộng scope từ số hợp đồng. Business Tools/retrieval đọc theo hợp đồng Core cho phép cho từng yêu cầu, lịch sử lượt giữ nguồn và người nói.
+
+Mở Policy Lookup/PDF là thao tác đọc, không sửa Conversation.linkedPolicyId/controlVersion. Ngữ cảnh câu hỏi được làm rõ theo lượt, các history view/callback vẫn theo mốc và run/attempt hiện hành. Manual lookup đã có, phần tích hợp Copilot/hỏi làm rõ còn P trong CP01/CP04.
+
 <a id="copilot-linked-history-sync"></a>
 ### Cập nhật context chat Customer cho từng lượt Copilot
 
@@ -730,7 +733,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Core gửi mã lượt để liên kết yêu cầu và callback. Core kiểm tra callback rồi ghi nhận trạng thái/kết quả; chỉ công bố câu trả lời hoàn chỉnh đã qua kiểm tra. Web nhận cập nhật qua Core, giao thức Web–Core còn mở.
 - Callback cần xác thực/giao lại/chống trùng/thứ tự/xử lý kết quả muộn/kiểm tiếp quản. Lưu sự kiện chờ giao/khôi phục phải bền vững; callback không tự bảo đảm đúng một lần/sống qua mọi lỗi.
 - ACK/ID lượt–attempt–event theo luật dưới. Cần đặc tả endpoint/schema/ID/mã phản hồi/timeout–retry/đối soát mất ACK. URL callback từ cấu hình tin cậy, không từ LLM/tài liệu.
-- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; chưa chọn FastAPI hoặc cài SDK chỉ từ quyết định HTTP + callback. **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G3:** dùng Starlette + uvicorn cho HTTP phía Agent (không FastAPI); xem [contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
+- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; framework HTTP đã chốt Starlette + uvicorn ngày 13/11/2026. Code phía Agent có trên `origin/agent/task-6-http-delivery` tại `5043e8d`, với app factory và uvicorn entrypoint, chưa merge vào main. Phạm vi G3 còn lại tiếp tục theo contracts. [Contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
 
 <a id="durable-ack"></a>
 ### ACK sau khi lưu bền vững
@@ -740,7 +743,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - **Core → Agent:** Agent kiểm tra yêu cầu, lưu mã lượt và thông tin tiếp nhận/thực thi cần thiết rồi mới ACK. ACK có nghĩa đã tiếp nhận, chưa phải đã hoàn thành; bản ghi này không chuyển quyền sở hữu vòng đời lượt khỏi Core.
 - **Agent → Core:** kiểm callback/lưu bền vững sự kiện–kết quả rồi ACK. Đã lưu nhưng mất ACK: nhận diện sự kiện giao lại, xác nhận lại, không thêm kết quả; theo ID/chống trùng dưới.
 - Bên gửi cần phân biệt không nhận ACK với việc bên nhận chưa thực hiện. Cần thiết kế gửi lại/đối soát và phục hồi sau lỗi; ACK không thay bộ điều phối hoặc chứng minh xử lý sẽ thành công.
-- Mã HTTP/payload ACK, dữ liệu tối thiểu cần lưu, transaction, hạn lưu bản ghi chống trùng và cơ chế phục hồi còn mở. Chưa thêm bảng, worker hoặc API.
+- Schema/ACK và transaction/fence tiếp tục review G1–G3. Agent đã có PostgreSQL store trên main và HTTP/HMAC ở nhánh Task 6; tích hợp Core còn P. Dữ liệu chống trùng/khôi phục giữ trong MVP theo chính sách A ngày 14/11.
 
 <a id="durable-result-delivery"></a>
 ### Lưu kết quả trước khi gửi callback
@@ -751,7 +754,7 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Nếu Core đã lưu nhưng ACK bị mất, Core nhận diện bản trùng và xác nhận lại theo luật ACK/chống trùng. Không tạo câu trả lời hoặc thao tác nghiệp vụ mới vì callback được giao lại.
 - Core vẫn kiểm tra trạng thái hiện hành. Sự kiện của attempt đã vô hiệu hóa không được thay đổi kết quả/hội thoại hiện hành; có bản lưu không cấp quyền công bố.
 - Gửi lại callback là phục hồi giao kết quả, khác thực thi lại graph. Chưa nhận ACK không đủ để kết luận Agent cần tạo lại câu trả lời hoặc Core chưa lưu kết quả.
-- Còn nơi/schema lưu, nguyên tử kết quả–sự kiện, checkpoint hoàn tất, lỗi trước lưu, lịch/hạn retry/retention. Giữ ranh giới checkpoint–business/đường tách database; chưa outbox/queue/bảng/dịch vụ mới. Không log payload Private thay lưu kết quả.
+- Còn nơi/schema lưu, nguyên tử kết quả–sự kiện, checkpoint hoàn tất, lỗi trước lưu, lịch/hạn retry và retention production. Retention MVP theo [A ngày 14/11](../configuration-and-data.md#mvp-agent-recovery-retention). Giữ ranh giới checkpoint–business/đường tách database. Agent đã có store/outbound event trong schema riêng; chưa tích hợp Core hoặc chọn queue/dịch vụ mới. Không log payload Private thay lưu kết quả.
 
 <a id="run-attempt-event-ids"></a>
 ### Định danh và chống gửi trùng
@@ -766,8 +769,8 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 
 - Mất ACK yêu cầu: gửi lại cùng `run_id`/`attempt_id`/nội dung; Agent nhận diện bản đã nhận, không chạy thêm. Phải chống trùng/nhận quyền thực thi khi nhiều tiến trình; cơ chế còn mở.
 - Giao lại callback giữ `event_id`, `run_id`/`attempt_id`, nội dung. Core nhận diện bản đã lưu/ACK lại, không thêm kết quả. Cùng khóa khác nội dung: xung đột; HTTP/fingerprint chưa chốt.
-- Core quyết định chạy lại: giữ `run_id`, cấp `attempt_id` mới sau vô hiệu hóa cũ. Callback cũ không ghi đè trạng thái/kết quả. Cần cơ chế vô hiệu hóa/chặn thao tác–checkpoint/khôi phục; đổi ID không tự chặn hai lượt chạy.
-- ID format/state/retention chống trùng còn mở; [ánh xạ hội thoại/thread](#conversation-thread-mapping) đã chốt. ID liên kết/đối soát, không danh tính/quyền. Ba mã chưa giải quyết Web gửi trùng hoặc idempotency Ticket: ranh giới riêng.
+- Chính sách A ngày 14/11/2026 kết thúc lượt lỗi/quá hạn bằng `FAILED`, Customer gửi tin mới để có lượt mới. `RETRY`/attempt thay thế trong protocol là khả năng dành cho luồng chủ động cần đặc tả riêng, không tự phát sinh khi lượt lỗi. Callback cũ và quyền ghi checkpoint tiếp tục theo fence của attempt. [Chính sách lượt lỗi](#failed-turn-policy).
+- ID format/state còn theo protocol, dữ liệu chống trùng Agent trong MVP giữ theo A ngày 14/11; [ánh xạ hội thoại/thread](#conversation-thread-mapping) đã chốt. ID liên kết/đối soát, không danh tính/quyền. Ba mã chưa giải quyết Web gửi trùng hoặc idempotency Ticket: ranh giới riêng.
 
 <a id="callback-ordering"></a>
 ### Phạm vi và thứ tự sự kiện callback
@@ -788,19 +791,21 @@ Quyết định/nội dung contract, chưa JSON schema/endpoint/xác thực th�
 - Core kiểm quyền/trạng thái khi nhận và khi bắt đầu tin. Mỗi Business API/xin scope/retrieval Private kiểm quyền hiện hành đúng ranh giới. Quyền đầu lượt không đóng băng ownership/phân công qua lượt/resume; code/Core kiểm, không LLM.
 - Staff tiếp quản/attempt vô hiệu/quyền đổi: Core thu hồi/hạn chế quyền tương ứng; lần gọi sau không dùng quyền cũ. Đồng bộ/thu hồi/lời gọi đang chạy cần chốt.
 - Callback xác thực Agent/đối chiếu run–attempt Core. Nhận tiến độ/lỗi không cấp quyền business; công bố kết quả/nghiệp vụ vẫn kiểm quyền/trạng thái hiện hành, Ticket xác nhận riêng.
-- Tạm chọn HMAC + Core tra quyền. Cấp/gia hạn/thu hồi/thời hạn, logout/hết phiên, điểm kiểm trong adapter còn mở; chưa chọn identity provider/cấu hình cloud.
+- Profile HMAC LI-HMAC-SHA256-v1 đã chốt, Core tra quyền theo lượt. Logout/hết phiên theo [B ngày 14/11](#agent-logout-session-policy). Cấp/gia hạn/thu hồi/thời hạn và điểm kiểm trong adapter còn theo review, chưa chọn identity provider/cấu hình cloud.
 
 <a id="provisional-hmac-auth"></a>
-### Phương án tạm chốt: HMAC và Core tra quyền theo lượt
+<a id="phương-án-tạm-chốt-hmac-và-core-tra-quyền-theo-lượt"></a>
 
-**Tạm chốt theo người dùng ngày 29/10/2026:** HMAC ký HTTP xác thực dịch vụ; Core lưu/tra quyền theo `run_id`/`attempt_id`. Chưa opaque token/JWT quyền riêng từng attempt. Local bằng code/cấu hình, không thêm cloud; chưa tạo khóa/sửa app.
+### HMAC LI-HMAC-SHA256-v1 và Core tra quyền theo lượt
+
+**Đã chốt HMAC dịch vụ và Core tra quyền theo lượt ngày 29/10/2026, xác nhận profile LI-HMAC-SHA256-v1 ngày 13/11/2026.** Core lưu/tra quyền theo run_id/attempt_id. Code ký/kiểm phía Agent có trên nhánh Task 6 tại 5043e8d, chưa merge main. Tích hợp Core và quản lý khóa theo các phần review tương ứng.
 
 - Core/Agent ký/kiểm tại lớp tích hợp, khóa ngoài Git. HMAC xác thực/toàn vẹn; Core quyết quyền lượt. Cần quản lý/giới hạn truy cập/xoay khóa; credentials không vào prompt/checkpoint/log/mẫu tài liệu.
 - Agent → Core: xác thực dịch vụ → attempt giao đúng dịch vụ → còn hiệu lực → thao tác đúng phạm vi → actor còn quyền Customer. Adapter lấy mã lượt/attempt từ runtime context tin cậy; LLM không chọn actor/đổi lượt.
 - Core lưu quyền/giới hạn/thời hạn theo lượt–attempt, thu hồi theo trạng thái. Tra quyền có trạng thái; biết ID/chữ ký dịch vụ không cấp mọi lượt. Token đăng nhập không thành quyền Agent vô hạn.
-- Profile HMAC cần thuật toán/thành phần HTTP–body được ký/biểu diễn chữ ký/thời gian–nonce chống phát lại/clock skew/lưu chống phát lại/quản lý–xoay khóa/đường truyền. Phân biệt transport retry/phát lại trái phép; giữ ID nghiệp vụ chống trùng. Tên HMAC chưa đủ đặc tả an toàn.
+- Profile LI-HMAC-SHA256-v1 đã chốt định dạng ký method/path+query/timestamp/nonce/body SHA-256/key id, lệch giờ ±120 giây và nonce lưu bền 10 phút. Các lần gửi lại giữ ID nghiệp vụ và ký với timestamp/nonce mới. Quản lý khóa, TLS và tích hợp Core tiếp tục theo contract.
 - Auth tách graph/Business Tools để thay khi lên AWS. Chưa chọn IAM/OAuth/mTLS/cloud mới. Tham khảo [HTTP Message Signatures — RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html).
-- **Phương án Task 2 ghi nhận từ nhánh ngày 06/11/2026, chờ duyệt G3:** dùng profile tự đặt `LI-HMAC-SHA256-v1` (HMAC-SHA-256, ký method/path/timestamp/nonce/hash body/key id, lệch giờ ±120 giây, nonce lưu bền 10 phút, khóa riêng mỗi chiều theo `key_id`), không triển khai đủ RFC 9421. Đặc tả đề xuất ở [contracts mục 12.9](../../contracts/agent-v1.md#129-profile-hmac-g3).
+- **Phương án A được xác nhận ngày 13/11/2026.** Dùng LI-HMAC-SHA256-v1 theo code Agent đã có tại origin/agent/task-6-http-delivery, commit 5043e8d. Cả Core và Agent dùng cùng wire format được ghi ở contracts. [Profile HMAC](../../contracts/agent-v1.md#129-profile-hmac-g3).
 
 <a id="agent-tools-vs-system-apis"></a>
 ### Phân biệt tool Agent và API hệ thống
@@ -861,7 +866,7 @@ Quy tắc này chỉ áp dụng cho `list_contracts`/`get_contract_overview`, kh
 - Retry tự động trong mỗi lần gọi logic vẫn tối đa một lần. Mọi request thực tế, gồm lần đọc lại và retry của nó, cùng tiêu ngân sách bốn lần gọi Core/tin nhắn; LLM không cấp lại bộ đếm khi yêu cầu gọi lại.
 - Adapter kiểm soát khoảng chờ để tránh gọi dồn dập; giá trị/cách cấu hình còn mở. Mức timeout ba giây vẫn là thử nghiệm cần đo, không chứng minh dịch vụ hỏng kéo dài.
 - Không mở rộng thành retry không tìm thấy/sai đầu vào/từ chối quyền/lượt vô hiệu. Agent có thể sửa tham số sai hoặc chọn nguồn khác phù hợp; Core vẫn kiểm tra quyền mỗi request.
-- MVP dùng retry có giới hạn, khoảng chờ và ngân sách tổng; chưa thêm bộ chặn yêu cầu trùng hoặc circuit breaker. Nếu cần circuit breaker sau này, phải thiết kế riêng dựa trên lỗi kéo dài và khả năng thử lại sau thời gian chờ.
+- MVP dùng retry có giới hạn, khoảng chờ và ngân sách tổng; chưa thêm bộ chặn yêu cầu trùng hoặc circuit breaker.
 
 Tham khảo [cộng đồng phản ánh chặn nhầm khi phát hiện tool trùng](https://forum.langchain.com/t/loop-prevention-in-deep-agents-with-repeated-tool-calls/4034), [LangGraph fault tolerance](https://docs.langchain.com/oss/python/langgraph/fault-tolerance), [AWS về lỗi tạm thời/backoff](https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/); không chọn ngưỡng retry/timeout dự án.
 
@@ -902,9 +907,25 @@ Actor/scope phải tin cậy, không tin client/LLM tự khai role/Customer ID. 
 ## 7. Trạng thái, Ticket và tiếp quản
 
 - Core giữ lịch sử hội thoại và trạng thái takeover; Agent giữ checkpoint workflow bền vững. Conversation context giúp hiểu câu hỏi, không chứng minh quyền.
-- Checkpoint không phải nghiệp vụ/xác nhận Ticket. PostgreSQL hiện có riêng schema/tài khoản, [mỗi hội thoại một thread](#conversation-thread-mapping); còn actor/quyền resume/tên schema–role/graph version/retention. Phiên AgentCore Runtime không thay checkpoint.
+- Checkpoint không phải nghiệp vụ/xác nhận Ticket. PostgreSQL hiện có riêng schema/tài khoản, [mỗi hội thoại một thread](#conversation-thread-mapping); còn actor/quyền resume/tên schema–role/graph version, dữ liệu khôi phục MVP giữ theo [A ngày 14/11](../configuration-and-data.md#mvp-agent-recovery-retention). Phiên AgentCore Runtime không thay checkpoint.
 - Agent thu thập/trình tóm tắt Ticket cho Customer duyệt. Core kiểm xác nhận gắn nội dung/quyền/idempotency rồi ghi Ticket + outbox cùng transaction. Chỉ báo mã sau commit; lỗi thông báo không mất Ticket.
 - Staff tiếp quản: Core chuyển luồng/ngừng dispatch Agent/chặn thao tác–kết quả muộn không hợp lệ. Không expose tool tiếp quản cho LLM. Vô hiệu hóa/đồng bộ/tín hiệu dừng/resume/retry timeout cần đặc tả; dừng UI chưa đủ.
+
+<a id="agent-logout-session-policy"></a>
+**Logout/hết phiên — B đã chốt ngày 14/11/2026, tích hợp Agent/Core còn P.** Các yêu cầu AI đã được Core tiếp nhận bền vững, gồm lượt đang chạy và tin đang chờ, tiếp tục xử lý khi người gửi logout hoặc phiên gửi hết hạn. Core lưu kết quả theo đúng actor/hội thoại để người dùng đăng nhập lại xem. Run/attempt, deadline và ngân sách tiếp tục theo protocol hiện hành.
+
+Request chưa được tiếp nhận vẫn cần phiên hợp lệ khi Core nhận/commit. Thứ tự commit giữa tiếp nhận và logout quyết định request có được chấp nhận, việc này cần kiểm giao dịch/khóa khi tích hợp. Web/API tương tác và WS tiếp tục kiểm phiên hiện hành, logout/hết phiên xóa dữ liệu riêng khỏi client, gồm contact đã Hiện và panel Copilot. Đăng nhập lại cùng actor đọc history/current run bằng phiên mới, không tự gửi lại câu hỏi hoặc tạo lượt mới.
+
+Core xác thực service Agent và cấp quyền xử lý từ run/actor/target tin cậy đã lưu. Trước tools/scope/history và trước công bố kết quả vẫn kiểm tài khoản/role/ownership/phân công/grant, controlVersion và attempt hiện hành. Logout/hết phiên đơn thuần không là PERMISSION_CHANGED. Khóa tài khoản hoặc mất quyền tài nguyên theo cơ chế hủy hiện hành, Staff takeover và lỗi/deadline theo chính sách đã chốt. Agent không nhận cookie/token phiên Web để tiếp tục công việc.
+
+Đổi actor trên client không chuyển owner của run. Agent vẫn chỉ đề xuất Ticket, thao tác xác nhận/ghi nghiệp vụ của Customer cần phiên và xác nhận hợp lệ tại Core. CH02/CH03 phối hợp Auth và Copilot đặc tả/kiểm tích hợp, các phần G2/G3 khác tiếp tục review.
+
+<a id="new-ai-chat-after-staff"></a>
+**Chat AI mới sau Staff — quyết định ngày 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành.
+
+ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc.
+
+New AI chat đã có trên Web, Core đã có create với receipt/idempotency. Khác intent tạo mới dùng key mới, retry cùng intent dùng lại key và nhận cùng conversation. Context/checkpoint cuộc cũ không tự đi sang cuộc mới, Staff không kế thừa quyền cuộc AI mới từ grant cuộc cũ. Consent/Accept và fence takeover áp theo luồng hiện hành, nghiệm thu Agent/Core end-to-end còn P. I03/CH01 theo dõi create/history và quyền, CH02/CH03 kiểm context/callback cùng integration Agent. Quyết định này thay phần quay lại AI trong cùng cuộc và phần kết thúc/khóa cuộc vừa thảo luận.
 
 <a id="ticket-handoff-summary"></a>
 ### Tóm tắt Ticket kèm bối cảnh bàn giao
@@ -924,7 +945,9 @@ Phạm vi mục này là tóm tắt phục vụ Ticket. Yêu cầu Staff chủ �
 
 Viết ngắn theo các nhóm trên, chỉ gồm nội dung liên quan đến Ticket; không tạo dữ kiện để điền cho đủ mục. Áp dụng [quy tắc dữ liệu nhạy cảm](#clarification-sensitive-data): không lặp lại chi tiết không cần thiết trong bản tóm tắt hoặc đề xuất Ticket. Không tự kết luận chi trả, biến lời khách thành dữ liệu nghiệp vụ hoặc mô tả Ticket đã được tạo khi Core chưa xác nhận commit.
 
-Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xác nhận; Core kiểm tra xác nhận gắn với nội dung, quyền và chống trùng trước khi ghi Ticket + outbox. Quyết định này chốt mục đích và nhóm nội dung tóm tắt; chưa chốt schema action/payload, phiên bản bản nháp, hiệu lực xác nhận hoặc cơ chế lưu. Chưa triển khai prompt/code hoặc thêm tool tạo Ticket.
+Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xác nhận; Core kiểm tra xác nhận gắn với nội dung, quyền và chống trùng trước khi ghi Ticket + outbox. Graph/contract Agent đã có cấu trúc sáu nhóm và kiểm source refs với fake adapters; tích hợp lưu/hiển thị trong App cần thực hiện theo I07.
+
+**Xác nhận 13/11/2026 — phương án A:** giữ đủ sáu nhóm và nguồn qua draft, revision, review Customer và confirmedContent. Core dựng registry nguồn từ kết quả trusted, lưu snapshot cùng revision được xác nhận; sửa yêu cầu/policy hoặc thay nguồn phải được phản ánh trong version/hash và review lại. Không rút summary thành một description hoặc backfill dữ liệu legacy bằng AI. Thiết kế handoffPayload JSONB và projection nguồn trong [I07](../ui/staff/plans/tickets/06-agent-confirmation.md#ticket-handoff-content) còn cần triển khai/migration. Form Ticket thủ công dùng luồng Customer riêng đã chốt; Agent vẫn chỉ đề xuất action.
 
 **Nguồn đã kiểm tra ngày 01/11/2026:** [Oracle — Context-Aware AI and Summarize Human Handoff](https://docs.oracle.com/en/cloud/saas/readiness/service/26d/fscv-26d/26D-fsvc-wn-f50988.htm) mô tả bản tóm tắt nhu cầu, bối cảnh, việc đã thực hiện và vấn đề cần người hỗ trợ. Chỉ tham khảo cách bàn giao context; không kế thừa action/schema hoặc tích hợp dịch vụ Oracle.
 
@@ -937,6 +960,11 @@ Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xá
 - Tính tuần tự áp dụng theo hội thoại; hội thoại độc lập có thể được xử lý đồng thời trong giới hạn hệ thống. Staff tiếp quản vẫn phải chặn thao tác Agent theo cơ chế riêng, không chờ lượt Agent hoàn tất mới có hiệu lực.
 - Cần cơ chế lưu tin chờ/chống gửi lại/cap chờ/lỗi–timeout/một lượt chạy khi nhiều worker. Chưa Redis/BullMQ/backend queue; memory lock riêng không bảo đảm tuần tự.
 
+<a id="failed-turn-policy"></a>
+**Lượt AI lỗi/quá hạn — A đã chốt ngày 14/11/2026, tích hợp còn P.** Khi lượt AI kết thúc vì lỗi kỹ thuật hoặc hết deadline, Core ghi FAILED và UI hiển thị lỗi an toàn. Customer chủ động gửi lại câu hỏi hoặc hỏi tiếp bằng một tin nhắn mới. Lượt lỗi giữ trạng thái kết thúc, hệ thống không tự chạy lại toàn bộ lượt hoặc tạo attempt thay thế.
+
+Gửi lại request/kết quả do mất ACK dùng cùng ID và receipt để chống trùng. Retry tạm thời bên trong một lần gọi tool/model vẫn theo ngân sách và chính sách đã chốt. Tin nhắn mới của Customer tạo lượt mới theo quyền hiện hành, tin đã xếp hàng tiếp tục theo FIFO/fence. Reload/reconnect chỉ đối soát trạng thái, không tự chạy lại lượt FAILED. Cờ retryable của lỗi mô tả khả năng phục hồi, không tự cấp quyền chạy lại lượt FAILED. Lỗi của lượt được lưu trong lịch sử theo protocol, callback muộn phải qua kiểm quyền/fence và không làm sống lại lượt đã FAILED. Schema, API discovery/history và xử lý UI còn theo CH02/CH03, phần G2/G3 còn lại tiếp tục review.
+
 <a id="follow-up-after-failed-turn"></a>
 ### Câu hỏi nối tiếp sau lượt chưa hoàn thành
 
@@ -946,7 +974,7 @@ Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xá
 - Agent hiểu câu mới từ lịch sử/chủ đề/đối tượng và yêu cầu trước chưa xong. Chỉ tra phần cần cho yêu cầu hiện tại trong quyền/deadline/budget; không tự làm mọi yêu cầu cũ.
 - Ví dụ: “Hợp đồng X có những sản phẩm bổ trợ nào?” bị lỗi; khách hỏi “Trong đó có Lá Chắn Xanh không?”. Agent có thể hiểu là kiểm tra Lá Chắn Xanh trong hợp đồng X rồi gọi tool phù hợp, thay vì yêu cầu khách lặp lại mã hợp đồng.
 - Nếu đối tượng hoặc ý định vẫn chưa rõ thì hỏi làm rõ. Ví dụ “cái thứ hai” không đủ để chọn hợp đồng khi chưa có danh sách/thứ tự làm căn cứ. LLM không được tự đặt thứ tự rồi coi đó là lựa chọn của khách.
-- Lỗi trước không chứng minh nghiệp vụ/thiếu hợp đồng–quyền lợi. Core quyết mở lượt mới; mục này chưa chọn kết thúc lượt lỗi/chuyển attempt/bảo vệ checkpoint. Trạng thái lỗi chuẩn hóa trong lịch sử/context cần đặc tả; chưa triển khai.
+- Lỗi trước không chứng minh nghiệp vụ/thiếu hợp đồng–quyền lợi. Kết thúc lượt lỗi/quá hạn theo [A đã chốt ngày 14/11/2026](#failed-turn-policy), câu hỏi mới mở lượt mới theo Core. Trạng thái lỗi trong lịch sử/context và tích hợp bảo vệ checkpoint còn theo G2/CH02.
 
 <a id="conversation-thread-mapping"></a>
 ### Hội thoại Core và thread LangGraph
@@ -994,7 +1022,7 @@ Nguồn: [LangGraph Postgres checkpointer](https://docs.langchain.com/oss/python
 - **Đã chốt hướng thiết kế tối thiểu ngày 30/10/2026:** theo luồng thực tế, chỉ thêm dữ liệu bước sau cần. State: tin/hợp đồng/chủ đề, pending clarification, kết quả tool/bằng chứng, bộ đếm/lỗi/tiến trình. Nhóm logic, chưa tên trường/schema/reset–resume chi tiết; không cần hệ quản lý state/dịch vụ mới.
 - **Đã chốt cách thu gọn ngày 29/10/2026:** chỉ tóm tắt lịch sử cũ khi vượt token threshold cấu hình; giữ nguyên lượt gần nhất. Không mặc định tóm tắt mỗi lượt. Giữ nguồn/điều kiện/phủ định/sửa ý khách; không thay lịch sử Core. Chọn ngưỡng/số lượt/token sau chọn model; dành chỗ tool output/câu trả lời.
 - Tóm tắt/lời trước không tự thành nghiệp vụ. Tách khách khai/kết quả xác minh, giữ nguồn. Quyền/phiên bản/dữ liệu động phải kiểm lại khi dùng; context không cấp quyền. Đổi hợp đồng/chủ đề/thu hồi quyền: bỏ nội dung không phù hợp khỏi model context.
-- Cần chốt cập nhật/kiểm tóm tắt/token budget/schema state/ID/retention checkpoint. Đã chốt [mỗi hội thoại một thread](#conversation-thread-mapping), [tạo query theo context khi chọn tool](#contextual-rag-query); không mặc định model rewrite call riêng mọi lượt. Backend PostgreSQL như trên; memory xuyên hội thoại ngoài phạm vi.
+- Cần chốt cập nhật/kiểm tóm tắt/token budget/schema state/ID. Retention checkpoint MVP theo [A ngày 14/11](../configuration-and-data.md#mvp-agent-recovery-retention). Đã chốt [mỗi hội thoại một thread](#conversation-thread-mapping), [tạo query theo context khi chọn tool](#contextual-rag-query); không mặc định model rewrite call riêng mọi lượt. Backend PostgreSQL như trên; memory xuyên hội thoại ngoài phạm vi.
 
 State phục vụ node tiếp tục; không phải mọi trường đều vào model/đã xác minh. Node LLM lưu diễn giải; node Core/RAG lưu kết quả nguồn; code quản lý bộ đếm. Kiểm cấu trúc/tham chiếu/quyền không chứng minh LLM hiểu đúng. Kiểm cập nhật từng trường cần thiết kế; không coi đề xuất cũ đã chốt hết.
 
@@ -1072,7 +1100,7 @@ Chỉ dùng corpus/câu hỏi/tình huống synthetic. Kiểm tra phân quyền 
 <a id="embedding-selection-criteria"></a>
 ### Tiêu chí chọn embedding
 
-**Đã chốt với người dùng ngày 01/11/2026:** ưu tiên chất lượng truy xuất bằng chứng trên tiếng Việt bảo hiểm, sau đó xem xét tốc độ/độ ổn định, số chiều và chi phí/vòng đời model. Dùng cùng nhà cung cấp với model sinh chỉ là thuận tiện vận hành, không đủ căn cứ chọn embedding. Chưa chốt Gemini Embedding 2 hoặc model/số chiều cụ thể.
+**Đã chốt với người dùng ngày 01/11/2026:** ưu tiên chất lượng truy xuất bằng chứng trên tiếng Việt bảo hiểm, sau đó xem xét tốc độ/độ ổn định, số chiều và chi phí/vòng đời model. Provider đã chốt Gemini API ngày 13/11/2026. Model embedding MVP đã chốt gemini-embedding-2, 1536 chiều cùng ngày. G4 đánh giá retrieval tiếng Việt bảo hiểm và hiệu chỉnh tham số cho model đã chọn.
 
 | Thứ tự | Tiêu chí | Nội dung cần kiểm tra |
 | --- | --- | --- |
@@ -1101,18 +1129,21 @@ Quyền và phiên bản vẫn do Core/code lọc; embedding không quyết đ�
 <a id="remaining-work"></a>
 ## 9. Các điểm còn phải chốt
 
+**Dữ liệu khôi phục Agent trong MVP — A đã chốt 14/11/2026.** Giữ checkpoint, biên nhận xử lý và kết quả/sự kiện do Agent lưu để khôi phục, chống trùng và đối soát, gồm dữ liệu đã giao/ACK. MVP chưa đặt TTL hoặc lịch tự xóa các bản ghi này theo thời gian. Quyền đọc/ghi, trạng thái run/attempt, writer fence và điều kiện giao lại tiếp tục theo protocol. [Chính sách chuẩn](../configuration-and-data.md#mvp-agent-recovery-retention).
+
 Rà **31/10/2026**: [bản tổng thể](#design-overview) đã chốt hướng graph/tool/RAG/context/giao tiếp/checkpoint. Chưa schema/code không đòi brainstorm lại. Phân loại phần còn lại theo cách xử lý, không coi sáu nhóm kiến trúc chưa quyết định.
 
 ### 9.1. Quyết định cần chọn hoặc xác nhận nghiệp vụ
 
-| Quyết định còn mở | Cần có trước phần phụ thuộc |
+| Nhóm quyết định | Trạng thái và phần còn lại |
 | --- | --- |
-| Provider/model sinh và embedding | Đã chốt [Managed Model API cho cả model sinh và embedding](#managed-model-api) ngày 01/11/2026; không tự vận hành model trong MVP. Còn provider/model/phiên bản/số chiều, cách gọi và điều kiện xử lý dữ liệu; chưa tạo index cố định chiều hoặc bật prompt cache Private |
-| Chi tiết xác nhận Ticket | Đã chốt [nhóm nội dung tóm tắt kèm bối cảnh bàn giao](#ticket-handoff-summary). Còn schema nội dung khách duyệt, hiệu lực khi nội dung đổi/hết thời gian, quyền Staff và hành vi khi chưa rõ kết quả tạo. Nguyên tắc Core xác nhận/chống trùng/Ticket + outbox đã chốt, không bàn lại |
-| Chính sách quyền khi phiên/trạng thái thay đổi | Logout/hết phiên **tạm bỏ qua theo người dùng ngày 01/11/2026**, chưa chốt chính sách mới. Còn điều kiện chạy Agent lại sau Staff. Đã chốt đóng tab không hủy, kiểm quyền hiện hành/chặn attempt cũ; không tự suy phần còn lại |
-| Chính sách sử dụng/lưu dữ liệu | Đã chốt [system prompt cho hỏi làm rõ/dữ liệu nhạy cảm](#clarification-sensitive-data) ngày 01/11/2026. Còn bộ lọc trước model/kiểm soát bằng code, duyệt corpus/lỗi nguồn; retention/xóa lịch sử/checkpoint/kết quả chờ giao/log, quyền xem. Bắt buộc Private synthetic; không secrets/Private không cần vào prompt/log/Git |
+| Provider/model sinh và embedding | Đã chốt [Managed Model API cho cả model sinh và embedding](#managed-model-api) ngày 01/11/2026; không tự vận hành model trong MVP. Gemini API đã chốt ngày 13/11/2026 cho model sinh/embedding. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. Còn limits, cách gọi và điều kiện xử lý dữ liệu theo G4 |
+| Xác nhận Ticket | Đã chốt form thủ công và draft Agent có review/sửa revision, Ticket mới OPEN, summary sáu nhóm và nguồn trusted theo [nội dung bàn giao](#ticket-handoff-summary). Core kiểm xác nhận/idempotency và commit Ticket + outbox atomic. Còn hoàn thiện lưu payload/snapshot, validation/replay/concurrency và nghiệm thu I07/T01/T02 theo các quyết định đã ghi |
+| Copilot | Staff nêu hợp đồng trong câu hỏi, mơ hồ thì hỏi lại; Core kiểm quyền nguồn. CP01/CP04 còn nghiệm thu theo [quyết định chuẩn](#copilot-policy-selection) |
+| Chính sách quyền khi phiên/trạng thái thay đổi | Logout/hết phiên đã chốt [B ngày 14/11/2026](#agent-logout-session-policy), yêu cầu AI đã được Core tiếp nhận tiếp tục xử lý theo quyền hiện hành, người dùng đăng nhập lại xem kết quả. Tích hợp còn P. Đã chốt ngày 14/11/2026, Customer chủ động mở chat AI mới với context/thread riêng. Cuộc cũ theo trạng thái/quyền hiện hành, không thêm Close/command kết thúc. CH02/CH03 còn nghiệm thu context và tích hợp Agent/Core. Đã chốt đóng tab không hủy, kiểm quyền hiện hành/chặn attempt cũ; không tự suy phần còn lại |
+| Chính sách sử dụng/lưu dữ liệu | Đã chốt [system prompt cho hỏi làm rõ/dữ liệu nhạy cảm](#clarification-sensitive-data) ngày 01/11/2026. B đã chốt 14/11, MVP dùng sáu quy tắc system prompt, không thêm bộ lọc định danh bằng code. Nguồn RAG tiếp tục tạm hoãn, [lịch sử chat MVP giữ để xem lại, chưa tự xóa theo A ngày 14/11](../configuration-and-data.md#mvp-chat-history-retention). Dữ liệu khôi phục Agent giữ để đối soát và chưa tự xóa trong MVP theo A ngày 14/11. Còn retention log/audit/cache, chính sách production và quyền dữ liệu chưa được đặc tả. Bắt buộc Private synthetic; không secrets/Private không cần vào prompt/log/Git |
 
-Hai lựa chọn lớn: model, xác nhận Ticket. Gom chính sách khác với đặc tả kỹ thuật nhưng không tự chọn thay nghiệp vụ. Chỉ hỏi người dùng khi ảnh hưởng quyền/hành vi/dữ liệu hoặc thêm thành phần đáng kể.
+Model/provider và luồng xác nhận Ticket đã được chốt. Lịch sử chat MVP đã chốt giữ để xem lại và chưa tự xóa. Checkpoint, biên nhận và kết quả/sự kiện Agent cũng đã chốt giữ trong MVP, chưa tự xóa theo thời gian. Các quyết định còn mở tập trung vào retention log/audit/cache, chính sách production và quyền dữ liệu chưa được đặc tả theo tác vụ. G2/G3 còn review lưu trữ/fencing và phục hồi khi mất liên lạc, G4 còn tham số cần đo, cấu hình AWS theo kế hoạch cloud. Nguồn RAG tiếp tục tạm hoãn. Logout/hết phiên đã chốt B ngày 14/11, các yêu cầu Core đã tiếp nhận tiếp tục xử lý theo quyền hiện hành, tích hợp còn P. Đặc tả kỹ thuật thông thường được hoàn thiện trong phase sở hữu trước nghiệm thu.
 
 ### 9.2. Đặc tả kỹ thuật cần hoàn thiện thành một gói
 
@@ -1122,7 +1153,7 @@ Nhóm kỹ thuật tự đề xuất chi tiết thông thường, trình bản n
 | --- | --- |
 | State và contracts | State/reset/resume, mốc lịch sử gồm kết quả/lỗi, input/output/error bốn tool, yêu cầu/callback/ACK/citations/actions/ID. Tách nguồn/khách khai/Agent diễn giải; LLM không quản quyền/credentials |
 | Điều phối và lưu bền vững | Run/attempt state machine, nhận lượt/chống trùng/vô hiệu hóa/chặn checkpoint muộn/bộ đếm replay/lưu kết quả–event/đối soát giao. Kiểm bằng cạnh tranh/lỗi; đổi ID/memory lock riêng chưa đủ; không dùng business–checkpoint transaction chung |
-| Tích hợp và xác thực | Web framework/checkpointer/schema/role/migration owner/HMAC/replay defense/khóa/đường truyền/timeout–retry–error mapping. Giữ ranh giới adapter local/AgentCore Runtime; không tự thêm cloud/Redis/BullMQ |
+| Tích hợp và xác thực | Framework Starlette + uvicorn và profile LI-HMAC-SHA256-v1 đã chốt. Task 4 đã có checkpointer/schema/role/migration phía Agent. Còn review quyền sở hữu/fence, tích hợp Core/replay và quản lý khóa/đường truyền/timeout–retry–error mapping. Giữ ranh giới adapter local/AgentCore Runtime; không tự thêm cloud/Redis/BullMQ |
 | Corpus và retrieval | Bộ tài liệu/phiên bản mỗi hợp đồng; mapping sản phẩm synthetic còn thiếu; metadata/parent/ref/anchor/index–query tiếng Việt. Tra trọn hồ sơ được phép, không quyền theo Điều/thêm bảng binding |
 
 Đặc tả Agent/API Core có thể song song theo contracts/mẫu synthetic; không chờ toàn bộ backend. Tích hợp cần API/kiểm quyền thật; mock không chứng minh phân quyền.
@@ -1136,7 +1167,7 @@ Nhóm kỹ thuật tự đề xuất chi tiết thông thường, trình bản n
 - Chiều keyword lỗi → vector-only chưa chốt; cần đề xuất/đánh giá hành vi, không mặc định suy đối xứng từ fallback embedding đã chọn.
 - Bộ thử Public/Private/kết hợp/nhiều lượt/mạng/restart/cạnh tranh/tiếp quản/xác nhận Ticket. Mẫu/ngưỡng nguồn mục 8 còn đề xuất, chưa kết quả/nghiệm thu. Bắt buộc không trả Private ngoài quyền.
 
-### 9.4. Để giai đoạn sau
+### 9.4. Ngoài phạm vi hiện tại
 
 Staff chat không gắn Customer vẫn **tạm hoãn**, không cấm. Guest/Lead/Multi-Agent/thêm Business Tools/cache Private/tách database/queue mới/topology–sizing–HA–DR cloud ngoài bản này. Có yêu cầu đường tách checkpoint; chưa cần di chuyển/dựng tài nguyên cho thiết kế local.
 
@@ -1147,8 +1178,8 @@ Có bảng business/rag không chứng minh có Business APIs/retrieval/checkpoi
 | Nội dung cũ/chưa thống nhất | Cách đọc trong tài liệu chuẩn |
 | --- | --- |
 | v0.1 một sản phẩm; v0.2 dự kiến 3 chính/4–5 bổ trợ | MVP 28/10/2026 thay bằng [7 sản phẩm: 4 chính, 3 bổ trợ](#mvp-products). Public/Private cho Customer/Staff; tham gia theo hợp đồng Private, còn mapping phiên bản |
-| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | Phương án Task 2 từ nhánh ngày 06/11/2026 đề xuất Starlette + uvicorn thay FastAPI và profile `LI-HMAC-SHA256-v1`; còn chờ duyệt G3. Service auth tạm chọn HMAC + Core tra quyền theo lượt theo quyết định 29/10; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
-| Harness, model/vector 768 cố định | Harness đã loại theo người dùng; custom LangGraph đã chọn; model/số chiều còn mở, giữ ứng viên lịch sử ở mục 5 |
+| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | Framework Starlette + uvicorn đã chốt ngày 13/11/2026, có code trên nhánh Task 6 chưa merge main. Profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026, có code phía Agent trên nhánh Task 6. Service auth dùng HMAC và Core tra quyền theo lượt theo quyết định 29/10; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
+| Harness, model/vector 768 cố định | Harness đã loại theo người dùng; custom LangGraph đã chọn. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Mục 5 giữ các ứng viên lịch sử |
 | Scope rỗng vừa `DENIED` vừa `INSUFFICIENT`; lỗi DB cũng `INSUFFICIENT` | Đã chốt [năm trạng thái retrieval](#rag-retrieval-statuses), tách độ đủ/lỗi/thiếu nguồn/không khớp/denied. Scope hợp lệ rỗng `NO_SOURCE`, lỗi scope `ERROR`. Còn schema/nguyên nhân/HTTP; không tiết lộ Private |
 | “Customer ngoài quyền → DENIED, không gọi Core” | Không để Agent/LLM tự xác định quyền. Chỉ có thể dừng trước API nếu đã có kết luận policy tin cậy; cơ chế cụ thể cần chốt |
 | Luật đủ cần `TERMS`/`CONTRACT`, nhưng appendix/notice có thẩm quyền | Luật nguồn chưa duyệt. Code kiểm scope/nguồn/ref; LLM Agent xét câu hỏi/bằng chứng áp dụng. Checklist thuộc đặc tả, không thêm model retrieval |
@@ -1156,7 +1187,6 @@ Có bảng business/rag không chứng minh có Business APIs/retrieval/checkpoi
 | Nguồn thêm model viết lại query/đánh giá độ đủ riêng | Agent tạo query theo context/xét ngữ nghĩa; tool chỉ retrieval/vấn đề cấu trúc. Không kế thừa model call riêng/enum `PARTIAL` vào retrieval |
 | Nguồn báo lỗi PDF scan/chưa có OCR | Đã chuyển đổi/đối chiếu ngoài ứng dụng theo workflow hiện hành, có Markdown cho tài liệu ảnh. Không suy đã có ingestion/OCR runtime, human approval hoặc chunks/embeddings |
 | Dùng nguyên bảng/không thêm cột, nhưng ghi chú cuối đề xuất tách chunk/model/vector | Giữ layout ban đầu là đề xuất; migration song song là hướng tương lai chưa chọn |
-| Sơ đồ cũ có Guest và comment Lead Capture | Ý tưởng: Guest chỉ Public; đồng ý mới thu tên/email–điện thoại/nhu cầu/cách–thời điểm liên hệ; không Support Ticket. Form/CRM/Lead là mở rộng. Guest ngoài Customer/Staff xác thực v0.2; cần quyết định riêng trước làm |
 
 Sơ đồ nguồn → thành phần/luồng mục 3, kiểm scope/takeover mục 4–7: Core quyết quyền (PDP), RAG áp scope (PEP); scope hết hạn/không chắc phải kiểm lại; denied có audit. Không AI đọc business DB/ingestion ứng dụng. Comment 3–4 vòng hỏi lại là tình huống hỗ trợ, không cap đã chốt.
 
@@ -1174,7 +1204,7 @@ RAG **lịch sử, không phải cam kết hiện tại**: tuần 7 corpus/manif
 | RAG §5–7 và ghi chú migration | Chunk/metadata, index, chia chunk, embedding và migration: mục 5 |
 | RAG §8–11 | Input/output, retrieval, scope, lỗi, bảo mật và trích dẫn: mục 4–8 |
 | RAG §12–14 | Bộ đánh giá/chỉ số: mục 8; lộ trình cũ: mục 10; vấn đề còn mở: mục 9–10 |
-| Comment liên quan | Single/Multi-Agent: mục 2; lặp nhiều lượt: mục 3, 10; Guest/Lead chưa chốt: mục 10 |
+| Comment liên quan | Single Agent: mục 2; lặp nhiều lượt: mục 3, 10 |
 
 Đã bỏ văn dẫn/ví dụ trùng, SQL/JSON dài; giữ trường/tham số/ngữ nghĩa mục 3–6. Link AWS đọc thêm không phải quyết định dự án. Không sao định dạng/hình gốc/toàn bộ lịch sử; nguồn chưa quyết định vẫn chưa chốt.
 

@@ -4,6 +4,8 @@
 
 Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; Inbox/Ticket theo khách chưa có.
 
+**Bảo vệ email/phone — cập nhật Hiện/Ẩn 14/11/2026, runtime còn P:** Staff mặc định nhận giá trị đã che ở cả danh sách và chi tiết Customer. Staff có Show/Hide từng trường để liên hệ, Core kiểm lại quyền/phân công và audit khi reveal. Core projection, Web và các caller theo [CU01/CU02](customers/01-assignment-read-api.md#customer-privacy-api) và [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data); API hiện vẫn trả raw, cần sửa và kiểm thử. Search đã chốt A: chỉ tên/mã Customer, bỏ email/phone; source Core/Swagger/placeholder còn cần đồng bộ theo CU01/CU02. Ngày sinh/địa chỉ Staff detail đã chốt A: chỉ năm sinh/tỉnh-thành đã xác minh, thiếu căn cứ thì ẩn từng trường; DTO/source còn cần sửa theo CU01/CU02. Định dạng A đã duyệt cho email giữ 1 ký tự đầu và phone giữ 2 số cuối, phần bị che dùng `***`. Core projection và Web render cần triển khai/kiểm CU01-T06.
+
 ## Truy vết data model và vị trí code theo phase
 
 Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
@@ -26,6 +28,8 @@ Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến 
 - [x] Có 15 regression browser Chromium với API/WebSocket giả lập.
 - [x] Hồ sơ khách có Conversations/Tickets mở màn nghiệp vụ với customerId; Core giữ kiểm assignment/Direct/consent, không nhúng chat vào Customers.
 
+**Hiện liên hệ — cập nhật 14/11/2026, triển khai P.** Email/phone mặc định che theo A ngày 13/11 và có Hiện/Ẩn để Staff liên hệ. API reveal kiểm lại quyền/phân công, ghi audit metadata và trả riêng trường cần dùng. CU01/CU02 sở hữu DTO/nút/state/revoke và tests CU01-T07/CU02-T06. [Quyết định chuẩn](../../../configuration-and-data.md#staff-contact-reveal).
+
 ## API hiện có
 
 Prefix `/api/v1`; actor/role từ session. Session, assignment và list/count đọc cùng snapshot RepeatableRead.
@@ -35,9 +39,9 @@ Prefix `/api/v1`; actor/role từ session. Session, assignment và list/count đ
 | A05 GET /staff/customers | page 1–100000 (default 1), pageSize 1–50 (default 10), search tùy chọn; `{items,total,page,pageSize}` |
 | A06 GET /staff/customers/:customerId | UUID; `{customer}` đúng active assignment; ngoài quyền/không tồn tại cùng 404 |
 
-List item: `{id,fullName,accountCode,email,phone,status}`. Detail thêm birth/address nullable; FE hiện “Not provided” khi thiếu. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
+List item: `{id,fullName,accountCode,email,phone,status}`. Họ tên/mã Customer đã chốt A ngày 13/11, hiển thị đầy đủ cho Staff có active assignment hợp lệ, khớp source hiện tại. Source detail hiện thêm birth/address nullable, FE hiện “Not provided” khi thiếu. Đích đã duyệt là năm sinh/tỉnh-thành đã xác minh (DTO đề xuất birthYear/provinceCity nullable), không raw birth/address trong Staff profile; chưa triển khai. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
 
-Search trim, tối đa 100 ký tự, chuỗi con không phân biệt hoa thường theo fullName/accountCode/email/phone; rỗng/space tương đương bỏ lọc. Không bỏ dấu hoặc chuẩn hóa phone. `%`, `_`, backslash là ký tự thường. Query lạ/lặp/sai kiểu/control chars/quá dài trả 400. Scope và search áp trước count/phân trang, không tìm trên riêng trang hiện tại; thứ tự userId tăng dần. Trang vượt phạm vi có items rỗng nhưng giữ total.
+**Contract search A ngày 13/11:** chỉ fullName/accountCode. Source hiện vẫn tìm cả email/phone; cần bỏ hai predicate này, cập nhật Swagger/placeholder và chạy CU01-T02, chưa nghiệm thu thay đổi. Search giữ trim, tối đa 100 ký tự, chuỗi con không phân biệt hoa thường; rỗng/space tương đương bỏ lọc. Không tự bỏ dấu hoặc suy diễn loại dữ liệu từ chuỗi tìm kiếm. `%`, `_`, backslash là ký tự thường. Query lạ/lặp/sai kiểu/control chars/quá dài trả 400. Scope và search áp trước count/phân trang, không tìm trên riêng trang hiện tại; thứ tự userId tăng dần. Trang vượt phạm vi có items rỗng nhưng giữ total.
 
 Staff chưa có khách nhận list rỗng. Customer LOCKED vẫn được Staff còn assignment phục vụ; Staff bị khóa/phiên không hợp lệ không đọc được. 401 chuyển login, 403/404 xóa dữ liệu không còn quyền; lỗi mạng/5xx có Try again tại vùng lỗi. Các lần đọc mới quan sát thay đổi quyền đã commit; UI không là nguồn cấp quyền.
 
@@ -45,7 +49,7 @@ Hồ sơ chỉ đọc: không sửa KYC, khóa tài khoản hoặc phân công. 
 
 ## Bố cục và điều hướng
 
-Danh sách là bảng tên/mã/email/phone/status với cuộn ngang trong vùng riêng ở màn hình nhỏ. Detail có breadcrumb Customers → Customer details, tên/avatar/mã/status; Insurance policies là vùng chính, Personal information là cột phụ. Mobile xếp policies trước hồ sơ.
+Danh sách là bảng tên/mã/email/phone/status với cuộn ngang trong vùng riêng ở màn hình nhỏ. Detail có breadcrumb Customers → Customer details, tên/avatar/mã/status; Insurance policies là vùng chính, Personal information là cột phụ; đích đã duyệt chỉ hiện năm sinh/tỉnh-thành đã xác minh, nguồn thiếu thì Not provided từng trường. Mobile xếp policies trước hồ sơ.
 
 Hợp đồng dùng [contract Policies](05-policies-contract.md), có loading/empty/error/retry riêng; chỉ hiện chưa có hợp đồng sau phản hồi rỗng thành công. Mở policy bằng Next Link; URL gọn, ngữ cảnh search/page/policyPage quay về lưu trong sessionStorage theo tab, được kiểm customerId. Không nhúng chat/composer/takeover/Copilot hoặc list Ticket vào Customers.
 

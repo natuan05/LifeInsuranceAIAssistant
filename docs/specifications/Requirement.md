@@ -81,20 +81,24 @@ Hệ thống tập trung vào các chức năng chính:
 
 ### 2. Yêu cầu chức năng (Functional Requirements)
 
+**Liên hệ Customer và số hợp đồng — cập nhật 14/11/2026.** Staff đủ phân công/quyền tài nguyên xem đầy đủ số hợp đồng. Email/phone mặc định che và có Hiện/Ẩn để liên hệ, Core kiểm quyền lại khi yêu cầu bản đầy đủ. Mask/reveal còn P trong CU01/CU02, số hợp đồng đã khớp source hiện tại. [Số hợp đồng](../configuration-and-data.md#staff-policy-number), [liên hệ](../configuration-and-data.md#staff-contact-reveal).
+
+**Làm rõ FR-005/006 ngày 14/11/2026.** Customer muốn dùng AI sau trao đổi với Staff chủ động mở New AI chat. Cuộc mới có context/thread riêng, cuộc cũ tiếp tục theo trạng thái và quyền hiện hành. Dừng nhắn không tạo Close hoặc thao tác kết thúc. New AI chat/create đã có, tích hợp Agent/Core còn theo CH02/CH03. [Quyết định chuẩn](Agent_Design.md#new-ai-chat-after-staff).
+
 | ID | Chức năng | Actor | Mô tả | Priority |
 | :--- | :--- | :--- | :--- | :---: |
-| **FR-001** | Đăng nhập và quản lý phiên | Customer, Staff | Người dùng đăng nhập bằng tài khoản được cấp sẵn, sử dụng phiên và truy cập theo vai trò. Không có Customer tự đăng ký công khai trong MVP. | **Must** |
-| **FR-002** | Quản lý hồ sơ | Customer, Staff | Customer quản lý thông tin cá nhân; Staff xem thông tin khách hàng được phụ trách. | **Must** |
+| **FR-001** | Đăng nhập và quản lý phiên | Customer, Staff | Người dùng đăng nhập bằng tài khoản được cấp sẵn, sử dụng phiên và truy cập theo vai trò. Không có Customer tự đăng ký công khai trong MVP. Logout/hết phiên theo B ngày 14/11, phiên cũ bị chặn truy cập dữ liệu riêng, yêu cầu AI Core đã nhận tiếp tục theo quyền hiện hành và người dùng đăng nhập lại xem kết quả. | **Must** |
+| **FR-002** | Quản lý hồ sơ | Customer, Staff | Customer chỉ xem hồ sơ cá nhân theo quyết định 13/11/2026; Staff xem thông tin khách hàng được phụ trách. | **Must** |
 | **FR-003** | Quản lý khách hàng | Staff | Staff xem và tra cứu danh sách khách hàng được phụ trách. | **Must** |
-| **FR-005** | Chat với AI + Staff | Customer | Customer hỏi đáp và tra cứu bằng AI. Khi muốn chuyển cuộc AI sang Staff, Customer xác nhận chia sẻ lịch sử → Core lưu yêu cầu → Staff Accept; trước Accept chỉ chia sẻ metadata. Customer cũng có thể bắt đầu cuộc Direct hợp lệ. Handoff không tự tạo Ticket. | **Must** |
+| **FR-005** | Chat với AI + Staff | Customer | Customer hỏi đáp và tra cứu bằng AI. Khi muốn chuyển cuộc AI sang Staff, Customer xác nhận chia sẻ lịch sử → Core lưu yêu cầu → Staff Accept; trước Accept chỉ chia sẻ metadata. Customer cũng có thể bắt đầu cuộc Direct hợp lệ. Handoff không tự tạo Ticket. Sau hỗ trợ Staff, Customer chủ động tạo chat AI mới với context riêng, cuộc cũ theo quyền/trạng thái hiện hành. | **Must** |
 | **FR-006** | Chat với Customer | Staff | Staff tiếp nhận cuộc Direct hợp lệ hoặc yêu cầu handoff đã có Customer consent và Staff Accept; sau Accept được đọc toàn bộ lịch sử Customer-facing của chính cuộc và chat tiếp. Assignment hoặc Ticket đơn lẻ không cấp quyền transcript; không chủ động giành quyền chat AI riêng. | **Must** |
-| **FR-007** | Chat với AI | Staff | Copilot nội bộ hỗ trợ tra cứu, giải thích và tóm tắt từ cuộc chat Staff có quyền đọc; kết quả tách khỏi chat Customer. MVP không soạn nháp câu trả lời hoặc có Use draft. | **Must** |
+| **FR-007** | Chat với AI | Staff | Copilot nội bộ hỗ trợ tra cứu, giải thích và tóm tắt từ cuộc chat Staff có quyền đọc; kết quả tách khỏi chat Customer. MVP không soạn nháp câu trả lời hoặc có Use draft. Theo B ngày 14/11, Staff xem hợp đồng bằng Policy Lookup và nêu/làm rõ hợp đồng trong câu hỏi, Copilot hỏi lại khi mơ hồ. | **Must** |
 | **FR-008** | Tra cứu thông tin bảo hiểm thủ công | Customer, Staff | Hỗ trợ tra cứu sản phẩm, quyền lợi, điều khoản, hợp đồng và các thông tin liên quan (giấy tờ, pdf). | **Must** |
-| **FR-009** | Tạo Ticket hỗ trợ | Customer, AI Agent | AI Agent thu thập thông tin và tóm tắt; Customer đã xác thực xác nhận trước khi Core Backend tạo Support Ticket; Staff xử lý Ticket theo quyền nghiệp vụ. | **Must** |
+| **FR-009** | Tạo Ticket hỗ trợ | Customer, AI Agent | Customer tạo thủ công hoặc xem/sửa/xác nhận draft Agent; Core kiểm quyền/chống trùng và tạo SupportTicket OPEN + outbox; Staff tiếp nhận theo quyền. | **Must** |
 | **FR-010** | Quản lý Ticket (xem/theo dõi/tiếp nhận) | Staff | Staff xem, theo dõi và tiếp nhận Ticket trong phạm vi nghiệp vụ; quyền đọc chat liên quan được kiểm riêng theo FR-006. Đổi trạng thái Ticket không tự cấp/thu hồi quyền chat; workflow giải quyết nghiệp vụ và phản hồi Customer không được coi là hoàn tất chỉ từ thao tác trạng thái. | **Must** |
 | **FR-011** | Lịch sử hội thoại | Customer, Staff | Người dùng xem lại lịch sử trao đổi với AI và các cuộc hội thoại liên quan. | **Should** |
 | **FR-012** | Tóm tắt hội thoại | AI Agent | Agent chuẩn bị tóm tắt bàn giao Ticket để Customer xem/xác nhận; tách khách khai, kết quả đã xác minh, việc đã thử và phần còn vướng. Copilot tóm tắt cuộc chat được phép theo diễn biến gần hoặc từ đầu khi Staff yêu cầu; không tự gửi Customer. | **Must** |
-| **FR-013** | Thông báo | System, Staff | Hệ thống thông báo cho Staff khi có cuộc hội thoại hoặc Request cần tiếp nhận. | **Should** |
+| **FR-013** | Thông báo | System, Customer, Staff | Staff nhận sự kiện theo quyền. Theo quyết định 08/11 và phương án A ngày 13/11, Customer có chat/SYSTEM và Notification Center persisted cho Staff Accept, Ticket created và tin Staff chưa đọc; own read/read-all, nội dung generic và message read status theo N01/N02. Notification Customer và Staff cùng retention 30 ngày, dù đã đọc hay chưa; Ticket/Message nguồn có lifecycle riêng. | **Should** |
 
 ---
 
@@ -156,7 +160,7 @@ flowchart LR
 | Use Case ID | Tên Use Case | Actor | Mô tả |
 | :--- | :--- | :--- | :--- |
 | **UC-004** | Hỏi đáp thông tin bảo hiểm với AI Agent | Customer | Customer tương tác với AI Agent để đặt câu hỏi, hiểu sâu sản phẩm đã tham gia và nhận hỗ trợ trong quá trình sử dụng dịch vụ. |
-| **UC-005** | Đề xuất và xác nhận tạo Ticket hỗ trợ | AI Agent, Customer | Agent chuẩn bị nội dung; Customer xác nhận hợp lệ; Core kiểm quyền/chống trùng rồi ghi Ticket + outbox. Handoff là luồng riêng, không buộc tạo Ticket. |
+| **UC-005** | Đề xuất và xác nhận tạo Ticket hỗ trợ | AI Agent, Customer | Customer gửi form thủ công hoặc xem/sửa/xác nhận draft Agent; Core kiểm quyền/chống trùng rồi ghi Ticket OPEN + outbox. Handoff là luồng riêng. |
 | **UC-006** | Staff chat với Agent | Staff | Staff tương tác với AI Agent để tra cứu thông tin dựa trên context đoạn chat với khách hàng hiện tại, mã hợp đồng cụ thể, tìm kiếm kiến thức nghiệp vụ. |
 | **UC-007** | Tra cứu thông tin hợp đồng và quyền lợi | Customer, Staff | Tra cứu trên tài liệu gốc, hợp đồng điện tử được cấp, chứng thực. |
 
@@ -186,10 +190,12 @@ flowchart LR
 | **Use case ID** | **UC-005** |
 | **Tên** | Đề xuất và xác nhận tạo Ticket hỗ trợ |
 | **Actor** | AI Agent, Customer |
-| **Mô tả** | Khi Customer đã xác thực cần Staff hỗ trợ, AI Agent thu thập và tóm tắt thông tin; Customer xác nhận trước khi Core Backend tạo Ticket và chuyển đến Staff. |
-| **Tiền điều kiện** | Customer đang tương tác với Customer AI Agent và phát sinh yêu cầu cần vượt quá phạm vi mà Agent có thể xử lý. |
+| **Mô tả** | Customer đã xác thực tạo yêu cầu qua form thủ công hoặc xem/sửa/xác nhận draft Agent; Core tạo Ticket OPEN và thông báo Staff theo quyền. |
+| **Tiền điều kiện** | Customer có phiên hợp lệ. Luồng Agent cần draft server thuộc Customer; luồng thủ công cần nội dung form hợp lệ. |
 | **Hậu điều kiện** | Ticket và outbox được Core lưu sau xác nhận hợp lệ; Customer nhận mã sau commit. Staff được thông báo theo quyền; Ticket không tự chuyển giao hoặc mở transcript của cuộc chat. |
-| **Luồng chính** | 1. Customer có yêu cầu cần ghi nhận hỗ trợ.<br>2. Agent xác định nội dung từ yêu cầu, lịch sử và nguồn được phép.<br>3. Nếu thiếu thông tin cần thiết, Agent hỏi làm rõ theo chính sách dữ liệu nhạy cảm; không chủ động hỏi chi tiết sức khỏe.<br>4. Agent chuẩn bị tóm tắt gồm yêu cầu, bối cảnh, khách khai, kết quả đã xác minh, việc đã thử và phần còn vướng.<br>5. Customer xem và xác nhận nội dung đề xuất; chưa xác nhận thì chỉ là draft, không phải Ticket.<br>6. Core kiểm quyền, nội dung/hiệu lực xác nhận và idempotency rồi ghi Ticket + outbox cùng transaction.<br>7. Chỉ sau commit mới báo mã Ticket; thông báo Staff xử lý bất đồng bộ. |
+| **Luồng chính** | 1. Customer có yêu cầu cần ghi nhận hỗ trợ.<br>2. Agent xác định nội dung từ yêu cầu, lịch sử và nguồn được phép.<br>3. Nếu thiếu thông tin cần thiết, Agent hỏi làm rõ theo chính sách dữ liệu nhạy cảm; không chủ động hỏi chi tiết sức khỏe.<br>4. Agent chuẩn bị tóm tắt gồm yêu cầu, bối cảnh, khách khai, kết quả đã xác minh, việc đã thử và phần còn vướng.<br>5. Customer xem, có thể sửa title/description/policy thành revision mới rồi xác nhận; chưa xác nhận thì draft chưa tạo Ticket.<br>6. Core kiểm quyền, nội dung/hiệu lực xác nhận và idempotency rồi ghi Ticket OPEN + outbox cùng transaction.<br>7. Chỉ sau commit mới báo mã Ticket; thông báo Staff xử lý bất đồng bộ. |
+| **Luồng tạo thủ công** | Customer mở form Tickets, nhập title/description và policy tùy chọn, chủ động gửi request có key; Core kiểm owner/validation/idempotency rồi commit Ticket OPEN + snapshot/audit/outbox. Customer nhận mã sau commit. |
+| **Nội dung bàn giao Agent đã chốt 13/11** | Draft, review và confirmedContent giữ đủ sáu nhóm tóm tắt cùng nguồn. Customer sửa yêu cầu/policy thì review lại revision hiện hành; lời khách không tự thành finding đã xác minh. Staff đọc snapshot theo quyền Ticket và quyền nguồn. |
 | **Ngoại lệ** | • **Chưa xác nhận/thiếu thông tin:** không tạo Ticket; làm rõ trong phạm vi được phép hoặc nêu giới hạn/chuyển Staff.<br>• **Lưu thất bại/timeout:** đối soát theo idempotency, không đoán đã tạo hoặc tạo bản mới để thử lại.<br>• **Thông báo lỗi sau commit:** Ticket vẫn tồn tại, xử lý giao lại thông báo.<br>• **Giải quyết được bằng nguồn/tool:** trả lời thay vì buộc tạo Ticket. |
 
 ---

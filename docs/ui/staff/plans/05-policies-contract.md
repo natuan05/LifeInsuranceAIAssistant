@@ -6,6 +6,8 @@
 
 Đối chiếu **03/11/2026**. Căn cứ: FR-008, UC-007, NFR-001/003/007/008 và Data Model bảng 7–10. **Staff A14/A15/A16/A18/A20 và FE đã triển khai.** Product A17/A19, Customer ownership API và quick lookup/context chat chưa có. Phân loại tài liệu phía Customer tại [Customer documents](../../customer/plans/05-documents-contract.md#2-nguồn-và-phân-loại); trạng thái triển khai từng vai trò được theo dõi trong kế hoạch tương ứng.
 
+**Số hợp đồng — A đã chốt 14/11/2026.** Staff có phân công và quyền tài nguyên được xem đầy đủ policyNumber ở list/detail/Inbox lookup, khớp source hiện tại. Contact email/phone che mặc định và có Hiện/Ẩn theo cập nhật cùng ngày, triển khai còn P trong CU01/CU02. [Số hợp đồng](../../../configuration-and-data.md#staff-policy-number), [liên hệ](../../../configuration-and-data.md#staff-contact-reveal).
+
 ## Truy vết data model và vị trí code theo phase
 
 Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.

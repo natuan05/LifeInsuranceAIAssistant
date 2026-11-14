@@ -15,7 +15,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 **Schema/migration:** Không migration hoặc public registration; provisioning do account-management/operator. Bootstrap không tự reset password đã đổi.
 
-**Nhất quán và hồi quy:** Core kiểm role CUSTOMER trước cấp phiên, password change thu hồi phiên cũ và audit atomic. ProfileVersion/PATCH Customer là PF01 riêng còn P; không dùng login để tạo policy/assignment. Kiểm cổng sai role, CSRF/logout và phiên cũ sau password change.
+**Nhất quán và hồi quy:** Core kiểm role CUSTOMER trước cấp phiên, password change thu hồi phiên cũ và audit atomic. Hồ sơ Customer chỉ đọc theo PF01/PF02; không dùng login để tạo policy/assignment. Kiểm cổng sai role, CSRF/logout và phiên cũ sau password change.
 
 ## Vị trí code và mức ảnh hưởng
 
@@ -40,7 +40,9 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 - **Đăng nhập**: `POST /api/v1/auth/login` nhận `{ email, password }`. Cookie phiên HttpOnly được cấp phát, `GET /api/v1/auth/me` xác định vai trò `CUSTOMER` và tự chuyển hướng vào Cổng khách hàng `/customer`.
 - **Bảo mật phiên & CSRF**: Xác thực qua cookie phiên, kiểm tra header `X-Auth-Request: 1` và token `X-CSRF-Token` cho mọi thao tác ghi dữ liệu.
 - **Đổi mật khẩu**: `POST /api/v1/auth/change-password` cho phép chủ tài khoản tự cập nhật mật khẩu, xóa cờ khuyến nghị đổi mật khẩu.
-- **Đăng xuất**: `POST /api/v1/auth/logout` hủy phiên an toàn và chuyển hướng về `/login`.
+- **Đăng xuất** — `POST /api/v1/auth/logout` thu hồi phiên và chuyển về `/login`.
+
+**Agent sau logout/hết phiên — B chốt 14/11/2026.** Core tiếp tục xử lý các yêu cầu AI đã tiếp nhận theo quyền hiện hành, client xóa dữ liệu riêng và cần phiên hợp lệ để đọc/gửi. Login lại cùng Customer xem history/current run bằng phiên mới. Tích hợp Agent còn P theo CH02-T08/CH03-T07/AU03-T05, baseline Auth hiện có. [Chính sách chuẩn](../../../specifications/Agent_Design.md#agent-logout-session-policy).
 
 ## 3. Trạng thái và checklist
 

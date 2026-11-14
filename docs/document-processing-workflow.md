@@ -37,9 +37,9 @@ Ba nguồn dạng ảnh đã được xử lý bằng Luna:
 
 | File | Trang |
 | --- | ---: |
-| `DuPhongXanh/MC25-ImportantNote.pdf` | 2 |
-| `LaChanXanh/CI25-ImportantNote.pdf` | 3 |
-| `HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.pdf` | 25 |
+| [Dự Phòng Xanh — lưu ý quan trọng](../data/public/manulife/text/DuPhongXanh/MC25-ImportantNote.md) | 2 |
+| [Lá Chắn Xanh — lưu ý quan trọng](../data/public/manulife/text/LaChanXanh/CI25-ImportantNote.md) | 3 |
+| [Hành Trình Hạnh Phúc — Gia Tăng Bảo Vệ](../data/public/manulife/text/HanhTrinhHanhPhuc_GiaTangBaoVe/Quy-tac-va-dieu-khoan-hanh-trinh-hanh-phuc-gia-tang-bao-ve.md) | 25 |
 
 Đã dùng **Luna đọc ảnh và chép văn bản**, có lượt kiểm tra độc lập và parent đối chiếu thêm. Không chạy Tesseract, không cài dependency hay gọi dịch vụ OCR ngoài. Nếu tự động hóa những đợt sau, có thể thử Tesseract `vie` + `eng` rồi kiểm tra với PDF; hỗ trợ tiếng Việt không tự bảo đảm độ chính xác. [Ngôn ngữ Tesseract](https://tesseract-ocr.github.io/tessdoc/Data-Files-in-different-versions.html)
 

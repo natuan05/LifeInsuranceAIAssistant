@@ -4,13 +4,19 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Chỉ DTO Ticket có quyền, không nối raw Customer/chat để lấp trường che. Phân biệt bản duyệt với bản hiển thị lược bỏ; Accept/status không sửa snapshot.
 
 **Kiểm thử cần bổ sung, chưa chạy:** DOM/network: title/copy/tooltip/URL không rò canary; Back/revoke không hồi raw, status/reopen giữ CAS và confirmed content.
 
+**Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
+
+**Liên hệ Customer — cập nhật 14/11/2026, triển khai P.** Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+
 ## Data model và phạm vi ảnh hưởng
+
+**Bổ sung 13/11/2026 — summary Agent, phương án A:** Ticket detail hiển thị sáu nhóm và nguồn từ snapshot được Core cấp theo [I07](06-agent-confirmation.md#ticket-handoff-content). Finding đã xác minh và lời Customer có nhãn riêng; nhóm thiếu dữ liệu, nguồn không khả dụng và legacy cần trạng thái rõ. Không dựng lại summary từ chat mới hoặc cho phép sửa snapshot sau commit. Cần thêm DOM/network tests cho đủ nhóm/nguồn, quyền và source version; phần UI này chưa nghiệm thu.
 
 Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
@@ -27,7 +33,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 ## 1. Phạm vi và code
 
-Tickets riêng /staff/tickets và /staff/tickets/:ticketId. FR-010 read/Accept đã có; người dùng05/11 yêu cầu quản lý status như task, gồm resolve/close/reopen. Không thêm tạo Ticket thủ công, phản hồi, Claim/payment hoặc Agent producer.
+Tickets riêng /staff/tickets và /staff/tickets/:ticketId. FR-010 read/Accept đã có; người dùng05/11 yêu cầu quản lý status như task, gồm resolve/close/reopen. Form tạo thủ công thuộc Customer T01/T02. Staff UI quản lý read/Accept/status; phản hồi, Claim/payment và Agent producer có phạm vi riêng.
 
 Code: apps/web/src/components/staff-tickets.tsx, lib/ticket-api.ts, slot Tickets của staff-reference-workspace.tsx. Dùng useAuthorizedRead/useCooldown, Tailwind/Lexend và session/realtime chung; không dependency mới.
 

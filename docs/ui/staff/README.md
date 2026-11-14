@@ -14,6 +14,6 @@ Products tự mở PDF, nhiều tài liệu dùng selector; phiên bản mới c
 
 ## Bắt đầu lần triển khai tiếp
 
-[TK01–TK05](plans/07-tickets-contract.md) là baseline đã có cho quyền/model/read/Accept/UI/status/notification; không làm lại theo danh sách phase. Producer I07 từ đề xuất Agent + xác nhận Customer còn kế hoạch, confirmed snapshot chưa có. Không tạo Ticket fake hoặc cho Staff xem AI riêng để lấp UI.
+[TK01–TK05](plans/07-tickets-contract.md) là baseline đã có cho quyền/model/read/Accept/UI/status/notification; không làm lại theo danh sách phase. Source Customer I07 có draft/snapshot và API/UI hai luồng thủ công/Agent; còn các lỗi review và tích hợp nguồn Agent. Không tạo Ticket fake hoặc cho Staff xem AI riêng để lấp UI.
 
 Agent/Copilot và I07 theo [Agent Design](../../specifications/Agent_Design.md) và [plan](../../superpowers/plans/2026-10-31-agent-rag-implementation.md); Copilot không có Use draft. Customer Home/Products/Policies/PDF đã có; phần còn lại theo [plans riêng](../customer/plans/README.md). Tài liệu chia theo chức năng app, không có kế hoạch Release riêng.

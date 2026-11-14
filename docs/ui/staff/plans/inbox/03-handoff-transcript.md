@@ -4,11 +4,15 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I03** · [Cont
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Giữ lịch sử Customer-facing sau gate hiện hành, không tự rewrite nguồn để mask profile. Quyền đọc transcript khác quyền gửi model; CP01/CH02 dựng context riêng. Staff transcript đã che nếu cần phải chốt contract riêng.
 
 **Kiểm thử cần bổ sung, chưa chạy:** Core/DB: pending không transcript, accepted đúng nguồn, revoke chặn; SYSTEM/shared metadata/audit không thêm raw dư hoặc grant giả.
+
+**Chat mới sau Staff — đã chốt 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc. I03 dùng create/receipt/history và grant hiện có. Cuộc AI mới có gate riêng, Staff chỉ xem sau consent/Accept hợp lệ. New AI chat/create đã có, kiểm tích hợp Agent còn P ở CH02/CH03. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
+
+**Lưu lịch sử MVP — A đã chốt 14/11/2026.** Core giữ Conversation/Message để xem lại, chưa tự xóa theo thời gian. Staff chỉ đọc khi grant/session/phân công còn hiệu lực, tuổi dữ liệu không thay quyền hoặc mở cuộc AI riêng. Notification cleanup theo 30 ngày riêng và không xóa transcript. Kiểm cùng CH01-T06. [Chính sách chuẩn](../../../../configuration-and-data.md#mvp-chat-history-retention).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -27,7 +31,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
 | outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
 
-**Schema/migration:** Không DDL mới sau I01. Chứng cứ consent tạo từ xác nhận thật, không backfill Accept từ status/assigned_staff_id.
+**Schema/migration baseline I03:** Không DDL mới sau I01. Quyết định chat mới ngày 14/11 dùng create/receipt và trạng thái hiện có, không yêu cầu DDL Close. Chứng cứ consent tạo từ xác nhận thật, không backfill Accept từ status/assigned_staff_id.
 
 **Nhất quán và hồi quy:** Create/consent/Accept ghi receipt + audit/outbox trong transaction. Accept thêm SYSTEM và sequence atomic; chỉ đọc toàn bộ CUSTOMER_VISIBLE của chính cuộc được đồng ý. Kiểm rollback/replay/reassignment và pending không transcript.
 
@@ -289,6 +293,12 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 **Suite tham khảo:** [conversation-workflow.test.cjs](../../../../../apps/core/test/conversation-workflow.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+### I03-T06 — Cuộc AI mới có quyền độc lập với cuộc Staff cũ
+
+**P — ca hồi quy bổ sung chưa chạy.** Fixture synthetic có cuộc đã consent/Accept và phân công hiện hành. Customer dừng trao đổi rồi tạo AI chat mới qua API, retry cùng key, đọc/gửi lại cuộc cũ và thử truy cập Staff vào cuộc mới. Sau đó revoke/đổi assignment.
+
+**Kết quả mong đợi.** Intent mới tạo ID mới, retry giữ ID theo receipt. Cuộc cũ theo trạng thái/quyền hiện hành, không bị khóa chỉ vì Customer tạo cuộc mới. Staff không đọc transcript/preview/cursor hoặc nhận event cuộc AI mới từ grant cũ. Consent/Accept của cuộc mới vẫn bắt buộc. Revoke/đổi assignment chặn Staff cũ theo policy hiện có.
 
 ## 8. Điều kiện hoàn tất
 

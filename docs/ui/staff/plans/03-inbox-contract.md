@@ -19,6 +19,8 @@ Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến 
 
 ## 1. Quyết định đã chốt
 
+**Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
+
 - All / Requests / Active, không AI active/Closed/New trong Inbox Staff.
 - Bỏ toàn bộ counts/badge/tổng số và A07 summary; lazy load bằng hasMore/nextCursor.
 - Staff không thấy AI chat riêng. Pending chỉ metadata yêu cầu đã chia sẻ, không transcript/preview/summary của AI trước Accept.
@@ -60,7 +62,7 @@ flowchart LR
   I06 --> I07[Ticket riêng]
 ```
 
-I01–I03 chưa phải chat UI hoàn chỉnh. I04 là mốc review bố cục/đọc/Accept. I05 chat hai đầu qua REST, cần tải lại vùng dữ liệu cho đến I06. I06 Inbox cập nhật liên tục. Agent sinh câu trả lời thật, checkpoint, attachments/typing/read receipts và Copilot cần kế hoạch riêng; không đánh dấu hoàn thành từ fixture AI hoặc GET history.
+I01–I03 chưa phải chat UI hoàn chỉnh. I04 là mốc review bố cục/đọc/Accept. I05 chat hai đầu qua REST, cần tải lại vùng dữ liệu cho đến I06. I06 Inbox cập nhật liên tục. Agent sinh câu trả lời thật, checkpoint và Copilot theo CH02/CH03/CP01–CP04; không đánh dấu hoàn thành từ fixture AI hoặc GET history. Read marker đã có source, phần review theo N01/N02.
 
 ## 4. Nội dung bắt buộc của kế hoạch I01
 
@@ -175,7 +177,7 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | A11 E (reconcile) | GET /staff/conversations/:conversationId/commands/:clientRequestId?operation=ACCEPT_HANDOFF | Receipt chính Staff; recheck current grant, 404 không chứng minh chưa commit |
 | A12 E | POST /staff/conversations/:conversationId/messages | clientMessageId/content/expectedVersion; chống trùng và ACK sau commit |
 | A12 E (reconcile) | GET /staff/conversations/:conversationId/messages/by-client-id/:clientMessageId | Tra tin của chính actor sau timeout, không gửi lại bằng key mới |
-| A13 P | POST /staff/conversations/:conversationId/read | Read marker transcript; chưa có schema/spec hoàn chỉnh, không thuộc notification.isRead |
+| A13 E | POST /staff/conversations/:conversationId/read | Source có markAsRead, kiểm session/grant dưới lock và cập nhật readAt. Notification.isRead theo chuông riêng, read-cycle/DTO/event được review tại Customer N01/N02 |
 
 | Route | Trạng thái |
 | --- | --- |

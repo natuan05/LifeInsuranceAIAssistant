@@ -4,11 +4,13 @@ Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026 — local mộ
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Producer/outbox/notification/WS chỉ metadata tối thiểu, không profile/transcript/PII dư. Fingerprint nội bộ không thành snapshot payload; REST refetch vẫn chịu projection/quyền.
 
 **Kiểm thử cần bổ sung, chưa chạy:** Core/WS/network: canary không trong frame/log; reconnect/catch-up đúng recipient, revoke dọn state và không phát preview cũ.
+
+**Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 ## Data model và phạm vi ảnh hưởng
 

@@ -4,11 +4,9 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
-**Thay đổi của phase:** Bộ canary hoàn toàn synthetic phủ profile/message/tool/evidence/table, retry/resume/summary/repair/embedding. Đánh giá bỏ sót và che nhầm, giữ tình tiết nghiệp vụ/provenance; trace chỉ metadata lọc.
-
-**Kiểm thử cần bổ sung, chưa chạy:** Assert fake/provider boundary đã được phép và output/callback/audit/WS/DOM; provider thật theo G4, tách deterministic tests khỏi ngữ nghĩa, không bảo đảm tuyệt đối bằng regex/prompt.
+**MVP B:** sáu quy tắc system prompt và dữ liệu synthetic; quyền/scope/fence và schema theo contract. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#mvp-model-data-policy).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -42,7 +40,7 @@ Test harness provider/Agent/Core/Web qua Docker; fixtures synthetic approved, tr
 | [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Hiện có module; Copilot controller/task adapter còn P | Cao | Không mở public endpoint giả quyền |
 | [apps/agent/](<../../../../../apps/agent>) | Hiện có | Owner phần Agent/checkpoint; chỉ ranh giới cần phối hợp, không triển khai trong đợt tài liệu này | Cao | Service identity, scope tools, durable attempt |
 | `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read/cancel DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
@@ -60,7 +58,7 @@ flowchart TD
   B --> C[Dữ liệu hoặc transaction phù hợp]
   C --> D[UI cập nhật đúng scope, không F5]
   B --> E[Lỗi / mất quyền / unknown result]
-  E --> F[Retry hoặc reconcile theo contract]
+  E --> F[Đối soát cùng key theo trạng thái Core]
 ```
 
 ## 5. Test cases
@@ -104,7 +102,7 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 
 1. Revoke source trong lúc inference.
 2. Cho result/tool callback tiếp tục.
-3. Ở task khác mô phỏng timeout rồi reconcile/retry.
+3. Ở task khác mô phỏng timeout giao nhận rồi đối soát/gửi lại cùng key. Với lỗi provider/hết deadline đã kết thúc FAILED, kiểm reload/reconcile không tự chạy lại task.
 
 **Kết quả mong đợi:** Không trả result Private muộn; durable task không mất/trùng; kết quả test thật phân biệt adapter giả, không ghi prompt/secret.
 
@@ -118,6 +116,18 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 - [ ] Cập nhật API map/checklist theo code thật, cleanup fixture/artifact; không tự commit.
 
 Chỉ đánh dấu FR-007/012/Agent boundary sau E2E thật có scope. Không gộp checkpoint write và Ticket commit.
+
+### CP04-T04 — Copilot tiếp tục sau logout/hết phiên
+
+**P — chưa chạy.** Staff gửi câu hỏi Copilot rồi logout hoặc hết phiên. Cho task tiếp tục và lưu kết quả, login lại cùng Staff và biến thể Staff khác, revoke assignment/source trong lúc đang xử lý.
+
+**Kết quả mong đợi.** Task đã nhận tiếp tục theo quyền nguồn hiện hành, panel/WS/API phiên cũ không nhận Private. Login lại đúng Staff đọc task/history sau reauthorize, không tạo task trùng. Staff khác hoặc source đã revoke không được xem kết quả, callback cũ không mở lại dữ liệu ngoài quyền. Kiểm cùng CH02-T08/AU03-T05.
+
+### CP04-T05 — Làm rõ hợp đồng theo câu hỏi Staff
+
+**P — chưa chạy.** Fixture synthetic có hai hợp đồng P1/P2 cùng Customer và một hợp đồng khác Customer. Mở PDF P2, gửi câu hỏi mơ hồ trong ngữ cảnh chưa xác định hợp đồng, rồi hỏi rõ P2. Giữ task P1 đến sau lượt P2 và thử mã hợp đồng ngoài scope.
+
+**Kết quả mong đợi.** Mở PDF không đổi linkedPolicy/controlVersion hoặc tự cấp scope. Câu mơ hồ được hỏi lại, câu rõ P2 chỉ đọc nguồn Core cho phép. Task/citation cũ giữ view P1, không bị gắn thành P2. Hợp đồng ngoài Customer/grant bị chặn.
 
 ## Sequence diagram
 

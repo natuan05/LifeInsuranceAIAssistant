@@ -4,11 +4,15 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Quick Lookup dùng cùng projection Staff, không bypass bằng customerId hoặc lấy raw profile bổ sung modal. Mở PDF/tab mới không tăng quyền hay đổi linkedPolicy/Agent context.
 
 **Kiểm thử cần bổ sung, chưa chạy:** API/network/DOM: modal/tab/dossier cùng projection, query không contact; revoke giữa lookup và cấp file chặn đúng.
+
+**Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
+
+**Liên hệ Customer — cập nhật 14/11/2026, triển khai P.** Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -101,6 +105,8 @@ flowchart TD
      * Badge trạng thái: `Active` (xanh lá), `Lapsed` (đỏ cam), `Pending` (vàng), `Matured` (xanh dương).
      * Quyền lợi bảo hiểm: `Sum assured` và `Periodic premium`, cùng `Effective date`.
      * **Mở tab mới (New Tab)**: Nút "Open in new tab" (`target="_blank" rel="noopener noreferrer"`) trên thẻ và liên kết "Browse all policies" ở cuối panel mở trang Policy Lookup `/staff/policies` trong tab mới độc lập, giúp tư vấn viên vừa xem toàn bộ PDF điều khoản vừa tiếp tục trò chuyện với khách hàng mà không bị che khuất màn hình.
+
+**Copilot — B chốt 14/11/2026.** Panel lookup/PDF chỉ đọc dữ liệu theo quyền, Staff nêu hợp đồng khi hỏi Copilot. Mở panel hoặc PDF không sửa linkedPolicy/controlVersion, trường hợp mơ hồ được hỏi lại theo CP01/CP04. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection).
 
 ## 5. Test cases
 

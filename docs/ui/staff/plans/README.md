@@ -20,16 +20,16 @@ Plans đã đủ làm đầu mối triển khai; không cần giữ bộ file m�
 | [04 Products](04-products-contract.md) | P01–P03 E — FR-008 | [P01 catalog](products/01-catalog-read-api.md) → [P02 access](products/02-document-access.md) → [P03 UI/PDF tự mở](products/03-staff-products-ui.md) |
 | [05 Policies/PDF](05-policies-contract.md) | E — FR-008/UC-007/NFR-007 | [PL01 read/lookup](policies/01-read-lookup-api.md) → [PL02 access](policies/02-applied-documents-access.md) → [PL03 UI](policies/03-lookup-dossier-ui.md) → [PL04 lifecycle](policies/04-viewer-lifecycle.md) |
 | [06 Notifications](06-notifications-contract.md) | Handoff/Ticket E — FR-013; producer Ticket I07 còn P | [NO01 recipient/API](notifications/01-recipient-read-api.md) → [NO02 UI/realtime](notifications/02-center-realtime-ui.md); Ticket do TK05 |
-| [07 Tickets Staff](07-tickets-contract.md) | TK01–TK05 E — FR-010; read/Accept/status/UI/events | [TK01 scope/model](tickets/01-scope-model-contract.md) → [TK02 read](tickets/02-staff-read-api.md) → [TK03 accept](tickets/03-accept-command.md) → [TK04 UI](tickets/04-list-detail-ui.md) → [TK05 events](tickets/05-notification-events.md); [I07 tạo/xác nhận Ticket](tickets/06-agent-confirmation.md) chờ Agent |
-| [08 Copilot](08-copilot-contract.md) | P — FR-007/012, chờ Agent | [CP01 contract](copilot/01-task-context-contract.md) → [CP02 service](copilot/02-core-agent-service.md) → [CP03 panel](copilot/03-panel-citations.md) → [CP04 test code](copilot/04-agent-e2e.md); [context tùy phạm vi](copilot/05-linked-policy-context.md) |
+| [07 Tickets Staff](07-tickets-contract.md) | TK01–TK05 E — FR-010; read/Accept/status/UI/events | [TK01 scope/model](tickets/01-scope-model-contract.md) → [TK02 read](tickets/02-staff-read-api.md) → [TK03 accept](tickets/03-accept-command.md) → [TK04 UI](tickets/04-list-detail-ui.md) → [TK05 events](tickets/05-notification-events.md); [I07 hai luồng tạo Ticket](tickets/06-agent-confirmation.md): source có, còn review; nguồn Agent cần tích hợp |
+| [08 Copilot](08-copilot-contract.md) | P — FR-007/012, chờ Agent | [CP01 contract](copilot/01-task-context-contract.md) → [CP02 service](copilot/02-core-agent-service.md) → [CP03 panel](copilot/03-panel-citations.md) → [CP04 test code](copilot/04-agent-e2e.md) |
 
 ## 2. Baseline và phần tiếp theo
 
 **TK01–TK05 đã có trong main 05/11**, giữ các phase làm nguồn bảo trì và chứng cứ từng phạm vi. Tiếp theo là Agent/Copilot và producer I07 theo Agent Design + plan; không triển khai lại nền Ticket hoặc báo nguồn tạo Ticket từ AI đã có chỉ từ fixture/read UI.
 
-Nguồn Ticket chưa có producer I07 nên UI có thể rỗng nếu không có dữ liệu. Fixture kiểm thử cô lập không thay seed dùng chung; không thêm endpoint tạo Ticket giả hoặc suy quyền OPEN queue từ UI. Trước phần Agent phải qua gates contracts/persistence/transport trong plan.
+Customer Ticket có source tạo thủ công và draft/edit/confirm/list/detail theo I07/T01/T02. Cần hoàn thiện các lỗi review và kiểm chứng từng luồng; tích hợp nguồn Agent cần gates contracts/persistence/transport. Quyền OPEN queue vẫn theo Ticket policy, fixture kiểm thử dùng dữ liệu cô lập.
 
-**Phần còn lại:** Copilot/Agent service/draft I07 có gate riêng; Customer profile edit/Agent confirmation theo [Customer plans](../../customer/plans/README.md). Customer shell/Home/Products/Policies/PDF và login tài khoản được cấp sẵn đã có; tự đăng ký không thuộc MVP. Không làm lại Auth/Customers/Policy/Products/Inbox/Tickets đã có, trừ lỗi hồi quy được kiểm chứng.
+**Phần còn lại:** Copilot/Agent service/draft I07 có gate riêng; Customer xem hồ sơ chỉ đọc theo C08/PF01/PF02; Agent confirmation theo [Customer plans](../../customer/plans/README.md). Customer shell/Home/Products/Policies/PDF và login tài khoản được cấp sẵn đã có; tự đăng ký không thuộc MVP. Không làm lại Auth/Customers/Policy/Products/Inbox/Tickets đã có, trừ lỗi hồi quy được kiểm chứng.
 
 ```mermaid
 flowchart TD
@@ -41,7 +41,7 @@ flowchart TD
 
 ## Phần còn lại theo chức năng
 
-Giữ ID G01–G10 để truy vết; checklist chi tiết nằm tại chức năng sở hữu. Đây chỉ là mục lục, không một gap report hoặc plan Release riêng.
+Giữ ID G01–G09 để truy vết; checklist chi tiết nằm tại chức năng sở hữu. Đây chỉ là mục lục, không một gap report hoặc plan Release riêng.
 
 | ID | Contract sở hữu |
 | --- | --- |
@@ -52,7 +52,7 @@ Giữ ID G01–G10 để truy vết; checklist chi tiết nằm tại chức nă
 | G05 | [Auth/session và regression](01-auth-contract.md#phần-còn-lại-theo-chức-năng) |
 | G06 | [Copilot CP01–CP04](08-copilot-contract.md#phần-còn-lại-theo-chức-năng) |
 | G07 | [Notifications/Ticket events](06-notifications-contract.md#phần-còn-lại-theo-chức-năng) |
-| G08–G10 | [Customer phạm vi riêng, tests theo chức năng và mở rộng chưa chọn](00-staff-contract.md#phần-còn-lại-theo-chức-năng) |
+| G08–G09 | [Customer phạm vi riêng và tests theo chức năng](00-staff-contract.md#phần-còn-lại-theo-chức-năng) |
 
 ## 3. Quy tắc triển khai code
 

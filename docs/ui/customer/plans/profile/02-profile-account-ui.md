@@ -1,127 +1,35 @@
-# PF02 — Profile editor và Account Customer
+# PF02 — Hồ sơ chỉ đọc và Account Customer
 
-04/11/2026 · **Cập nhật 13/11/2026** · [C08](../08-profile-contract.md) · Cần H01+[PF01](01-self-edit-core.md).
+**Phạm vi chốt 13/11/2026, phương án A:** Customer xem hồ sơ và Staff phụ trách, dùng chức năng đổi mật khẩu/đăng xuất hiện có. [C08](../08-profile-contract.md) · [PF01](01-owner-read-api.md).
 
-> [!NOTE]
-> Theo quyết định chốt tại PF01 (13/11/2026): Hồ sơ cá nhân người dùng **chỉ hiển thị, không cho phép người dùng tự sửa**. Giao diện hồ sơ tập trung vào hiển thị đầy đủ, an toàn, dễ đọc (Read-only view) cùng vùng liên hệ Staff và quản lý mật khẩu/bảo mật tại `/account`, không hiển thị form Edit/Save thông tin cá nhân.
+## 1. Bố cục và dữ liệu
 
-## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+Customer Account hiển thị tên, mã tài khoản, email, phone, ngày sinh và địa chỉ từ GET own profile. Các giá trị thiếu hiển thị `Not provided`. Staff contact theo trạng thái availability từ Core. Thông tin hồ sơ trình bày ở chế độ chỉ đọc, không có Edit/Save/Cancel.
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+Đổi mật khẩu dùng vùng Security tại `/account`, logout theo Auth hiện có. Những thao tác này có API và trạng thái riêng với hồ sơ cá nhân.
 
-**Thay đổi của phase:** Editor lấy baseline từ self-read có quyền, không từ DTO Staff đã che. Rà customer-account/editor, clear nháp khi đổi actor; không gửi placeholder mask trong PATCH.
+| Bảng/dữ liệu | Thao tác của UI | Ảnh hưởng |
+| --- | --- | --- |
+| users, customer_profiles | Hiển thị projection self-read | Account, Home và customer labels |
+| staff_assignments, staff_profiles | Hiển thị contact từ Core | Staff khả dụng hoặc trạng thái thiếu phân công |
+| users, auth_sessions | Gọi Auth khi đổi mật khẩu/logout | Phiên và actor lifecycle |
 
-**Kiểm thử cần bổ sung, chưa chạy:** DOM/network: baseline, Cancel/refresh/conflict đúng; raw không vào URL/analytics hoặc state của actor kế tiếp.
+PF02 dùng schema hiện có. Không có editor hồ sơ, PATCH self-profile hoặc dependency `profileVersion` trong phase này.
 
-## Data model và phạm vi ảnh hưởng
+## 2. Vị trí code và API
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+| Vị trí từ root repo | Trách nhiệm |
+| --- | --- |
+| [customer-account.tsx](../../../../../apps/web/src/components/customer-account.tsx) | Thẻ thông tin chỉ đọc và vùng Account |
+| [customer-api.ts](../../../../../apps/web/src/lib/customer-api.ts) | GET own profile |
+| [auth-api.ts](../../../../../apps/web/src/lib/auth-api.ts) | Đổi mật khẩu, logout và phiên |
+| [auth-screen.tsx](../../../../../apps/web/src/components/auth-screen.tsx) | Actor/session lifecycle |
 
-| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
-| --- | --- | --- | --- | --- |
-| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| users + customer_profiles | users.id/account_code/email/phone/status/updated_at; customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc own profile | CustomerProfile.user_id/role → User.id/role; owner actor từ session, không nhận customerId tự chọn | Cao — Customer header/Home/profile và Staff customer projection dùng chung dữ liệu |
-| users + customer_profiles | users.phone/updated_at; customer_profiles.full_name/birth/address; profile_version — P chưa có | PATCH ghi dự kiến, profile_version DDL mới | Unique phone; owner FK; expectedProfileVersion riêng, không dùng assignment_version/User.updated_at thay | Cao — mọi writer hồ sơ/operator phải tăng cùng profile_version; Staff Customers/Home/chat labels đọc dữ liệu này |
+Dùng `GET /api/v1/customers/me`, `POST /api/v1/auth/change-password` và `POST /api/v1/auth/logout` theo contract hiện có. Refresh/retry cập nhật vùng hồ sơ tại chỗ, không F5. Response cũ không ghi đè dữ liệu của actor mới; logout/401 xóa dữ liệu riêng.
 
-**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng. PATCH/profile_version vẫn P theo PF01.
+Mức ảnh hưởng trung bình ở render/client types, cao khi sửa actor/session hoặc projection dùng chung.
 
-**Nhất quán và hồi quy:** Form giữ draft khi refetch/409/network. Change-password/logout dùng Auth E, không gộp profile PATCH với password transaction. Kiểm dirty/focus/null/unique phone và luồng read-only khi PATCH chưa có.
-
-## 1. Vị trí và bố cục
-
-Đề xuất `app/customer/profile/page.tsx`, `components/customer-profile-editor.tsx`, helper Customer trong `lib/auth-api.ts` hoặc client hiện đang sở hữu profile, không tạo API wrapper trùng. Profile card tên/avatar/chỉ dẫn ngắn; thông tin định danh readonly, các field được phép có Edit/Save/Cancel. Staff contact vùng riêng theo availability. Security/Change password dùng component/API đang chạy tại `/account`; không copy form Staff hoặc thay password policy.
-
-| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
-| --- | --- | --- | --- | --- |
-| [apps/web/src/components/customer-account.tsx](<../../../../../apps/web/src/components/customer-account.tsx>) | Hiện có | Own profile/password, P editable form | Trung bình | Account và Home/sidebar labels |
-| [apps/web/src/lib/customer-api.ts](<../../../../../apps/web/src/lib/customer-api.ts>) | Hiện có | Own projection, P PATCH/profile token | Cao | Staff client cùng module nếu được tái sử dụng |
-| [apps/web/src/lib/auth-api.ts](<../../../../../apps/web/src/lib/auth-api.ts>) | Hiện có | Password/logout đã có, giữ contract | Cao | Cả Staff và Customer |
-| [apps/web/src/components/auth-screen.tsx](<../../../../../apps/web/src/components/auth-screen.tsx>) | Hiện có | Actor/session lifecycle | Cao | Không mất draft vì focus refresh |
-
-## 2. API/state
-
-GET `/customers/me` E, version mới từ PF01 P; PATCH chỉ changedFields+expectedProfileVersion, không gửi field disabled để server bỏ qua. Birth date-only, field nullable xóa bằng null, phone utility đồng nhất. Edit giữ baseline/token, dirty state, pending disable; Cancel không request và trả focus về Edit. Same-actor refresh không overwrite form dirty; có bản mới thì báo conflict cần review, không auto cập nhật token sau lưng.
-
-200 update projection/baseline/token và thông báo thành công tại vùng, không contact-admin footer thừa.409 version giữ bản nháp, cho reload dữ liệu server rồi người dùng đối chiếu/nhập lại, không auto retry token mới; xung đột phone chỉ thông báo field không khả dụng. Timeout chưa rõ kết quả GET reconcile theo PF01, không báo saved chỉ vì HTTP timeout hoặc tự merge phiên bản mới.401/actorchange xóa dữ liệu riêng draft;429 chờ; retry mạng khôngF5. Trước nav bỏ form đang có thay đổi có cảnh báo có ý nghĩa, không chặn thao tác vô cớ.
-
-```mermaid
-flowchart TD
-  A[GET profile + version] --> B[Read view]
-  B --> C[Edit, giữ baseline]
-  C --> D[PATCH changed fields]
-  D -->|200| E[Projection mới + Saved]
-  D -->|409| F[Giữ draft, review server data]
-  D -->|Timeout| G[GET đối chiếu, chưa tự tuyên bố thành công]
-  C --> H[Cancel không mutation]
-```
-
-## 3. Test cases
-
-Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
-
-### PF02-T01 — Edit/Save/Cancel và body tối thiểu
-
-**Lớp kiểm thử:** Browser dự kiến.
-**Điều kiện và dữ liệu:** PF01 đã có; C-A mở profile version n, tên/phone/birth/address synthetic.
-
-**Các bước:**
-
-1. Dùng Tab mở Edit, đổi một field rồi Cancel.
-2. Mở lại, đổi name/birth và Save.
-3. Kiểm PATCH body và focus.
-
-**Kết quả mong đợi:** Cancel không mutation, trả focus; Save chỉ changed fields+version, readonly fields không gửi; không F5.
-
-### PF02-T02 — Draft không bị refresh hoặc conflict ghi đè
-
-**Lớp kiểm thử:** Browser + API mock dự kiến.
-**Điều kiện và dữ liệu:** Hai context C-A, tab 1 có nháp chưa lưu.
-
-**Các bước:**
-
-1. Tab2 lưu bản mới.
-2. Phát update nền tab 1 rồi Save bằng token cũ.
-3. Chọn review dữ liệu server theo UI.
-
-**Kết quả mong đợi:** Nháp giữ nguyên,409 được review rõ; không auto đổi token rồi ghi đè server hoặc tự merge PII.
-
-### PF02-T03 — Unknown, phone conflict và 401
-
-**Lớp kiểm thử:** Browser + API mock dự kiến.
-**Điều kiện và dữ liệu:** Inject network ACK mất/phone conflict/429/401 theo từng fixture.
-
-**Các bước:**
-
-1. Save và ngắt ACK rồi kiểm GET reconcile.
-2. Thử phone không khả dụng và 429.
-3. Logout/401 khi response pending.
-
-**Kết quả mong đợi:** Không Saved giả; field conflict không lộ người khác; cooldown theo contract; session change clear nháp/response cũ.
-
-### PF02-T04 — Null và mobile/account regression
-
-**Lớp kiểm thử:** Browser dự kiến.
-**Điều kiện và dữ liệu:** C-A chưa có birth/address, không Staff khả dụng; viewport 375px.
-
-**Các bước:**
-
-1. Edit field nullable rồi xóa bằng null.
-2. Dùng zoom 200% và keyboard.
-3. Mở Change password/logout hiện có.
-
-**Kết quả mong đợi:** Không dữ liệu/contact giả; controls/focus hợp lệ; password/session/logout không hồi quy.
-
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
-
-- [ ] C08/FR-002 cập nhật phần sửa chính mình, không đánh dấu KYC/emailchange xong.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
-## Sequence diagram
-
-**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
+## 3. Luồng
 
 ```mermaid
 sequenceDiagram
@@ -129,23 +37,38 @@ sequenceDiagram
     participant W as Web
     participant C as Core
     participant D as PostgreSQL
-    U->>W: Xác nhận thao tác
-    W->>C: PATCH /customers/me sau Save với baseline version
-    C->>D: Kiểm session, CSRF và khóa self và optimistic concurrency
-    D-->>C: Quyền, version và state hiện hành
-    alt Không đủ quyền hoặc version stale
-        C-->>W: 401, 403, 404 hoặc409 an toàn
-        W-->>U: Giữ nháp phù hợp và review trạng thái
-    else Hợp lệ
-        C->>D: Update profile nếu token còn đúng
-        D-->>C: COMMIT
-        C-->>W: 200 projection mới,409 giữ nháp để review
-        W-->>U: Cập nhật sau ACK
-    end
-    opt Timeout hoặc mất ACK
-        W->>C: GET current state hoặc receipt theo contract
-        C->>D: Kiểm lại quyền và đọc kết quả
-        C-->>W: Current state, không tự cấp quyền mới
-        W-->>U: Review trước khi ghi lại
+    U->>W: Mở hồ sơ
+    W->>C: GET /customers/me
+    C->>D: Kiểm session, role và đọc own profile
+    D-->>C: Hồ sơ và contact theo quyền
+    C-->>W: Projection Customer
+    W-->>U: Hiển thị chỉ đọc
+    opt Refresh hoặc invalidation
+        W->>C: GET /customers/me
+        C-->>W: Projection hiện hành
+        W-->>U: Cập nhật tại chỗ
     end
 ```
+
+## 4. Bổ sung bảo vệ dữ liệu — P
+
+Render DTO self-read do Core cấp, không ghép raw profile từ endpoint Staff. Rà label, tooltip, copy và state theo [ma trận dữ liệu Customer](../../../../configuration-and-data.md#customer-sensitive-data). Masking còn là phần chuẩn bị triển khai.
+
+## 5. Test cases
+
+Các ca sau là đặc tả hồi quy, chưa chạy lại trong lần sửa tài liệu.
+
+| Mã | Lớp | Thao tác | Kết quả mong đợi |
+| --- | --- | --- | --- |
+| PF02-T01 | Browser/network | Mở hồ sơ và dùng bàn phím | Giá trị chỉ đọc; không có Edit/Save/Cancel hoặc request PATCH hồ sơ |
+| PF02-T02 | Browser/API mock | Refresh, lỗi mạng và retry | Cập nhật đúng vùng, không F5 hoặc thông báo lưu hồ sơ |
+| PF02-T03 | Browser/API mock | Response cũ tới sau logout/đổi actor | Xóa dữ liệu riêng và bỏ response cũ |
+| PF02-T04 | Browser | Thiếu birth/address hoặc Staff không khả dụng | Not provided và contact state đúng; keyboard/mobile/zoom 200% sử dụng được |
+| PF02-T05 | Browser/gateway | Đổi mật khẩu và logout qua Account | Auth/session theo contract hiện có; không phát sinh mutation hồ sơ |
+
+## 6. Checklist
+
+- [x] Phạm vi hồ sơ Customer chỉ đọc đã được duyệt.
+- [x] Component Account hiển thị dữ liệu chỉ đọc đã có trong source.
+- [ ] Chạy hồi quy PF02 cho read-only, refresh và actor lifecycle.
+- [ ] Kiểm DOM/network cho masking khi Core triển khai projection mới.

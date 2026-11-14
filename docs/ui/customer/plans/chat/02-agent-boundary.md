@@ -1,14 +1,12 @@
 # CH02 — Contract Core–Agent, durable runs và tool scope
 
-06/11/2026 · **Đề xuất, chưa triển khai API Agent thật** · [C06](../06-chat-contract.md). Theo [Agent Design](../../../../specifications/Agent_Design.md) và [plan](../../../../superpowers/plans/2026-10-31-agent-rag-implementation.md): HTTP + callback JSON đã chọn; HMAC tạm chốt, profile/framework/provider/DDL còn gate review.
+06/11/2026 · **Đề xuất, chưa triển khai API Agent thật** · [C06](../06-chat-contract.md). Theo [Agent Design](../../../../specifications/Agent_Design.md) và [plan](../../../../superpowers/plans/2026-10-31-agent-rag-implementation.md): HTTP + callback JSON, Starlette + uvicorn và LI-HMAC-SHA256-v1 đã chốt. Model MVP dùng gemini-3.8-flash/gemini-embedding-2, 1536 chiều. Tích hợp Core, DDL và các tiêu chí G1–G4 còn lại tiếp tục được review.
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
-**Thay đổi của phase:** Tách nguồn có quyền khỏi bản context đã giảm/che tại dispatch/history/tool/evidence và mọi model/embedding/summary/repair call, kể cả retry/resume. Alias không cấp quyền; mapping/retention và evidence/error schema phối hợp G1–G4.
-
-**Kiểm thử cần bổ sung, chưa chạy:** Fake boundary/Core: canary mọi nguồn không tới provider ngoài allowlist; processor lỗi không fallback raw, stale attempt không phát output, checkpoint/callback không lộ mapping.
+**MVP B:** sáu quy tắc system prompt và dữ liệu synthetic; quyền/scope/fence và schema theo contract. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#mvp-model-data-policy).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -62,7 +60,15 @@ Interfaces **P**, ánh xạ tên/DTO với contract G1 trước code; không tha
 
 ## 4. Fence, citations và business writes
 
-Khi request handoff commit, Core chặn Agent append từ PENDING_HANDOFF; result đến muộn không được công bố dù inference đã xong. Recheck controlVersion/attempt/routing/owner khi đọc tools và nhận kết quả; protocol chặn stale checkpoint writer theo G2. Core vẫn kiểm quyền API hiện hành; chính sách tự dừng/tiếp tục task khi logout/hết phiên chờ G3. Retry không tạo duplicate tin AI. Citation do code lấy metadata từ evidence_id thật: document/version/title/type/location với pages/clause/anchor phù hợp nguồn; Markdown không bịa trang PDF. D01 đã có quyền mở PDF; citation không tự cấp quyền.
+**Logout/hết phiên — B đã chốt 14/11/2026, tích hợp P.** Core giữ intent/run đã nhận và queued messages, authorize Agent bằng service/run/actor/target tin cậy, kiểm quyền tài khoản/tài nguyên/attempt khi claim, đọc tools và nhận kết quả. API tương tác vẫn kiểm phiên, re-login đọc history/current run bằng phiên mới. CH02 phối hợp Auth kiểm race accept/logout và callback trong thời gian client đã logout. [Chính sách chuẩn](../../../../specifications/Agent_Design.md#agent-logout-session-policy).
+
+**Lượt lỗi/quá hạn — A đã chốt 14/11/2026, tích hợp P.** Khi lượt AI kết thúc vì lỗi kỹ thuật hoặc hết deadline, Core ghi FAILED và UI hiển thị lỗi an toàn. Customer chủ động gửi lại câu hỏi hoặc hỏi tiếp bằng một tin nhắn mới. Lượt lỗi giữ trạng thái kết thúc, hệ thống không tự chạy lại toàn bộ lượt hoặc tạo attempt thay thế. Gửi lại request/kết quả do mất ACK dùng cùng ID và receipt để chống trùng. Retry tạm thời bên trong một lần gọi tool/model vẫn theo ngân sách và chính sách đã chốt. Tin nhắn mới của Customer tạo lượt mới theo quyền hiện hành, tin đã xếp hàng tiếp tục theo FIFO/fence. Reload/reconnect chỉ đối soát trạng thái, không tự chạy lại lượt FAILED. CH02 sở hữu lưu lỗi/history/discovery và fence callback, CH03 hiển thị lỗi. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#failed-turn-policy).
+
+**Chat mới sau Staff — đã chốt 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc.
+
+New AI chat đã có trên Web, Core đã có create với receipt/idempotency. Khác intent tạo mới dùng key mới, retry cùng intent dùng lại key và nhận cùng conversation. Context/checkpoint cuộc cũ không tự đi sang cuộc mới, Staff không kế thừa quyền cuộc AI mới từ grant cuộc cũ. Consent/Accept và fence takeover áp theo luồng hiện hành, nghiệm thu Agent/Core end-to-end còn P. CH02 kiểm context/history view/run/callback theo đúng conversation. Mở lại cuộc cũ đọc/gửi theo capability Core, không tự tạo lượt AI cho cuộc Staff đang hỗ trợ. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
+
+Khi request handoff commit, Core chặn Agent append từ PENDING_HANDOFF; result đến muộn không được công bố dù inference đã xong. Recheck controlVersion/attempt/routing/owner khi đọc tools và nhận kết quả; protocol chặn stale checkpoint writer theo G2. Core vẫn kiểm quyền API hiện hành; B đã chốt 14/11, logout/hết phiên đơn thuần giữ các run đã được Core tiếp nhận tiếp tục xử lý theo quyền hiện hành. Retry không tạo duplicate tin AI. Citation do code lấy metadata từ evidence_id thật: document/version/title/type/location với pages/clause/anchor phù hợp nguồn; Markdown không bịa trang PDF. D01 đã có quyền mở PDF; citation không tự cấp quyền.
 
 Ticket tạo qua [I07](../../../staff/plans/tickets/06-agent-confirmation.md): trusted draft → Customer xem/xác nhận → Core snapshot+outbox; Agent chỉ proposeDraft, không tạo trực tiếp. Summary ghi mốc source sequence/version, không sửa immutable confirmedContent. Handoff suggestion gọi dialog có consent thật, không tự POST request từ text “đồng ý” do LLM diễn giải.
 
@@ -138,6 +144,30 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 3. Kiểm handoff/Ticket business tables.
 
 **Kết quả mong đợi:** Không consent hoặc Ticket tự tạo; lỗi provider/retrieval an toàn, không cam kết Claim/chi trả hoặc citation giả.
+
+### CH02-T05 — Cuộc Staff giữ quyền và fence hiện hành
+
+**P — kiểm tích hợp Agent/Core chưa chạy.** Fixture synthetic có cuộc đã Accept, attempt AI bị takeover vô hiệu và phân công hiện hành. Dừng nhắn, đổi tab/reload/reconnect rồi mở lại cuộc cũ, kiểm allowedActions, send và callback muộn. Sau đó revoke/đổi assignment.
+
+**Kết quả mong đợi.** Việc dừng nhắn không tạo Close/command kết thúc hoặc tự chuyển về AI. Quyền đọc/gửi theo Core và phân công/grant hiện hành, attempt AI cũ tiếp tục bị fence. Revoke/đổi assignment chặn Staff cũ theo policy hiện có.
+
+### CH02-T06 — Customer chủ động mở cuộc AI mới
+
+**P — kiểm tích hợp Agent/Core chưa chạy.** Từ cuộc Staff đang hỗ trợ, Customer chọn New AI chat qua luồng create hiện có. Kiểm retry tạo cuộc, refresh/reconnect, ID/thread/context, callback cuộc cũ và truy cập Staff.
+
+**Kết quả mong đợi.** Intent mới tạo conversation mới, retry cùng key trả cùng ID. Cuộc mới dùng thread/context riêng, không tự kế thừa summary/checkpoint/lịch sử hoặc grant cuộc cũ. Callback tới đúng conversation/run/attempt. Cuộc cũ theo trạng thái và allowedActions hiện hành. Staff chỉ đọc cuộc AI mới sau consent/Accept hợp lệ, Copilot/internal/raw tool metadata nằm ngoài context Customer.
+
+### CH02-T07 — FAILED không tự chạy lại lượt
+
+**P — chưa chạy.** Fixture synthetic có lượt đang chạy, tin khác đã xếp hàng, lỗi Agent và biến thể hết deadline. Kiểm callback RESULT đến muộn, duplicate ERROR, crash/restart, mất ACK dispatch/callback và Customer gửi tin mới.
+
+**Kết quả mong đợi.** Core lưu FAILED terminal đúng một lần, history/discovery báo cùng lỗi. Không dispatch thực thi mới hoặc cấp attempt thay thế cho lượt FAILED. Giao lại cùng request/event được chống trùng. Tin chờ được claim theo FIFO/quyền hiện hành sau fence/revoke ACK, tin Customer gửi lại là lượt mới. RESULT cũ không hồi sinh FAILED hoặc ghi checkpoint trái quyền. Tách ca retry tạm thời theo ngân sách hiện hành với việc chạy lại toàn lượt.
+
+### CH02-T08 — Yêu cầu đã nhận tiếp tục sau logout/hết phiên
+
+**P — chưa chạy.** Fixture synthetic có run đang chạy, tin queued, phiên logout và biến thể hết hạn. Kiểm request accept/logout đồng thời, callback sau logout, claim queued, login lại cùng actor, đổi actor và biến thể quyền tài nguyên/tài khoản bị thu hồi.
+
+**Kết quả mong đợi.** Request được chấp nhận theo thứ tự commit và phiên hợp lệ tại lúc tiếp nhận. Run đã nhận tiếp tục với cùng IDs/budget/deadline, queued theo FIFO và quyền hiện hành. Core lưu kết quả đúng owner, phiên cũ bị chặn Web/API/WS, phiên mới cùng actor xem được lịch sử/current run và không tạo trùng. Actor khác không nhận kết quả. Quyền bị thu hồi theo revoke/fence hiện hành, logout không tự cấp xác nhận Ticket hoặc quyền mới.
 
 **Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
 

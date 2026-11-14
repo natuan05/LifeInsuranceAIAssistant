@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Rà subject/preview/composer; văn bản khách tự nhập vẫn có thể chứa PII. Không rewrite lịch sử/consent vì masking profile; bản dùng model thuộc CH02, browser không gửi raw history sang provider.
 
@@ -30,6 +30,8 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 **Nhất quán và hồi quy:** Core I03/I05 là owner transaction, UI chỉ key/version/consent hợp lệ; WS I06 invalidate rồi REST. Kiểm direct availability, consent/cancel, Accept SYSTEM, send retry và không dựng AI reply giả.
 
 ## 1. Vị trí và UI
+
+**New AI chat sau Staff — quyết định 14/11/2026, UI/create hiện có.** Customer chủ động tạo cuộc AI mới bằng New AI chat. Mở lại cuộc cũ dùng allowedActions Core, dừng nhắn không tạo Close/khóa composer. Intent mới dùng key mới, retry một intent giữ key và đối soát receipt. Context/thread cuộc mới độc lập với lịch sử/summary/checkpoint cuộc cũ, phần tích hợp Agent cần kiểm ở CH02/CH03. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 Triển khai tại `apps/web/src/components/customer-conversations.tsx`, tích hợp trong `CustomerWorkspace` khi mở tab `chat`.
 - Sử dụng các component dùng chung: `customer-handoff-dialog.tsx`, `conversation-composer.tsx`, `conversation-transcript.tsx`.
@@ -137,6 +139,18 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] Đã bỏ nút refresh và đơn giản hóa footer composer theo phản hồi người dùng.
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+### CH01-T05 — Tạo AI chat mới sau trao đổi Staff
+
+**P — ca hồi quy bổ sung chưa chạy.** Qua gateway, từ cuộc đã Accept chọn New AI chat, thử double-click/timeout/đối soát rồi mở lại cuộc cũ. Kiểm DOM, network request và metadata Core.
+
+**Kết quả mong đợi.** Intent mới tạo ID mới với kind AI, retry cùng intent không tạo trùng. Cuộc cũ giữ đúng quyền đọc/gửi, không phát sinh Close hoặc command kết thúc. Staff không tự thấy cuộc AI mới. Context/callback Agent kiểm tiếp theo CH02-T06.
+
+### CH01-T06 — Giữ lịch sử trong MVP
+
+**P — ca hồi quy bổ sung chưa chạy.** Fixture synthetic có cuộc/tin cũ hơn 30 ngày và notification đủ điều kiện cleanup. Mở list/detail/messages nhiều trang, reload/reconnect, tạo New AI chat rồi đọc lại cuộc cũ. Chạy cleanup Notification trên fixture cô lập, kiểm owner khác và Staff bị revoke.
+
+**Kết quả mong đợi.** Lịch sử Conversation/Message còn đầy đủ theo quyền, thứ tự/cursor ổn định và không biến mất do tuổi dữ liệu, New AI chat hoặc Notification cleanup. Notification vẫn theo retention 30 ngày. Ngoài quyền/revoke bị chặn dù bản ghi còn lưu. Fixture của suite được dọn theo quy trình kiểm thử hiện hành. [Chính sách A ngày 14/11](../../../../configuration-and-data.md#mvp-chat-history-retention).
 
 ## Sequence diagram
 

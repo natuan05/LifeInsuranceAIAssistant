@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Popover dùng DTO NO01, không ghép raw profile cho title/copy/tooltip. WS chỉ trigger refetch; không preview nhạy cảm trong browser storage/actor khác.
 
@@ -17,16 +17,18 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Đọc | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — không có recipient Customer; lọc current target scope trước cursor |
+| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Đọc | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — luồng Staff dùng recipient_staff_id; bảng chung đã có recipient_customer_id theo N01/N02; lọc current target scope trước cursor |
 | conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
 | support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
 | notifications | id/recipient_staff_id/is_read | POST read cập nhật is_read | Recheck recipient và target, lặp lại idempotent; không sửa ticket/conversation | Trung bình — read notification không Accept Ticket/chat hoặc read receipt tin nhắn |
 
-**Schema/migration:** Không migration; không thêm unread counts hoặc Customer recipient.
+**Schema/migration:** NO02 không cần migration riêng; dùng recipient Staff trong bảng Notification chung đã có recipient Customer theo N01/N02. Không thêm API tổng unread từ việc triển khai UI.
 
 **Nhất quán và hồi quy:** UI gọi NO01, nhận WS invalidation rồi REST recheck. Không đổi delivered_at hoặc lifecycle Ticket/chat khi click. Kiểm fixed popover/focus/Escape/deep link và mất assignment.
 
 ## 1. Phạm vi và model
+
+Notification Staff có cùng retention 30 ngày với Customer theo quyết định 13/11/2026; read/unread không kéo dài thời hạn. Sau refetch, UI bỏ mục đã bị cleanup và tính lại badge theo dữ liệu đã tải; Ticket/Message nguồn giữ lifecycle riêng. Kiểm cleanup/API theo [NO01](01-recipient-read-api.md).
 
 NO01/I06; chuông hiện trong Inbox, không dashboard/count endpoint riêng.
 
@@ -47,6 +49,8 @@ Prefix REST `/api/v1`; `E` là runtime, không endpoint đề xuất mới.
 Dùng A27/A28; cursor/load more, read/open request. GET target sau click recheck metadata gate; pending không transcript. Session/CSRF từ auth boundary hiện có. WS receive-only chỉ invalidation, không mang content hoặc cấp quyền.
 
 ## 4. Luồng và trạng thái
+
+Theo phương án A, tin mới trước khi Staff đọc chat có thể cập nhật cùng notification id và chuyển isRead từ true về false. Sau invalidation/refetch, UI cập nhật mục đó và badge, không giữ trạng thái đọc cũ hoặc nhân đôi mục. Kiểm mark-read/read-all rồi nhận tin mới, đọc chat và response muộn theo N02-T05/T10; phần consumer còn cần sửa theo NO01.
 
 Mở chuông → list loading/empty/error → chọn notification → mark read → mở request đúng id. Escape/Close trả focus; mất quyền xóa row/target; reconnect/visible/online REST resync. Không yêu cầu F5; notification error không làm dừng gửi chat.
 

@@ -1,60 +1,39 @@
-# C07 — Ticket Hỗ trợ Customer (Agent gợi ý & Form tạo chủ động)
+# C07 — Customer Tickets
 
-04/11/2026 · **Cập nhật quyết định chốt 13/11/2026** · C07 · [I07 canonical](../../staff/plans/tickets/06-agent-confirmation.md).
+**Quyết định 13/11/2026, đã xác nhận phương án A:** Customer tạo Ticket thủ công hoặc từ draft Agent, được sửa draft trước xác nhận. Ticket mới có trạng thái OPEN. [I07 canonical](../../staff/plans/tickets/06-agent-confirmation.md).
 
-> [!IMPORTANT]
-> **Quyết định người dùng chốt (13/11/2026):**
-> 1. **Luồng tạo Ticket:** Hỗ trợ **cả hai luồng**:
->    - Luồng 1: AI Agent phân tích ngữ cảnh hội thoại chat và đề xuất tạo Ticket $\rightarrow$ Khách hàng xem xét & xác nhận.
->    - Luồng 2: Khách hàng chủ động tự mở Form tạo Ticket trên giao diện (`customer-tickets.tsx`).
-> 2. **Chỉnh sửa bản thảo (Draft Edit):** Khách hàng **được phép chỉnh sửa nội dung bản thảo** (tiêu đề, mô tả, gắn hợp đồng) trước khi xác nhận tạo Ticket.
-> 3. **Lưu trữ bản thảo & Migration:** Tạo migration mới cho bảng `ticket_drafts` (TTL 30 phút) và bổ sung cột `source_draft_id`, `confirmed_content` (JSONB snapshot) vào bảng `support_tickets`.
-> 4. **Quy tắc phân công & Trạng thái ban đầu:** Khi khách hàng tạo Ticket, **dù khách hàng đã có hay chưa có chuyên viên phụ trách, Ticket luôn khởi tạo ở trạng thái `OPEN`** (chờ chuyên viên kiểm tra và bấm Tiếp nhận / Accept).
+## 1. Phạm vi và phase
 
-## Truy vết data model và vị trí code theo phase
-
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
-| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
-| --- | --- | --- | --- |
-| [T01 — Customer contract trong Core Ticket I07](tickets/01-confirmation-core-contract.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Ghi Ticket OPEN, confirmedContent); ticket_drafts (DDL mới: lưu draft, revision khi sửa, TTL 30p); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | `apps/core/src/tickets/controllers/customer-ticket.controller.ts`; `apps/core/src/tickets/services/ticket-draft.service.ts`; `apps/core/src/tickets/services/ticket.service.ts` | Cao — Customer review/edit, manual form, creation idempotency |
-| [T02 — Review Ticket và kết quả đã lưu](tickets/02-review-result-ui.md) | support_tickets (Đọc/Ghi); ticket_drafts (Đọc/Sửa/Xác nhận) | `apps/web/src/components/customer-ticket-confirmation.tsx`; [apps/web/src/components/customer-tickets.tsx](<../../../../apps/web/src/components/customer-tickets.tsx>) | Cao — Customer chat, manual form modal, Ticket list & detail |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
-
-## 1. Ranh giới
-
-FR-009/012, phía Staff FR-010; handoff không Ticket, Ticket không grant transcript. Model SupportTicket hiện có cần migration bổ sung draft/confirmedContent. **Staff I07 là contract Core chung**, Customer không xây Ticket service/schema thứ hai.
-
-| Phase | Kết quả | Gate |
+| Phase | Trách nhiệm | Phụ thuộc |
 | --- | --- | --- |
-| [T01](tickets/01-confirmation-core-contract.md) | Phần Customer của Core I07: draft/read/edit-revision/confirm/manual-create/reconcile/list/detail | Schema migration draft + confirmedContent; Agent proposal boundary |
-| [T02](tickets/02-review-result-ui.md) | Form tạo thủ công, popup review/chỉnh sửa draft, xác nhận rõ ràng, danh sách vé và chi tiết vé | T01 Core API thật |
+| [T01 — Core Customer Ticket](tickets/01-confirmation-core-contract.md) | Draft read/edit/confirm, manual create, receipt, own list/detail | Contract và transaction chung I07 |
+| [T02 — Customer Ticket UI](tickets/02-review-result-ui.md) | Popup review/sửa/xác nhận, form thủ công, list/detail và lỗi/retry | T01; trusted Agent proposal cho luồng Agent đầy đủ |
 
-## 2. Scope
+Form thủ công là chức năng Customer trong phạm vi đã chọn. Handoff/Direct/Accept chat là luồng riêng. Staff xử lý Ticket theo quyền recipient/assignment.
 
-Giữ TicketStatus OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED. Mọi Ticket do khách hàng tạo (từ Agent gợi ý hay Form thủ công) **đều khởi tạo với status `OPEN`**. Customer thấy trạng thái persisted từ Core, không ngầm định Staff đã nhận chat.
+## 2. Dữ liệu và vị trí code
 
-- [ ] T01 migration `ticket_drafts`, snapshot `confirmedContent`, revision khi sửa, creation idempotency tests pass.
-- [ ] T02 review modal cho phép sửa nội dung, form tạo thủ công, list/detail real API tests pass.
-- [ ] Quy tắc khởi tạo status `OPEN` cho mọi ticket mới được bảo đảm trong code và tests.
+| Dữ liệu | Thao tác | Vị trí từ root repo |
+| --- | --- | --- |
+| ticket_drafts | Owner read/edit/consume, TTL/version/hash | `apps/core/src/tickets/services/ticket-draft.service.ts` |
+| support_tickets, audit_logs, outbox_events | Tạo OPEN + snapshot/audit/outbox atomic, own list/detail | `apps/core/src/tickets/services/ticket.service.ts` |
+| Customer API | Xác thực/validation/CSRF theo I07 | `apps/core/src/tickets/controllers/customer-ticket.controller.ts` |
+| Web | Hai luồng tạo, theo dõi kết quả và receipt | `apps/web/src/components/customer-tickets.tsx`, `customer-ticket-confirmation.tsx`, `lib/ticket-api.ts` |
 
-## UX và baseline của chức năng
+Source có migration draft/snapshot và các thành phần trên. Các lỗi review về xác nhận/replay/concurrency cùng ánh xạ summary Agent được theo dõi tại I07. Mức ảnh hưởng cao ở nội dung xác nhận, snapshot, quyền và notification.
 
-## Luồng đích
+## 3. Luồng
 
-1. **Luồng qua Agent gợi ý:** Agent gợi ý tạo Ticket $\rightarrow$ Khách hàng mở modal Review $\rightarrow$ Khách hàng có thể **chỉnh sửa nội dung (tiêu đề, mô tả)** nếu cần $\rightarrow$ Xác nhận $\rightarrow$ Core kiểm tra chống trùng (idempotency) $\rightarrow$ Tạo Ticket trạng thái **`OPEN`** + outbox commit $\rightarrow$ Hiển thị mã Ticket.
-2. **Luồng tạo thủ công:** Khách hàng bấm "Tạo yêu cầu mới" trên trang Tickets $\rightarrow$ Điền thông tin (tiêu đề, mô tả, chọn hợp đồng liên quan) $\rightarrow$ Gửi lên Core $\rightarrow$ Core tạo Ticket trạng thái **`OPEN`** + outbox commit $\rightarrow$ Cập nhật danh sách vé.
+1. **Từ Agent:** nhận draft server → xem → tùy chọn sửa và lưu revision → xác nhận version hiện hành → Core commit Ticket OPEN.
+2. **Thủ công:** nhập title/description/policy tùy chọn → gửi form với request key → Core commit Ticket OPEN.
+3. List/detail hiển thị trạng thái persisted. Có Staff phụ trách vẫn tạo OPEN; Staff Accept chuyển sang IN_PROGRESS.
+4. Timeout đối soát bằng key gốc. Tạo Ticket không tự chia sẻ chat AI.
 
-## Trạng thái riêng
+**Nội dung draft Agent, phương án A:** giữ đủ sáu nhóm request/context/customer_statements/verified_findings/attempted_steps/pending_issues và nguồn qua review, revision và snapshot confirmedContent. Cách lưu/projection/hash được mô tả tại [I07](../../staff/plans/tickets/06-agent-confirmation.md#ticket-handoff-content). Title/description phục vụ mô tả nhanh; form thủ công dùng dữ liệu Customer tự gửi.
 
-- Mọi Ticket mới tạo từ phía Customer luôn có trạng thái ban đầu là **`OPEN`**.
-- Chuyên viên tư vấn phụ trách hoặc điều phối viên sẽ kiểm tra danh sách Ticket `OPEN`, sau đó bấm **Tiếp nhận (Accept)** để chuyển sang `IN_PROGRESS` (hoặc `ASSIGNED`).
-- TicketStatus và ConversationStatus hoàn toàn độc lập; đóng/mở Ticket không ảnh hưởng trạng thái phiên chat.
+## 4. Checklist
 
-## Phạm vi và checklist
-
-- [ ] Schema migration: thêm bảng `ticket_drafts` và các trường `source_draft_id`, `confirmed_content` cho `support_tickets`.
-- [ ] API Core: `customer-ticket.controller.ts` hỗ trợ GET draft, PUT/PATCH edit draft, POST confirm ticket từ draft, POST manual create ticket, GET list/detail ticket của Customer.
-- [ ] Quy tắc nghiệp vụ: status ban đầu luôn là `OPEN`.
-- [ ] Frontend Web: Nối `customer-tickets.tsx` vào API thật, hỗ trợ tạo thủ công và popup xác nhận/chỉnh sửa draft từ Agent.
+- [x] Phạm vi hai luồng, chỉnh sửa draft, own list/detail và OPEN đã chốt.
+- [x] Có code schema/API/UI trong source.
+- [ ] Hoàn thiện các lỗi review I07 và chạy tests T01/T02.
+- [ ] Nghiệm thu luồng Agent khi trusted proposal và summary mapping hoàn tất.

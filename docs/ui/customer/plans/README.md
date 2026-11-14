@@ -27,10 +27,10 @@ Baseline hiện tại:
 | [C03 — Products](03-products-contract.md) | Staff P01/P02 Core chung → PR01 list/detail UI → PR02 PDF chung | Đã triển khai | Không |
 | [C04 — Policies](04-policies-contract.md) | PO01 ownership API → PO02 list/detail UI; PDF do C05 | Đã triển khai | Không |
 | [C05 — Documents](05-documents-contract.md) | PO01 → D01 policy catalog/access → D02 viewer; PR02 tái dùng viewer lifecycle | Đã triển khai | Không |
-| [C08 — Profile](08-profile-contract.md) | PF01 Core + concurrency model → PF02 editor/account UI | Đã có xem, PF01/02 sửa | Không |
+| [C08 — Profile](08-profile-contract.md) | PF01 own read API → PF02 hồ sơ chỉ đọc/Account | GET own profile và UI chỉ đọc đã có | Không |
 | [C06 — Chat](06-chat-contract.md) | CH01 ghép UI trên I03–I06; CH02 Agent boundary → CH03 Agent answers/citations | CH01 đã có; CH02/03 còn P | CH01 không; CH02/03 có |
-| [C07 — Tickets](07-tickets-contract.md) | T01 triển khai Core chung theo Staff I07 → T02 Customer review/result | I07/T01/T02 còn P; UI mẫu không là nghiệp vụ đã có | Nguồn draft thật phụ thuộc Agent |
-| [C09 — Notifications](09-notifications-contract.md) | N01 scope/recipient decision → N02 center nếu được chốt | Có Toolbar popover/client state; chưa Core Customer notification | Chưa đưa vào đường triển khai bắt buộc |
+| [C07 — Tickets](07-tickets-contract.md) | T01 Core I07 cho hai luồng → T02 manual/review/edit/confirm/list/detail | Đã chốt hai luồng, tạo OPEN; source có API/UI, còn review và kiểm chứng | Form thủ công độc lập; draft thật cần Agent |
+| [C09 — Notifications](09-notifications-contract.md) | N01 event/recipient/retention → N02 API/chuông/chat read status | Đã duyệt A; source có schema/API/UI, cần hoàn thiện review và tests | Không cần Agent cho nền notification |
 
 ## 3. Thứ tự triển khai
 
@@ -38,7 +38,7 @@ Baseline hiện tại:
 2. **Customer Products (PR01, PR02)**: Đã hoàn tất danh sách, tìm kiếm, xem chi tiết và đọc PDF tài liệu chính thức.
 3. **Owner Policies & Documents (PO01, PO02, D01, D02)**: Đã hoàn tất tra cứu hợp đồng cá nhân, quyền lợi và xem hợp đồng điện tử PDF.
 4. **Chat (CH01)**: Giao diện trò chuyện AI và kết nối chuyên viên đã hoạt động trên nền tảng I03–I06.
-5. **Tiếp theo**: Tích hợp Core–Agent cho CH02/CH03 và Ticket theo đề xuất Agent → Customer xác nhận → Core commit ở I07/T01/T02.
+5. **Tiếp theo**: Tích hợp Core–Agent cho CH02/CH03 và Ticket thủ công hoặc draft Agent → Customer review/sửa/xác nhận → Core commit OPEN theo I07/T01/T02.
 
 ```mermaid
 flowchart TD
@@ -49,12 +49,13 @@ flowchart TD
   O --> PO
   D --> V[D02 PDF UI: Đã xong]
   PO --> V
-  H --> PF[PF02 Profile UI]
-  PC[PF01 Profile Core] --> PF
+  H --> PF[PF02 Hồ sơ chỉ đọc và Account]
+  PC[PF01 API đọc own profile] --> PF
   H --> CH[CH01 Chat: Đã xong]
   AG[CH02 Agent boundary] --> AI[CH03 AI UI]
   CH --> AI
-  AG --> T[T01/T02 cùng I07]
+  AG --> T[T01/T02 Draft Agent cùng I07]
+  H --> M[T01/T02 Ticket thủ công: OPEN]
 ```
 
 ## 4. Tiêu chuẩn chung

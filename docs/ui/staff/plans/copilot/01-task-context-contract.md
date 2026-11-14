@@ -4,11 +4,11 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
-**Thay đổi của phase:** Context có quyền vẫn phải giảm/che trước provider; frozen view giữ source refs và current grant. Alias scoped conversation/run, mapping/retention review cùng checkpoint, không dùng alias làm quyền.
+**Chat AI mới sau Staff — đã chốt 14/11/2026.** Cuộc cũ theo trạng thái/quyền hiện hành, Customer muốn hỏi AI chủ động tạo conversation mới với thread/context riêng. Grant và source view Copilot của cuộc cũ không cấp quyền cuộc AI mới. Core kiểm gate riêng của từng cuộc, revoke/reassignment theo policy hiện có. [Contract và ca hồi quy I03](../inbox/03-handoff-transcript.md#i03-t06--cuộc-ai-mới-có-quyền-độc-lập-với-cuộc-staff-cũ).
 
-**Kiểm thử cần bổ sung, chưa chạy:** Contract/fake: khác Customer không dùng chung mapping; canary không trong model request, processor lỗi/revoke không gửi cached raw.
+**MVP B:** sáu quy tắc system prompt và dữ liệu synthetic; quyền/scope/fence và schema theo contract. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#mvp-model-data-policy).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -42,13 +42,15 @@ Model Conversation.channelType STAFF_COPILOT/linkedContextConvId; source grant I
 | [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Hiện có module; Copilot controller/task adapter còn P | Cao | Không mở public endpoint giả quyền |
 | [apps/agent/](<../../../../../apps/agent>) | Hiện có | Owner phần Agent/checkpoint; chỉ ranh giới cần phối hợp, không triển khai trong đợt tài liệu này | Cao | Service identity, scope tools, durable attempt |
 | `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read/cancel DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
+**Hợp đồng làm ngữ cảnh Copilot — B chốt ngày 14/11/2026.** MVP dùng Policy Lookup để xem hợp đồng. Staff nêu rõ hợp đồng khi hỏi hoặc chuyển sang hợp đồng khác, Copilot dùng câu hỏi và lịch sử được phép để hiểu ngữ cảnh. Khi chưa xác định được hợp đồng thì hỏi lại trước khi đọc dữ liệu riêng. Không bổ sung ô chọn hợp đồng hoặc API đổi `linkedPolicyId`. Số hợp đồng chỉ thu hẹp dữ liệu theo Customer/grant của cuộc đang hỗ trợ, Core kiểm ownership/assignment và phiên bản nguồn trước đọc. Mở Lookup/PDF không thay linkedPolicyId/controlVersion. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection).
+
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-A24 GET `/staff/conversations/:id/copilot`, A25 POST `.../copilot/messages`, A26 POST `.../copilot/summary` vẫn P. Trước code cần chốt request UUID/contextVersion/lastSequence, ACK200/202, task lookup/cancel/timeout/status, safe errors và transport. Không coi task endpoint/checkpoint protocol là đã có chỉ vì đặt tên.
+A24 GET `/staff/conversations/:id/copilot`, A25 POST `.../copilot/messages`, A26 POST `.../copilot/summary` vẫn P. Trước code cần chốt request UUID/contextVersion/lastSequence, ACK200/202, task lookup/timeout/status, safe errors và transport. Không coi task endpoint/checkpoint protocol là đã có chỉ vì đặt tên.
 
 Core cấp context/catalog exact version, Agent gọi Core Business APIs; session/CSRF cho browser, service auth cho Agent. Recheck source transcript grant trước enqueue/tool/return; pending/AI riêng denied. Chính sách summary/citation payload allowlist + retention phải được review. Copilot không soạn nháp câu trả lời Customer. Chưa chọn streaming/polling hay SLA ở phase này.
 

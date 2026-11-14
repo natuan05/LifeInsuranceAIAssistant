@@ -10,13 +10,13 @@ Runtime `/login`, `/customer`, `/account` đã có. `/customer` hiện ghép h�
 
 | Quan hệ | Hệ quả thiết kế |
 | --- | --- |
-| User 1–1 CustomerProfile, User 1–N AuthSession | Actor từ session; profile role CUSTOMER, không nhận userId/role body để sửa người khác |
+| User 1–1 CustomerProfile, User 1–N AuthSession | Actor từ session; profile role CUSTOMER, chỉ đọc hồ sơ của chính actor |
 | CustomerProfile 1–N StaffAssignment | Chỉ contact Staff active khả dụng, không cho Customer chọn/đổi assignment |
 | CustomerProfile 1–N InsurancePolicy N–1 InsuranceProduct | My policies theo owner; sản phẩm inactive không xóa policy lịch sử |
 | Product/Policy/Customer → Document 1–N DocumentVersion | AccessScope hiện chỉ PUBLIC/PRIVATE_POLICY; policy/owner và exact version binding trước cấp link, không có PRIVATE_CUSTOMER |
 | CustomerProfile 1–N Conversation 1–N Message | Own transcript chỉ CUSTOMER_SUPPORT/customer-visible; Copilot/internal không trả Customer |
 | Conversation → SupportTicket | Ticket xác nhận riêng; không tạo từ request/Accept Staff |
-| Notification → StaffProfile | Chưa có recipient Customer; không tái dùng bằng cách giả StaffId |
+| Notification → StaffProfile hoặc CustomerProfile | CHECK đúng một recipient; N01/N02 đã chốt Customer center, own read/read-all và retention 30 ngày chung cho Customer/Staff |
 
 CustomerProfile chỉ có fullName/birth/address/citizenId/assignmentVersion và quan hệ; không profile.updatedAt. User có phone/email/accountCode/status/updatedAt. InsuranceProduct chỉ có name/code/summary/isActive, không pricing/benefit table. Policy financials decimal string/null, dates date-only, snapshot whitelist; không paid/unpaid ledger.
 
@@ -30,7 +30,7 @@ API mới dùng quota DB có operation riêng; mức cụ thể là đề xuất
 
 - Cùng hệ Staff: Tailwind4 prefix `tw:`, Lexend tự host, xanh primary/surface sáng/neutral border, tokens hiện có trong globals.css. Dùng lại token khi đúng nghĩa; không đổi global Staff tokens để Customer đẹp hơn. Không CSS cũ/@apply/inline style hoặc dependency UI mới mặc định.
 - Customer gọn hơn Staff: menu ít mục, tiêu đề dễ hiểu, khoảng trắng nhất quán, một thao tác chính mỗi vùng. Tránh nhiều hộp màu/badge/card trùng số liệu. Không nội dung nghiệp vụ giả để lấp giao diện.
-- Đề xuất nav: Home, Products, My policies, Conversations, Tickets khi có thật; Profile/Account trong account menu. Notifications chỉ sau scope decision. Có thể gộp Home/profile ban đầu; không cần nhét menu chưa triển khai thành nút chết.
+- Đề xuất nav: Home, Products, My policies, Conversations, Tickets khi có thật; Profile/Account trong account menu. Notifications trong phạm vi N01/N02 đã được duyệt. Có thể gộp Home/profile ban đầu; không cần nhét menu chưa triển khai thành nút chết.
 - Responsive: desktop sidebar gọn + content có max-width hợp lý; mobile drawer/list→detail, chat và PDF ưu tiên chiều cao còn lại. Một scroll owner mỗi vùng, tránh cuộn toàn trang lồng viewer không giới hạn.
 - Label tiếng Anh, text/nhãn đầy đủ và trạng thái không chỉ dựa màu. Keyboard, focus ring, aria-current/expanded/live/busy, dialog focus return; kiểm375px/768px/desktop, zoom200%, reduced-motion. Không auto-focus lại khi refresh nền.
 

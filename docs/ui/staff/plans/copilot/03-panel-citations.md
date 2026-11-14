@@ -4,11 +4,9 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
-**Thay đổi của phase:** Panel render kết quả Core đã kiểm, không bổ sung raw profile/khôi phục alias. Citation lược bỏ khác nguyên văn, PDF kiểm quyền riêng; giữ tra cứu/giải thích/tóm tắt, không Use draft.
-
-**Kiểm thử cần bổ sung, chưa chạy:** DOM/network: title/copy/hidden state không rò canary; đổi source/actor/revoke clear, đúng citation version, không quảng bá PDF đã che.
+**MVP B:** sáu quy tắc system prompt và dữ liệu synthetic; quyền/scope/fence và schema theo contract. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#mvp-model-data-policy).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -40,7 +38,7 @@ Panel bên chat đúng mẫu repo UI; tra cứu/giải thích/tóm tắt/citatio
 | --- | --- | --- | --- | --- |
 | [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Hiện có source grant; P adapter Copilot phải gọi lại | Cao | REST/WS transcript và source reassignment |
 | `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read/cancel DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
@@ -50,7 +48,7 @@ Dùng A24–26/task lookup sau khi CP01 chốt contract. Mở citations qua Core
 
 ## 4. Luồng thực hiện
 
-Rail mở panel → source header → history/quick prompts/task state → answer+watermark+citation. Pending source không enable. Đóng/mở/chuyển cuộc giữ đúng scope, không lẫn context; loading/Agent outage/retry/quota/cancel có UI. Revoke xóa nội dung ngoài quyền; không tự gửi Customer. Chính sách task khi logout/hết phiên chờ G3.
+Rail mở panel → source header → history/quick prompts/task state → answer+watermark+citation. Pending source không enable. Đóng/mở/chuyển cuộc giữ đúng scope, không lẫn context; loading/Agent outage/retry/quota và trạng thái Core hủy lượt có UI. Revoke xóa nội dung ngoài quyền; không tự gửi Customer. B đã chốt 14/11, task đã nhận tiếp tục xử lý nền theo quyền hiện hành. Panel xóa nội dung khi phiên hết hiệu lực, login lại cùng actor fetch task/history bằng phiên mới. [Chính sách chuẩn](../../../../specifications/Agent_Design.md#agent-logout-session-policy).
 
 ```mermaid
 flowchart TD

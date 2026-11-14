@@ -318,7 +318,7 @@ Customer tới `/customer`, Staff tới `/staff/customers`; `/staff` redirect v�
 
 Password mới khác cũ, tối thiểu 6 ký tự/tối đa 72 byte UTF-8. Đổi thành công tắt lời nhắc, thu hồi mọi phiên cũ và cấp phiên mới cho thiết bị hiện tại. Phiên website có hạn tuyệt đối 8 giờ.
 
-Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Customers search theo tên/mã/email/phone trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
+Customer chỉ xem hồ sơ mình; Staff chỉ xem khách được phân công. Phạm vi search đã chốt 13/11: chỉ tên/mã Customer trên toàn tập assignment trước phân trang, 10/trang; URL giữ search/page, lỗi tải có Try again. Code hiện còn tìm email/phone và UI còn gợi ý hai trường này; thay đổi theo [CU01/CU02](ui/staff/plans/02-customers-contract.md) chưa triển khai. Policy trong hồ sơ khách đã nối list/detail, PDF chính và tài liệu kèm theo.
 
 Staff có Products và Policy Lookup riêng trong Tools. Tickets hiển thị danh sách rồi mở chi tiết riêng; dropdown status hỗ trợ resolve/close/reopen đúng workflow Core. Notifications ở toolbar chung, popup không nằm trong cột cuộn. Search Products/Customers/Policy Lookup dùng Enter; xóa nội dung rồi Enter để bỏ từ khóa, không có nút Search/Clear. Products tự mở PDF đầu tiên và bộ chọn khi nhiều tài liệu; phiên bản mới chuyển chủ động. Inbox tìm tên/mã khách bằng debounce/Enter, All/Requests/Active không counts. Pending chỉ metadata; Customer đồng ý chia sẻ và Staff Accept mới mở toàn bộ lịch sử Customer-facing của cuộc đó. Direct hợp lệ là luồng riêng; phân công không cho Staff đọc chat AI riêng. Không nút Refresh Inbox/chat hoặc “Message saved.”; ACK/realtime cập nhật đúng vùng, Retry khi lỗi. Handoff/Accept không tạo Ticket.
 
@@ -384,7 +384,7 @@ sequenceDiagram
     participant S as MinIO
     O->>R: Lệnh reset rõ ràng, Core đã dừng
     R->>S: Liệt kê đúng prefix fixture và object versions
-    R->>D: BEGIN, khóa seed, clear 19 bảng app
+    R->>D: BEGIN, khóa seed, clear danh sách reset hiện tại
     R->>D: Tạo 5 tài khoản, hồ sơ và phân công
     R->>S: Upload hoặc kiểm checksum 17 PDF mới
     alt Lỗi seed hoặc storage trước commit
@@ -448,7 +448,7 @@ sequenceDiagram
 <a id="database"></a>
 ## 8. Dữ liệu và migration
 
-DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Có 19 bảng ứng dụng trong business/rag; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
+DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Schema source hiện có 20 bảng ứng dụng trong business/rag, gồm ticket_drafts từ migration 202611130001_customer_ticket_drafts_and_confirmed_content; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
 
 | Nơi lưu | Nội dung |
 | --- | --- |
@@ -461,6 +461,8 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 | Thư mục dữ liệu người dùng ngoài repo, `storage/console.json` | Bản xuất credential console, có thể xuất lại |
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
+
+**Đồng bộ source 14/11.** Dev reset hiện liệt kê 19 bảng và thiếu ticket_drafts. verify-models.mjs còn kiểm cố định 17 bảng. Hai script cần cập nhật/kiểm với schema 20 model và 13 migrations trước nghiệm thu quy trình maintenance. [Theo dõi source](source-review.md).
 
 Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs và Customer owner list/detail/catalog/view/download APIs đã có; UI hai role dùng API đúng scope riêng. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 

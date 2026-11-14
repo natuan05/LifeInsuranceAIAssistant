@@ -22,13 +22,13 @@ FR-010/NFR-001/002/005. Staff đọc/nhận Ticket chỉ khi **active assignment
 
 Ticket không cấp Conversation metadata/transcript grant. Ticket tham chiếu AI riêng không mở quyền đọc AI; conversationId/link không được dùng thay gate I01. Cuộc chat không bị đổi status/controller/controlVersion khi đọc Ticket.
 
-Chỉ ASSIGNED trả allowedActions.accept=true cho TK03 sau này. OPEN/IN_PROGRESS/RESOLVED/CLOSED còn đọc được nếu đúng scope nhưng không tự tạo action nhận/đóng/hoàn tất. Staff phải xác thực tại boundary TK02/TK03; service TK01 nhận actorId đáng tin từ Core, không nhận role từ browser.
+OPEN và ASSIGNED trả allowedActions.accept=true khi đúng scope; Staff Accept chuyển IN_PROGRESS. Các status còn lại đọc theo quyền và transitions của TK03. Staff phải xác thực tại boundary TK02/TK03; service TK01 nhận actorId đáng tin từ Core, không nhận role từ browser.
 
 ## 2. Schema và migration đã triển khai
 
 SupportTicket giữ các trường/quan hệ hiện có và thêm **version Int NOT NULL default0**, CHECK version>=0 qua migration mới 202611040003_ticket_foundation. Đây là migration thứ 8, không thêm bảng; dữ liệu cũ backfill0. Không sửa migration đã apply, xóa Ticket, đổi status/recipient/confirmedAt/AI content hoặc tạo confirmation evidence.
 
-Chưa có updatedAt/confirmedContent/sourceDraftId hay TicketDraft. Quyết định thêm snapshot/draft thuộc I07; không backfill từ aiSummary/extractedDetails. Hiện projection trả confirmationSource=LEGACY_UNVERIFIED và confirmedContent=null; confirmedAt không chứng minh nội dung nào đã được duyệt.
+Schema đã có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. Staff projection hiện còn trả LEGACY_UNVERIFIED/null cho mọi row; I07 cần hoàn thiện phân biệt Ticket mới có snapshot với legacy, không backfill từ aiSummary/extractedDetails.
 
 ## 3. Code và API boundary
 

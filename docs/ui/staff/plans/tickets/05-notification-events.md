@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Ticket+outbox atomic nhưng payload tối thiểu, không nhân bản confirmedContent/PII vào notification/WS/log. Consumer/API recheck recipient.
 
@@ -19,7 +19,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
 | staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
 | support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
-| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Consumer upsert thông báo; API đọc/mark-read theo NO01 | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — không có recipient Customer; lọc current target scope trước cursor |
+| notifications | recipient_staff_id/ticket_id/conversation_id/kind/title/is_read/dedup_key/delivered_at/created_at | Consumer upsert thông báo; API đọc/mark-read theo NO01 | Recipient FK → StaffProfile; unique dedup_key; typed target đúng một loại theo CHECK SQL | Cao — luồng Staff dùng recipient_staff_id; bảng chung đã có recipient_customer_id theo N01/N02; lọc current target scope trước cursor |
 | outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
 
 **Schema/migration:** TK05 đã có SQL CHECK kind/target và status notification (202611050001/202611050002). Không đổi legacy kind=NULL thành bằng chứng xác nhận; không bảng mới.
@@ -30,11 +30,11 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 FR-013/NFR-005/006: Staff nhận thông báo Ticket trong phạm vi quyền hiện hành. TK03 đã emit TICKET_ACCEPTED; consumer TICKET_CREATED đã có nhưng **producer tạo Ticket từ Agent/Customer confirmation I07 chưa có**. Test event synthetic không chứng minh nguồn tạo nghiệp vụ hoàn tất.
 
-Không Customer notification center, transcript read receipt, chat grant, Agent code, broker hoặc cloud fanout.
+TK05 phụ trách notification Staff cho Ticket. Customer center/message read status thuộc N01/N02 đã duyệt; source consumer có nhánh Customer nhưng cần sửa schema event và early return theo N02. Phase này không cấp chat grant hoặc triển khai Agent/broker/cloud fanout.
 
 ## 2. Model, migration và code
 
-19 model giữ nguyên; migration thứ 9 **202611050001_ticket_notifications** mở rộng CHECK kind thành NULL legacy/HANDOFF_REQUESTED/TICKET_CREATED/TICKET_ACCEPTED. Typed handoff bắt buộc conversationId, không ticketId; typed Ticket bắt buộc ticketId, không conversationId. Không sửa cột/bảng hoặc dữ liệu legacy kind=NULL. Typed legacy không hợp lệ khiến migration rollback, không tự sửa dữ liệu. Readiness/operator compatibility cùng baseline mới.
+Tại mốc TK05 ngày 05/11/2026, 19 model giữ nguyên; migration thứ 9 **202611050001_ticket_notifications** mở rộng CHECK kind thành NULL legacy/HANDOFF_REQUESTED/TICKET_CREATED/TICKET_ACCEPTED. Typed handoff bắt buộc conversationId, không ticketId; typed Ticket bắt buộc ticketId, không conversationId. Không sửa cột/bảng hoặc dữ liệu legacy kind=NULL. Typed legacy không hợp lệ khiến migration rollback, không tự sửa dữ liệu. Readiness/operator compatibility cùng baseline mới.
 
 Core:
 - tickets/services/ticket-event.service.ts: source validation, recipient gate, notification upsert.
@@ -67,7 +67,7 @@ Outbox aggregateType=TICKET, aggregateId=Ticket.id, eventType TICKET_CREATED ho�
 
 version integer>=0, ACCEPTED>=1. Consumer tra source bằng eventId/aggregate/type, không tin đối tượng caller; schema sai gây retry/DLQ. Không gửi title/aiSummary/chat/confirmed snapshot/cookie trong event hoặc frame.
 
-Lock sorted users → Customer → assignment → Ticket; recheck Ticket customer/recipient/active assignment và Staff active sau lock. Ticket.version phải >= event.version; ACCEPTED chỉ khi current IN_PROGRESS/RESOLVED/CLOSED. Không recipient/unassigned/ngoài scope thì không tạo thông báo hoặc gửi frame, không mở queue mới. Customer khóa vẫn được Staff phục vụ theo TK01. Reassignment không biến assignment thành quyền nhận Ticket của Staff khác.
+Lock sorted users → Customer → assignment → Ticket; recheck Ticket customer/recipient/active assignment và Staff active sau lock. Ticket.version phải >= event.version; ACCEPTED chỉ khi current IN_PROGRESS/RESOLVED/CLOSED. Không recipient Staff/unassigned/ngoài scope thì không tạo notification hoặc frame cho Staff đó; việc này không được bỏ qua notification Customer theo N02. Source còn early return cần sửa. Customer khóa vẫn được Staff phục vụ theo TK01. Reassignment không biến assignment thành quyền nhận Ticket của Staff khác.
 
 Notification dedupKey=eventId:recipient:kind, DB unique/upsert. Title generic: New support ticket hoặc Support ticket accepted; body null, không private preview. Dedup là theo event/recipient, không theo mọi event cùng Ticket.
 

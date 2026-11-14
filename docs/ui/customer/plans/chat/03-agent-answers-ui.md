@@ -4,11 +4,11 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
-**Thay đổi của phase:** Chỉ render answer committed đã kiểm output; không rehydrate alias từ raw history. Citation giữ document/version/anchor, phân biệt đoạn lược bỏ với nguyên văn; PDF kiểm quyền riêng.
+**Thay đổi của phase:** Chỉ render answer Core đã commit sau kiểm schema/tham chiếu/action. Citation giữ document/version/anchor; PDF kiểm quyền riêng. System prompt theo [chính sách B](../../../../specifications/Agent_Design.md#mvp-model-data-policy).
 
-**Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: answer/clarification/error không phát canary bị loại, citation đúng nguồn; revoke/response cũ không phục hồi PII.
+**Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: answer/clarification/error đúng schema và nguồn; revoke/response muộn không phục hồi dữ liệu ngoài quyền.
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -38,7 +38,11 @@ Mở rộng `customer-conversations.tsx`, `conversation-transcript.tsx`, `lib/co
 
 ## 2. Trải nghiệm
 
-AI thinking/queued/error gắn đúng trigger/run, không chiếm ConversationStatus. Retry inference nếu có phải cùng lệnh run do CH02 quy định; không gửi lại message Customer bằng key mới. Chỉ render content đã xử lý an toàn; Markdown nếu cần phải có sanitizer và allowlist link theo dependency được review. Answer cuối lấy qua REST có sequence, không nhân đôi nội dung khi nhận lại message đã commit.
+**Logout/hết phiên — B đã chốt 14/11/2026, tích hợp P.** UI xóa dữ liệu riêng/hiển thị login khi phiên hết hiệu lực, job đã được Core nhận tiếp tục ở nền theo quyền hiện hành. Login lại cùng actor mở history/current run bằng phiên mới và refetch, không gửi lại câu hỏi. Đổi actor phải abort/ignore response cũ, contact đã reveal và output Copilot/chat không được giữ giữa actor. [Chính sách chuẩn](../../../../specifications/Agent_Design.md#agent-logout-session-policy).
+
+**New AI chat sau Staff — đã chốt 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc. UI New AI chat đã có, giữ pending/key khi create chưa rõ kết quả và refetch/đối soát theo receipt. CH03 phối hợp CH01/CH02 kiểm context, callback và refresh/reconnect trong tích hợp Agent còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
+
+AI thinking/queued/error gắn đúng trigger/run. **A đã chốt 14/11/2026:** lượt lỗi kỹ thuật/hết deadline hiển thị lỗi an toàn, Customer chủ động gửi lại hoặc hỏi tiếp bằng tin mới để mở lượt mới. Reload/reconnect đối soát run cũ, không tự chạy lại lượt FAILED. Retry request chưa rõ kết quả dùng cùng key/ID để chống trùng. [Chính sách chuẩn](../../../../specifications/Agent_Design.md#failed-turn-policy). Chỉ render content đã xử lý an toàn; Markdown nếu cần phải có sanitizer và allowlist link theo dependency được review. Answer cuối lấy qua REST có sequence, không nhân đôi nội dung khi nhận lại message đã commit.
 
 Citation có title/version/page rõ từ DTO authorized, bấm mở D01/D02 exact version và page hợp lệ; không URL ký trong Message. Quyền mất/tài liệu thiếu hiển thị unavailable, không mở bản newest. Không có nguồn hoặc câu trả lời chưa chắc nói rõ hạn chế, không hứa claim/chi trả.
 
@@ -117,6 +121,24 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 - [ ] C06/FR-005 coverage cập nhật riêng; Copilot/Claim/payment vẫn ngoài scope.
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
+
+### CH03-T05 — Mở chat AI mới từ cuộc Staff
+
+**P — kiểm tích hợp Agent/Core chưa chạy.** Qua gateway, từ cuộc Staff chọn New AI chat, thử double-click, timeout/reload/reconnect và callback cuộc cũ. Mở lại cuộc cũ và kiểm composer theo allowedActions.
+
+**Kết quả mong đợi.** Intent mới mở conversation mới, retry không tạo trùng, context/callback đúng cuộc. UI giữ lịch sử cuộc cũ và dùng quyền Core cấp, không tạo Close/action kết thúc hay tự chuyển cuộc cũ về AI. Reconnect không tự tạo cuộc mới. Kiểm quyền/context cùng CH02-T05/T06 và I03-T06.
+
+### CH03-T06 — Lượt AI lỗi và Customer chủ động hỏi tiếp
+
+**P — chưa chạy.** Qua gateway, gây lỗi kỹ thuật hoặc hết deadline của lượt, thử reload/reconnect, response đến muộn và callback lặp. Sau đó Customer gửi lại câu hỏi hoặc hỏi tiếp.
+
+**Kết quả mong đợi.** UI báo lỗi gắn đúng run, lịch sử còn trạng thái lỗi sau refresh. Hệ thống không tự gửi lại câu hỏi hoặc chạy lại lượt FAILED. Tin Customer mới mở lượt mới và nhận context đúng quyền, kết quả cũ không ghi đè lỗi hoặc trả thành answer mới. Retry mạng của cùng intent không tạo trùng. Kiểm cùng CH02-T07.
+
+### CH03-T07 — Login lại xem kết quả xử lý nền
+
+**P — chưa chạy.** Qua gateway, gửi câu hỏi rồi logout hoặc làm phiên hết hạn khi run đang chạy/queued. Cho Core nhận callback, login lại cùng actor rồi đổi sang actor khác, thử reload/reconnect và response cũ.
+
+**Kết quả mong đợi.** UI phiên cũ xóa nội dung riêng, không nhận kết quả qua Web/API/WS. Core tiếp tục công việc đã nhận theo quyền hiện hành. Login lại cùng actor xem đúng kết quả/current run theo quyền, không tự gửi thêm câu hỏi. Actor khác và response trễ không làm lộ dữ liệu cũ. Kiểm CH02-T08 và AU03-T05.
 
 ## Sequence diagram
 

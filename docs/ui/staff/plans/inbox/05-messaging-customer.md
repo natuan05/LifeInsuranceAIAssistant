@@ -4,11 +4,13 @@ Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtim
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Giữ message nguồn và command hash/idempotency, không sửa văn bản trước lưu theo policy chưa chốt. Bản gửi Agent thuộc CH02; send error/receipt/audit không echo body hoặc contact dư.
 
 **Kiểm thử cần bổ sung, chưa chạy:** Core/network: retry giữ nội dung/hash, không trùng; canary ở nguồn có quyền không xuất thêm qua error/outbox/fallback Agent.
+
+**Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -34,7 +36,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 Customer tạo AI/Direct/yêu cầu Staff từ UI; Staff Accept và hai bên gửi/đọc cùng cuộc qua Core thật. Tin nhắn chống trùng, có trạng thái đang gửi/chưa rõ kết quả/lỗi rõ ràng. Chưa có realtime chat tự cập nhật cho đến I06: dùng thao tác tải lại **vùng hội thoại**, không F5. Không coi đây là Agent trả lời thật hoặc delivery/read receipt.
 
-Không attachments/templates/typing/edit/delete/read markers. Customer chat AI có thể lưu tin nhưng không hứa có câu trả lời khi Agent runtime chưa cấu hình; UI nói rõ tình trạng, không bịa tin AI hoặc bật endpoint impersonation để demo.
+Phạm vi send I05 gồm gửi/receipt/reconcile. Không bổ sung attachments/templates/typing/edit/delete. Read marker đã có ở source bổ sung N01/N02 và message.readAt, review lỗi DTO/event/read-cycle theo Customer N02. Customer chat AI có thể lưu tin nhưng không hứa có câu trả lời khi Agent runtime chưa cấu hình; UI nói rõ tình trạng, không bịa tin AI hoặc bật endpoint impersonation để demo.
 
 ## 2. File triển khai
 

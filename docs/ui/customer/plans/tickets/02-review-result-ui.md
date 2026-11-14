@@ -1,155 +1,64 @@
-# T02 — Giao diện Ticket Customer (Review, Chỉnh sửa, Tạo thủ công & Danh sách)
+# T02 — Customer Ticket UI
 
-04/11/2026 · **Cập nhật quyết định chốt 13/11/2026** · [C07](../07-tickets-contract.md) · Cần [T01](01-confirmation-core-contract.md).
+**Phương án A đã duyệt:** Customer dùng form thủ công hoặc xem/sửa/xác nhận draft Agent, theo dõi list/detail. Ticket mới hiển thị OPEN. [C07](../07-tickets-contract.md) · [T01](01-confirmation-core-contract.md).
 
-> [!IMPORTANT]
-> **Quyết định người dùng chốt (13/11/2026):**
-> 1. **Giao diện hỗ trợ cả hai luồng:**
->    - Luồng qua Agent: Popup `CustomerTicketConfirmation` hiển thị khi Agent gợi ý tạo vé từ chat.
->    - Luồng thủ công: Modal tạo vé trên trang [customer-tickets.tsx](file:///e:/UET/Project/github/LifeInsuranceAIAssistant/apps/web/src/components/customer-tickets.tsx) khi khách bấm *"Tạo yêu cầu mới"*.
-> 2. **Cho phép chỉnh sửa bản thảo (Draft Edit):** Popup xác nhận cho phép khách hàng sửa trực tiếp tiêu đề, mô tả trước khi bấm xác nhận.
-> 3. **Trạng thái ban đầu:** Mọi vé mới tạo hiển thị badge `Open` (Màu vàng/cam `tw:bg-amber-50 tw:text-amber-700`), chờ nhân viên tư vấn tiếp nhận.
+## 1. Vị trí và dữ liệu
 
-## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+| Vị trí từ root repo | Trách nhiệm |
+| --- | --- |
+| [customer-ticket-confirmation.tsx](../../../../../apps/web/src/components/customer-ticket-confirmation.tsx) | Popup review, revision và xác nhận draft |
+| [customer-tickets.tsx](../../../../../apps/web/src/components/customer-tickets.tsx) | Form thủ công, list và detail |
+| [ticket-api.ts](../../../../../apps/web/src/lib/ticket-api.ts) | Draft/manual/confirm/list/detail/receipt wrappers |
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+UI đọc/ghi nghiệp vụ qua T01/I07. Source có các component này; khả năng chạy đầy đủ cần kiểm cùng lỗi API và concurrency tại I07. Mức ảnh hưởng cao ở snapshot/version, actor state và thông báo kết quả.
 
-**Thay đổi của phase:** Review đúng draft Core đã xử lý, không dựng lại từ raw chat/local mock. Nếu nội dung đổi thì review lại theo T01/I07; result/detail chỉ dùng DTO có quyền.
+## 2. Luồng và API
 
-**Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: review khớp receipt/detail, stale draft không báo thành công; canary không ở hidden field/copy/URL, logout clear state.
+### 2.1. Draft Agent
 
-## Data model và phạm vi ảnh hưởng
+Mở popup → GET own draft → xem title/description/policy → tùy chọn sửa qua PUT expectedVersion → nhận revision và review lại → chủ động xác nhận → POST draftId/expectedDraftVersion/confirmation/key → hiển thị mã Ticket OPEN sau commit.
 
-Bảng bên dưới mô tả tác động của phase. Web không truy cập DB trực tiếp, gọi thông qua API Core T01.
+Phạm vi đã chốt cho phép sửa title, description và policy liên quan theo ownership. UI hiện có edit title/description; cần kiểm và hoàn thiện phần chọn policy trước nghiệm thu đầy đủ. Cancel/Escape đóng popup, không tạo Ticket. Summary/nguồn cần hiển thị theo contract Agent/I07.
 
-| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
-| --- | --- | --- | --- | --- |
-| support_tickets | id/ticket_code/customer_id/status/title/confirmed_content/created_at | Đọc danh sách, chi tiết; Ghi qua API | Ticket của chính actor; status ban đầu luôn là OPEN | Cao — Customer Ticket list và Detail view |
-| ticket_drafts | id/conversation_id/customer_id/version/payload/expires_at/state | Đọc, Sửa (PUT revision), Xác nhận | Quản lý draft trong phiên chat; TTL 30p; version tăng khi sửa | Cao — Review modal trong khung chat |
+**Phương án A cho nội dung Agent:** popup review và detail hiển thị sáu mục Yêu cầu, Bối cảnh, Khách cung cấp, Kết quả đã xác minh, Việc đã thử và Phần còn vướng. Mỗi finding có nguồn từ DTO Core. Nhóm rỗng hiển thị chưa có nội dung, không suy thành không có quyền lợi. Các mục có thể thu gọn nhưng Customer phải mở đọc được đầy đủ trước xác nhận, không cắt ngầm vào description.
 
-## 1. Vị trí UI và Thành phần
+Form sửa title/description/policy dùng revision server. Sau sửa, UI tải và hiển thị summary/nguồn của revision tương ứng trước cho phép xác nhận. Browser không có thao tác tự gắn nhãn verified hoặc thêm source refs. Draft đang thiếu summary hợp lệ cần trạng thái chờ hoàn thiện, không tự điền từ raw transcript. Kết quả sau commit dùng snapshot đã lưu. Khi mở nguồn, recheck quyền và exact version qua Core; nguồn không khả dụng hiển thị rõ.
 
-1. `apps/web/src/components/customer-ticket-confirmation.tsx`: Popup hiển thị bản nháp do Agent đề xuất:
-   - Chế độ View: Xem tiêu đề, mô tả, hợp đồng liên quan.
-   - Chế độ Edit: Cho phép sửa trực tiếp tiêu đề và mô tả $\rightarrow$ Lưu cập nhật draft lên Core.
-   - Nút thao tác: "Hủy bỏ" (đóng popup không tạo vé) và "Xác nhận gửi yêu cầu" (tạo vé với status `OPEN`).
-2. [apps/web/src/components/customer-tickets.tsx](<../../../../apps/web/src/components/customer-tickets.tsx>):
-   - Thay thế mock data bằng dữ liệu thực từ `GET /api/v1/customers/me/tickets`.
-   - Modal "Tạo yêu cầu mới" kết nối API `POST /api/v1/customers/me/tickets/manual`.
-   - Bộ lọc trạng thái: Tất cả, Đang xử lý (`IN_PROGRESS`), Mới tạo (`OPEN`), Đã giải quyết (`RESOLVED`), Đóng (`CLOSED`).
-3. `apps/web/src/lib/ticket-api.ts`: Bổ sung các client method phục vụ Customer (`getDraft`, `updateDraft`, `confirmTicket`, `createManualTicket`, `listCustomerTickets`, `getCustomerTicketDetail`).
+### 2.2. Form thủ công
 
-## 2. Luồng thao tác và Trạng thái
+Trang Tickets → Tạo yêu cầu mới → nhập title/description/policy tùy chọn → gửi POST manual với request key → hiển thị kết quả persisted và cập nhật list/detail. Customer chủ động gửi form là xác nhận nội dung luồng thủ công.
 
-```mermaid
-flowchart TD
-  subgraph LuongAgent [Luồng 1: Qua AI Agent]
-    A[Agent gợi ý tạo Ticket] --> B[Mở popup Review]
-    B -->|Tùy chọn| C[Khách sửa tiêu đề/mô tả]
-    C -->|Lưu revision| B
-    B -->|Hủy| D[Đóng popup, không tạo vé]
-    B -->|Xác nhận| E[Core tạo Ticket OPEN]
-  end
+### 2.3. Trạng thái và retry
 
-  subgraph LuongThuCong [Luồng 2: Form thủ công]
-    F[Bấm Tạo yêu cầu mới] --> G[Điền tiêu đề, mô tả, hợp đồng]
-    G -->|Gửi yêu cầu| E
-  end
-
-  E --> H[Nhận mã vé TK-xxxx]
-  H --> I[Cập nhật danh sách vé Customer & Realtime push Staff]
-```
+- Hiển thị OPEN cho kết quả tạo mới của cả hai luồng. Staff tiếp nhận chuyển IN_PROGRESS qua nghiệp vụ Staff.
+- Conflict/expiry yêu cầu tải và xem lại draft; không tự confirm version mới.
+- Double click dùng cùng intent/key. Timeout tra receipt bằng key gốc và không tạo key mới cho cùng lần gửi chưa rõ kết quả.
+- Own list/detail dùng API Customer. Logout/đổi actor/revoke xóa state và bỏ response đến muộn.
+- Review/detail hiển thị DTO đã được phép. Phần giảm/che dữ liệu còn P theo [ma trận dữ liệu](../../../../configuration-and-data.md#customer-sensitive-data).
 
 ## 3. Test cases
 
-### T02-T01 — Khách hàng chỉnh sửa draft và xác nhận thành công
-- Mở popup review từ Agent.
-- Bấm nút "Chỉnh sửa", thay đổi nội dung mô tả, bấm "Lưu".
-- Bấm "Xác nhận gửi yêu cầu".
-- Kết quả: Nhận được thông báo thành công kèm mã vé (VD: `TK-7703`), trạng thái hiển thị là `Open`.
+Các ca là tiêu chí hồi quy browser/network/gateway, chưa chạy lại trong lần sửa tài liệu.
 
-### T02-T02 — Khách hàng tự tạo vé thủ công từ Form
-- Truy cập tab Tickets, bấm "Tạo yêu cầu mới".
-- Điền tiêu đề và nội dung mô tả hợp lệ, bấm "Gửi".
-- Kết quả: Modal đóng, danh sách vé tự động cập nhật thêm dòng mới với badge `Open`.
+| Mã | Ca | Kết quả mong đợi |
+| --- | --- | --- |
+| T02-T01 | Sửa draft rồi review/xác nhận | Request dùng revision mới, kết quả OPEN khớp nội dung đã xem |
+| T02-T02 | Form thủ công và double submit | Một Ticket persisted, list/detail cập nhật đúng mã/status |
+| T02-T03 | Cancel/Escape khi review | Không gửi request tạo Ticket, focus trở lại vị trí phù hợp |
+| T02-T04 | Draft stale/hết hạn | Hiển thị lỗi an toàn, Customer phải xem lại trước xác nhận |
+| T02-T05 | Mất ACK sau commit | Receipt bằng key cũ trả đúng Ticket, không báo thành công trước commit |
+| T02-T06 | Owner khác/đổi actor/revoke | Safe deny/clear state, không hồi dữ liệu từ response cũ |
+| T02-T07 | Policy ngoài quyền, keyboard/mobile/zoom 200% | Validation/quyền đúng, nội dung đọc đủ, controls/focus sử dụng được |
+| T02-T08 | Ticket liên kết chat và canary PII | Giữ transcript gate riêng; projection không tự khôi phục PII đã loại |
+| T02-T09 | Review/detail summary dài hoặc có nhóm rỗng | Đọc được đủ sáu nhóm/nguồn, keyboard/mobile phù hợp, không tự tạo dữ kiện |
+| T02-T10 | Revision hoặc nguồn thay đổi khi popup đang mở | Customer review lại đúng version, không confirm snapshot cũ hoặc nguồn ngoài quyền |
 
-### T02-T03 — Hủy bỏ review draft không tạo vé
-- Khách hàng bấm "Hủy" hoặc phím Escape trên popup xác nhận.
-- Kết quả: Popup đóng, không có request tạo vé nào được gửi tới server, danh sách vé không đổi.
-2. Kiểm không POST confirm.
-3. Mở lại và Confirm rõ ràng.
+## 4. Checklist
 
-**Kết quả mong đợi:** Cancel không tạo Ticket, focus trở lại; Confirm gửi draftId/version/key/textVersion, không raw content/actor do client tự khai.
-
-### T02-T02 — Draft đổi và hết hạn
-
-**Lớp kiểm thử:** Browser + API mock dự kiến.
-**Điều kiện và dữ liệu:** Review đang hiển thị draft n; server chuyển n+1 hoặc expired.
-
-**Các bước:**
-
-1. Bấm Confirm với n.
-2. Tải lại draft theo flow lỗi.
-3. Kiểm không tự confirm bản mới.
-
-**Kết quả mong đợi:** Conflict được giải thích, Customer phải review/xác nhận lại; không nội dung stale hoặc auto retry version mới.
-
-### T02-T03 — Double click và unknown result
-
-**Lớp kiểm thử:** Browser + API barrier dự kiến.
-**Điều kiện và dữ liệu:** Giữ/ngắt ACK confirm sau commit.
-
-**Các bước:**
-
-1. Bấm Confirm hai lần.
-2. Dùng kiểm kết quả bằng receipt key cũ.
-3. Mở lại draft đã confirmed.
-
-**Kết quả mong đợi:** Một Ticket/mã đã lưu, không Saved trước commit; không key mới hoặc tạo Ticket lần2 vì timeout.
-
-### T02-T04 — Detail owner, mobile và chat link
-
-**Lớp kiểm thử:** Browser dự kiến.
-**Điều kiện và dữ liệu:** Có Ticket C-A/C-B, description dài; viewport 375px/zoom 200%.
-
-**Các bước:**
-
-1. C-A mở Ticket mình rồi deep link C-B.
-2. Tab qua review/detail/back.
-3. Thử mở link chat AI dưới Staff chưa grant ở context riêng.
-
-**Kết quả mong đợi:** Owner khác safe 404 và clear detail; nội dung đọc đủ không tràn; Ticket không cấp lịch sử cho Staff.
-
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
-
-- [ ] Luồng Agent đầy đủ chỉ đánh dấu sau draft từ Agent thật; Ticket closed không đóng chat.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
-## Sequence diagram
-
-**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
-
-```mermaid
-sequenceDiagram
-    participant A as Trusted Agent
-    participant C as Core
-    participant D as PostgreSQL
-    actor U as Customer
-    participant W as Review UI
-    A->>C: Propose draft theo service contract đã chốt
-    C->>D: Validate owner, source và lưu draft version
-    U->>W: Mở review
-    W->>C: GET own draft
-    C-->>W: Nội dung server và confirmation text
-    alt Cancel hoặc không có xác nhận hợp lệ
-        W-->>U: Đóng review, không tạo Ticket
-    else Customer chủ động Confirm
-        W->>C: POST confirm, key và expectedDraftVersion
-        C->>D: Lock, owner, expiry, confirmation và idempotency
-        D-->>C: COMMIT Ticket, receipt và outbox atomic
-        C-->>W: Mã Ticket đã lưu hoặc replay
-        W-->>U: Kết quả đã commit
-    end
-    Note over C,D: Ticket không cấp chat grant cho Staff
-```
+- [x] Hai luồng tạo, sửa draft và OPEN đã được duyệt.
+- [x] Review component và Customer Tickets có trong source.
+- [ ] Kiểm đủ trường sửa draft và API error/replay/concurrency.
+- [ ] Nghiệm thu browser/gateway với fixture cô lập.
+- [ ] Nghiệm thu nguồn Agent thật sau khi proposal/summary mapping được tích hợp.
+- [x] Review/detail sáu nhóm và nguồn đã được duyệt theo phương án A.
+- [ ] Triển khai UI summary/nguồn và kiểm tra khớp snapshot với revision xác nhận.

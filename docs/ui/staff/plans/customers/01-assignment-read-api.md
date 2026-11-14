@@ -34,19 +34,22 @@ FR-002/003, NFR-001/002. StaffAssignment active mới cấp quyền customer rea
 
 Prefix REST `/api/v1`; `E` là runtime, không endpoint đề xuất mới.
 
-`GET /staff/customers?search=&page=1&pageSize=10` → `{items,total,page,pageSize}`. search0–100 literal case-insensitive tên/mã/email/phone; page 1–100000, pageSize1–50; query lạ 400. Scope+search trước total/page, snapshot RepeatableRead, sort userId tăng dần.
+`GET /staff/customers?search=&page=1&pageSize=10` → `{items,total,page,pageSize}`. search0–100 literal case-insensitive: source hiện tìm tên/mã/email/phone, phương án A ngày 13/11 chỉ giữ tên/mã Customer (còn cần sửa code); page 1–100000, pageSize1–50; query lạ 400. Scope+search trước total/page, snapshot RepeatableRead, sort userId tăng dần.
 
 `GET /staff/customers/:customerId` → `{customer}` allowlist id/fullName/accountCode/email/phone/status/birth/address; không citizenId/KYC. Customer ngoài quyền/không tồn tại cùng404; UserStatus LOCKED của khách không tự bỏ active assignment. Staff lock/session invalid vẫn bị chặn.
 
 <a id="customer-privacy-api"></a>
 ### Bổ sung chuẩn bị masking — 12/11/2026, P
 
-Baseline API ở trên **chưa che** email/phone và detail birth/address. Contract dự kiến phải theo [ma trận thông tin Customer](../../../../configuration-and-data.md#customer-sensitive-data); chưa đổi response hoặc chốt định dạng mask từ tài liệu này.
+Baseline API ở trên **chưa che** email/phone và detail birth/address. Phương án A đã duyệt 13/11/2026 theo [ma trận thông tin Customer](../../../../configuration-and-data.md#customer-sensitive-data): email/phone Customer phải được che ở cả list và detail, kể cả Staff có active assignment; bổ sung Hiện/Ẩn ngày 14/11 để Staff liên hệ qua API reauthorize riêng. Source chưa đổi response. Định dạng A đã duyệt ngày 13/11 giữ 1 ký tự đầu email rồi nối `***`, che cả domain. Phone dùng `***` cùng 2 số cuối. Giá trị thiếu giữ null, chuỗi quá ngắn để che phần còn lại dùng `***` theo ma trận chung.
 
 - Core dựng projection Staff riêng sau kiểm assignment, không gửi raw kèm masked value; `GET /customers/me` cần projection self-read riêng, không bị mask nhầm vì cùng dùng `customerView`.
-- Chốt trường/mức che và quyền xem đầy đủ trước đổi DTO; không tự thêm route reveal. Cập nhật `customer-api.ts`, Swagger/types và toàn bộ caller cùng thay đổi. Masking không tự cần migration hoặc đổi dữ liệu `users`/`customer_profiles`.
-- Chốt search email/phone và URL/history/log vì hiện search trên raw có thể lộ qua substring/count. Scope vẫn trước search/page; không dùng kết quả che để cấp quyền hoặc bỏ kiểm quyền.
-- Mở rộng test Core/API/DB: assert JSON không chứa raw ngoài allowlist, input null/Unicode/chuỗi ngắn, khác role/out-of-scope/assignment revoke, ảnh hưởng self-read và search inference. Dùng synthetic canary, chưa đánh dấu test masking pass.
+- Họ tên/mã Customer đã chốt A ngày 13/11. Staff có active assignment hợp lệ nhận đầy đủ fullName/accountCode tại list/detail theo quyền hiện hành. Source đã khớp phần này. Giữ hai trường khi bổ sung masking email/phone và DTO năm sinh/tỉnh-thành, kiểm scope/revoke theo CU01-T01/T03.
+- Ngày sinh/địa chỉ đã chốt A: Staff detail chỉ năm sinh và tỉnh/thành từ nguồn đã xác minh; thiếu căn cứ thì null từng trường. DTO đích đề xuất birthYear/provinceCity nullable, không raw birth/address hoặc trường phụ. Không bổ sung hai trường này vào list. Source hiện chỉ có birth/address tự do và chưa có metadata xác minh riêng: đặc tả nguồn tin cậy, mapping/validation và nhu cầu persistence trước code; không tự đoán tỉnh/thành hay thêm migration từ việc có đề xuất DTO.
+- **API reveal — đề xuất kỹ thuật P theo quyết định 14/11.** Dùng `POST /api/v1/staff/customers/:customerId/contact-reveal`, body `{field: "email" | "phone"}`, response `{customerId, field, value: string | null}`. Session/Origin/JSON/CSRF, quota và lỗi an toàn theo foundation. Service kiểm quyền Staff, assignment hiện hành cùng transaction đọc và audit metadata, recheck sau lock. Response no-store, chỉ chứa trường đã yêu cầu. Swagger/client wrapper/caller cập nhật cùng CU02. Endpoint/DTO còn P. [Quyết định chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+- Triển khai định dạng mask email/phone A đã duyệt trong projection Core và đồng bộ DTO/caller. Policy các trường khác tiếp tục theo ma trận chung. Projection mặc định che, API reveal riêng trả một trường liên hệ sau reauthorize và audit metadata. Cập nhật `customer-api.ts`, Swagger/types và toàn bộ caller cùng thay đổi. Masking không tự cần migration hoặc đổi dữ liệu `users`/`customer_profiles`.
+- Search đã chốt A: chỉ fullName/accountCode; bỏ email/phone khỏi OR filter trong customer.service.ts và cập nhật Swagger customer-query.dto.ts. Không thêm API hoặc đổi query param. Scope vẫn trước search/count/page; không lọc lại trang kết quả ở Web. Query chỉ khớp email/phone phải không match, trừ khi cùng chuỗi khớp tên/mã hợp lệ. Đồng bộ placeholder/URL/history/log theo CU02.
+- Mở rộng test Core/API/DB: cả list/detail không chứa raw email/phone, kể cả Staff có assignment; reveal chỉ trả trường được yêu cầu sau kiểm quyền/phân công hiện hành, audit không có giá trị liên hệ. Kiểm null/Unicode/chuỗi ngắn, khác role/out-of-scope/assignment revoke, Customer self-read không bị mask nhầm và search inference. Dùng synthetic canary, chưa đánh dấu test masking pass.
 
 ## 4. Luồng và trạng thái
 
@@ -79,18 +82,20 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Kết quả mong đợi:** S-A có tổng12, trang10/2; search tìm trên toàn bộ scope; không có khách S-B trong items hoặc total.
 
-### CU01-T02 — Search literal đúng các trường
+### CU01-T02 — Search chỉ theo tên/mã Customer
+
+**Kỳ vọng phương án A ngày 13/11, chưa kiểm thử sau thay đổi:** baseline cũ tìm cả email/phone không chứng minh policy mới đã hoàn tất.
 
 **Lớp kiểm thử:** API.
-**Điều kiện và dữ liệu:** C-A có tên, mã, email và phone synthetic biết trước; một tên chứa ký tự % hoặc _.
+**Điều kiện và dữ liệu:** fixture synthetic cô lập có token chỉ xuất hiện trong email/phone, không có trong bất kỳ tên/mã nào; thêm ca token trùng tên/mã hợp lệ, tên chứa % hoặc _, khách khác assignment và hơn một trang.
 
 **Các bước:**
 
-1. Lần lượt search tên, mã, email, phone.
-2. Search ký tự %/_ và biến thể hoa thường có khoảng trắng đầu/cuối.
-3. Search từ không tồn tại.
+1. Search tên/mã, gồm khách không ở trang đầu; kiểm trim/case/literal và ký tự %/_.
+2. Search toàn bộ và một phần token chỉ có trong email/phone, cả query từ URL cũ.
+3. Search token đồng thời khớp tên/mã hợp lệ, token ngoài assignment và từ không tồn tại.
 
-**Kết quả mong đợi:** Chỉ khớp literal theo contract, trim/case đúng; wildcard không mở rộng tập; không có kết quả trả items rỗng.
+**Kết quả mong đợi:** Chỉ tên/mã trong scope quyết định items/total; email/phone không match riêng hoặc góp vào count. Token hợp lệ trong tên/mã vẫn tìm được; wildcard không mở rộng tập. Giữ page/total đúng trên toàn tập assignment, query validation hiện có; không log search raw.
 
 ### CU01-T03 — Detail và thu hồi phân công
 
@@ -120,7 +125,33 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
+### CU01-T05 — Năm sinh/tỉnh-thành trong projection Staff
+
+**P — chưa chạy.** Fixture synthetic gồm dữ liệu đã xác minh, null, chưa xác minh, address tự do/mơ hồ và chỉ một trường có căn cứ. Kiểm Staff có/ngoài assignment, revoke và Customer self-read; network JSON và DTO callers Policy/Inbox/Ticket.
+
+**Kết quả mong đợi:** Staff detail chỉ nhận birthYear/provinceCity đúng nguồn; thiếu căn cứ thì null riêng trường đó. Không raw ngày sinh/địa chỉ hoặc metadata nguồn chứa raw trong response, list không được thêm các trường này; không đoán tỉnh/thành hoặc lệch năm do timezone. Customer self-read giữ contract riêng, dữ liệu DB/PDF không đổi.
+
+### CU01-T06 — Định dạng che email/phone đã duyệt
+
+**P — chưa chạy.** Fixture synthetic có email `minh@example.test`, phone `0900000012`, null, chuỗi ngắn, Unicode và phone có dấu phân cách. Gọi Staff list/detail, caller hồ sơ và Customer self-read với actor đúng/sai scope.
+
+**Kết quả mong đợi.** Staff nhận `m***` và `***12` từ Core. Null giữ trạng thái thiếu dữ liệu. Chuỗi quá ngắn để che phần còn lại hiển thị `***`, gồm phone tối đa 2 chữ số. Kiểm đúng 1 ký tự email/2 số cuối phone, ba dấu sao cố định và cùng giá trị giữa list/detail. Kiểm canary ở JSON/DOM/copy/tooltip và contract self-read theo ma trận chung.
+
+### CU01-T07 — Reveal liên hệ theo quyền hiện hành
+
+**P — chưa chạy.** Fixture synthetic có email/phone và Staff đang phân công, actor ngoài scope, session hết hạn, assignment đổi giữa load và click, response bị giữ đến sau revoke. Kiểm API mặc định và API reveal, null, fields sai, duplicate request và audit/log.
+
+**Kết quả mong đợi.** GET list/detail chỉ có bản che. Reveal kiểm lại quyền dưới lock, chỉ trả trường yêu cầu khi hợp lệ, no-store. Ngoài scope bị chặn theo lỗi an toàn hiện hành, audit thành công có actor/Customer/trường/requestId nhưng không có giá trị raw. Search vẫn chỉ tên/mã Customer. Quyền contact không cấp transcript, PDF hoặc model context.
+
 ## 6. Checklist và giới hạn
+
+- [x] Họ tên/mã Customer đầy đủ cho Staff có active assignment đã duyệt, khớp source hiện tại.
+- [x] Định dạng che A đã duyệt cho email/phone tại Staff list/detail.
+- [ ] Triển khai Core projection, đồng bộ DTO/caller và chạy CU01-T06.
+- [x] Đã chốt chỉ tìm theo tên/mã Customer; bỏ search email/phone trong MVP.
+- [ ] Sửa OR filter/Swagger và chạy CU01-T02 theo contract mới; source hiện còn email/phone.
+- [x] Staff detail chỉ hiện năm sinh/tỉnh-thành đã xác minh, thiếu thì ẩn đã duyệt.
+- [ ] Đặc tả nguồn xác minh, DTO Staff riêng và chạy CU01-T05; source còn raw birth/address.
 
 - [x] Có code runtime trong phạm vi được ghi ở tiêu đề; phase này bổ sung tài liệu cho phần đã làm.
 - [x] Có các lớp kiểm thử/bằng chứng được dẫn ở contract; không coi việc dọn docs là chạy lại test.

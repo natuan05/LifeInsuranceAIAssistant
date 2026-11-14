@@ -4,11 +4,15 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); email/phone Customer được che mặc định theo định dạng A ngày 13/11, Staff có Hiện/Ẩn để liên hệ theo cập nhật 14/11. Core kiểm lại quyền khi reveal, phần triển khai và các quyết định còn mở theo ma trận chung. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
 
 **Thay đổi của phase:** Rà policy.service/policy-snapshot và DTO list/detail: customer label, người được bảo hiểm/thụ hưởng, policy number theo tác vụ. Giữ assignment/ownership, financial facts và exact binding.
 
 **Kiểm thử cần bổ sung, chưa chạy:** API/DB: list/detail/quick lookup cùng ma trận, snapshot canary không rò; scope trước search/count, Decimal/null không đổi.
+
+**Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
+
+**Liên hệ Customer — cập nhật 14/11/2026, triển khai P.** Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
 
 ## Data model và phạm vi ảnh hưởng
 
@@ -139,6 +143,12 @@ Không thêm payment/claims/contract edit; Customer owner API PO01 riêng. Khôn
 | [test-staff.mjs](../../../../../apps/web/scripts/test-staff.mjs) | Chạy Chromium/Firefox/WebKit, gom JSON tạm rồi tự dọn artifact; Web/Core chỉ chạy Docker |
 
 Ca lỗi mạng dùng fault injection rõ ràng; native PDF toolbar/zoom không được xác minh bằng iframe DOM. Các bảng/test case là đặc tả duy trì, không ghi nhật ký từng lần chạy tại đây.
+
+### PL01-T05 — Số hợp đồng đầy đủ theo scope
+
+**P — ca hồi quy bổ sung chưa chạy.** Fixture synthetic có policyNumber với số 0 đầu/ký tự phân tách và Staff đúng/sai assignment. Kiểm list/detail/lookup, policy link trong Ticket và Inbox panel, search literal và revoke.
+
+**Kết quả mong đợi.** Staff đủ quyền nhận đúng chuỗi policyNumber đầy đủ, policyId tiếp tục dùng cho binding/API. Ngoài scope bị chặn theo từng tài nguyên, reveal contact không mở thêm quyền policy/chat/PDF. UI PL03/PL05 và TK04 hiển thị cùng số hợp đồng. Customer self-read theo ownership. Dữ liệu gửi model theo chính sách B tại Agent Design.
 
 ## Sequence diagram
 

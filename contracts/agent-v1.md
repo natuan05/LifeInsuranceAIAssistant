@@ -1,6 +1,6 @@
 # Agent contracts v1
 
-**Trạng thái: đề xuất để review G1 (mục 1–11) và G2/G3 (mục 12), chưa duyệt.** Thực hiện Task 1–2 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md) theo [Agent Design](../docs/specifications/Agent_Design.md#design-overview). Chưa có bảng run/attempt, checkpoint bền vững hay HTTP/HMAC chạy thật; mục 12 là gói đề xuất protocol bền vững/HMAC của Task 2.
+**Trạng thái review G1 và G2/G3.** Framework Starlette + uvicorn và profile `LI-HMAC-SHA256-v1` đã được người dùng chốt ngày 13/11/2026. Các phần còn lại theo bảng trạng thái ở mục 12. Thực hiện Task 1–2 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md) theo [Agent Design](../docs/specifications/Agent_Design.md#design-overview). Main có lưu bền phía Agent ở Task 4. HTTP/HMAC phía Agent có code trên `origin/agent/task-6-http-delivery` tại `5043e8d`, chưa merge main. Protocol/persistence và tích hợp Core tiếp tục theo các mục review tương ứng.
 
 | File | Nội dung |
 | --- | --- |
@@ -83,7 +83,7 @@ Ghi nhận phương án từ nhánh ngày 06/11/2026 (12.13 #1), chưa duyệt: 
 | `CONFLICT` | 409, `PAYLOAD_MISMATCH`/`SEQUENCE_CONFLICT` | Dừng, ghi sự cố |
 | `REJECTED` | 400/401/403 (`SCHEMA_INVALID`, `AUTH_FAILED`, `REPLAY_REJECTED`, `UNKNOWN_RUN`) | Dừng, không tự sửa payload |
 
-Không có ACK (mất mạng, timeout, 5xx) mới là trường hợp gửi lại cùng run/attempt/event/sequence/payload. Lịch retry, HMAC và chống phát lại: đề xuất ở mục 12.
+Không có ACK (mất mạng, timeout, 5xx) mới là trường hợp gửi lại cùng run/attempt/event/sequence/payload. Profile LI-HMAC-SHA256-v1 và chống phát lại đã chốt ngày 13/11/2026 theo mục 12.9. Lịch retry và các tiêu chí giao nhận tiếp tục theo mục 12.
 
 **`AttemptRevocation` / `RevocationAck`** (đề xuất G2, mục 12.3–12.5): Core yêu cầu kho Agent thu hồi quyền ghi của một attempt; ACK `REVOKED`/`ALREADY_REVOKED` kèm `writer_epoch` chỉ gửi sau commit.
 
@@ -133,7 +133,7 @@ LLM chỉ chọn **một** `ToolDecision {tool, arguments}` mỗi vòng, đúng 
 
 - Kết quả tool do code ghi; diễn giải của LLM ở `agent_assessment`/`unverified_conditions`; bộ đếm do code quản lý. `WorkCounters` là bản sao để dựng context/trace; ledger bền vững của Task 2/4 mới là căn cứ budget.
 - Mốc chat liên kết của Copilot (`linked_sync`) tách khỏi lịch sử của chính hội thoại Copilot (`history_synced_through`). Copilot không đọc checkpoint của hội thoại Customer.
-- Không đưa credentials, chữ ký, session hoặc toàn bộ `ExecutionContext` vào model hay checkpoint. Kết quả Private trong checkpoint vẫn là dữ liệu nhạy cảm; retention thuộc G3.
+- Không đưa credentials, chữ ký, session hoặc toàn bộ `ExecutionContext` vào model hay checkpoint. Kết quả Private trong checkpoint là dữ liệu nhạy cảm. Retention MVP theo [A ngày 14/11](../docs/configuration-and-data.md#mvp-agent-recovery-retention), production theo review G3.
 
 ## 8. Reset matrix (Step 5)
 
@@ -176,16 +176,16 @@ Lịch sử người dùng hiển thị `RUN_OUTCOME.code` đã lọc (thêm `ST
 3. Thêm `PROPOSE_HANDOFF` cạnh `PROPOSE_TICKET` (Agent Design nêu action gồm Ticket hoặc chuyển Staff; kế hoạch chỉ đặc tả Ticket) và đề xuất Copilot không trả action trước G6.
 4. Dependency `ajv` 8.20.0 cho Core devDependencies (đã có sẵn trong lockfile qua Nest CLI); Python dùng `jsonschema` khi Task 4 pin dependency.
 5. Mẫu mã: `policy_number`, `product_code`, `document_version`, `thread_id`, `scope_version`; enum `DocumentType` theo loại tài liệu đề xuất trong Agent Design; tên `ProgressStage`.
-6. Các limit `null` chờ G4; HTTP mapping ACK chờ cùng profile HMAC ở G2/G3.
+6. Các limit `null` chờ G4. Profile LI-HMAC-SHA256-v1 đã chốt, HTTP mapping ACK và tích hợp Core tiếp tục theo G2/G3.
 
 ## 12. Protocol bền vững và tích hợp — gói đề xuất G2/G3 (Task 2)
 
-**Trạng thái: gói đề xuất Task 2; năm phương án ở 12.13 là ghi nhận từ nhánh nguồn ngày 06/11/2026, chưa đóng G2/G3.** Nhánh ghi các phương án này đã được giao chọn; review hiện tại chưa xác minh nguồn xác nhận đó và không tự chuyển chúng thành quyết định được duyệt. Phần này là đầu vào cho G2 (persistence/concurrency) và G3 (transport/policy). Theo kế hoạch, Task 3/4 phần DB và Task 6 chỉ bắt đầu khi phần tương ứng được duyệt. Reference model [`agent-protocol-model.cjs`](../apps/core/test/helpers/agent-protocol-model.cjs) và [`agent-protocol.test.cjs`](../apps/core/test/agent-protocol.test.cjs) (`node --test apps/core/test/agent-protocol.test.cjs`) kiểm tính nhất quán của các bảng dưới. Chúng không chứng minh khóa DB, mạng hay hai tiến trình thật; các phép đó nằm trong acceptance matrix (12.12).
+**Trạng thái Task 2 được cập nhật ngày 13/11/2026.** Người dùng đã chốt framework Starlette + uvicorn và profile `LI-HMAC-SHA256-v1` tại 12.13 #5. Các phương án còn lại tiếp tục review theo bảng dưới, G2/G3 còn tiêu chí nghiệm thu. Phần này là đầu vào cho G2 (persistence/concurrency) và G3 (transport/policy). Theo kế hoạch, Task 3/4 phần DB và Task 6 chỉ bắt đầu khi phần tương ứng được duyệt. Reference model [`agent-protocol-model.cjs`](../apps/core/test/helpers/agent-protocol-model.cjs) và [`agent-protocol.test.cjs`](../apps/core/test/agent-protocol.test.cjs) (`node --test apps/core/test/agent-protocol.test.cjs`) kiểm tính nhất quán của các bảng dưới. Chúng không chứng minh khóa DB, mạng hay hai tiến trình thật; các phép đó nằm trong acceptance matrix (12.12).
 
 | Mục | Trạng thái | Nguồn ghi nhận/review | Ngày ghi nhận |
 | --- | --- | --- | --- |
-| 12.2–12.8 Storage, state machine, fencing, ledger, final record, crash matrix (G2) | Đề xuất; phương án 1–4 ở 12.13 còn chờ duyệt G2 | Ghi nhận từ nhánh; chưa xác minh nguồn duyệt | 06/11/2026 |
-| 12.9–12.10 HMAC, endpoint, framework (G3) | Đề xuất profile/framework (12.13 #5), lịch giao lại/retention; chưa đóng G3 | Ghi nhận từ nhánh; chưa xác minh nguồn duyệt | 06/11/2026 |
+| 12.2–12.8 Storage, state machine, fencing, ledger, final record, crash matrix (G2) | Phương án 4 đã chốt A ngày 14/11/2026, phương án 1–3 và phần G2 còn lại tiếp tục review | Người dùng xác nhận chính sách lỗi/quá hạn, tích hợp còn P | 14/11/2026 |
+| 12.9–12.10 HMAC, endpoint, framework (G3) | Profile LI-HMAC-SHA256-v1 và Starlette + uvicorn đã chốt. Retention dữ liệu khôi phục Agent trong MVP đã chốt giữ theo A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục review | Người dùng xác nhận HMAC/framework ngày 13/11 và retention MVP ngày 14/11, code Agent tại nhánh Task 6 chưa merge main | 14/11/2026 |
 | 12.11 DDL | Core: đề xuất cho Task 3; Agent: migration Task 4 đã có, không tự đóng G2 | — | — |
 
 
@@ -222,11 +222,19 @@ Runtime Agent không có quyền `business` và không ghi `rag`; Core không c�
 | `invalidateAttempt(attempt, reason)` | Khóa hội thoại; attempt → `INVALIDATING` (tool, scope, history và event của attempt bị từ chối ngay). `STAFF_TAKEOVER` cùng transaction với handoff hiện có: tăng `control_version`, run đang chạy và các run `QUEUED` → `CANCELLED`. `DEADLINE` → run `FAILED`. `CANCELLED_BY_CORE`/`PERMISSION_CHANGED` → run hiện tại `CANCELLED`. `RETRY` giữ run `RUNNING` | Gửi `AttemptRevocation`; lặp lại tới khi có `RevocationAck` hợp lệ, đúng run/attempt |
 | Nhận `RevocationAck` | Chỉ ACK hợp lệ `REVOKED`/`ALREADY_REVOKED` đúng run/attempt mới chuyển attempt → `INVALIDATED`, lưu `revoked_epoch`. Với `RETRY`: tạo attempt mới cùng run | Hội thoại được claim tiếp; attempt đang chờ ACK vẫn giữ barrier dù run đã terminal |
 
-`history_view.through_cursor` cố định lúc claim, nên gồm kết quả lượt trước dù kết quả đó commit sau lúc tin hiện tại vào hàng đợi; tin xếp sau không thuộc view. `linked_history_view` của Copilot cố định lúc `acceptMessage`. Deadline: reconcile thấy attempt quá `deadline_at` + thời gian ân hạn thì gọi `invalidateAttempt(DEADLINE)`. **Phương án từ nhánh 06/11/2026 (12.13 #4), chờ duyệt G2:** attempt lỗi hoặc quá hạn thì run kết thúc `FAILED` (hoặc `CANCELLED` khi takeover), không tự tạo attempt mới. Gửi lại cùng attempt khi mất ACK vẫn giữ; lý do `RETRY` chỉ dùng khi có thao tác chủ động sau này.
+`history_view.through_cursor` cố định lúc claim, nên gồm kết quả lượt trước dù kết quả đó commit sau lúc tin hiện tại vào hàng đợi; tin xếp sau không thuộc view. `linked_history_view` của Copilot cố định lúc `acceptMessage`. Deadline: reconcile thấy attempt quá `deadline_at` + thời gian ân hạn thì gọi `invalidateAttempt(DEADLINE)`. **Phương án 4 đã chốt A ngày 14/11/2026:** Agent báo lỗi kỹ thuật hoặc quá deadline thì run kết thúc `FAILED`, UI báo lỗi và Customer chủ động gửi tin mới để hỏi lại/hỏi tiếp. Lượt lỗi không tự chạy lại hoặc tạo attempt mới. Staff takeover theo `CANCELLED` hiện hành. Mất ACK gửi lại cùng attempt/event theo receipt, retry tạm thời của từng request giữ ngân sách đã chốt. `RETRY` chỉ dành cho luồng chủ động cần đặc tả riêng. Callback muộn không hồi sinh run FAILED, tin chờ tiếp tục theo FIFO và fence/revoke ACK của protocol. Tích hợp Core/UI còn P. [Quyết định chuẩn](../docs/specifications/Agent_Design.md#failed-turn-policy).
 
 **Người dùng xác nhận bổ sung ngày 12/11/2026:** `PERMISSION_CHANGED` kết thúc run bằng `CANCELLED`, với mã lịch sử Core `RUN_OUTCOME.code=PERMISSION_DENIED`; `CANCELLED_BY_CORE` cũng kết thúc `CANCELLED`, mã lịch sử `CANCELLED_BY_CORE`. Không tự tạo attempt mới. Hai lý do này hủy run hiện tại; không chuyển hội thoại sang Staff hoặc tự hủy các run đang xếp hàng. FIFO chỉ được claim tiếp sau revoke ACK tương quan hợp lệ; Core vẫn kiểm quyền hiện hành cho lượt tiếp theo. Đây là quyết định bổ sung, không phải một trong năm lựa chọn ngày 06/11.
 
 Dispatcher là vòng polling trong tiến trình Core (`SELECT … FOR UPDATE SKIP LOCKED` trên hội thoại có run chờ), chạy cùng bộ đối soát. Đây là ứng viên, chưa chọn queue/worker service mới; nhiều instance Core vẫn đúng nhờ khóa hội thoại và các unique index.
+
+**Chat AI mới sau Staff — quyết định ngày 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc. New AI chat đã có trên Web, Core đã có create với receipt/idempotency. Khác intent tạo mới dùng key mới, retry cùng intent dùng lại key và nhận cùng conversation. Context/checkpoint cuộc cũ không tự đi sang cuộc mới, Staff không kế thừa quyền cuộc AI mới từ grant cuộc cũ. Consent/Accept và fence takeover áp theo luồng hiện hành, nghiệm thu Agent/Core end-to-end còn P. Protocol gắn run/attempt/message/history view với đúng conversation, callback cuộc cũ không được gắn sang cuộc mới. [Quyết định chuẩn](../docs/specifications/Agent_Design.md#new-ai-chat-after-staff).
+
+**Retention lịch sử Core — A đã chốt 14/11/2026.** Conversation/Message được giữ để xem lại trong MVP và chưa tự xóa theo thời gian. History view/cursor tiếp tục kiểm quyền hiện hành, checkpoint/receipt/Agent event/final record cũng giữ trong MVP theo A ngày 14/11. Chi tiết storage/fence còn theo G2/G3. Notification theo retention 30 ngày đã chốt riêng. [Chính sách chuẩn](../docs/configuration-and-data.md#mvp-chat-history-retention).
+
+**Dữ liệu khôi phục Agent trong MVP — A đã chốt 14/11/2026.** Giữ checkpoint, biên nhận xử lý và kết quả/sự kiện do Agent lưu để khôi phục, chống trùng và đối soát, gồm dữ liệu đã giao/ACK. MVP chưa đặt TTL hoặc lịch tự xóa các bản ghi này theo thời gian. Quyền đọc/ghi, trạng thái run/attempt, writer fence và điều kiện giao lại tiếp tục theo protocol. Pending delivery chỉ lấy event chưa ACK, receipt/fence tiếp tục kiểm trùng/quyền khi replay. Notification theo retention 30 ngày, nonce HMAC theo cửa sổ đã chốt, lease/deadline theo vòng đời hiện hành. Log/audit/cache và chính sách production còn cần chốt thời hạn riêng. Fixture kiểm thử cô lập tiếp tục được dọn theo quy trình từng suite. [Chính sách chuẩn](../docs/configuration-and-data.md#mvp-agent-recovery-retention).
+
+**Logout/hết phiên — B đã chốt ngày 14/11/2026, tích hợp Agent/Core còn P.** Các yêu cầu AI đã được Core tiếp nhận bền vững, gồm lượt đang chạy và tin đang chờ, tiếp tục xử lý khi người gửi logout hoặc phiên gửi hết hạn. Core lưu kết quả theo đúng actor/hội thoại để người dùng đăng nhập lại xem. Run/attempt, deadline và ngân sách tiếp tục theo protocol hiện hành. Run được ủy quyền từ actor/target và intent Core đã tiếp nhận, internal Agent API dùng service auth + quyền run hiện hành. Logout/hết phiên đơn thuần không phát PERMISSION_CHANGED hoặc CANCELLED_BY_CORE. Tài khoản mất quyền/takeover vẫn theo revoke/fence hiện hành. Commit tiếp nhận và logout cần được kiểm theo thứ tự giao dịch, request chưa được nhận vẫn phải có phiên hợp lệ. History/discovery/results qua Web/API/WS cần phiên mới hợp lệ, callback không đổi owner theo actor vừa đăng nhập. Ticket confirmation vẫn cần phiên và xác nhận Core. [Chính sách chuẩn](../docs/specifications/Agent_Design.md#agent-logout-session-policy).
 
 ### 12.4 Agent: receipt, quyền ghi, ledger, event
 
@@ -312,7 +320,7 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 | Xoay khóa | Keyring theo `key_id`: một khóa ký hiện hành, khóa cũ chỉ để kiểm trong thời gian chuyển; khóa nằm trong credential volume local, ngoài Git/prompt/checkpoint/log |
 | Đường truyền | Local: mạng Docker nội bộ. Ngoài local bắt buộc TLS (HMAC không mã hóa nội dung) |
 
-**Phương án từ nhánh 06/11/2026 (12.13 #5), chờ duyệt G3:** dùng profile tự đặt ở bảng trên (`LI-HMAC-SHA256-v1`), lấy cảm hứng từ [RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) nhưng không triển khai đủ RFC đó. Hai phía chỉ cần thư viện chuẩn (`hmac`/`hashlib` của Python, `node:crypto` của Core); có test vector chung ở Task 6. Đổi profile thì tăng tên phiên bản trong chuỗi ký.
+**Profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026 theo phương án A.** Áp dụng định dạng ký, timestamp/nonce, kiểm body và keyring trong bảng trên. Code ký/kiểm phía Agent nằm ở signing.py trên `origin/agent/task-6-http-delivery` tại `5043e8d`, có test vector trong test_delivery.py. Core cần triển khai cùng profile và kiểm quyền attempt hiện hành. Phiên bản profile trong chuỗi ký được tăng khi thay đổi wire format.
 
 ### 12.10 Endpoint, giao lại và framework (G3)
 
@@ -323,9 +331,9 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 | Agent → Core | `POST /api/v1/internal/agent/events` | `AgentEvent` → `DurableAck` |
 | Agent → Core | Các đọc nội bộ Task 3 (history, linked-history, scope, contracts) | Ký cùng profile; quyền theo attempt hiện hành |
 
-Giao lại đề xuất: backoff mũ 1 → 60 giây có jitter. Dispatch/revoke lặp tới khi có ACK hoặc tới hạn của run. Event lặp tối đa 24 giờ rồi ghi sự cố. Event đã ACK giữ 30 ngày. Các mức 3 giây/4 request/1 retry của Business Tools không áp vào callback. URL callback lấy từ cấu hình, không từ model/tài liệu/body.
+Giao lại đề xuất: backoff mũ 1 → 60 giây có jitter. Dispatch/revoke lặp tới khi có ACK hoặc tới hạn của run. Event lặp tối đa 24 giờ rồi ghi sự cố. **Retention MVP A chốt 14/11/2026:** event đã ACK và dữ liệu khôi phục Agent được giữ để đối soát, chưa tự xóa theo thời gian. Thời hạn production còn cần chốt. Các mức 3 giây/4 request/1 retry của Business Tools không áp vào callback. URL callback lấy từ cấu hình, không từ model/tài liệu/body.
 
-**HTTP framework phía Agent — phương án từ nhánh 06/11/2026 (12.13 #5), chờ duyệt G3:** Starlette + uvicorn, dự kiến pin `starlette` 1.9.0 và `uvicorn` 0.54.0 ở Task 6 (kiểm lại tài liệu/bản vá khi pin). Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
+**HTTP framework phía Agent đã chốt ngày 13/11/2026 theo phương án A.** Dùng Starlette + uvicorn. Code Task 6 phía Agent có tại `origin/agent/task-6-http-delivery`, commit `5043e8d`, chưa merge main. Nhánh này pin `starlette==1.10.0` và `uvicorn==0.54.0` trong pyproject.toml. Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
 
 ### 12.11 DDL đề xuất
 
@@ -425,17 +433,17 @@ Agent — schema `agent_runtime`: đã triển khai ở Task 4 bằng [`apps/age
 
 ### 12.13 Phương án G2/G3 ghi nhận từ nhánh ngày 06/11/2026
 
-Lịch sử nhánh ghi: “Người dùng giao Agent tự chọn và ghi lại ngày 06/11/2026; anh Tuấn review cùng PR.” Review hiện tại chưa xác minh nguồn xác nhận của ghi nhận này. Giữ nguyên năm phương án và lý do dưới đây trong gói đề xuất Task 2; review tính nhất quán hoặc merge nhánh không tự đóng G2/G3 hay phê duyệt các phương án. Xác nhận trực tiếp ngày 12/11/2026 về `PERMISSION_CHANGED` ở 12.3 là quyết định bổ sung riêng.
+Lịch sử nhánh ghi: “Người dùng giao Agent tự chọn và ghi lại ngày 06/11/2026; anh Tuấn review cùng PR.” Review hiện tại chưa xác minh nguồn xác nhận của ghi nhận này. Ngày 13/11/2026, người dùng xác nhận trực tiếp framework Starlette + uvicorn và profile LI-HMAC-SHA256-v1 tại phương án 5. Ngày 14/11/2026, người dùng xác nhận phương án 4 theo A, lỗi/quá hạn kết thúc run FAILED và Customer chủ động gửi lại/hỏi tiếp. Các phương án 1–3 và phần còn lại của G2/G3 tiếp tục theo review. Xác nhận trực tiếp ngày 12/11/2026 về `PERMISSION_CHANGED` ở 12.3 là quyết định bổ sung riêng.
 
-| # | Câu hỏi | Phương án từ nhánh, chưa duyệt | Lý do |
+| # | Câu hỏi | Phương án và trạng thái duyệt | Lý do |
 | --- | --- | --- | --- |
 | 1 | Bảng run/attempt/event đặt ở module `conversations` hay module `agent` riêng (kèm G1 mục 11.1) | **Kết hợp:** API Web ↔ Core (tạo/list/đọc hội thoại, lịch sử, gửi tin) dùng tiếp module `conversations` hiện có, thêm `currentRun` và mục `AGENT_RESULT`/`RUN_OUTCOME`. Vòng đời run/attempt/event, dispatcher/đối soát, API nội bộ cho Agent và HMAC nằm trong module mới `apps/core/src/agent/` như bản đồ file của kế hoạch. `acceptMessage` do service gửi tin của `conversations` gọi trong cùng transaction; takeover của `ConversationHandoff` gọi `invalidateAttempt` trong cùng transaction | Không dựng API hội thoại thứ hai song song; giữ `controlVersion`, khóa hội thoại và handoff đã có. Phần tích hợp Agent tách riêng để review và thay transport/auth khi lên cloud |
 | 2 | Checkpointer | **Tự viết lớp con `BaseCheckpointSaver`** trên psycopg trong schema `agent_runtime`, kiểm `(thread_id, attempt_id, writer_epoch)` trong cùng transaction với mọi đường ghi; pin `langgraph-checkpoint` 4.3.1 | `langgraph-checkpoint-postgres` tự quản bảng/migration và không cho chèn bước kiểm quyền ghi vào cùng transaction, kể cả pending writes; kế hoạch yêu cầu dừng nếu thư viện không hook được mọi đường ghi |
 | 3 | Revoke không tới được Agent | **Chấp nhận khoảng hở ở 12.5**, không thêm điều kiện lease vào câu kiểm. Core chặn ngay tool/scope/history/event của attempt cũ, không giao attempt mới hay tin kế tiếp cho hội thoại tới khi có `RevocationAck`, gửi lại revoke theo backoff và để trạng thái chờ hiện cho vận hành | Lease không giải quyết trường hợp này (writer mất mạng tới Core vẫn tới được DB và gia hạn được) mà thêm heartbeat; các lần ghi muộn không thành kết quả Core và attempt kế tiếp chỉ đọc sau ACK |
-| 4 | Attempt lỗi/quá hạn | **Run kết thúc `FAILED`** (takeover: `CANCELLED`), không tự tạo attempt mới. Mất ACK thì gửi lại cùng attempt | MVP đơn giản, tránh chạy lại model/tool ngoài ý người dùng; khách gửi tin mới thì có lượt mới với budget mới. Lý do `RETRY` giữ trong protocol cho thao tác chủ động sau này |
-| 5 | Xác thực và framework | **Profile HMAC tự đặt `LI-HMAC-SHA256-v1`** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn** phía Agent, dự kiến `starlette` 1.9.0 / `uvicorn` 0.54.0 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
+| 4 | Agent báo lỗi kỹ thuật/quá deadline | **A đã chốt 14/11/2026.** Run kết thúc `FAILED`, UI báo lỗi để Customer chủ động gửi lại/hỏi tiếp bằng tin mới. Không tự chạy lại lượt hoặc tạo attempt thay thế. Mất ACK gửi lại cùng ID theo receipt, takeover theo `CANCELLED` hiện hành | Tin mới có lượt/budget riêng, lượt lỗi giữ lịch sử. Retry tạm thời trong request theo ngân sách hiện hành. `RETRY` dành cho luồng chủ động cần đặc tả riêng, tích hợp Core/UI còn P |
+| 5 | Xác thực và framework | **Profile `LI-HMAC-SHA256-v1` đã chốt 13/11/2026** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn đã chốt 13/11/2026** phía Agent. Nhánh Task 6 tại `5043e8d` pin `starlette` 1.10.0 / `uvicorn` 0.54.0, chưa merge main. Retention dữ liệu khôi phục Agent trong MVP đã chốt A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục theo review G3 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
 
 Còn đề xuất, chưa chốt:
 
-- Lịch giao lại và hạn lưu ở 12.10 (backoff 1 → 60 giây, event lặp tối đa 24 giờ, event đã ACK giữ 30 ngày); hạn giữ receipt/checkpoint.
+- Lịch giao lại ở 12.10 còn đề xuất (backoff 1 → 60 giây, event lặp tối đa 24 giờ). Retention checkpoint/receipt/kết quả/sự kiện Agent trong MVP đã chốt A ngày 14/11, chưa tự xóa, thời hạn production còn cần chốt.
 - Đưa `graph_steps` vào ledger bền vững (12.6).

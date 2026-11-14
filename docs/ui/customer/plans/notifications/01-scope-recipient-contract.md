@@ -1,153 +1,68 @@
-# N01 — Chốt Customer notification scope và recipient
+# N01 — Customer notification scope, recipient và retention
 
-Cập nhật **08/11/2026** · **ĐÃ CHỐT TRIỂN KHAI THEO QUYẾT ĐỊNH NGÀY 08/11/2026** · [C09](../09-notifications-contract.md).
+**Phương án A xác nhận 13/11/2026:** chat và Notification Center cùng phục vụ Customer, theo quyết định 08/11. [C09](../09-notifications-contract.md) · [N02](02-conditional-center.md).
 
-## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+## 1. Phạm vi đã duyệt
 
-**P — chưa triển khai phần bảo vệ bổ sung; giữ trạng thái baseline của phase.** Theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data); mức che/quyền xem đầy đủ còn chờ chốt. Vị trí code/API và data model của phase bên dưới là nơi rà tác động; bổ sung này không tự yêu cầu migration hoặc sửa dữ liệu gốc.
+Customer có notification persisted cho STAFF_ACCEPTED_HANDOFF, SUPPORT_TICKET_CREATED và STAFF_MESSAGE_UNREAD. Chat giữ SYSTEM/realtime và message read status. Staff có CUSTOMER_MESSAGE_UNREAD theo cơ chế đối xứng hiện có.
 
-**Thay đổi của phase:** Nếu chọn center, chốt payload tối thiểu theo recipient: không contact/address/bệnh sử/transcript dư trong notification/outbox. Masking không tự bật N01 hoặc chọn schema/email/push.
+Recipient Customer lấy từ owner của conversation/Ticket do Core kiểm soát. Staff recipient tiếp tục theo assignment/Ticket policy và transcript gate. Target được kiểm quyền khi mở, notification không tự tạo quyền với tài nguyên.
 
-**Kiểm thử cần bổ sung, chưa chạy:** Contract synthetic: đúng owner/target, không canary bị loại trong payload/log; chưa là nghiệm thu runtime.
+Nội dung generic như “Nhân viên đã tiếp nhận yêu cầu chat”, “Phiếu hỗ trợ đã được tạo”, “Bạn có tin nhắn mới từ nhân viên hỗ trợ”. Không chép transcript, thông tin sức khỏe, CCCD hoặc số tiền chi trả vào title/body/WS event.
 
-## Data model và phạm vi ảnh hưởng
+## 2. Data model và migration hiện có
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
+| Bảng/cột | Quan hệ và cách dùng |
+| --- | --- |
+| notifications.recipient_customer_id | Nullable FK tới **business.customer_profiles(user_id)** |
+| notifications.recipient_staff_id | Nullable FK StaffProfile hiện có |
+| notifications_recipient_check | Đúng một recipient Customer hoặc Staff có giá trị |
+| notifications.kind/target/dedup_key/is_read/created_at | Allowlist kind, target conversation hoặc Ticket, unique dedup và keyset |
+| messages.read_at | Timestamptz nullable; trạng thái đã xem của đối phương |
+| outbox_events | Event cùng transaction nghiệp vụ, claim/retry/lease |
 
-| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
-| --- | --- | --- | --- | --- |
-| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| Customer notification recipient — P, chưa có schema | recipient_customer_id hoặc bảng CustomerNotification riêng chưa chọn; kind/target/dedup/read/retention cần chốt | DDL dự kiến, không reuse recipient_staff_id | Hiện Notification.recipient_staff_id FK StaffProfile; phải chọn CHECK đúng một recipient hoặc bảng riêng | Cao — Staff notification/dedup/outbox/query scope cần giữ nguyên, không backfill người nhận từ Staff |
-| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+Migration `202611080001_customer_notifications_and_read_status` thêm recipient Customer/read_at; `202611090001_customer_message_unread_for_staff` thêm kind unread phía Staff. N01 sử dụng model Notification chung đã có trong source.
 
-**Schema/migration:** P — N01 chưa chọn mở rộng Notification hay bảng riêng. N02 chỉ triển khai sau quyết định, không coi staff notification API là Customer API.
+Mức ảnh hưởng cao ở FK/constraints, producer/consumer, privacy và scope cả hai role. Bổ sung schema sau này cần migration riêng, giữ rows và constraints hợp lệ hiện có.
 
-**Nhất quán và hồi quy:** Producer/consumer/read đều kiểm Customer owner và target; chat SYSTEM/realtime hiện có không tự biến thành hộp notification. Kiểm không lẫn recipient, dedup/revoke/read và bảo toàn Staff bell.
+## 3. Gộp thông báo và trạng thái đọc
 
-## 1. Quyết định đã chốt (08/11/2026)
+**Phương án A đã duyệt 13/11/2026:** thông báo tin nhắn gộp theo recipient/cuộc/kind trong chu kỳ người nhận chưa đọc chat, áp dụng cho cả Customer và Staff. Đọc từng mục hoặc read-all trên chuông chỉ đổi Notification.isRead, không kết thúc chu kỳ và không đổi Message.readAt.
 
-Hệ thống thống nhất **giữ cả hai phương án song song**:
-1. Giữ tin nhắn realtime/SYSTEM trong khung chat (I06) khi có sự kiện tương tác trực tiếp.
-2. Triển khai hộp thông báo bền vững (Quả chuông Notification Center) lưu trữ trên Database để khách hàng theo dõi sự kiện ngoài luồng chat.
+Tin mới đã commit trong cùng chu kỳ cập nhật notification cũ, giữ nguyên id và bật lại isRead=false, kể cả mục đó đã được đánh dấu đọc trên chuông. Khi người nhận đọc hội thoại qua API hợp lệ, chu kỳ kết thúc tại mốc tin đã đọc; tin mới sau mốc này mở chu kỳ mới. Retry cùng event không được tự bật unread hoặc làm mới thời gian hoạt động nếu không có tin mới.
 
-### Các tham số nghiệp vụ và kỹ thuật đã chốt:
-1. **Bộ 3 event tối thiểu phát sinh thông báo**:
-   - `STAFF_ACCEPTED_HANDOFF`: Staff đã tiếp nhận hội thoại chuyển giao từ khách hàng.
-   - `SUPPORT_TICKET_CREATED`: Support Ticket đã được tạo thành công cho khách hàng.
-   - `STAFF_MESSAGE_UNREAD`: Khi nhân viên đã gửi tin nhắn hỗ trợ mà khách hàng chưa đọc (chưa mở hội thoại).
-2. **Người nhận (Recipient)**: Xác định đúng `customerId` của khách hàng sở hữu sự kiện; truy vấn chỉ trả thông báo thuộc quyền sở hữu của chính khách hàng đó.
-3. **Thời hạn lưu trữ & dọn dẹp (Retention)**: Lưu trữ trong **30 ngày**, định kỳ tự động dọn rác DB các bản ghi thông báo cũ hơn 30 ngày (không ảnh hưởng tới bản ghi Ticket hay Message gốc).
-4. **Nội dung Generic (Không để lộ thông tin nhạy cảm / PII)**:
-   - **Đúng (Generic được phép)**: Hiển thị tiêu đề/thông điệp tóm lược chung:
-     - *"Phiếu hỗ trợ #TK-001 của bạn đã được tạo"*
-     - *"Nhân viên đã tiếp nhận yêu cầu chat"*
-     - *"Bạn có tin nhắn mới từ nhân viên hỗ trợ"*
-   - **Sai (Nghiêm cấm)**: Không bê nguyên nội dung tin nhắn chat riêng tư, số tiền bồi thường bảo hiểm, thông tin bệnh án, số CCCD/CMND vào thông báo.
-5. **Theo dõi trạng thái đã đọc tin nhắn (Message Read Status)**:
-   - Thêm trường theo dõi đã đọc trong database bảng tin nhắn (`messages.read_at` / `is_read`) để đối phương biết tin mình gửi đã được xem (read receipts).
-   - Khi có tin nhắn từ Staff mà khách hàng chưa xem (`read_at IS NULL`), phát sinh thông báo generic lên Quả chuông.
+Source hiện tìm notification bằng isRead=false nên có thể tạo dòng mới sau thao tác đọc chuông; chưa khớp phương án A. Cần nhận diện chu kỳ/mốc đã đọc bền vững và xử lý đồng thời theo N02; không tự coi isRead là khóa chu kỳ hoặc coi schema hiện có đã đủ. Nếu notification cũ đã bị cleanup, chỉ tin mới hợp lệ mới có thể tạo lại mục, không tái tạo từ event cũ.
 
-| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
-| --- | --- | --- | --- | --- |
-| [apps/core/prisma/schema.prisma](<../../../../../apps/core/prisma/schema.prisma>) | Hiện có | Hiện recipient Staff, P Customer schema sau review | Cao | Migrations/index/check và Staff data |
-| [apps/core/src/notifications/notifications.service.ts](<../../../../../apps/core/src/notifications/notifications.service.ts>) | Hiện có | Hiện Staff; Customer policy/endpoint còn P | Cao | Không nới gate Staff để dùng cho Customer |
-| [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Hiện có | P Customer recipient dispatch sau chốt event | Cao | Handoff/Ticket consumers hiện có |
-| `apps/web/src/components/customer-notifications.tsx` | Dự kiến — chưa có file | P conditional UI sau N01, chưa có file | Trung bình | Customer header và deep links |
+## 4. Retention
 
-## 2. Model và vị trí dự kiến
+Quyết định 13/11/2026: notification của cả Customer và Staff có created_at cũ hơn 30 ngày thuộc diện xóa, không phân biệt đã đọc/chưa đọc. Không cần policy retention riêng theo role. Ticket/Message nguồn và audit nghiệp vụ giữ lifecycle riêng. Retention hiện tính theo created_at; việc gộp unread đang cập nhật created_at trong source nên cần kiểm mốc tuổi dữ liệu theo hành vi này.
 
-Rà `apps/core/src/notifications/`, `outbox/`, `realtime/`, Prisma `Notification`/`OutboxEvent` và `Message`:
-- Phương án mở rộng bảng `business.notifications`: Bổ sung `recipient_customer_id` (nullable, foreign key trỏ tới `CustomerProfile`) kèm CHECK constraint: chính xác một trong hai (`recipient_staff_id` HOẶC `recipient_customer_id`) có giá trị.
-- Bổ sung trường `read_at TIMESTAMPTZ NULL` vào bảng `business.messages`.
-- Producer: ghi nhận sự kiện qua Transactional Outbox trong cùng transaction nghiệp vụ, worker phát thông báo kèm dedup key `(event_id, recipient_customer_id)`.
-- Cron / Scheduled Job: Xóa `notifications` có `created_at < NOW() - INTERVAL '30 days'`.
+Phương án B đã duyệt ngày 13/11/2026: NotificationsService cleanup khi Core khởi động và lặp mỗi 24 giờ trong process Core. Source hiện vẫn dùng timer mỗi giờ; N02 theo dõi đổi interval và kiểm thử trước nghiệm thu. Không bổ sung scheduler cloud gọi Core theo lịch.
 
-## 3. API và flow
+## 5. Vị trí code
 
-- Candidate P GET `/api/v1/customers/me/notifications?limit=20&cursor=...`
-- Candidate P POST `/api/v1/customers/me/notifications/:notificationId/read`
-- Candidate P POST `/api/v1/conversations/:id/read` (để cập nhật `read_at` cho các tin nhắn chưa đọc trong hội thoại, đồng thời xóa/đánh dấu đọc notification tin nhắn chưa đọc tương ứng).
+| Vị trí từ root repo | Trách nhiệm |
+| --- | --- |
+| [schema.prisma](../../../../../apps/core/prisma/schema.prisma) | Recipient, kind/target và message read_at |
+| [conversation-event.service.ts](../../../../../apps/core/src/conversations/services/conversation-event.service.ts) | Handoff/message notification và routing |
+| [ticket-event.service.ts](../../../../../apps/core/src/tickets/services/ticket-event.service.ts) | Ticket notification Customer/Staff |
+| [notifications.service.ts](../../../../../apps/core/src/notifications/notifications.service.ts) | List/read/read-all và cleanup |
+| [outbox-dispatcher.service.ts](../../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts) | Claim/dispatch/retry theo event |
 
-```mermaid
-flowchart TD
-  A[Quyết định 08/11/2026] --> B[Giữ cả Chat realtime + Quả chuông DB]
-  B --> C[3 Event: Staff Accept / Ticket Created / Message Unread]
-  C --> D[Recipient = customerId & Retention 30 ngày]
-  D --> E[Generic Content - Cấm lộ PII]
-  E --> F[Thêm read_at vào Message]
-  F --> G[Sẵn sàng triển khai N02]
-```
+## 6. Kiểm thử và trạng thái
 
-## 4. Test cases
+| Mã | Ca cần kiểm | Kết quả mong đợi |
+| --- | --- | --- |
+| N01-T01 | Hai Customer, Staff và targets khác nhau | Không lẫn recipient hoặc cấp thêm quyền |
+| N01-T02 | Event handoff/Ticket/message và retry | Generic content, dedup đúng event và unread cycle |
+| N01-T03 | FK/check một recipient, legacy Staff rows | Constraints và luồng Staff tiếp tục hợp lệ |
+| N01-T04 | Customer/Staff mark-read/read-all, nhận thêm tin rồi đọc chat | Tin mới cùng chu kỳ giữ id, bật lại unread; đọc chat mới kết thúc chu kỳ; retry không tự bật unread |
+| N01-T05 | Customer/Staff, read/unread; created_at trước/đúng/sau cutoff 30 ngày và grouped notification | Cả hai role dùng cùng cutoff; chỉ xóa dòng cũ hơn cutoff, không xóa Ticket/Message hoặc audit |
 
-Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dependency/contract đã chốt trong phần phạm vi; không đánh dấu chức năng đã có.
+- [x] Phạm vi, recipient, nội dung generic và retention 30 ngày chung cho Customer/Staff đã duyệt.
+- [x] Cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ đã duyệt; code còn cần đồng bộ theo N02.
+- [x] Có schema/source cho Customer và Staff notifications.
+- [x] Gộp theo chu kỳ chưa đọc chat, giữ id và bật lại unread khi có tin mới đã duyệt.
+- [ ] Đồng bộ nhận diện chu kỳ trong source và kiểm chứng các ca trên theo N02.
 
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
-
-### N01-T01 — Review owner và loại sự kiện
-
-**Lớp kiểm thử:** Contract review dự kiến.
-**Điều kiện và dữ liệu:** Danh sách event/recipient/retention phải được chốt trước N02; dùng C-A/C-B/S-A synthetic.
-
-**Các bước:**
-
-1. Lập bảng mỗi event với recipient và target.
-2. Thử truy vết case CustomerB đọc mục A hoặc Staff giả recipient.
-3. Review target đã xóa/mất quyền.
-
-**Kết quả mong đợi:** Mỗi loại có owner/gate rõ; không lấy client/LLM quyết recipient; không public API E chỉ từ proposal.
-
-### N01-T02 — Không làm center khi chưa được chọn
-
-**Lớp kiểm thử:** Contract review dự kiến.
-**Điều kiện và dữ liệu:** N01 chưa có quyết định triển khai hoặc quyết định không cần center.
-
-**Các bước:**
-
-1. Kiểm routes/menu/badge dự kiến.
-2. Đối chiếu yêu cầu nguồn và khả năng I06 hiện có.
-3. Đánh dấu gate N02 theo quyết định.
-
-**Kết quả mong đợi:** Không tạo endpoint/UI chết hoặc bắt FR-013 phải có Customer center; N02 chỉ mở khi dependency đã chốt.
-
-### N01-T03 — Migration không phá Staff notifications
-
-**Lớp kiểm thử:** Migration harness dự kiến.
-**Điều kiện và dữ liệu:** Nếu chọn model mới, có snapshot Staff A27/A28 với handoff/Ticket fixtures.
-
-**Các bước:**
-
-1. Apply migration trên schema riêng.
-2. Chạy lại recipient/dedup/read Staff bằng API harness.
-3. Thử payload pending chứa private preview trong fixture.
-
-**Kết quả mong đợi:** Không mất bảng/quyền/unique Staff; typed recipient không chồng lẫn; preview/private history không được public cho Customer sai scope.
-
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
-
-- [ ] Có quyết định cần/không cần center, event tối thiểu và source truy vết.
-- [ ] Nếu làm: model/constraints/retention/error/producer được ghi cụ thể trước N02.
-- [ ] Nếu không làm: đánh dấu N02 deferred, không tạo route/badge/UI chết.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
-## Sequence diagram
-
-**Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
-
-```mermaid
-sequenceDiagram
-    actor U as Người phụ trách yêu cầu
-    participant R as Review N01
-    participant M as Model và permission contract
-    participant P as Plan N02
-    U->>R: Nêu nhu cầu notification ngoài chat
-    R->>M: Đối chiếu event, recipient, owner, retention
-    alt Không chọn center hoặc chưa chốt scope
-        M-->>R: Điểm còn mở
-        R-->>P: Deferred, không tạo UI hoặc API giả
-    else Chọn triển khai và đã chốt model
-        M-->>R: Contract và migration requirements
-        R->>P: Chốt API, producer, test data và cases
-    end
-```
+Bảo vệ PII bổ sung còn P theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data). Kiểm JSON/WS/log bằng canary synthetic, không dùng fixture popover làm bằng chứng nghiệm thu.

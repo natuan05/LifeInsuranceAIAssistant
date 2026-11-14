@@ -4,10 +4,14 @@
 
 Đối chiếu 06/11/2026 theo application main 05/11: Staff có tài khoản/hồ sơ, Customers search/phân trang, Policy Lookup/PDF, Products/PDF và Inbox I01–I06 với Direct/consent/Accept/chat hai đầu/realtime/handoff notifications. Customer có Home/Products/Policies/PDF, hồ sơ chỉ đọc và chat hai đầu. Staff Ticket TK01–TK05 có read/Accept/UI/status/notification; nguồn tạo/xác nhận Ticket từ Agent còn I07. Agent/Copilot chưa được nghiệm thu từ baseline App. Xem [Staff plans](docs/ui/staff/plans/README.md), [Customer plans](docs/ui/customer/plans/README.md), [tiến độ](docs/ui/implementation-status.md).
 
+Gemini API đã được chọn ngày 13/11/2026 cho model sinh và embedding của MVP. Cặp model MVP đã chốt ngày 13/11/2026 gồm Gemini 3.8 Flash (`gemini-3.8-flash`) cho model sinh và Gemini Embedding 2 (`gemini-embedding-2`), 1536 chiều. Cấu hình vận hành và nghiệm thu tiếp tục theo G4 trong [Agent Design](docs/specifications/Agent_Design.md#managed-model-api).
+
 MVP dùng **7 sản phẩm Manulife: 4 chính và 3 bổ trợ**; xem [danh sách và phạm vi dữ liệu](docs/specifications/Agent_Design.md#mvp-products).
 
 - [Hướng dẫn thiết lập và sử dụng dự án](docs/getting-started.md) — env, Docker, admin, cổng, Swagger và tài khoản seed.
 - [Kiến trúc và baseline local](docs/architecture.md).
+- [Kiến trúc Cloud và trách nhiệm thành phần](docs/specifications/Cloud_Architecture.md) — sơ đồ capability đích, đã loại Scheduled Task Execution; không phải bản kiểm kê hạ tầng đang chạy.
+- [Đặc thù hệ thống và phân tích tải](docs/specifications/Workload_Analysis.md) — giả định P1–P3, phép tính capacity, nút thắt mở rộng và chi phí model.
 - [Bản tổng thể Agent/RAG](docs/specifications/Agent_Design.md#design-overview) — các quyết định đã thống nhất; phân biệt đặc tả thực thi và lựa chọn còn mở.
 - [Tài liệu UI và thứ tự đọc](docs/ui/README.md), [checklist đã làm/còn thiếu và gap](docs/ui/implementation-status.md), [menu MVP](docs/ui/menu.md).
 - [Đặc tả nguồn](docs/specifications) và [đối chiếu nguồn](docs/source-review.md).
