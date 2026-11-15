@@ -4,15 +4,13 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Giữ owner/exact version; masking profile không che PDF gốc hoặc signed URL. Không overwrite object/checksum; artifact đã che nếu cần phải có contract/provenance riêng.
 
 **Kiểm thử cần bổ sung, chưa chạy:** API/storage: metadata/audit/error không lộ PII dư, đúng quyền/version; test DTO không là nghiệm thu redaction PDF.
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -75,9 +73,7 @@ sequenceDiagram
 
 ## 4. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### D01-T01 — Owner applied version
 
@@ -131,11 +127,9 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Kết quả mong đợi:** Storage404/503 an toàn; CSRF/role/session 403/401 đúng; không credential hoặc SDK exception.
 
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+**Checklist chức năng:**
 
 - [x] Endpoints catalog tài liệu và cấp quyền PDF (`ownerDocuments`, `ownerAccess`) hoạt động trên Core.
 - [x] Client API `ownPolicyDocuments` và `ownDocumentAccess` hoạt động trơn tru.
 - [x] Kiểm tra bảo mật: Không thể truy cập tài liệu hợp đồng của người khác (trả về 404 an toàn).
 - [x] Đã tích hợp vào giao diện xem hợp đồng PO02/D02 với `SignedPdfPreview`.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.

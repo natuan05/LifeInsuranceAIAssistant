@@ -4,8 +4,6 @@
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -13,12 +11,11 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | users + customer_profiles | users.id/account_code/email/phone/status/updated_at; customer_profiles.user_id/full_name/birth/address/assignment_version | Đọc own profile | CustomerProfile.user_id/role → User.id/role; owner actor từ session, không nhận customerId tự chọn | Cao — Customer header/Home/profile và Staff customer projection dùng chung dữ liệu |
 | staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
 
-**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng.
+**Schema:** UI dùng API hiện có, không thay đổi schema.
 
 **Nhất quán và hồi quy:** Home chỉ tổng hợp policy owner đã tải đầy đủ theo API; không suy null=0 hoặc tính từ một trang rồi gọi là toàn tập. Không thêm bảng tổng hợp/số dư/thanh toán. Kiểm owner 0/nhiều policies, loading/error/available contact.
 
 ## Vị trí code và mức ảnh hưởng
-
 
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
@@ -35,14 +32,13 @@ Triển khai tại `apps/web/src/components/customer-home.tsx` trong shell H01. 
 - Số liệu danh mục bảo vệ: Tổng quyền lợi bảo vệ (*Total Protection Value* tính tổng từ các hợp đồng ACTIVE), số lượng hợp đồng hiệu lực (*In-force Policies*), và ngày đến hạn phí gần nhất (*Next Due Date*).
 - Thẻ dịch vụ nhanh (*Policyholder Quick Services*).
 - Danh sách giải pháp bảo hiểm nổi bật (*Featured Insurance Solutions*) kèm nút *Explore Details & Terms*.
-- Thẻ thông tin chuyên viên phụ trách (*Assigned Support Staff*): hiển thị tiêu đề chữ đen tiêu chuẩn (`ASSIGNED SUPPORT STAFF`), đã gỡ bỏ nhãn trạng thái dư thừa (`Assigned & Active`), kèm email, số điện thoại và nút nhắn tin trực tiếp (`Message Staff`).
-- Đã lược bỏ thẻ tĩnh *Paperless Electronic Policy* theo yêu cầu tối ưu không gian hiển thị.
+- Thẻ *Assigned Support Staff*: tên, email, số điện thoại và nút *Message Staff* theo availability Core trả.
 
 ## 2. Quy tắc dữ liệu
 
 - ASSIGNED mới dùng staff contact Core trả; UNASSIGNED/STAFF_UNAVAILABLE có giải thích rõ ràng.
-- Quyền lợi và số liệu tài chính tính toán từ hợp đồng thật, không bịa đặt số liệu giả định.
-- Toàn bộ giao diện 100% tiếng Anh, không lẫn tiếng Việt.
+- Quyền lợi và số liệu tài chính tính toán từ API hợp đồng, không bịa đặt số liệu giả định.
+- Nhãn giao diện dùng tiếng Anh.
 
 ```mermaid
 flowchart LR
@@ -55,9 +51,7 @@ flowchart LR
 
 ## 3. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### H02-T01 — Home chỉ dùng dữ liệu của chính Customer
 
@@ -111,12 +105,10 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Kết quả mong đợi:** Không biến lỗi mạng thành logout, giữ dữ liệu cùng actor có nhãn lỗi phù hợp; retry không F5, links/focus dùng được.
 
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+**Checklist chức năng:**
 
 - [x] H02 không tạo model/API/metrics thừa; liên kết dữ liệu thật hoàn tất.
 - [x] Đã cập nhật theo các phản hồi UX của người dùng (tiêu đề đen ASSIGNED SUPPORT STAFF, gỡ nhãn dư, gỡ card Paperless Policy).
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## Sequence diagram
 

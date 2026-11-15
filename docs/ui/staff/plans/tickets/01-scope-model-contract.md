@@ -4,8 +4,6 @@
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -31,7 +29,6 @@ SupportTicket giữ các trường/quan hệ hiện có và thêm **version Int 
 Schema đã có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. Phase 2 đã project snapshot cơ bản hợp lệ thành CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED; legacy/invalid vẫn LEGACY_UNVERIFIED/null, không backfill từ aiSummary/extractedDetails. requestFingerprint nullable/CHECK được thêm bằng migration 202611140001.
 
 ## 3. Code và API boundary
-
 
 Service dùng caller transaction. staffScope dùng được cho list/count/detail trước filter/page; requireTicket chỉ select id/customerId/recipient/status/version và trả confirmation label/allowedActions. Không raw aiSummary/extractedDetails, không đọc transcript hoặc tạo side effect.
 
@@ -61,9 +58,7 @@ Read hiện chỉ là policy nội bộ. Quyền HTTP/session/CSRF ở TK02/TK03
 
 ## 5. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### TK01-T01 — Recipient và assignment đều bắt buộc
 
@@ -118,8 +113,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 **Kết quả mong đợi:** Backfill version 0, dữ liệu cũ giữ nguyên; CHECK từ chối âm/null; failure rollback và không tạo confirmation evidence.
 
 **Suite tham khảo:** [ticket-model-migration.test.cjs](../../../../../apps/core/test/ticket-model-migration.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và phần tiếp
 

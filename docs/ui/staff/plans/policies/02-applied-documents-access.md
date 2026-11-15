@@ -4,15 +4,13 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Rà title/filename/metadata có định danh. Signed URL/PDF gốc chưa được redaction bởi masking profile; không overwrite version hoặc thay nguồn bằng bản che âm thầm.
 
 **Kiểm thử cần bổ sung, chưa chạy:** API/storage: metadata/audit/error không rò canary/URL ký ngoài contract; đúng applied version và assignment.
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -54,19 +52,9 @@ A20 POST `/staff/documents/:documentId/versions/:versionId/view|download` body `
 
 Core authorize → exact applied binding → HEAD/sign ở storage → recheck/audit → grant → browser GET/Range. TTL900 local mặc định, grant cũ có residual TTL khi logout/revoke; không hứa thu hồi file tải. Metadata binding bất biến, không overwrite object/version cũ.
 
-```mermaid
-flowchart LR
-  U[Staff thao tác] --> C[Core kiểm phiên và scope]
-  C --> D[Dữ liệu hoặc commit đúng quyền]
-  D --> W[Web cập nhật đúng vùng]
-  C --> E[Lỗi an toàn và retry có kiểm soát]
-```
-
 ## 5. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### PL02-T01 — Applied version khác product current
 
@@ -119,8 +107,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Kiểm response và số audit/URL được trả.
 
 **Kết quả mong đợi:** Không trả link sau check cuối mất quyền hoặc audit lỗi; storage error an toàn; không để credential/URL ký trong log.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 

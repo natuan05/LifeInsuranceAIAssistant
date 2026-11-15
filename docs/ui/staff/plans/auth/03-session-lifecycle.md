@@ -4,8 +4,6 @@ Ngày **03/11/2026**. Trạng thái: **đã triển khai và kiểm chứng ngà
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -21,7 +19,6 @@ Mở Staff workspace hoặc Account khi mạng/Core lỗi → hiện Try again �
 Đây là sửa lỗi G05, theo [Account](../01-auth-contract.md), NFR-001 và quy tắc không reload trong apps/web/AGENTS.md. Không đổi giao diện tài khoản, API auth hoặc cơ chế phân quyền.
 
 ## 2. Điểm xuất phát và file liên quan
-
 
 Đọc guide Next tương ứng trong node_modules/next/dist/docs trước khi sửa route/hook. Không thêm thư viện hoặc shared package chỉ để sửa retry.
 
@@ -62,9 +59,7 @@ GET `/api/v1/auth/me`, cookie hiện tại, credentials include, cache no-store.
 
 ## 5. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### AU03-T01 — Khôi phục phiên sau lỗi mạng
 
@@ -117,8 +112,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Cho auth trả actor CUSTOMER với response 200.
 
 **Kết quả mong đợi:** Timeout cho phục hồi tại chỗ;401 về login; Customer không render Staff. Không chấp nhận next trỏ ra domain ngoài.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ### AU03-T05 — Phiên hết hiệu lực và Agent xử lý nền
 

@@ -6,15 +6,11 @@ Cập nhật **04/11/2026** · **P01/P02 Core đã triển khai; P03 Staff UI đ
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [P01 — Catalog sản phẩm: Core read API](products/01-catalog-read-api.md) | insurance_products (Đọc) | [apps/core/src/products/controllers/product.controller.ts](<../../../../apps/core/src/products/controllers/product.controller.ts>); [apps/core/src/products/services/product.service.ts](<../../../../apps/core/src/products/services/product.service.ts>) | Cao — Staff/Customer Products |
 | [P02 — Tài liệu sản phẩm PUBLIC và cấp quyền PDF](products/02-document-access.md) | insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/core/src/products/controllers/product-document.controller.ts](<../../../../apps/core/src/products/controllers/product-document.controller.ts>); [apps/core/src/products/services/product-document.service.ts](<../../../../apps/core/src/products/services/product-document.service.ts>) | Cao — Hai role dùng cùng endpoint |
 | [P03 — Staff Products: danh sách, chi tiết và PDF](products/03-staff-products-ui.md) | insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-products.tsx](<../../../../apps/web/src/components/staff-products.tsx>); [apps/web/src/lib/product-api.ts](<../../../../apps/web/src/lib/product-api.ts>) | Cao — Staff Tools và routes products |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## 1. Kết quả và căn cứ
 
@@ -46,7 +42,7 @@ Người dùng đã đồng ý phạm vi sau; P01–P03 triển khai theo các q
 | Document.currentVersion | Chọn phiên bản công bố của catalog chung; không chọn bản mới nhất theo ngày |
 | InsurancePolicy.benefitsSnapshot.documents | Ràng buộc phiên bản áp dụng riêng của hợp đồng; không thay bằng currentVersion catalog |
 
-Không có bảng quyền lợi sản phẩm, documentKind hoặc bảng giá. Cách làm đợt này: summary trên web, nội dung quyền lợi/điều khoản đầy đủ trong tài liệu. Nếu cần cấu trúc quyền lợi riêng, phải bổ sung contract/model sau; không parse PDF hoặc title để giả dữ liệu DB. Không migration trong phạm vi P01–P03 nếu schema hiện tại đủ constraints.
+Không có bảng quyền lợi sản phẩm, documentKind hoặc bảng giá. Web hiển thị summary, nội dung quyền lợi/điều khoản đầy đủ trong tài liệu. Nếu cần cấu trúc quyền lợi riêng, phải bổ sung contract/model sau; không parse PDF hoặc title để giả dữ liệu DB. Không migration trong phạm vi P01–P03 nếu schema hiện tại đủ constraints.
 
 ## 3. Chia phase
 

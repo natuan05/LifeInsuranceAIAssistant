@@ -1,7 +1,8 @@
 """Model and embedding interfaces plus Managed Model API adapters (Task 9).
 
-Managed Model API is decided; provider/model/dims are not (G4). The Gemini adapters below run only with a trial
-configuration that names model, version and dimensions explicitly; nothing here is a default or a chosen winner.
+MVP model selection follows Agent_Design.md#managed-model-api and the generation/embedding entries in
+evaluation/trial-config.json. Adapters require explicit model, version and dimensions; no hidden defaults.
+Operational limits and quality/cost/latency acceptance remain under G4/Task 9 review.
 Calls use the public REST API with the standard library (no SDK). The API key is read from the private env file and is
 never logged; errors carry a filtered code only.
 """

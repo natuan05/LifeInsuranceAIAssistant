@@ -4,7 +4,7 @@ Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026 — local mộ
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Producer/outbox/notification/WS chỉ metadata tối thiểu, không profile/transcript/PII dư. Fingerprint nội bộ không thành snapshot payload; REST refetch vẫn chịu projection/quyền.
 
@@ -13,8 +13,6 @@ Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026 — local mộ
 **Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -55,7 +53,6 @@ Tách bước để review: **I06-A** mở rộng Accept + transcript + tests ti
 `apps/core/src/realtime/realtime.service.ts` hiện chỉ account/profile/assignment fingerprint mỗi2 giây, frame ready/invalidate/session-expired, receive-only. `apps/web/src/lib/realtime.ts` dispatch core:data-changed, AuthScreen dùng refresh phiên. Không phải chat transport và không được phát một invalidate auth cho mỗi tin.
 
 File dự kiến:
-
 
 Không thêm WebSocket server song song hoặc để browser gửi mutation qua socket; gửi tin vẫn REST/CSRF.
 
@@ -176,9 +173,7 @@ Hiển thị mất kết nối ngắn, retry/backoff không F5. Có thể gửi 
 
 ## 8. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I06-T01 — Recipient và frame tối thiểu
 
@@ -245,8 +240,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Kết quả mong đợi:** SYSTEM một lần cho acceptance hợp lệ; WS recheck không gửi Private sau revoke; failure rollback acceptance/SYSTEM/sequence chung.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 9. Điều kiện hoàn tất
 
 - [x] Local worker có lease/retry/restart/dedup tests, không broker ngầm.
@@ -257,7 +250,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] Auth/PDF/Customers regression phạm vi ảnh hưởng pass; báo riêng limitation một Core process.
 
 **Checkpoint:** Đây là mốc Inbox local hoạt động liên tục. Không vì I06 hoàn tất mà đánh dấu Agent/checkpoint/Copilot/Ticket workflow đã có.
-
 
 ## 10. Ghi chú triển khai
 

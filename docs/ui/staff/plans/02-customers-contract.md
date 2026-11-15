@@ -8,14 +8,10 @@
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [CU01 — Customers API theo phân công](customers/01-assignment-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/core/src/customers/controllers/customer.controller.ts](<../../../../apps/core/src/customers/controllers/customer.controller.ts>); [apps/core/src/customers/services/customer.service.ts](<../../../../apps/core/src/customers/services/customer.service.ts>) | Cao — Customers list/detail |
 | [CU02 — Danh sách, hồ sơ và vùng policies](customers/02-directory-profile-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/web/src/components/staff-customer-directory.tsx](<../../../../apps/web/src/components/staff-customer-directory.tsx>); [apps/web/src/lib/customer-api.ts](<../../../../apps/web/src/lib/customer-api.ts>) | Trung bình — Back/Forward, empty/error, không F5 |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Hiện trạng
 
@@ -58,9 +54,7 @@ List/hồ sơ không refetch theo focus/visibility; realtime ready/invalidate k�
 
 ## Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### S03-T01 — Scope trước search và phân trang
 
@@ -116,8 +110,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [staff-customers.spec.mjs](../../../../apps/web/tests/browser/staff-customers.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## Chạy browser regression
 
 Theo [Getting Started](../../../getting-started.md), Web/Core chạy Docker qua gateway; source ứng dụng đổi phải rebuild Docker trước test. Chuẩn bị `npm ci` và `npx playwright install chromium` khi cần, rồi:
@@ -157,22 +149,3 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 ## Sequence diagram
 
 Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
-
-```mermaid
-sequenceDiagram
-    actor U as Staff
-    participant W as Web
-    participant C as Core
-    participant D as PostgreSQL
-    U->>W: Mở danh sách hoặc chi tiết
-    W->>C: GET /staff/customers, search và page
-    C->>D: Kiểm session, role và active assignment trước search và count
-    D-->>C: Scope hiện hành và dữ liệu trong snapshot
-    alt Không đủ quyền hoặc phiên không hợp lệ
-        C-->>W: Lỗi an toàn, không entity riêng tư
-        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
-    else Hợp lệ
-        C-->>W: DTO allowlist và pagination nếu có
-        W-->>U: Hiển thị đúng resource, không F5
-    end
-```

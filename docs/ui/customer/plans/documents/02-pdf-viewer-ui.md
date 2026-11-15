@@ -4,15 +4,13 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** SignedPdfPreview/customer-policies không ghi PDF đã che chỉ vì summary mask. Giữ grant theo actor/version trong memory, không URL ký hoặc profile trong analytics/URL ứng dụng.
 
 **Kiểm thử cần bổ sung, chưa chạy:** Network/DOM: summary đúng projection, viewer đúng file; revoke/logout dọn grant. Không sửa byte PDF hoặc dùng screenshot để nghiệm thu.
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -22,7 +20,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
 | MinIO/S3 — ngoài PostgreSQL | PDF object exact version/checksum, HEAD/GET/Range | Đọc/ký, không upload/overwrite | DB và object store không có transaction chung; URL còn TTL sau revoke | Cao — không lưu signed URL vào DB/URL navigation/log |
 
-**Schema/migration:** Không migration trong UI; Web chỉ gọi API Core, không có DB credentials hoặc quyền ghi trực tiếp bảng.
+**Schema:** UI dùng API hiện có, không thay đổi schema.
 
 **Nhất quán và hồi quy:** View/download ghi audit gián tiếp D01, không sinh DocumentVersion mới. Giữ iframe khi cùng actor/document/version; version/quyền đổi clear/recheck. Kiểm related docs, null/empty, signed URL hết hạn và focus/scroll.
 
@@ -59,9 +57,7 @@ flowchart TD
 
 ## 3. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### D02-T01 — PDF chính và related documents
 
@@ -117,14 +113,12 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [customer-policies.spec.mjs](../../../../../apps/web/tests/browser/customer-policies.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Checklist chức năng liên quan** (giữ trạng thái triển khai, không phải kết quả của lần sửa tài liệu):
+**Checklist chức năng:**
 
 - [x] Tích hợp `SignedPdfPreview` vào màn hình chi tiết hợp đồng của khách hàng.
 - [x] Đọc đúng bản hợp đồng chính và tài liệu liên quan; nút Download hoạt động ổn định.
 - [x] Trải nghiệm mượt mà không reload F5, responsive trên mobile và desktop.
 - [x] Xử lý an toàn khi tài liệu chưa phát hành hoặc không khả dụng.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## Sequence diagram
 

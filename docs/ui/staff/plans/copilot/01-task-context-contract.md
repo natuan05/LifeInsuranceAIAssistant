@@ -46,11 +46,11 @@ Model Conversation.channelType STAFF_COPILOT/linkedContextConvId; source grant I
 
 ## 3. API spec và quyền
 
-**Hợp đồng làm ngữ cảnh Copilot — B chốt ngày 14/11/2026.** MVP dùng Policy Lookup để xem hợp đồng. Staff nêu rõ hợp đồng khi hỏi hoặc chuyển sang hợp đồng khác, Copilot dùng câu hỏi và lịch sử được phép để hiểu ngữ cảnh. Khi chưa xác định được hợp đồng thì hỏi lại trước khi đọc dữ liệu riêng. Không bổ sung ô chọn hợp đồng hoặc API đổi `linkedPolicyId`. Số hợp đồng chỉ thu hẹp dữ liệu theo Customer/grant của cuộc đang hỗ trợ, Core kiểm ownership/assignment và phiên bản nguồn trước đọc. Mở Lookup/PDF không thay linkedPolicyId/controlVersion. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection).
+**Hợp đồng làm ngữ cảnh Copilot — đã chọn, tích hợp P.** Theo [chính sách chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection): số hợp đồng rõ và đúng quyền thì tra cứu không bắt chọn lại; câu nối tiếp dùng context còn rõ, mơ hồ thì hỏi lại. Không selector/API đổi linkedPolicyId, mở Lookup/PDF không đổi context.
 
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-A24 GET `/staff/conversations/:id/copilot`, A25 POST `.../copilot/messages`, A26 POST `.../copilot/summary` vẫn P. Trước code cần chốt request UUID/contextVersion/lastSequence, ACK200/202, task lookup/timeout/status, safe errors và transport. Không coi task endpoint/checkpoint protocol là đã có chỉ vì đặt tên.
+A24 GET `/staff/conversations/:id/copilot`, A25 POST `.../copilot/messages`, A26 POST `.../copilot/summary` vẫn P. Tổ chức đã chọn theo [ánh xạ API chung](../../../../../contracts/agent-v1.md#application-conversation-api-mapping): public API ở conversations, module agent chỉ lifecycle/API nội bộ. Route Copilot là facade dùng cùng run/attempt/event, ánh xạ source → conversation STAFF_COPILOT đúng actor; không tạo history/task store thứ hai. Trước code cần chốt request UUID/contextVersion/lastSequence, ACK200/202, task lookup/timeout/status, safe errors và transport. Không coi task endpoint/checkpoint protocol là đã có chỉ vì đặt tên.
 
 Core cấp context/catalog exact version, Agent gọi Core Business APIs; session/CSRF cho browser, service auth cho Agent. Recheck source transcript grant trước enqueue/tool/return; pending/AI riêng denied. Chính sách summary/citation payload allowlist + retention phải được review. Copilot không soạn nháp câu trả lời Customer. Chưa chọn streaming/polling hay SLA ở phase này.
 

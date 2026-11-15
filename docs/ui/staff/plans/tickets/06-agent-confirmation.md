@@ -23,7 +23,7 @@ Source có CustomerTicketController, TicketDraftService, Customer Ticket UI và 
 | [ticket-api.ts](../../../../../apps/web/src/lib/ticket-api.ts) | Client Customer/Staff theo đúng quyền |
 | [tickets.module.ts](../../../../../apps/core/src/tickets/tickets.module.ts) | Đăng ký controller/service trong module Ticket |
 
-**Phase 2 đã sửa phần Application:** buộc confirmed=true/textVersion=ticket-v1, chuẩn hóa trước validation/hash, request fingerprint khi replay, khóa/CAS draft và projection snapshot cơ bản cho Staff/Customer. Có kiểm Core/DB/gateway và browser, gồm retry/mất ACK/concurrency. Integration Agent, sáu nhóm/source refs và trusted proposal/service contract vẫn chưa triển khai trong phase này.
+**Phase 2 đã sửa phần Application:** buộc confirmed=true/textVersion=ticket-v1, chuẩn hóa trước validation/hash, request fingerprint khi replay, khóa/CAS draft và projection snapshot cơ bản cho Staff/Customer. Có kiểm Core/DB/gateway và browser, gồm retry/mất ACK/concurrency. Integration Agent, sáu nhóm/source refs và trusted proposal/service contract vẫn chưa triển khai trong phase này. Hướng chuyển metadata nguồn qua callback đã chọn theo [contract chung](../../../../../contracts/agent-v1.md#ticket-source-metadata-callback); wire/schema/migration và code hai bên còn P.
 
 ## 3. Data model và phạm vi ảnh hưởng
 
@@ -60,7 +60,7 @@ Agent đề xuất qua interface được Core xác thực. Body browser tự kh
 
 Các nhóm luôn có key theo schema Agent. Nhóm thiếu nội dung dùng chuỗi rỗng/mảng rỗng và UI hiển thị trạng thái thiếu phù hợp. Không tạo nội dung cho đủ nhóm. verified_findings chỉ dẫn nguồn evidence/Core đã nhận và được phép, không dùng lời khách khai làm chứng cứ xác minh.
 
-**Thiết kế lưu trữ đề xuất, chưa triển khai:** bổ sung TicketDraft.handoffPayload, cột handoff_payload JSONB nullable, chứa summary theo TicketHandoffSummary và registry sources do Core dựng từ kết quả trusted. Mỗi ref gắn metadata nguồn cần thiết như loại nguồn, document/version/anchor hoặc định danh kết quả Core và thời điểm đối chiếu. Không lưu token, signed URL hay toàn bộ tool trace. ConfirmedContent lưu bản sao handoffPayload cùng title/description/policy của revision được duyệt, trong transaction tạo Ticket.
+**Thiết kế lưu trữ đề xuất, chưa triển khai:** bổ sung TicketDraft.handoffPayload, cột handoff_payload JSONB nullable, chứa summary theo TicketHandoffSummary và registry sources do Core chuẩn hóa từ metadata nguồn đi cùng callback theo [contract chung](../../../../../contracts/agent-v1.md#ticket-source-metadata-callback). Agent xuất metadata từ nguồn thật đã dùng, Core kiểm scope/version và đối chiếu nguồn Core theo run/attempt trước lưu; không tin ref hoặc body browser tự khai. Mỗi ref gắn metadata nguồn cần thiết như loại nguồn, document/version/anchor hoặc định danh kết quả Core và thời điểm đối chiếu. Không lưu token, signed URL hay toàn bộ tool trace. ConfirmedContent lưu bản sao handoffPayload cùng title/description/policy của revision được duyệt, trong transaction tạo Ticket.
 
 DTO draft/detail trả summary cùng projection nguồn được phép xem. Registry nội bộ không đưa nguyên khối ra browser. Core kiểm quyền nguồn khi mở tài liệu; snapshot lưu dấu vết tại thời điểm xác nhận. Nếu quyền nguồn đã đổi, UI báo nguồn hiện không khả dụng và không tự lấy phiên bản khác. Quyền Ticket và transcript vẫn độc lập.
 

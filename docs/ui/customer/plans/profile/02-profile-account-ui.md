@@ -56,7 +56,7 @@ Render DTO self-read do Core cấp, không ghép raw profile từ endpoint Staff
 
 ## 5. Test cases
 
-Các ca sau là đặc tả hồi quy, chưa chạy lại trong lần sửa tài liệu.
+Các ca sau là tiêu chí hồi quy của chức năng.
 
 | Mã | Lớp | Thao tác | Kết quả mong đợi |
 | --- | --- | --- | --- |

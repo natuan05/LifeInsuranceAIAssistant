@@ -102,7 +102,7 @@ Core kiểm điều kiện trên ở list/group/lazy/detail/messages/search/curs
 
 “Toàn bộ lịch sử” gồm tin Customer, AI và Staff đã hiển thị cho Customer trong cuộc được chuyển, không gồm STAFF_COPILOT, ghi chú nội bộ, raw tool metadata hoặc tài liệu ngoài quyền. Phân loại audience của SYSTEM/citations cần contract trước khi trả dữ liệu. Có cursor từ trước/biết UUID cũng không vượt gate.
 
-Accept cần assignment hiện hành + yêu cầu Customer hợp lệ + phiên bản/control lock/idempotency; lưu bằng chứng Staff nhận và quyền toàn bộ lịch sử cùng transaction. Agent chạy dở không được ghi sau chuyển mode. Không có yêu cầu Customer thì không proactive takeover AI riêng. Nếu assignment đổi, thu hồi quyền Staff cũ; Staff mới không tự kế thừa acceptance, chính sách tái định tuyến/xác nhận cần kế hoạch riêng.
+Accept cần assignment hiện hành + yêu cầu Customer hợp lệ + phiên bản/control lock/idempotency; lưu bằng chứng Staff nhận và quyền toàn bộ lịch sử cùng transaction. Agent bị Core fence ngay từ REQUEST_HANDOFF commit sang PENDING_HANDOFF theo [chính sách chuẩn](../../../../../contracts/agent-v1.md#handoff-request-agent-fence); không đợi Accept mới hủy run AI/queued của cuộc. Agent checkpoint cần revoke ACK/fence riêng, tích hợp còn P. Accept vẫn là gate cấp transcript, không hủy Copilot riêng đúng quyền. Không có yêu cầu Customer thì không proactive takeover AI riêng. Nếu assignment đổi, thu hồi quyền Staff cũ; Staff mới không tự kế thừa acceptance, chính sách tái định tuyến/xác nhận cần kế hoạch riêng.
 
 ## 5. API spec đề xuất
 
@@ -224,9 +224,7 @@ Account/Customers/Policy giữ nguyên; không viết code Inbox trước tài l
 
 ## 11. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### INBOX-T01 — Không lộ chat AI riêng
 
@@ -279,8 +277,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Thu hồi assignment và gửi thêm bằng S-A.
 
 **Kết quả mong đợi:** Hai phía thấy đúng một tin mỗi intent; mất quyền clear composer/transcript, gửi tiếp bị chặn; không tự tạo Ticket.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 12. Checklist trước khi viết code lại
 

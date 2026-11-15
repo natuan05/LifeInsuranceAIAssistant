@@ -4,7 +4,7 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I02** · [Cont
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Rà A08/A09 label/subject/sharedReason và search; không thêm raw contact từ relation. Free text được chia sẻ cũng có thể chứa PII; pending vẫn chỉ metadata sau projection được chốt.
 
@@ -13,8 +13,6 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I02** · [Cont
 **Chat AI mới sau Staff — đã chốt 14/11/2026.** Cuộc cũ theo trạng thái/quyền hiện hành, Customer muốn hỏi AI chủ động tạo conversation mới với thread/context riêng. Grant và source view Copilot của cuộc cũ không cấp quyền cuộc AI mới. Core kiểm gate riêng của từng cuộc, revoke/reassignment theo policy hiện có. [Contract và ca hồi quy I03](03-handoff-transcript.md#i03-t06--cuộc-ai-mới-có-quyền-độc-lập-với-cuộc-staff-cũ).
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -169,9 +167,7 @@ sequenceDiagram
 
 ## 7. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I02-T01 — Groups và lazy list lọc đúng gate
 
@@ -227,8 +223,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [inbox-read.test.cjs](../../../../../apps/core/test/inbox-read.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 8. Điều kiện hoàn tất
 
 - [x] A08/A09 thật có HTTP/integration tests qua Docker.
@@ -237,7 +231,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] API map E/P đúng, chưa tuyên bố chat hai chiều.
 
 **Checkpoint:** I02 đã qua HTTP/Swagger và gateway/Core/DB integration. I03 tạo AI/Direct/request/Accept/transcript hiện đã hoàn tất; tiếp theo UI ở I04. Dữ liệu legacy không tự có grant, không seed tạm hoặc bật composer từ read capability.
-
 
 ## 9. Ghi chú triển khai
 
@@ -250,7 +243,6 @@ SQL lọc quyền trước group/search/keyset; pending subject/time chỉ từ 
 A09 thực tế có thêm activityAt an toàn theo cùng item projection; request chỉ pending. allowedActions mô tả capability nghiệp vụ, không đồng nghĩa Accept/send endpoint đã được triển khai. Không xuất raw model/AI title/summary/citations/tool payload/lastSequence hoặc Inbox counts.
 
 Error giữ foundation hiện có: 400 VALIDATION_ERROR cho DTO và BAD_REQUEST cho UUID/query A09, 401 UNAUTHORIZED, 403 FORBIDDEN, 404 NOT_FOUND, 500 INTERNAL_SERVER_ERROR cho lỗi bất ngờ (thông điệp an toàn). Hai code mới allowlist trong SafeApiException: 400 INVALID_CURSOR và 429 RATE_LIMITED + Retry-After1–60 giây. Không phát lại arbitrary HttpException body, SQL hoặc input. Cursor chỉ nhận ISO UTC chuẩn năm0001–9999, exact keyset shape/version/query/actor binding, tối đa2 KB; không là credential hoặc token cấp quyền.
-
 
 Lệnh chạy lại từ root (PostgreSQL/migration I01 và stack Docker hiện hành đã sẵn sàng):
 

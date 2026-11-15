@@ -4,7 +4,7 @@ Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtim
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Giữ message nguồn và command hash/idempotency, không sửa văn bản trước lưu theo policy chưa chốt. Bản gửi Agent thuộc CH02; send error/receipt/audit không echo body hoặc contact dư.
 
@@ -13,8 +13,6 @@ Ngày 03/11/2026 · **Đã triển khai 04/11/2026 — REST hai chiều; realtim
 **Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -183,9 +181,7 @@ sequenceDiagram
 
 ## 8. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I05-T01 — Direct gửi hai chiều
 
@@ -254,8 +250,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [conversation-send.test.cjs](../../../../../apps/core/test/conversation-send.test.cjs), [conversation-send.spec.mjs](../../../../../apps/web/tests/browser/conversation-send.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 9. Điều kiện hoàn tất
 
 - [x] Core/DB race/idempotency/fence/HTTP tests và browser tương tác pass riêng.
@@ -263,7 +257,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] Timeout không duplicate, nháp/focus đúng; không client actor/grant giả.
 - [x] Customer consent rõ và request/Ticket tách biệt.
 - [x] Milestone ghi REST hai chiều; I06 realtime và Agent runtime còn riêng.
-
 
 ## 10. Ghi chú triển khai
 

@@ -4,8 +4,6 @@
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -18,7 +16,6 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 **Nhất quán và hồi quy:** Core kiểm role CUSTOMER trước cấp phiên, password change thu hồi phiên cũ và audit atomic. Hồ sơ Customer chỉ đọc theo PF01/PF02; không dùng login để tạo policy/assignment. Kiểm cổng sai role, CSRF/logout và phiên cũ sau password change.
 
 ## Vị trí code và mức ảnh hưởng
-
 
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
@@ -54,9 +51,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 
 ## Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### C01-T01 — Đăng nhập tài khoản được cấp
 
@@ -109,8 +104,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Đổi actor/portal trước khi auth response cũ về.
 
 **Kết quả mong đợi:** Lỗi công khai không lộ account existence; pending chống submit trùng/cooldown theo contract; response cũ không khôi phục actor.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## Sequence diagram
 

@@ -7,9 +7,9 @@ name = "life-agent"
 version = "0.1.0"
 description = "Agent/RAG service (custom LangGraph): graph, durable runtime store, RAG, evaluation and the Core HTTP surface."
 requires-python = ">=3.13"
-# HTTP framework: Starlette + uvicorn (proposal 12.13 #5, pending G3), pinned at Task 6: starlette 1.10.0 instead of the
-# planned 1.9.0 (latest release, fixes handled exceptions keeping requests alive). HMAC and outbound HTTP use the standard
-# library. The Gemini trial adapters use the REST API through the standard library, so no provider SDK is pinned.
+# HTTP framework selected to match existing code: Starlette + uvicorn (contracts 12.9-12.10).
+# Core integration, delivery policy and retention remain under review. HMAC and outbound HTTP use the standard
+# library. Gemini adapters use the REST API through the standard library, so no provider SDK is pinned.
 # psycopg is the PostgreSQL driver for the rag index (pgvector) and the agent_runtime store.
 dependencies = [
   "langgraph==1.2.20",

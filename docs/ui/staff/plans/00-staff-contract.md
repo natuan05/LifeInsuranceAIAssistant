@@ -86,7 +86,6 @@ Query dùng History API, đổi route dùng Next Link/router; shared layout khô
 
 Frame client gửi bị đóng 1008; phiên thu hồi đóng 4001; DB lỗi đóng 1013 để reconnect/backoff. Giới hạn local: 128 kết nối/process, 4/actor, 60 handshake/phút/socket IP; qua gateway là IP gateway, không tin X-Forwarded-For. Đây không là sizing/SLA production.
 
-
 ## Phần còn lại theo chức năng
 
 | ID | Phần còn lại | Phase sở hữu |

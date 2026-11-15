@@ -4,7 +4,7 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I03** · [Cont
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Giữ lịch sử Customer-facing sau gate hiện hành, không tự rewrite nguồn để mask profile. Quyền đọc transcript khác quyền gửi model; CP01/CH02 dựng context riêng. Staff transcript đã che nếu cần phải chốt contract riêng.
 
@@ -15,8 +15,6 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I03** · [Cont
 **Lưu lịch sử MVP — A đã chốt 14/11/2026.** Core giữ Conversation/Message để xem lại, chưa tự xóa theo thời gian. Staff chỉ đọc khi grant/session/phân công còn hiệu lực, tuổi dữ liệu không thay quyền hoặc mở cuộc AI riêng. Notification cleanup theo 30 ngày riêng và không xóa transcript. Kiểm cùng CH01-T06. [Chính sách chuẩn](../../../../configuration-and-data.md#mvp-chat-history-retention).
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -221,9 +219,7 @@ Theo I01: revoke grant cũ, bỏ controller, tăng version; Staff mới không t
 
 ## 7. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I03-T01 — Direct mới kiểm routing version
 
@@ -292,8 +288,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [conversation-workflow.test.cjs](../../../../../apps/core/test/conversation-workflow.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ### I03-T06 — Cuộc AI mới có quyền độc lập với cuộc Staff cũ
 
 **P — ca hồi quy bổ sung chưa chạy.** Fixture synthetic có cuộc đã consent/Accept và phân công hiện hành. Customer dừng trao đổi rồi tạo AI chat mới qua API, retry cùng key, đọc/gửi lại cuộc cũ và thử truy cập Staff vào cuộc mới. Sau đó revoke/đổi assignment.
@@ -310,7 +304,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Checkpoint:** Có thể bắt đầu I04 với request/Direct/accepted thật qua API. Mọi kiểm thử dùng HTTP ở đây vẫn chưa là browser E2E.
 
-
 ## 9. Ghi chú triển khai
 
 Đã deploy10 endpoint I03 trong Core Docker: Customer support/create/list/detail/request/command lookup/messages (7) và Staff Accept/Accept lookup/messages (3). Swagger có DTO request/response/enum/error; Staff Accept trả 200, create/request201 lần đầu và 200 replay. Không sửa Web, schema, bootstrap hoặc credential; vẫn19 bảng/6 migrations. Read/safe metadata I02 giữ hoạt động.
@@ -322,7 +315,6 @@ Customer list/detail cho thấy các cuộc ownership; legacy chỉ REVIEW_REQUI
 Transcript lọc CUSTOMER_VISIBLE, order theo bigint string, before/after exclusive và cursor ràng actor/role/cuộc/direction. Có before/after flags theo dữ liệu visible, không counts/lastSequence hoặc tool metadata. Cuộc trống trả afterCursor boundary0 (mốc trước tin đầu tiên, không tạo tin/sequence giả); beforeCursor=null. Rỗng sau một cursor giữ boundary để tiếp tục catch-up. Body query before+after/limit ngoài1–100 bị từ chối.
 
 Citations tối đa20/message được kiểm kiểu/id/page và batch lookup. Nếu có linkedPolicyId, dùng lại exact-applied catalog hiện có (documents.main/terms/guide/endorsements), Staff theo assignment, Customer theo ownership. Nếu không linked policy, chỉ tài liệu PUBLIC active/exact version, không tài liệu Private tùy ý. Label lấy từ title đã có quyền, không echo nhãn/raw object key trong citation JSON. Mất quyền/phiên bản inactive/ngoài binding thì bỏ citation, không bỏ nội dung Customer-facing đã chia sẻ. Không cấp signed URL hoặc thêm Customer PDF API trong I03.
-
 
 ```powershell
 docker compose --profile tests build core core-tests

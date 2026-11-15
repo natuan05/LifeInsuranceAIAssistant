@@ -8,8 +8,6 @@
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [TK01 — Quyền, dữ liệu và version Ticket](tickets/01-scope-model-contract.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc) | [apps/core/prisma/schema.prisma](<../../../../apps/core/prisma/schema.prisma>); [apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql](<../../../../apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql>) | Cao — Generated client và mutations TK03 |
@@ -18,8 +16,6 @@ Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, t
 | [TK04 — Staff Tickets UI](tickets/04-list-detail-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); support_tickets (Ghi gián tiếp qua TK03) | [apps/web/src/components/staff-tickets.tsx](<../../../../apps/web/src/components/staff-tickets.tsx>); [apps/web/src/lib/ticket-api.ts](<../../../../apps/web/src/lib/ticket-api.ts>) | Cao — Đổi view không reload trang |
 | [TK05 — Ticket notification và invalidation](tickets/05-notification-events.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); notifications (Đọc); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/tickets/services/ticket-event.service.ts](<../../../../apps/core/src/tickets/services/ticket-event.service.ts>); [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Cao — Ticket created/accepted/status notifications |
 | [I07 — Ticket riêng và liên kết với Inbox](tickets/06-agent-confirmation.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); ticket_drafts và confirmed snapshot (đã có schema source; còn review I07); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | `apps/core/src/tickets/controllers/customer-ticket.controller.ts`; `apps/core/src/tickets/services/ticket-draft.service.ts` — hiện có source, cần kiểm chứng I07 | Cao — Customer review, service identity Agent |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Ranh giới đã chốt
 

@@ -4,7 +4,7 @@
 
 ## Trình tự rà soát đã thống nhất
 
-Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–2 đã triển khai và kiểm qua Docker/gateway; Phase 3–5 còn kế hoạch. Spec không bao gồm code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
+Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–2 có code và bằng chứng theo từng phase; còn ca browser A2-04 trước khi đóng Phase 2. Phase 3–5 còn kế hoạch. Spec không bao gồm nối Core–Agent hoặc code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
 
 ## Đã có
 
@@ -15,6 +15,17 @@ Phần Application đã có source được đối chiếu và đặc tả tại
 - Corpus Markdown và thiết kế Agent đã có. Task 1 có contracts/schema/fixtures/tests để review G1, Task 5 có graph và unit tests với fake adapters. Source còn có Public RAG/adapter Gemini thử nghiệm và checkpointer PostgreSQL theo các mốc 3/4 của Agent README. Provider Gemini API cho model sinh/embedding đã chốt ngày 13/11/2026. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. HTTP/Core end-to-end, limits và nghiệm thu tiếp tục theo gates.
 
 ## Thứ tự tiếp theo
+
+### Application hiện có
+
+1. Đóng ca browser A2-04 đổi actor khi Ticket pending; bảo toàn validation/replay/CAS/snapshot Phase 0–2.
+2. Phase 3: thống nhất Notification DTO/navigation/read caller và Ticket event/recipient/repair-replay.
+3. Phase 4: event đúng message, unread/read cycle bền vững, chống phát lại và retention cleanup mỗi 24 giờ.
+4. Phase 5: verify/reset theo schema và quyền, kiểm migration/hồi quy Application.
+
+Chi tiết code/API và tiêu chí A2–A5 nằm tại [spec Application](application-code-alignment-spec.md). Không dùng các task nối Core–Agent dưới đây làm điều kiện đóng checklist này.
+
+### Agent/RAG — phạm vi riêng
 
 1. **G1 — review contracts:** đối chiếu schema/fixtures với Agent Design và API hội thoại hiện có; sửa hai điểm review về giới hạn thực thi và validation ngày/giờ trước khi đóng G1. Tên/DTO kỹ thuật đề xuất chưa tự thành API đã duyệt.
 2. **G2/G3 — runtime protocol:** framework HTTP Starlette + uvicorn và profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026. Task 6 phía Agent có code trên `origin/agent/task-6-http-delivery` tại `5043e8d`, chưa merge main. Theo Tasks 2–4/6 hoàn thiện storage ownership, transaction/fencing, budget reservation, durable ACK/callback và recovery. Không dùng checkpoint hoặc Message JSON thay lifecycle/ledger; không tự dựng module/queue mới chỉ từ bản đồ file cũ.

@@ -6,14 +6,10 @@ Cập nhật **13/11/2026**: I06 handoff và TK05 Ticket notification đã có, 
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [NO01 — Notification recipient/read](notifications/01-recipient-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); notifications (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); notifications (POST read cập nhật is_read) | [apps/core/src/notifications/notifications.service.ts](<../../../../apps/core/src/notifications/notifications.service.ts>); [apps/core/src/notifications/notifications.controller.ts](<../../../../apps/core/src/notifications/notifications.controller.ts>) | Cao — Handoff và Ticket notifications |
 | [NO02 — Notification UI và realtime](notifications/02-center-realtime-ui.md) | notifications (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); notifications (POST read cập nhật is_read) | [apps/web/src/components/staff-notifications.tsx](<../../../../apps/web/src/components/staff-notifications.tsx>); [apps/web/src/lib/realtime.ts](<../../../../apps/web/src/lib/realtime.ts>) | Cao — Inbox và Tickets header |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Runtime
 

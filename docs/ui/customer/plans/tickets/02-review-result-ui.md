@@ -39,7 +39,6 @@ Trang Tickets → New support ticket → nhập title/description/policy tùy ch
 - Own list/detail dùng API Customer. Logout/đổi actor/revoke xóa state và bỏ response đến muộn.
 - Review/detail hiển thị DTO đã được phép. Phần giảm/che dữ liệu còn P theo [ma trận dữ liệu](../../../../configuration-and-data.md#customer-sensitive-data).
 
-
 **Runtime Application Phase 2:** dialog mở từ `/customer?conversationId=<id>&ticketDraftId=<id>` cho draft đã lưu ở Core; query không cấp quyền. Close/Escape không tạo Ticket. Edit cho đổi/bỏ policy thuộc owner, Save and review nhận revision và confirmation.text/textVersion mới; confirm không hardcode lời xác nhận. Intent/key giữ trong memory theo actor/draft hoặc form; timeout tra receipt, 404 chưa là bằng chứng thất bại. Đóng form bỏ response muộn; mở lại đối soát key cũ. Chỉ chủ động Start a different request mới bỏ intent chưa rõ kết quả; UI cảnh báo request trước vẫn có thể hoàn tất. Không lưu nội dung Ticket vào browser storage. Nguồn draft Agent thật và sáu nhóm/refs chưa triển khai.
 
 ## 3. Test cases

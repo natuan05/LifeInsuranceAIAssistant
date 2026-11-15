@@ -4,7 +4,7 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Chỉ DTO Ticket có quyền, không nối raw Customer/chat để lấp trường che. Phân biệt bản duyệt với bản hiển thị lược bỏ; Accept/status không sửa snapshot.
 
@@ -17,8 +17,6 @@
 ## Data model và phạm vi ảnh hưởng
 
 **Bổ sung 13/11/2026 — summary Agent, phương án A:** Ticket detail hiển thị sáu nhóm và nguồn từ snapshot được Core cấp theo [I07](06-agent-confirmation.md#ticket-handoff-content). Finding đã xác minh và lời Customer có nhãn riêng; nhóm thiếu dữ liệu, nguồn không khả dụng và legacy cần trạng thái rõ. Không dựng lại summary từ chat mới hoặc cho phép sửa snapshot sau commit. Cần thêm DOM/network tests cho đủ nhóm/nguồn, quyền và source version; phần UI này chưa nghiệm thu.
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -93,9 +91,7 @@ flowchart TD
 
 ## 6. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### TK04-T01 — Danh sách → chi tiết → Back
 
@@ -174,8 +170,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Đo bounds các panel và popup Notifications.
 
 **Kết quả mong đợi:** Không tràn ngang hoặc popup bị clipping; focus thấy được; không cần hiển thị dòng nhắc Enter để search vẫn hoạt động.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 7. Checklist
 

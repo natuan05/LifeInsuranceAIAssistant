@@ -4,8 +4,6 @@ Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I01** · [Ch�
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -28,7 +26,6 @@ Core phân biệt chat AI riêng, Direct và cuộc Customer cho phép chuyển/
 Không thêm endpoint chat, UI, Agent runtime, Ticket workflow hoặc counts. Enum chat ba giá trị đã có; không làm lại migration xóa CLOSED hoặc sửa migration đã apply.
 
 ## 2. Vị trí triển khai
-
 
 Đã tạo `conversations.module.ts`, `services/conversation-access.service.ts`, `services/conversation-command.service.ts`, `services/conversation-message.service.ts` và helper `services/conversation-revocation.ts` trong `apps/core/src/conversations/`. Chưa thêm controller/response DTO public; các phần đó thuộc I02/I03. Module chỉ export service nội bộ, không có endpoint chat.
 
@@ -181,9 +178,7 @@ Access/execute nhận tx; send/appendAI là transaction boundary và dùng các 
 
 ## 8. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I01-T01 — Predicate không cấp quyền từ status hoặc assignment đơn thuần
 
@@ -252,8 +247,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [conversation-permissions.test.cjs](../../../../../apps/core/test/conversation-permissions.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 9. Điều kiện hoàn tất
 
 - [x] Review audience legacy, pending AI, reassignment trước migration.
@@ -263,11 +256,9 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Checkpoint:** Bắt đầu I02 khi policy chứng minh deny-before-Accept ở query/service. Chưa có thao tác UI mới để manual test.
 
-
 ## 10. Ghi chú triển khai
 
 Migration `202611040001_inbox_foundation` đã apply bằng Docker; deploy lại không pending. Thêm hai bảng business `conversation_handoffs`, `conversation_command_receipts`, tổng19 bảng ứng dụng/6 migrations. PostgreSQL constraints/triggers giữ provenance/consent bất biến, cùng Customer/assignment và một handoff hiện hành; grant/query không suy từ status/controller. Index/FK có map tên PostgreSQL giới hạn63 ký tự, Prisma migrate diff trả empty.
-
 
 Lệnh chạy lại từ root, khi PostgreSQL Docker và migration đã sẵn sàng:
 

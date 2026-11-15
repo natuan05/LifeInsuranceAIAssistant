@@ -32,7 +32,7 @@ Triển khai A24–26 theo CP01; không API Agent ghi trực tiếp Business DB.
 
 ## 2. Model và vị trí thay đổi
 
-Conversations/Copilot module Core, Agent adapter, read policy I01, Policy document catalog, task receipts và audit; không public sender SYSTEM/AI hoặc client-chosen role/audience.
+Public Copilot trong module conversations, module agent cho run/attempt/event/HMAC/dispatch/API nội bộ theo [ánh xạ chung](../../../../../contracts/agent-v1.md#application-conversation-api-mapping), read policy I01, Policy document catalog, receipts và audit; không public sender SYSTEM/AI hoặc client-chosen role/audience.
 
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |

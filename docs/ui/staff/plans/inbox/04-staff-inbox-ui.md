@@ -6,15 +6,13 @@ Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026** · [Chung](.
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Inbox/directory chỉ render DTO có quyền, không gọi API khác để lấp label đã che. Giữ transcript nguồn theo I03, không rehydrate phần lược bỏ hoặc gửi raw từ browser sang Copilot.
 
 **Kiểm thử cần bổ sung, chưa chạy:** DOM/network: accordion/preview/copy/aria/state không rò canary ngoài contract; response muộn/đổi khách/logout/revoke không hồi raw.
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -35,7 +33,6 @@ Giao diện Staff dùng Core thật: All/Requests/Active, accordion theo khách,
 Account/Customers/Policy/PDF và sidebar chung giữ hành vi đã kiểm thử. Nội dung Inbox thay tại slot của workspace, không viết lại toàn Staff shell.
 
 ## 2. File và tích hợp
-
 
 File **cần tạo**: `apps/web/src/lib/conversation-api.ts`, `components/staff-inbox.tsx`, `staff-inbox-directory.tsx`, `conversation-transcript.tsx`, `handoff-request-panel.tsx`. Chỉ thêm hook hỗ trợ khi có lifecycle thực sự cần tách. API wrapper Inbox parse error code/requestId có allowlist, dùng coreApiUrl/credential/no-store hiện có, nhận AbortSignal; không tạo package/network stack mới.
 
@@ -151,9 +148,7 @@ flowchart TD
 
 ## 8. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### I04-T01 — Accordion, Enter/IME và Back
 
@@ -209,15 +204,12 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [staff-inbox.spec.mjs](../../../../../apps/web/tests/browser/staff-inbox.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 9. Điều kiện hoàn tất
 
 - [x] UX đúng All/Requests/Active, không counts/Search/Clear/metadata thừa.
 - [x] DOM/keyboard/mobile/scroll/no-F5 tests pass; HTTP và E2E thật báo riêng.
 - [x] Accept đúng gate, transcript có history trước handoff, không gọi A10 lúc pending.
 - [x] Composer gửi chưa bật; tại mốc I04 I05 chưa hoàn tất, không nhận cả phần AI vào milestone này.
-
 
 ## 10. Ghi chú triển khai
 

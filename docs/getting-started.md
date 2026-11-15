@@ -2,7 +2,7 @@
 
 Hướng dẫn dùng chung cho thành viên clone repo. Chạy các lệnh tại thư mục gốc có `compose.yaml`. Ví dụ dùng PowerShell trên Windows; cổng bên dưới là mặc định.
 
-Cập nhật 05/11/2026: **FE/BE chỉ chạy bằng Docker Compose**, cùng PostgreSQL/pgvector, Nginx, DbGate và MinIO private. Đã có tài khoản/hồ sơ Staff, Customers, Policy Lookup/PDF, Products/PDF và Inbox chat hai đầu I01–I06 với consent/Accept/realtime/handoff notifications. Ticket read/Accept/UI và notification/realtime TK01–TK05 đã có; Customer Home/Products/Policies/PDF/chat shell đã có; nguồn tạo/xác nhận Ticket I07 và Copilot/Agent còn phần triển khai/nghiệm thu riêng. Xem [checklist](ui/implementation-status.md) và [Staff plans](ui/staff/plans/README.md).
+Web/Core chạy bằng Docker Compose qua gateway. Chức năng hiện có và phần còn làm xem [tiến độ Application](ui/implementation-status.md).
 
 Mục lục: [1. Chuẩn bị](#prerequisites) · [2. Cấu hình](#environment) · [3. Chạy Docker](#full-docker) · [3.5. MinIO](#35-storage-minio-local) · [4. Cập nhật source](#source-updates) · [5. Tool admin](#admin-tool) · [6. Cổng/URL](#ports) · [7. Tài khoản mẫu](#dev-accounts) · [8. Dữ liệu](#database) · [9. Kiểm tra/dừng](#commands) · [10. Xử lý lỗi](#troubleshooting) · [11. Cấu trúc](#project-layout).
 
@@ -343,7 +343,7 @@ Mỗi hồ sơ chọn đúng một sản phẩm chính và đúng bản điều 
 | BH-2026-02001 | Phạm Ngọc Linh | 1.500.000 / tháng | 18.000.000 | 800.000.000 | 2026-12-01 |
 | BH-2026-02002 | Phạm Gia Bảo | 2.250.000 / quý | 9.000.000 | 500.000.000 | 2027-01-01 |
 
-Đơn vị tiền: VND. STBH không phải khoản chi trả đã được phê duyệt. Giá trị tài khoản, hoàn lại, nợ và số tiền giải quyết quyền lợi chưa có nguồn xác nhận được giữ `null`. Kiểm phân trang trên >10 hợp đồng dùng fixture cô lập của các suite API/browser; không trộn vào bootstrap chung.
+Đơn vị tiền: VND. STBH không phải khoản chi trả đã được phê duyệt. Giá trị tài khoản, hoàn lại, nợ và số tiền giải quyết quyền lợi chưa có nguồn xác nhận được giữ `null`.
 
 Bốn hồ sơ khai báo không tham gia bổ trợ (`schemaVersion=1`, `riders=[]`, `ridersComplete=true`); không dùng DEMO-TITAN hoặc tự gắn ba bổ trợ trong catalog. Mỗi hợp đồng có một PDF chính `portfolio-v2.1` và một bản điều khoản của đúng sản phẩm `public-text-v2`; không tự tạo phụ lục. Tên tài liệu gồm bên mua, sản phẩm và số hợp đồng. Không seed chat/Ticket hoặc thêm Customer ngoài năm tài khoản chuẩn. `contract.json`/15 đáp án cũ là fixture tham chiếu riêng, không phải nguồn runtime.
 
@@ -351,9 +351,7 @@ PDF chính tiếng Việt có font nhúng, sáu phần: giấy chứng nhận/th
 
 Chạy lại chỉ thêm bản ghi còn thiếu, giữ password/khóa/hồ sơ/phân công và các trường hợp đồng/snapshot đã sửa; không bật lại version bị vô hiệu hóa hoặc đổi currentVersion đã chỉnh. File còn nguyên được kiểm SHA-256, không upload đè. File fixture thiếu được phục hồi bằng đúng nội dung ổn định. Nếu trùng mã/ID với dữ liệu không thuộc bootstrap hoặc object/version đã khác checksum thì seed báo lỗi, không chiếm hay ghi đè. DB rollback khi seed thất bại; object đã upload ở prefix riêng được giữ để lần chạy lại tiếp tục, không xóa bucket/volumes.
 
-Dữ liệu đã có được giữ nguyên khi chạy lại bootstrap. Số lượng trong bảng mô tả bộ seed dùng chung, không phải tổng dữ liệu của mọi môi trường. Kết quả tra cứu thực tế phụ thuộc dữ liệu và phân công hiện hành; kiểm thử tự động dùng fixture cô lập để không phụ thuộc dữ liệu của thành viên.
-
-Kiểm chứng seed: `npm run test:policy-seed` chạy fixture riêng với DB rollback, kiểm tính ổn định PDF, chạy lại, giữ chỉnh sửa, lỗi storage/retry và xung đột. `docker compose run --rm --no-deps dev-seed-tests` kiểm thêm full reset trong transaction luôn rollback; chạy tuần tự khi Core đã dừng để không cạnh tranh dữ liệu. Test không khởi động Core/Web trên host.
+Dữ liệu đã có được giữ nguyên khi chạy lại bootstrap. Số lượng trong bảng mô tả bộ seed dùng chung, không phải tổng dữ liệu của mọi môi trường. Kết quả tra cứu thực tế phụ thuộc dữ liệu và phân công hiện hành.
 
 ### 7.5. Xóa toàn bộ dữ liệu ứng dụng local và seed lại
 
@@ -397,12 +395,6 @@ sequenceDiagram
     end
 ```
 
-**Test case GS-SEED-01 — Bộ chung và chạy lại:** trên DB mới, chạy Compose; đăng nhập từng email ở mục 7.1, kiểm tên/phân công, 2/2/0 hợp đồng. Mỗi khách có hai sản phẩm/người được bảo hiểm phân biệt được, PDF và bảng phí khớp mục 7.4. Chạy `seed-dev` lần nữa: không thêm bản ghi hoặc reset chỉnh sửa.
-
-**Test case GS-SEED-02 — Reset:** trên môi trường test, tạo dữ liệu thử/đổi hồ sơ và đăng nhập; chạy lệnh mục 7.5. Kỳ vọng năm tài khoản chuẩn, bảy sản phẩm, bốn hợp đồng/17 version; chat/Ticket/notification trống, phiên cũ không dùng được, mật khẩu về mẫu. PDF đã loại khỏi bộ mới hết truy cập; object có cùng checksum được tái sử dụng nếu vẫn thuộc bộ mới.
-
-**Test case GS-SEED-03 — Rollback/retry:** dùng suite `dev-seed-tests` để inject lỗi upload và rollback reset; không inject lỗi trên dữ liệu đang dùng. Kỳ vọng DB cũ phục hồi nguyên trạng, không thay schema/migrations/credential. Retry cleanup sau commit chỉ xóa đúng prefix/object không còn được DB tham chiếu.
-
 ### 7.6. Thay bộ hợp đồng mẫu nhân bản cũ
 
 Môi trường từng seed 12 bản sao cho một khách cần chạy maintenance một lần; không phải migration schema và không tự xóa dữ liệu khi Compose up. Môi trường mới nhận bốn hồ sơ chuẩn ngay từ bootstrap.
@@ -441,10 +433,6 @@ sequenceDiagram
     end
 ```
 
-**Test case GS-SEED-04 — Hồ sơ khác biệt:** đăng nhập Staff Minh, mở từng hợp đồng của Minh Anh. Kiểm BH-2024-01001 là Hành Trình Hạnh Phúc cho con Lê Quang Bình, phí nửa năm 6 triệu; BH-2026-01002 là Xanh Phú Quý cho bản thân, phí năm 24 triệu. Kiểm PDF chính có đúng sản phẩm/người/số hợp đồng và tổng phí; mỗi danh mục policy chỉ có một bản điều khoản của đúng sản phẩm, không có DEMO-TITAN/ULP50 gắn nhầm.
-
-**Test case GS-SEED-05 — Bảo toàn dữ liệu khi thay fixture:** trong harness, tạo một chat/Ticket tham chiếu policy cũ, lưu nguyên nội dung/chứng cứ và hồ sơ/password của actor. Chạy policy-only replacement. Kỳ vọng policy/PDF cũ bị loại, optional links null và version tăng; nội dung, chứng cứ, actor/profile/password không đổi. Chạy lại không thêm hồ sơ trùng. Suite `dev-seed-tests` kiểm ca này bằng transaction rollback.
-
 <a id="database"></a>
 ## 8. Dữ liệu và migration
 
@@ -471,106 +459,19 @@ Người sửa backend có thể chạy `npm run db:validate --workspace @life-i
 <a id="commands"></a>
 ## 9. Kiểm tra và dừng dự án
 
-Tool/test source cần Node/npm và `npm ci`; FE/BE vẫn chạy bằng Docker:
+Sau khi khởi động, kiểm tra các service và kết nối qua gateway:
 
 ~~~powershell
 npm run local:check
 npm run check:connection
 npm run storage:check
-npm run lint
-npm run typecheck
-npm run build
-npm run build:admin --workspace @life-insurance/core
 ~~~
 
-`check:connection` tự lấy cổng gateway đang publish từ Compose, theo cấu hình `.env`. `CHECK_WEB_ORIGIN`/`CHECK_CORE_URL` chỉ dùng khi chủ động kiểm origin/endpoint khác. Test DB dùng fixtures synthetic riêng, rollback/dọn sau test:
+Các helper trên cần Node/npm; có thể kiểm trạng thái trực tiếp bằng `docker compose ps --all`. `check:connection` lấy cổng gateway từ Compose; CHECK_WEB_ORIGIN/CHECK_CORE_URL dùng khi chủ động kiểm endpoint khác.
 
-~~~powershell
-npm run test:accounts
-npm run test:auth
-npm run test:customers
-npm run test:policies
-npm run test:admin
-npm run test:http --workspace @life-insurance/core
-~~~
+Lệnh và tiêu chí kiểm thử dành cho người phát triển nằm tại [spec Application](application-code-alignment-spec.md#application-tests).
 
-Các helper DB tự chuẩn bị service cần thiết; không chạy với NODE_ENV=production. Test admin cần cổng 4101 trống. HTTP/realtime có thể kiểm sau build Core bằng `node --test apps/core/test/realtime.test.cjs apps/core/test/http-foundation.test.cjs`, không cần DB thật. Browser mock và gateway E2E có giới hạn riêng ở checklist UI, không thay kiểm quyền Core/DB/MinIO.
-
-<a id="phase-0-tests"></a>
-### Kiểm tra Application Phase 0–2 trong Docker
-
-Sau `docker compose up -d --build --wait`, chạy từ root repo:
-
-~~~powershell
-docker compose --profile tests build core-tests
-docker compose --profile tests run --rm --no-deps core-tests npm run typecheck
-docker compose --profile tests run --rm --no-deps core-tests node --test test/customer-ticket-boundary.test.cjs test/customers.test.cjs test/http-foundation.test.cjs test/ticket-foundation.test.cjs test/tickets-read.test.cjs
-~~~
-
-Phase 2 có migration `202611140001_ticket_request_fingerprint`, tự áp dụng trong luồng Compose chung. Migration chỉ thêm fingerprint nullable/CHECK, không sửa hoặc backfill Ticket cũ. Suite boundary kiểm validation, replay, CAS/cạnh tranh, policy, rollback và quota bằng DB thật; suite Customers kiểm projection/search/reveal, quyền và audit của Phase 1.
-
-Kiểm Customers và Ticket Customer/Staff qua gateway trên Chromium, Firefox và WebKit:
-
-~~~powershell
-node apps/web/scripts/test-staff.mjs ticket-flow.integration.spec.mjs --grep 'staff-customers.spec|real Customers|real policy PDF|ticket-flow.integration|save failure 429|repeated 500/403/429'
-~~~
-
-Runner giữ báo cáo trong thư mục tạm của hệ điều hành và tự dọn sau chạy. Fixture tạo tài khoản, hợp đồng, conversation/draft/Ticket hoàn toàn synthetic riêng, không dùng seed của thành viên. Kiểm manual và draft Core cơ bản, gồm mất ACK/receipt và response muộn sau đóng form; không gọi Agent/model thật. Dialog draft nhận deep link `/customer?conversationId=<id>&ticketDraftId=<id>`; ID trong URL không cấp quyền đọc/xác nhận.
-
-Docker tự generate Prisma client từ schema repo; generated code trên host bị loại khỏi build context. Test image cho user `node` quyền regenerate thư mục client, không cần `--user root`. Suite boundary tạo tài khoản/session/conversation/draft synthetic riêng, gọi cả HTTP nội bộ container và gateway, rồi tự dọn fixture, kể cả Ticket/outbox/audit nếu request tạo Ticket ngoài dự kiến. Origin test lấy từ TEST_CORS_ORIGINS do Compose suy ra từ CORE_CORS_ORIGINS hoặc GATEWAY_PORT ở root, không cố định cổng 8080. Không reset DB/volumes, đổi credential hoặc chạy Web/Core trên host. Credential runtime vẫn trong Docker volumes; các lệnh này không xuất file credential lên host. Tài khoản dev dùng chung theo [Dev accounts](#dev-accounts), seed/lấy thông tin mẫu bằng `npm run bootstrap:dev`.
-
-### 9.1. Kiểm thử browser Staff và E2E hệ thống thật
-
-Sau `docker compose up -d --build --wait` và `npm ci`, cài browser kiểm thử một lần nếu máy chưa có:
-
-~~~powershell
-node node_modules/@playwright/test/cli.js install chromium firefox webkit
-node apps/web/scripts/test-staff.mjs --workers=2
-~~~
-
-Lệnh thứ hai chạy Account/session/Customers/Policies/Inbox regression và `staff-foundation.integration.spec.mjs` trên Chromium, Firefox, WebKit. Mặc định đủ ba browser; có thể đặt `BROWSER_TEST_BROWSERS=chromium` trong môi trường lệnh nếu chỉ cần vòng kiểm ngắn. Web/Core vẫn là build Docker qua gateway `http://localhost:8080`, không khởi động server host.
-
-Phân biệt bằng chứng: các file regression cũ dùng API/WS mock để kiểm UI; `staff-foundation.integration.spec.mjs` dùng gateway/Core/PostgreSQL/MinIO thật, tài khoản/mật khẩu/session riêng chỉ trong memory và fixture UUID qua service test Docker. Ca mạng cố ý abort request, expiry dịch đồng hồ browser rồi trả lại giờ thật trước xin grant mới; không gọi đó là outage/clock drift của server. Kiểm PDF qua byte/checksum/Range, không chứng nhận giao diện toolbar/zoom của PDF viewer native.
-
-Harness có quyền dọn chỉ trong service `product-document-tests`, không thêm quyền ghi/xóa object cho Core runtime. Mỗi ca đóng context và dọn đúng user/profile/assignment/policy/document/chat/Ticket/session/audit/object của runId trong finally; bootstrap và dữ liệu đang dùng được giữ nguyên. Runner tổng hợp một JSON tạm trong thư mục dữ liệu tạm của hệ điều hành, tự xóa cả thư mục do nó tạo khi xong; không tạo report/credential/PDF trong repo, screenshot/video/trace tắt. Kết quả báo trong terminal; tài liệu phase giữ test case và trạng thái triển khai.
-
-Product API có test Docker với PostgreSQL/MinIO thật, sau khi stack đã healthy:
-
-~~~powershell
-docker compose --profile tests build core-tests
-docker compose --profile tests run --rm --no-deps core-tests node --test test/products.test.cjs
-docker compose --profile tests run --rm --no-deps product-document-tests
-~~~
-
-`product-document-tests` chỉ chạy khi gọi tường minh trong profile tests, không thêm vào startup app. Harness dùng PDF synthetic trong memory và prefix object riêng theo UUID, tự xóa đúng fixtures sau test. Reader/writer và root cleanup mount readonly chỉ trong service test riêng; Core runtime giữ reader-only. Root cleanup cần vì writer không có DeleteObject, không sửa IAM/credential đang dùng. Không tạo file secret/fixture trên host, không xóa bucket/volumes/dữ liệu người dùng. Command gateway sau cập nhật runtime và kết quả ở [P01](ui/staff/plans/products/01-catalog-read-api.md), [P02](ui/staff/plans/products/02-document-access.md).
-
-### 9.1. Browser tests qua Web Docker
-
-Sau khi ứng dụng đã healthy và source Web mới đã rebuild theo mục 4, chuẩn bị test runner trên host:
-
-~~~powershell
-npm ci
-npx playwright install chromium
-npm run test:browser:account
-npm run test:browser:customers
-npm run test:browser:policies
-npm run test:browser --workspace apps/web -- staff-products.spec.mjs staff-inbox.spec.mjs conversation-send.spec.mjs conversation-realtime.spec.mjs
-~~~
-
-Đây là browser regression dùng API/WebSocket/PDF mock cho các suite trên, không chứng minh quyền Core hoặc Agent thật. Host chỉ chạy test runner, không mở Web/Core server. Base URL mặc định `http://localhost:8080`; nếu đổi GATEWAY_PORT, đặt `BROWSER_TEST_BASE_URL` theo URL gateway trước khi chạy. Ví dụ PowerShell: `$env:BROWSER_TEST_BASE_URL = 'http://localhost:8090'`.
-
-Các bài E2E thật dùng gateway/Core/PostgreSQL/MinIO đang chạy và fixture synthetic tự dọn. Build image test khớp source trước khi gọi các suite integration:
-
-~~~powershell
-docker compose --profile tests build core-tests
-npm run test:browser --workspace apps/web -- staff-inbox.integration.spec.mjs conversation-flow.integration.spec.mjs conversation-realtime.integration.spec.mjs product-flow.integration.spec.mjs
-~~~
-
-Integration suites hiện dùng default origin/port của stack local trong fixture; chạy với cổng mặc định của `.env.example`. Chỉ đổi BROWSER_TEST_BASE_URL không bảo đảm sửa được Origin/port trong fixture. Không bật E2E trên DB/cloud thật hoặc sửa bootstrap để chuẩn bị test. Không coi các suite đã có là coverage đầy đủ Account/Policy/Agent; bổ sung tests ở phase chức năng tương ứng.
-
-Playwright cấu hình screenshot/video/trace tắt. Kết quả tổng hợp tại `apps/web/test-results/results.json` (Git ignore); đọc kết quả rồi dọn output do lượt test tạo trong `apps/web/test-results`, không xóa volumes hoặc dữ liệu người dùng. PDF kiểm bytes/SHA256/metadata/network, không render thành ảnh.
-
-### 9.2. Dừng và xem trạng thái
+### 9.1. Dừng và xem trạng thái
 
 - Tool admin: Ctrl+C tại terminal của tool.
 - Dừng riêng Web/Core/gateway: `docker compose stop gateway web core`.
@@ -613,9 +514,9 @@ compose.yaml    Stack Docker local
 docs/           Hướng dẫn, thiết kế và đặc tả
 ~~~
 
-Core chia theo tính năng auth/customers/accounts/admin; model ORM ở Prisma schema, không tạo model TypeScript trùng lặp. Public AppModule tách khỏi AdminModule. Chỉ dùng dữ liệu hoàn toàn synthetic. Core sở hữu danh tính/phân quyền/nghiệp vụ; Agent tương lai gọi Business API, không truy cập trực tiếp business DB.
+Core chia theo tính năng auth/customers/policies/products/conversations/tickets/notifications; model ORM ở Prisma schema. Accounts/admin dùng entrypoint quản trị riêng. Public AppModule tách khỏi AdminModule. Chỉ dùng dữ liệu hoàn toàn synthetic. Core sở hữu danh tính/phân quyền/nghiệp vụ; Agent gọi Business API, không truy cập trực tiếp business DB.
 
-Đọc thêm: [kiến trúc](architecture.md), [quy tắc cấu hình/dữ liệu](configuration-and-data.md), [UI và checklist](ui/README.md), [hướng tiếp theo](next-steps.md), [đối chiếu nguồn](source-review.md), [đặc tả](specifications), [cấu trúc repo](adr/0001-repository-layout.md). Model/embedding/checkpoint/queue/cloud vẫn cần chốt riêng khi triển khai.
+Đọc thêm: [kiến trúc](architecture.md), [quy tắc cấu hình/dữ liệu](configuration-and-data.md), [UI và checklist](ui/README.md), [hướng tiếp theo](next-steps.md), [đối chiếu nguồn](source-review.md), [đặc tả](specifications), [cấu trúc repo](adr/0001-repository-layout.md). Phần Agent và hạ tầng cloud theo tài liệu thiết kế riêng.
 
 ### PDF trong Staff workspace
 

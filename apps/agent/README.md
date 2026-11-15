@@ -16,7 +16,7 @@ Quyết định ngày 27/10/2026: dùng custom LangGraph cho điều phối Agen
 - Phân biệt trạng thái graph với lịch sử hội thoại do Core quản lý; không coi checkpoint là bằng chứng xác nhận Ticket.
 - Nội dung tài liệu và tool output là dữ liệu, không được thay đổi quyền hay chỉ dẫn hệ thống.
 
-Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [HMAC LI-HMAC-SHA256-v1 và Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema và cơ chế lưu/khôi phục cụ thể tiếp tục theo đặc tả thực thi. Provider Gemini API đã chọn ngày 13/11/2026 cho model sinh và embedding của MVP. Cặp model MVP đã chốt ngày 13/11/2026 là gemini-3.8-flash và gemini-embedding-2, 1536 chiều, khớp model IDs/dimensions trong evaluation/trial-config.json. Các tham số còn lại tiếp tục được review theo G4. Framework HTTP phía Agent đã chốt Starlette + uvicorn ngày 13/11/2026. Nhánh `origin/agent/task-6-http-delivery` tại `5043e8d` có app factory, uvicorn entrypoint và tests HTTP/HMAC phía Agent, chưa merge main. Nhánh này pin starlette 1.10.0 và uvicorn 0.54.0. Task 4 đã có checkpointer có kiểm quyền ghi. Profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026, code ký/kiểm nằm trong signing.py của nhánh Task 6. Protocol/checkpointer, quản lý khóa và tích hợp Core tiếp tục theo review G2/G3. [Contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
+Core–Agent đã chọn [HTTP + callback JSON](../../docs/specifications/Agent_Design.md#core-agent-callback) ngày 29/10/2026, [HMAC + Core tra quyền theo lượt](../../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Đã chốt [lưu kết quả trước khi gửi/giao lại cùng sự kiện](../../docs/specifications/Agent_Design.md#durable-result-delivery); endpoint/schema, profile xác thực và cơ chế lưu/khôi phục cụ thể thuộc đặc tả thực thi. Provider/model MVP theo [quyết định chuẩn](../../docs/specifications/Agent_Design.md#managed-model-api); giới hạn vận hành và chất lượng còn phải đo theo G4. Checkpointer tự viết trên `BaseCheckpointSaver` còn theo review G2; profile HMAC `LI-HMAC-SHA256-v1` và Starlette + uvicorn đã chọn theo code hiện có ([contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026)). Task 4 có checkpointer kiểm quyền ghi; Task 6 phía Agent có HTTP/HMAC. Retention khôi phục MVP theo [chính sách lưu chung](../../docs/configuration-and-data.md#mvp-agent-recovery-retention). Tích hợp Core, retry và các phần G2/G3 còn lại tiếp tục review.
 
 Panel Copilot ở Web chỉ là khung chưa kết nối. Native WebSocket Core hiện có không phải Core–Agent transport/checkpoint hoặc chat stream. Công việc phụ thuộc và điều kiện đóng ở [G02–G07/checklist UI](../../docs/ui/implementation-status.md); không coi UI panel là triển khai Agent.
 
@@ -54,11 +54,13 @@ python -m pip install -e . --group dev
 python -m pytest -p no:cacheprovider
 ```
 
-`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Ở mốc 2 chỉ dùng `InMemorySaver`; mốc 4 bên dưới bổ sung checkpointer PostgreSQL với `langgraph-checkpoint` 4.3.1. Framework HTTP đã chốt Starlette + uvicorn ngày 13/11/2026.
+`pip install --group` cần pip 25.1 trở lên. Thư viện được pin trong `pyproject.toml`: `langgraph` 1.2.20, `jsonschema` 4.26.0, `psycopg[binary]` 3.3.6, `pytest` 9.2.0. Ở mốc 2 chỉ dùng `InMemorySaver`; mốc 4 bên dưới bổ sung checkpointer PostgreSQL với `langgraph-checkpoint` 4.3.1. HTTP dùng Starlette/uvicorn theo [contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3); không tự đóng các phần G3 còn lại.
+
+Dữ liệu gửi model theo [phạm vi MVP](../../docs/specifications/Agent_Design.md#mvp-model-data-policy): sáu quy tắc prompt, dữ liệu khách hàng/hợp đồng synthetic và quyền/scope/validation hiện có; chưa có bộ lọc định danh bằng code. Không coi prompt là cơ chế che dữ liệu hoặc đã nghiệm thu ngữ nghĩa.
 
 ## Trạng thái: mốc 3 — Public RAG thử nghiệm
 
-Phần Public của Tasks 7–9: tài liệu → chunk → embedding → hybrid search → câu trả lời có nguồn → báo cáo chất lượng. **Corpus Public vẫn `ai_checked/needs_human_review` (G5 chưa duyệt)**; người dùng cho phép dùng để thử ngày 05/11/2026, mọi chunk ghi trạng thái duyệt và UL049 trang 29 mang cảnh báo nguồn. Cấu hình Gemini trong [`evaluation/trial-config.json`](evaluation/trial-config.json) là cấu hình **thử** theo G4. Gemini API cùng gemini-3.8-flash và gemini-embedding-2, 1536 chiều đã được chọn cho MVP ngày 13/11/2026. Limits, tham số retrieval và ngưỡng chất lượng trong file tiếp tục theo G4. Private, Copilot, Core thật, checkpoint bền vững và HTTP chưa làm ở mốc này.
+Phần Public của Tasks 7–9: tài liệu → chunk → embedding → hybrid search → câu trả lời có nguồn → báo cáo chất lượng. **Corpus Public vẫn `ai_checked/needs_human_review` (G5 chưa duyệt)**; người dùng cho phép dùng để thử ngày 05/11/2026, mọi chunk ghi trạng thái duyệt và UL049 trang 29 mang cảnh báo nguồn. [`evaluation/trial-config.json`](evaluation/trial-config.json) chứa bộ model MVP đã chọn theo [quyết định chuẩn](../../docs/specifications/Agent_Design.md#managed-model-api). Thinking, limits, timeout và các tham số retrieval/context vẫn là cấu hình **thử** theo G4; chưa nghiệm thu chất lượng, chi phí hoặc độ trễ. Private, Copilot, Core thật, checkpoint bền vững và HTTP chưa làm ở mốc này.
 
 | Thành phần | Nội dung |
 | --- | --- |
@@ -98,10 +100,6 @@ Báo cáo mặc định ở thư mục dữ liệu người dùng `LifeInsurance
 Wrapper model ghi từng attempt, kể cả lỗi; HTTP 429 trả lỗi lượt, không chờ rồi retry ngầm ngoài ngân sách. Retry model cần policy/budget/deadline riêng được review, không mượn chính sách một retry của Business Tools. Các quyết định và regression của đợt sửa được ghi tại [Public RAG review fixes](../../docs/public-rag-review-fixes.md).
 
 ## Trạng thái: mốc 4 — Task 4, lưu bền phía Agent
-
-**Logout/hết phiên — B chốt 14/11/2026.** Core tiếp tục xử lý yêu cầu AI đã nhận bằng service/run authorization theo actor/resource hiện hành. Phiên Web cũ bị chặn, người dùng login lại xem kết quả bằng phiên mới. Cookie/token phiên Web thuộc Core, runtime Agent dùng envelope HMAC/run và quyền giới hạn. Tích hợp Core/Auth/UI và tests còn P. [Chính sách chuẩn](../../docs/specifications/Agent_Design.md#agent-logout-session-policy).
-
-**Retention MVP — A chốt 14/11/2026.** Checkpoint, run receipt và kết quả/sự kiện outbound được giữ để khôi phục/đối soát, chưa tự xóa theo tuổi dữ liệu. Store hiện lưu bền và lọc ack_outcome khi lấy event cần giao. Lease, writer fence, nonce HMAC và deadline tiếp tục theo protocol. Test fixture có cleanup riêng, log/audit/cache và production còn cần chốt thời hạn. [Chính sách chuẩn](../../docs/configuration-and-data.md#mvp-agent-recovery-retention).
 
 Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2) theo các phương án đề xuất từ nhánh ngày 06/11/2026; việc tích hợp code không tự đóng G2/G3. Chưa có HTTP/HMAC (Task 6), API Core (Task 3, đội application) hay worker nhận việc chạy nền. Vì vậy mới kiểm bằng gọi trực tiếp store và graph, chưa qua Core thật.
 
@@ -173,7 +171,7 @@ Người dùng chọn ngày 06/11/2026 làm phần Agent của Task 6 trước, 
 | `core_client.HttpCoreClient` | Đọc Core có ký theo đường dẫn nội bộ của kế hoạch Task 3 (`/api/v1/internal/agent/runs/{runId}/…`), luôn kèm `attemptId`; phần query/body chưa có trong kế hoạch là đề xuất ([contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3)) |
 | `migrations/002_delivery.sql` | `gave_up_at`, `last_failure` cho `outbound_events`; index nonce theo thời gian |
 
-Lịch gửi lại (1 → 60 giây, jitter 0,2, bỏ cuộc sau 24 giờ) và hạn lưu vẫn là đề xuất của 12.10, đặt qua `.env`. Lease không gia hạn trong lúc chạy nên `LIFE_AGENT_LEASE_S` phải lớn hơn deadline Core gửi. Pin `starlette` 1.10.0 (thay 1.9.0 dự kiến) và `uvicorn` 0.54.0.
+Lịch gửi lại (1 → 60 giây, jitter 0,2, bỏ cuộc sau 24 giờ) vẫn là đề xuất của 12.10, đặt qua `.env`. Dữ liệu khôi phục trong MVP giữ theo [chính sách lưu chung](../../docs/configuration-and-data.md#mvp-agent-recovery-retention); code hiện không có cleanup event đã ACK theo thời gian. Hết hạn gửi lại không tự xóa bản ghi. Lease không gia hạn trong lúc chạy nên `LIFE_AGENT_LEASE_S` phải lớn hơn deadline Core gửi. Pin `starlette` 1.10.0 (thay 1.9.0 dự kiến) và `uvicorn` 0.54.0.
 
 ### Chạy
 

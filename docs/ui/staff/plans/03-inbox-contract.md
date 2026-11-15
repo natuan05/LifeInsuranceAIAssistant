@@ -4,8 +4,6 @@ Ngày **03/11/2026**. **I01–I06 đã triển khai/kiểm chứng 04/11/2026; I
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [I01 — Model, quyền và migration Inbox](inbox/01-model-permissions.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + conversation_handoffs (Create/request/Accept/revoke ghi); messages + conversations (Append ghi, không sửa/xóa nội dung cũ); conversation_command_receipts (Thêm hoặc đọc để replay) | [apps/core/prisma/schema.prisma](<../../../../apps/core/prisma/schema.prisma>); [apps/core/prisma/migrations/](<../../../../apps/core/prisma/migrations>) | Cao — Generated client, mọi writer Conversation/Message |
@@ -14,8 +12,6 @@ Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, t
 | [I04 — Giao diện Inbox Staff, accordion và chat cuộn](inbox/04-staff-inbox-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + conversation_handoffs (Ghi gián tiếp qua Accept I03) | [apps/web/src/components/staff-inbox.tsx](<../../../../apps/web/src/components/staff-inbox.tsx>); [apps/web/src/components/staff-inbox-directory.tsx](<../../../../apps/web/src/components/staff-inbox-directory.tsx>) | Trung bình — Staff shell và tab policy lookup |
 | [I05 — Gửi tin chống trùng và giao diện Customer hai đầu](inbox/05-messaging-customer.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); messages + conversations (Append ghi, không sửa/xóa nội dung cũ); conversation_command_receipts (Thêm hoặc đọc để replay); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/conversations/services/conversation-sending.service.ts](<../../../../apps/core/src/conversations/services/conversation-sending.service.ts>); [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../apps/core/src/conversations/services/conversation-message.service.ts>) | Cao — Staff/Customer send |
 | [I06 — Realtime, outbox, thông báo handoff và thu hồi quyền](inbox/06-realtime-routing.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease); notifications (Consumer thêm handoff notification); messages + conversations (Append ghi, không sửa/xóa nội dung cũ) | [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>); [apps/core/src/conversations/services/conversation-event.service.ts](<../../../../apps/core/src/conversations/services/conversation-event.service.ts>) | Cao — Chat và Ticket event consumer |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## 1. Quyết định đã chốt
 
@@ -101,7 +97,7 @@ Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI d
 - [x] Review và triển khai I01, migration/policy/service tests đã pass. Các đề xuất cho endpoint/UI sau vẫn cần chốt trong phase sở hữu.
 - [x] Implement/nghiệm thu I01 model/quyền/legacy/receipt/sequence/revocation.
 - [x] Implement/nghiệm thu I02 groups/lazy/request metadata/search/cursor, không counts và không pending transcript.
-- [x] Implement/nghiệm thu I03 Customer entry/consent/request/Accept/history/lookup, 23 ca workflow pass.
+- [x] Implement/nghiệm thu I03 Customer entry/consent/request/Accept/history/lookup.
 - [x] I04 Staff Inbox: search/accordion/Accept/chat cuộn, browser mock và gateway E2E thật.
 - [x] I05 send/reconcile và Customer UI qua REST thật.
 - [x] I06-A: tin SYSTEM tiếp nhận lưu cùng transaction Accept; retry không trùng, không báo thành công trước commit.
@@ -162,7 +158,7 @@ Test race outbox không được claim event thật của người dùng: test w
 
 **I04 đã nối** Staff Inbox/accordion/request/Accept và transcript cuộn bằng API thật. I05 public send và Customer chat UI đã nối qua REST. I06 realtime local đã hoàn tất; tiếp theo review C01 Copilot/I07 theo phạm vi người dùng chọn.
 
-**Bổ sung 04/11 sau test tay:** người dùng xác nhận phần I04/I05 còn lại pass. I06-A SYSTEM và I06-B realtime đã triển khai; Copilot C01 là mốc riêng đã có kế hoạch trong S05, không tạo Ticket hoặc gửi trả lời khách tự động. Phạm vi Copilot chỉ Staff, chưa mở đợt sửa giao diện Customer.
+**Hiện trạng:** I04/I05 đã triển khai. I06-A SYSTEM và I06-B realtime đã triển khai; Copilot C01 là mốc riêng đã có kế hoạch trong S05, không tạo Ticket hoặc gửi trả lời khách tự động. Phạm vi Copilot chỉ Staff, chưa mở đợt sửa giao diện Customer.
 
 ## API và routes của chức năng
 

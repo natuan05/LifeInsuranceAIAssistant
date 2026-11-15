@@ -1,59 +1,51 @@
-# UI — chỉ mục triển khai
+# UI — tài liệu Application
 
-04/11/2026. Tài liệu tiếng Việt; giao diện ứng dụng dùng tiếng Anh. Bộ file màn hình cũ đã được hợp nhất vào contracts/phases của từng vai trò, không duy trì hai bản đặc tả song song.
+Tài liệu mô tả Customer Portal và Staff Workspace. Tài liệu dùng tiếng Việt, giao diện dùng tiếng Anh.
 
 ## Thứ tự đọc
 
-Mỗi phase chứa **Test cases** và **sequence diagram** của chính chức năng đó. Phần kiểm thử là kịch bản có thể thực hiện, không phải nhật ký chạy test hoặc bảng đếm số ca pass. Xem [quy ước bên dưới](#quy-ước-test-case-và-sequence-diagram).
+1. [Menu và phạm vi](menu.md): chức năng của từng vai trò.
+2. [Tiến độ](implementation-status.md): phần đã có và phần còn thiếu.
+3. Chọn chức năng trong [Staff](staff/plans/README.md) hoặc [Customer](customer/plans/README.md), rồi đọc contract và phase liên quan.
+4. [Spec đồng bộ Application](../application-code-alignment-spec.md): các sửa đổi Phase 0–5 còn phải hoàn tất.
 
-1. [Tiến độ](implementation-status.md): runtime E, phần P và mức chứng cứ.
-2. [Menu/phạm vi](menu.md): các màn đích, không biến placeholder thành yêu cầu.
-3. [Staff plans](staff/plans/README.md) và [contract chung](staff/plans/00-staff-contract.md): chức năng → phase API/UI/flow/test. Tickets TK01–TK05 đã có; Agent/Copilot và I07 là phần tiếp theo.
-4. [Customer plans](customer/plans/README.md) và [contract chung](customer/plans/00-customer-contract.md): Home/Products/Policies/PDF đã có; đọc trạng thái từng phase, không coi toàn bộ Customer còn là kế hoạch.
-5. [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng), [routes](staff/plans/00-staff-contract.md#điều-hướng), [gap](staff/plans/README.md#phần-còn-lại-theo-chức-năng): tham chiếu dùng chung, không lặp contract chức năng.
-6. [Requirement](../specifications/Requirement.md), [Data Model](../specifications/Data_Model.md), [architecture](../architecture.md), [source review](../source-review.md): nguồn và quyết định local.
+Tra cứu khi cần: [API và routes](staff/plans/00-staff-contract.md), [kiến trúc](../architecture.md), [Data Model](../specifications/Data_Model.md), [quyền và dữ liệu](../configuration-and-data.md). Cài đặt/vận hành tại [Getting Started](../getting-started.md).
 
 ## Quy ước test case và sequence diagram
 
-Mỗi test case có mã trong phạm vi phase và đủ bốn phần: **lớp kiểm thử**, **điều kiện/dữ liệu**, **các bước có thứ tự**, **kết quả mong đợi**. Kết quả cần nêu điều kiểm được: HTTP status/DTO, thay đổi DB, số mutation, quyền truy cập, DOM/focus hoặc navigation. Không viết “đã chạy thành công” thay cho kỳ vọng; không dùng HTTP/mock UI làm bằng chứng browser E2E thật.
+Mỗi test case ghi lớp kiểm thử, điều kiện/dữ liệu, các bước và kết quả mong đợi. Dùng mã riêng của chức năng để liên kết với suite. Test case là tiêu chí; checkbox chỉ đóng khi phần tương ứng đã được kiểm.
 
-Dùng các alias synthetic S-A/S-B, C-A/C-B và resource của fixture cô lập; thay bằng UUID thực khi chạy. Các path API rút gọn dùng prefix `/api/v1`. Request ghi dùng session, Origin và các header bảo vệ/CSRF theo contract của endpoint. Case đổi phân công, khóa tài khoản, quota, migration hoặc inject lỗi chỉ chạy trong harness/môi trường test; không phụ thuộc dữ liệu riêng của một thành viên, không sửa bootstrap và phải tự dọn fixture.
+- **API/service/DB:** kiểm validation, quyền, transaction và dữ liệu lưu. Ca concurrency/migration cần DB thật.
+- **Browser mock:** kiểm state, DOM, focus, navigation và lỗi UI.
+- **Gateway E2E:** kiểm UI với Core/DB/storage thật. Ghi rõ dependency nào còn giả lập.
+- Dùng S-A/S-B cho Staff, C-A/C-B cho Customer và fixture hoàn toàn synthetic. Prefix API rút gọn là `/api/v1`. Mutation dùng session/Origin/CSRF theo endpoint.
+- Fixture và fault injection thuộc harness cô lập. Mỗi suite tự dọn theo runId, đóng context/socket và phục hồi lỗi đã inject; giữ dữ liệu, credentials và Docker volumes đang dùng.
+- Kiểm UI bằng DOM/network; PDF bằng metadata/bytes/hash. Không screenshot/video/trace. Host chỉ chạy tool/test runner; Web/Core chạy Docker qua gateway.
 
-Sequence diagram dùng Mermaid `sequenceDiagram`, thể hiện actor, Web, Core và các thành phần thực sự tham gia như DB, Storage, worker hoặc Agent. Nêu thứ tự kiểm quyền, commit, phản hồi và nhánh lỗi chính; không chỉ đổi tên flowchart thành sequence diagram. Giữ sơ đồ đã đúng, bổ sung nơi còn thiếu. Phase chưa triển khai ghi rõ **dự kiến**, giữ endpoint/model chưa chốt ở trạng thái đề xuất.
-
-Đây là quy ước viết tài liệu; chỉnh test case hoặc diagram không tự đổi trạng thái E/P, không chứng nhận chức năng đã pass. Kết quả chạy thực tế trả ngắn trong trao đổi hoặc công cụ kiểm thử, không chèn báo cáo theo từng lượt vào phần kịch bản.
+Chỉ dùng sơ đồ khi cần giải thích luồng cụ thể: actor, API, bước kiểm quyền, transaction/commit, trạng thái và nhánh lỗi. Phase đơn giản có thể mô tả bằng các bước ngắn; không cần sơ đồ chung “Web gọi Core rồi cập nhật UI”.
 
 ## Quy ước data model, vị trí code và mức ảnh hưởng
 
-Mỗi phase cần có hai bảng riêng, đối chiếu `apps/core/prisma/schema.prisma`, SQL migrations và service thực thi; tên model Prisma không thay cho tên bảng/cột PostgreSQL khi mô tả tác động.
+Phase giữ bảng DB đầy đủ để team theo dõi nguồn dữ liệu và phạm vi ảnh hưởng: bảng/model, cột dùng hoặc thay đổi, thao tác đọc/ghi, FK/unique/index/version và caller cần hồi quy. Với UI, bảng mô tả cả tác động gián tiếp qua API; Web không truy cập DB trực tiếp.
 
-| Bảng cần có | Nội dung bắt buộc |
-| --- | --- |
-| Data model | Bảng vật lý/model, cột được dùng hoặc đổi, đọc/ghi/DDL, FK/unique/index hoặc version liên quan, chức năng bị ảnh hưởng và mức độ |
-| Vị trí code | Đường dẫn từ root repo, trách nhiệm cụ thể, hiện có hay dự kiến tạo, mức ảnh hưởng và caller/màn/API cần kiểm hồi quy |
+Khi thay persistence hoặc nghiệp vụ, ghi bảng/cột bị đổi, FK/unique/version liên quan, thứ tự khóa/transaction và kế hoạch migration/backfill. Chi tiết model dùng [Data Model](../specifications/Data_Model.md); quyền và projection dùng [quy tắc dữ liệu](../configuration-and-data.md). Bảng/cột chưa triển khai ghi **P**; giữ lịch sử migration đã apply.
 
-**Thấp**: thay state/projection cục bộ, không đổi quyền/ghi nghiệp vụ; **Trung bình**: truy vấn/DTO/component dùng chung hoặc ghi trạng thái phụ trợ; **Cao**: phân quyền/phiên, consent, concurrency/idempotency, mutation nhiều bảng hoặc migration. Đây là đánh giá phạm vi và rủi ro khi sửa, không phải severity của lỗi hoặc chứng nhận đã kiểm thử. UI đọc qua API không được ghi trực tiếp DB; bảng tác động phải nêu cả ghi gián tiếp như quota/audit/mark-read/Accept, thay vì gọi mọi GET là “không ghi DB”.
-
-Mỗi phase phải chốt: có migration không, bảng/cột mới nào còn P, backfill có làm đổi nghĩa dữ liệu cũ không, transaction/lock/version nào giữ tính nhất quán và luồng nào cần kiểm lại. Đổi model/DTO dùng chung phải chỉ rõ tác động sang vai trò còn lại, operator, bootstrap và storage nếu có. Không ghi một bảng đề xuất như thể đã tồn tại; không sửa migration đã apply. Contract chức năng liên kết các bảng chi tiết tại phase sở hữu thay vì sao chép nhiều dictionary khác nhau. Xem [bản đồ tác động model](../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
+Chỉ ghi mức ảnh hưởng khi giúp xác định hồi quy: **thấp** cho state cục bộ, **trung bình** cho DTO/component dùng chung, **cao** cho quyền, transaction/concurrency hoặc migration. Giữ các bảng phụ thuộc của chức năng kể cả khi không đổi schema; phân biệt dữ liệu hiện có với phần đề xuất.
 
 ## Cấu trúc và ownership
 
-| Vị trí | Trách nhiệm |
+| Tài liệu | Nội dung |
 | --- | --- |
-| docs/ui/README.md, menu.md, implementation-status.md | Chỉ mục, phạm vi và snapshot tiến độ hai role |
-| staff/README.md và staff/plans/README.md | Chỉ mục chức năng và phần còn lại theo owner |
-| staff/plans/00 và 01–10 contracts | Ranh giới/model/quyết định, liên kết phase chức năng |
-| customer/README.md, customer/plans/00 và 01–09 | Baseline Customer và kế hoạch tiếp theo |
-| plans/<function>/*.md | Phase cụ thể: vị trí code, API spec, flow, tests, gate và trạng thái E/P |
-
-Policy docs dùng tên policies, nhất quán InsurancePolicy; không đưa contracts.md cũ trở lại. Các màn đã làm vẫn có phase baseline để bảo trì, không coi việc bổ sung tài liệu là implement lại.
+| menu.md | Phạm vi màn hình theo vai trò |
+| implementation-status.md | Trạng thái triển khai và phần còn thiếu |
+| staff/plans/00-staff-contract.md, customer/plans/00-customer-contract.md | API/routes và quy tắc dùng chung theo vai trò |
+| plans/01–09 contracts | Hành vi, API và ranh giới của từng chức năng; liên kết phase triển khai |
+| plans/<function>/*.md | Code/API thay đổi, luồng cụ thể và test case |
 
 ## Quy tắc cập nhật
 
-Viết tài liệu cho cả team: mô tả chức năng, contract và cách triển khai từ repo. Ví dụ dùng dữ liệu synthetic chung; không phụ thuộc tài khoản, đường dẫn tuyệt đối hoặc bộ dữ liệu riêng của một thành viên. Hướng dẫn dựng môi trường phát triển nằm tại Getting Started; kết quả kiểm thử có ngày chỉ là bằng chứng cho phạm vi đã kiểm, không phải điều kiện máy cá nhân để triển khai chức năng.
-
-- Sửa contract/phase sở hữu trước rồi đồng bộ API/routes/tiến độ/gap nếu ảnh hưởng. Không copy một API spec sang nhiều file thành nhiều nguồn khác nhau.
-- E phải có controller/service/UI đúng phạm vi; P chưa phải code/migration. Khung route không là feature, mock không chứng minh Core quyền/Agent.
-- Checkbox đánh dấu từng phạm vi cụ thể. Các kết quả có ngày là lịch sử; không tuyên bố test vừa chạy lại sau sửa Markdown.
-- Không report/scratchpad mới, không screenshot/render ảnh; kiểm DOM/network/PDF extraction/hash. Chỉ app runtime Docker qua gateway.
-- Không tự stage/commit; Customer/Agent hoãn vẫn giữ plan, không xóa requirement.
+- Giữ mỗi quy định ở tài liệu sở hữu; phần khác chỉ dẫn khi cần đọc sâu. Đặt tên chức năng trước mã phase.
+- **E**: đã có source thực thi trong phạm vi nêu. **P**: kế hoạch chưa triển khai. Runtime hiện tại và việc còn làm phải tách rõ.
+- Giữ nguyên test case và trạng thái nghiệm thu khi chỉnh câu chữ. Kết quả chạy trả ngắn trong trao đổi/công cụ kiểm thử, không chèn nhật ký hoặc số test pass vào tài liệu chức năng.
+- Dùng ví dụ synthetic chung cho team; không phụ thuộc máy, tài khoản hoặc đường dẫn cá nhân.
+- Tên tài liệu hợp đồng bảo hiểm là `policies.md`/`policies`; thay tên phải cập nhật liên kết.

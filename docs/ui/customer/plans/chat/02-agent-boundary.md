@@ -31,7 +31,7 @@ FR-005/009/012, NFR-001/002/003/005/008. Chốt service identity, giao thức, c
 
 ## 2. Vị trí và model cần thiết
 
-Owner đề xuất: `apps/core/src/conversations/` cho orchestration adapter/access/append, `apps/agent/` cho workflow/checkpoint/retrieval/tools; giữ business writes ở Core. Dùng `conversation-message.service.ts` và fence hiện có, không Agent Prisma/business credentials. Chỉ thêm module/dependency khi chốt runtime cụ thể.
+Owner đã chọn: `apps/core/src/conversations/` cho public API/access/append, `apps/core/src/agent/` cho run/attempt/event/HMAC/dispatch/API nội bộ, `apps/agent/` cho workflow/checkpoint/retrieval/tools; giữ business writes ở Core. Dùng `conversation-message.service.ts` và fence hiện có, không Agent Prisma/business credentials. Chỉ thêm module/dependency khi chốt runtime cụ thể.
 
 Core cần Run/Attempt/Event persistence theo Tasks 2–3: run gắn conversation/tin nguồn, trạng thái QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED, attempt hiện hành, thứ tự/dispatch/dedup và history view. `Turn` trong bản cũ là cùng khái niệm `Run`, không thêm lifecycle thứ hai. Ánh xạ controlVersion/receipt/Message hiện có với contract G1; DDL/lease/fencing/atomicity chờ G2. Không ghi trạng thái run vào ConversationStatus hoặc backfill AI reply/run giả. Checkpoint Agent lưu context/work riêng quyền, không thay Message/Run/Ticket commit.
 
@@ -44,7 +44,7 @@ Core cần Run/Attempt/Event persistence theo Tasks 2–3: run gắn conversatio
 
 ## 3. API/service spec để review
 
-Customer gửi vẫn E POST messages I05; không yêu cầu browser gửi thêm LLM prompt. Sau message CUSTOMER commit trong AI_ACTIVE, Core transaction có durable dispatch intent tương ứng trigger; enqueue fail sau commit phải retry từ outbox, không mất run. Chốt batch/serialization khi Customer gửi nhiều tin: đề xuất serial theo conversation sequence, mỗi trigger một run, không hai worker xuất hai answer.
+Customer gửi vẫn E POST messages I05; không yêu cầu browser gửi thêm LLM prompt. Với tin CUSTOMER cần AI trong AI_ACTIVE, Core lưu message + run + durable dispatch intent cùng transaction trước ACK; lỗi giao nhận sau commit được reconcile từ intent đã lưu. Mỗi trigger một run, serial/FIFO theo conversation sequence; không hai worker xuất hai answer. Đây là yêu cầu tích hợp còn P.
 
 Interfaces **P**, ánh xạ tên/DTO với contract G1 trước code; không thay HMAC bằng session browser:
 
@@ -56,7 +56,7 @@ Interfaces **P**, ánh xạ tên/DTO với contract G1 trước code; không tha
 | receiveEvent/appendAnswer | AgentEvent gắn run/attempt/event/sequence; RESULT có AgentResult | Core kiểm attempt/fence/quyền và lưu idempotent; không browser gọi, không ACK trước lưu |
 | proposeHandoff/proposeTicketDraft | AgentResult.actions với PROPOSE_HANDOFF/PROPOSE_TICKET | Chỉ đề xuất; Customer xác nhận riêng ở Core, không tự tạo consent/confirmedAt/Ticket |
 
-Đọc trạng thái theo RunSummary của Task 1 và route đề xuất `GET /api/v1/agent-runs/:id` ở Task 3; tên route/DTO cuối phải ánh xạ với API App ở G1. Create/list/read/history có currentRun để reopen không phụ thuộc browser nhớ ID; GET không tạo run. Core kiểm owner/channel/quyền, no-store và không trả prompt/checkpoint/raw exception. Bounded discovery/transport Web–Core còn cần review trước CH03; không tự thêm API `assistant-turns` song song hoặc coi trạng thái run là trạng thái chat.
+Đọc trạng thái theo RunSummary trên API conversations hiện có theo [ánh xạ đã chọn](../../../../../contracts/agent-v1.md#application-conversation-api-mapping); giữ create `clientRequestId`, send `clientMessageId`, expectedVersion/controlVersion. Không bắt Web chuyển sang `/agent-runs/:id`; DTO bổ sung còn phải review/kiểm trước code. Create/list/read/history có currentRun để reopen không phụ thuộc browser nhớ ID; GET không tạo run. Core kiểm owner/channel/quyền, no-store và không trả prompt/checkpoint/raw exception. Bounded discovery/transport Web–Core còn cần review trước CH03; không tự thêm API `assistant-turns` song song hoặc coi trạng thái run là trạng thái chat.
 
 ## 4. Fence, citations và business writes
 
@@ -68,7 +68,7 @@ Interfaces **P**, ánh xạ tên/DTO với contract G1 trước code; không tha
 
 New AI chat đã có trên Web, Core đã có create với receipt/idempotency. Khác intent tạo mới dùng key mới, retry cùng intent dùng lại key và nhận cùng conversation. Context/checkpoint cuộc cũ không tự đi sang cuộc mới, Staff không kế thừa quyền cuộc AI mới từ grant cuộc cũ. Consent/Accept và fence takeover áp theo luồng hiện hành, nghiệm thu Agent/Core end-to-end còn P. CH02 kiểm context/history view/run/callback theo đúng conversation. Mở lại cuộc cũ đọc/gửi theo capability Core, không tự tạo lượt AI cho cuộc Staff đang hỗ trợ. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
-Khi request handoff commit, Core chặn Agent append từ PENDING_HANDOFF; result đến muộn không được công bố dù inference đã xong. Recheck controlVersion/attempt/routing/owner khi đọc tools và nhận kết quả; protocol chặn stale checkpoint writer theo G2. Core vẫn kiểm quyền API hiện hành; B đã chốt 14/11, logout/hết phiên đơn thuần giữ các run đã được Core tiếp nhận tiếp tục xử lý theo quyền hiện hành. Retry không tạo duplicate tin AI. Citation do code lấy metadata từ evidence_id thật: document/version/title/type/location với pages/clause/anchor phù hợp nguồn; Markdown không bịa trang PDF. D01 đã có quyền mở PDF; citation không tự cấp quyền.
+Khi REQUEST_HANDOFF commit, Core fence ngay từ PENDING_HANDOFF theo [chính sách chuẩn](../../../../../contracts/agent-v1.md#handoff-request-agent-fence): chặn tools/kết quả của attempt cũ, hủy run AI đang chạy/queued của cuộc và lưu revoke intent cùng transaction; không đợi Staff Accept. Revoke ACK vẫn là barrier cho writer Agent kế tiếp, không hủy Copilot riêng còn đúng quyền; tích hợp còn P. Recheck controlVersion/attempt/routing/owner khi đọc tools và nhận kết quả; protocol chặn stale checkpoint writer theo G2. Core vẫn kiểm quyền API hiện hành; B đã chốt 14/11, logout/hết phiên đơn thuần giữ các run đã được Core tiếp nhận tiếp tục xử lý theo quyền hiện hành. Retry không tạo duplicate tin AI. Citation do code lấy metadata từ evidence_id thật: document/version/title/type/location với pages/clause/anchor phù hợp nguồn; Markdown không bịa trang PDF. D01 đã có quyền mở PDF; citation không tự cấp quyền.
 
 Ticket tạo qua [I07](../../../staff/plans/tickets/06-agent-confirmation.md): trusted draft → Customer xem/xác nhận → Core snapshot+outbox; Agent chỉ proposeDraft, không tạo trực tiếp. Summary ghi mốc source sequence/version, không sửa immutable confirmedContent. Handoff suggestion gọi dialog có consent thật, không tự POST request từ text “đồng ý” do LLM diễn giải.
 

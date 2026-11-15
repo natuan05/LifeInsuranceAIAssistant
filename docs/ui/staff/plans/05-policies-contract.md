@@ -10,8 +10,6 @@
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [PL01 — Policy list/detail và lookup Core](policies/01-read-lookup-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc) | [apps/core/src/policies/controllers/staff-policy.controller.ts](<../../../../apps/core/src/policies/controllers/staff-policy.controller.ts>); [apps/core/src/policies/services/policy.service.ts](<../../../../apps/core/src/policies/services/policy.service.ts>) | Cao — Customers policies, Policy Lookup và Inbox panel |
@@ -19,8 +17,6 @@ Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, t
 | [PL03 — Lookup và dossier/PDF Staff](policies/03-lookup-dossier-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-policy-lookup.tsx](<../../../../apps/web/src/components/staff-policy-lookup.tsx>); [apps/web/src/components/staff-policies.tsx](<../../../../apps/web/src/components/staff-policies.tsx>) | Trung bình — URL/Back/selection |
 | [Việc 02 — Refresh Policy/PDF không làm mất vùng đang đọc](policies/04-viewer-lifecycle.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (HEAD + ký GET/Range, không upload từ viewer) | [apps/web/src/components/staff-policies.tsx](<../../../../apps/web/src/components/staff-policies.tsx>); [apps/web/src/components/signed-pdf-preview.tsx](<../../../../apps/web/src/components/signed-pdf-preview.tsx>) | Cao — Không mất details/selection/scroll |
 | [PL05 — Quick Policy Lookup trong Inbox Staff](policies/05-inbox-customer-policy-lookup.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc) | [apps/web/src/components/staff-inbox-policy-lookup.tsx](<../../../../apps/web/src/components/staff-inbox-policy-lookup.tsx>); [apps/web/src/components/staff-inbox.tsx](<../../../../apps/web/src/components/staff-inbox.tsx>) | Cao — Selection/paging tại Inbox |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Hiện trạng
 
@@ -123,9 +119,7 @@ Search/Clear/filter/page/retry/chọn tài liệu/tải không reload document a
 
 ## Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### S05-T01 — Danh sách theo khách và lookup toàn scope
 
@@ -181,8 +175,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [staff-policies.spec.mjs](../../../../apps/web/tests/browser/staff-policies.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## Phần còn lại
 
 - [x] Refresh nền giữ iframe/src cùng file/version, loại nội dung khi mất quyền; [việc 02 đã triển khai](policies/04-viewer-lifecycle.md#9-ghi-chú-triển-khai).
@@ -192,7 +184,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [x] UI Products P03 đã có theo [contract](04-products-contract.md); citation/context Agent thuộc nhánh riêng.
 - [x] Customer ownership APIs/UI đã có; dùng endpoint owner riêng, không dùng Staff API thay quyền Customer.
 - [x] Quick lookup Inbox tại chỗ qua tab mới độc lập đã triển khai (PL05); xem hồ sơ không làm mất ngữ cảnh chat hoặc đổi linkedPolicy.
-
 
 **Quy tắc khi bảo trì:** Khi thay schema hoặc luồng ghi tài liệu, rà mapping kind/applied version, tính bất biến/checksum và migration an toàn. Đây là yêu cầu áp dụng mỗi lần thay đổi, không phải chức năng còn thiếu.
 
@@ -235,31 +226,3 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 ## Sequence diagram
 
 Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
-
-```mermaid
-sequenceDiagram
-    actor U as Staff
-    participant W as Web
-    participant C as Core
-    participant D as PostgreSQL
-    participant S as Storage
-    U->>W: Mở hoặc tải PDF
-    W->>C: POST view hoặc download, CSRF và exact version
-    C->>D: Session, assignment, policy binding và applied version
-    D-->>C: Binding và version được phép
-    alt Ngoài scope hoặc binding không hợp lệ
-        C-->>W: 404, không URL
-    else Được phép
-        C->>S: HEAD PDF và ký link ngắn hạn
-        S-->>C: Object metadata hoặc lỗi storage
-        C->>D: Recheck quyền/version và commit audit
-        alt Check cuối hoặc audit không thành công
-            C-->>W: Lỗi an toàn, không trả link
-        else Hợp lệ
-            C-->>W: url và expiresAt
-            W->>S: GET PDF hoặc Range bằng grant
-            S-->>W: Đúng bytes/version
-            W-->>U: Preview inline hoặc file download
-        end
-    end
-```

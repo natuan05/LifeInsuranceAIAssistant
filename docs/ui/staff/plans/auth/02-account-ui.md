@@ -4,8 +4,6 @@
 
 ## Data model và phạm vi ảnh hưởng
 
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
-
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
@@ -41,19 +39,9 @@ Dùng AU01, không Web proxy hoặc profile API thứ hai. Edit chỉ tên/phone
 
 Menu → Personal information → Edit → Save/Cancel;200 cập nhật tên shell;409 chặn resubmit tới khi tải lại dữ liệu mới và review; network/5xx giữ nháp; session revoke xóa form. Change password thu hồi phiên cũ; Cancel/Escape/focus return theo component. Không footer Contact.
 
-```mermaid
-flowchart LR
-  U[Staff thao tác] --> C[Core kiểm phiên và scope]
-  C --> D[Dữ liệu hoặc commit đúng quyền]
-  D --> W[Web cập nhật đúng vùng]
-  C --> E[Lỗi an toàn và retry có kiểm soát]
-```
-
 ## 5. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### AU02-T01 — Edit, Cancel rồi Save bằng bàn phím
 
@@ -106,8 +94,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 3. Cho request tiếp theo trả 401.
 
 **Kết quả mong đợi:** Lỗi retry tại chỗ, không F5; controls không tràn/focus thấy được;401 xóa nháp riêng và chuyển đăng nhập.
-
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
 
 ## 6. Checklist và giới hạn
 

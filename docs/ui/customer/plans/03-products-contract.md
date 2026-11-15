@@ -4,14 +4,10 @@
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [PR01 — Customer catalog và chi tiết sản phẩm](products/01-catalog-ui.md) | insurance_products (Đọc) | [apps/web/src/components/customer-products.tsx](<../../../../apps/web/src/components/customer-products.tsx>); [apps/web/src/lib/product-api.ts](<../../../../apps/web/src/lib/product-api.ts>) | Cao — Customer shell và tự mở PDF |
 | [PR02 — Tài liệu sản phẩm PUBLIC trên Customer](products/02-product-documents-ui.md) | insurance_products (Đọc); documents + document_versions (Đọc); MinIO/S3 — ngoài PostgreSQL (Đọc/ký, không upload/overwrite) | [apps/web/src/components/customer-products.tsx](<../../../../apps/web/src/components/customer-products.tsx>); [apps/web/src/lib/product-api.ts](<../../../../apps/web/src/lib/product-api.ts>) | Cao — Customer shell và tự mở PDF |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## 1. Căn cứ và owner
 

@@ -4,15 +4,13 @@
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
-**Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
 
 **Thay đổi của phase:** Ticket+outbox atomic nhưng payload tối thiểu, không nhân bản confirmedContent/PII vào notification/WS/log. Consumer/API recheck recipient.
 
 **Kiểm thử cần bổ sung, chưa chạy:** Core/worker/WS: retry/dedup/reconnect không phát canary, revoke trước consume chặn; read/status không cấp quyền raw/transcript.
 
 ## Data model và phạm vi ảnh hưởng
-
-Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián tiếp qua Core. Tên bảng thuộc schema `business` trừ nơi ghi rõ; cột còn đề xuất được đánh dấu **P**. Web không truy cập DB trực tiếp.
 
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
@@ -122,9 +120,7 @@ flowchart TD
 
 ## 6. Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### TK05-T01 — Consumer tạo đúng recipient và chống trùng
 
@@ -193,8 +189,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [tickets-read.test.cjs](../../../../../apps/core/test/tickets-read.test.cjs), [ticket-notification-migration.test.cjs](../../../../../apps/core/test/ticket-notification-migration.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## 7. Checklist
 
 - [x] Migration target/kind, source/recipient gate và current-scope A27/A28.
@@ -205,7 +199,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 - [ ] Phase 3 sửa version của event tạo Ticket và delivery tới Customer, kể cả khi chưa có Staff phụ trách; không lấy việc outbox đã ghi làm bằng chứng notification đã giao.
 - [ ] I07 tích hợp nguồn Agent thật và sáu nhóm summary/source refs; ngoài Phase 2.
 **Phần mở rộng chưa chọn:** Benchmark/SLA/multi-replica/cloud không thuộc checklist hoàn thiện Staff local.
-
 
 ## Mở rộng status notification — 05/11/2026
 

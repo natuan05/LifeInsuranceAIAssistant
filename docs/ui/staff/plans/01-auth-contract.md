@@ -6,15 +6,11 @@
 
 ## Truy vết data model và vị trí code theo phase
 
-Mỗi phase dưới đây có bảng cột/đọc–ghi/FK/version, migration, transaction và mức ảnh hưởng chi tiết; xem mục **Data model và phạm vi ảnh hưởng** và bảng **Vị trí code** trong phase. Hiện có file không đồng nghĩa mọi thay đổi dự kiến trong file đã được triển khai. Các phần P giữ P.
-
 | Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
 | --- | --- | --- | --- |
 | [AU01 — Auth và hồ sơ Staff Core](auth/01-session-account-api.md) | users + staff_profiles (PATCH ghi phone/full_name; đọc trường readonly) | [apps/core/src/auth/controllers/auth.controller.ts](<../../../../apps/core/src/auth/controllers/auth.controller.ts>); [apps/core/src/auth/controllers/staff-profile.controller.ts](<../../../../apps/core/src/auth/controllers/staff-profile.controller.ts>) | Cao — Staff và Customer dùng chung AuthService |
 | [AU02 — Tài khoản Staff và editor](auth/02-account-ui.md) | users + staff_profiles (PATCH ghi phone/full_name; đọc trường readonly) | [apps/web/src/components/staff-personal-information.tsx](<../../../../apps/web/src/components/staff-personal-information.tsx>); [apps/web/src/components/staff-profile-editor.tsx](<../../../../apps/web/src/components/staff-profile-editor.tsx>) | Trung bình — Account và actor header/sidebar |
 | [Việc 01 — Retry khôi phục phiên không tải lại trang](auth/03-session-lifecycle.md) | users/auth_sessions, quota/audit theo endpoint | [apps/web/src/components/auth-screen.tsx](<../../../../apps/web/src/components/auth-screen.tsx>); [apps/web/src/lib/auth-api.ts](<../../../../apps/web/src/lib/auth-api.ts>) | Cao — Cả hai portal, đổi tab/logout/late response |
-
-Không tự áp dụng DDL khi triển khai UI, không biến model dự kiến thành hiện trạng, không reset seed/volume để né lỗi FK. Các dependency xuyên vai trò và operator xem [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng).
 
 ## Hiện trạng
 
@@ -93,9 +89,7 @@ Tối ưu 03/11/2026: focus và visibilitychange chỉ kiểm GET auth/me khi tr
 
 ## Test cases
 
-Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo kết quả. Kiểm từng lớp API/service/DB/browser đúng nhãn; mock UI không thay kiểm quyền Core hoặc E2E thật.
-
-**Quy ước dữ liệu:** S-A/S-B là hai Staff synthetic; C-A/C-B là hai Customer synthetic khác nhau. Thay alias bằng UUID/token của fixture cô lập; các path HTTP dùng prefix /api/v1 nếu chưa ghi đầy đủ. Chỉ thay assignment, khóa account, inject lỗi hoặc migration trong harness/môi trường test, không trên tài khoản/dữ liệu đang sử dụng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../README.md#quy-ước-test-case-và-sequence-diagram).
 
 ### S01-T01 — Đăng nhập đúng cổng Staff
 
@@ -151,8 +145,6 @@ Các ca dưới đây là **đặc tả kiểm thử**, không phải báo cáo 
 
 **Suite tham khảo:** [staff-account.spec.mjs](../../../../apps/web/tests/browser/staff-account.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
-**Dọn sau kiểm thử:** xóa đúng fixture/session/object/schema theo runId; phục hồi fault injection và đóng context/socket test. Không reset DB/credential, sửa bootstrap hoặc xóa volumes. Với PDF kiểm metadata/bytes/hash; với UI kiểm DOM/focus/network, không cần screenshot.
-
 ## Chạy lại regression form hồ sơ
 
 Chuẩn bị theo [Getting Started](../../../getting-started.md); Web/Core chạy Docker qua gateway. Cài `npm ci` và `npx playwright install chromium` khi chuẩn bị công cụ, sau đó:
@@ -163,7 +155,7 @@ npm run test:browser:account
 
 Nếu source ứng dụng đổi, rebuild Docker theo Getting Started trước test; không dựng Web/Core bằng npm trên host. Mặc định `http://localhost:8080`, đổi bằng `BROWSER_TEST_BASE_URL`. Screenshot/video/trace tắt; kết quả tổng hợp `apps/web/test-results/results.json` (Git ignore), dọn artifact do lần test tạo sau khi đọc.
 
-Tối ưu quay lại tab ngày 03/11 đã qua Web lint/typecheck/Docker và 78 ca browser: 15 Account + 22 Session + 15 Customers + 26 Policies. 9 ca Session bổ sung kiểm đúng mốc 30 giây/hidden, ready không gọi thừa, invalidate/expiry/close 4001 bypass, expiry lúc pending, retry sau lỗi và cổng login đúng role/phiên mới còn hợp lệ. Đây là regression mock, không E2E Core/DB. Bằng chứng việc 01 ban đầu tại [kế hoạch](auth/03-session-lifecycle.md#8-ghi-chú-triển-khai); không sửa credential/DB.
+Kiểm phiên nền theo freshness 30 giây; initial/retry/invalidation/expiry luôn revalidate. Luồng và test case tại [session lifecycle](auth/03-session-lifecycle.md).
 
 ## Phase và ownership
 
@@ -202,30 +194,3 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 ## Sequence diagram
 
 Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
-
-```mermaid
-sequenceDiagram
-    actor U as Staff
-    participant W as Web
-    participant C as Core
-    participant D as PostgreSQL
-    U->>W: Xác nhận thao tác
-    W->>C: PATCH /staff/me sau Save
-    C->>D: Kiểm session, CSRF và khóa self scope và token ban đầu của form
-    D-->>C: Quyền, version và state hiện hành
-    alt Không đủ quyền hoặc version stale
-        C-->>W: 401, 403, 404 hoặc409 an toàn
-        W-->>U: Giữ nháp phù hợp và review trạng thái
-    else Hợp lệ
-        C->>D: Update tên hoặc phone và audit
-        D-->>C: COMMIT
-        C-->>W: 200 projection mới, Cancel không request
-        W-->>U: Cập nhật sau ACK
-    end
-    opt Timeout hoặc mất ACK
-        W->>C: GET current state hoặc receipt theo contract
-        C->>D: Kiểm lại quyền và đọc kết quả
-        C-->>W: Current state, không tự cấp quyền mới
-        W-->>U: Review trước khi ghi lại
-    end
-```

@@ -27,7 +27,7 @@ Prefix `/api/v1`. Bảng theo response Core hiện tại để đồng bộ clie
 | POST /customers/me/notifications/read-all | `{success:true,count:number}` |
 | POST /conversations/:conversationId/read | `{success:true,readAt:string}` |
 
-GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes nếu được dùng phải cùng service và kiểm transcript/owner tương ứng.
+GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes hiện có ở Customer/Staff controller và cùng gọi markAsRead, nên không kết luận thiếu endpoint. Phase 3 chuẩn hóa Web về common route theo [spec Application](../../../../application-code-alignment-spec.md#7-phase-3--contract-notification-và-ticket-event), giữ auth/CSRF và transcript/owner gate.
 
 `target` là DTO thống nhất cho navigation; single-read trả object phẳng, read-all dùng `count`. Source Web còn khai báo `link`, single-read bọc `notification` và read-all `markedCount`; cần sửa client/consumer cho khớp Core và chạy network regression. Không đánh dấu đã hoàn tất từ việc có file wrapper.
 
@@ -49,7 +49,7 @@ Các điểm source còn cần kiểm chứng/sửa:
 
 - DTO Core/Web lệch như mục 2, target navigation và update state sau read/read-all.
 - Ticket event producer Customer hiện thiếu version mà consumer yêu cầu; nhánh consumer đang return sớm khi Ticket chưa có assignedStaffId, có thể bỏ qua notification Customer.
-- Consumer hiện lọc isRead=false để tìm mục gộp, nên sau mark-read/read-all có thể tạo dòng mới. Cần nhận diện chu kỳ theo mốc đọc chat, tái dùng id và bật unread chỉ khi có tin mới. Thiết kế persistence/constraint cụ thể còn phải rà schema; nếu cần DDL thì thêm migration riêng, không coi đã triển khai.
+- Consumer hiện lọc isRead=false để tìm mục gộp, nên sau mark-read/read-all có thể tạo dòng mới. Cần nhận diện chu kỳ theo mốc đọc chat, tái dùng id và bật unread chỉ khi có tin mới. State conversation_notification_states và constraint/backfill đã được đề xuất tại [Phase 4](../../../../application-code-alignment-spec.md#8-phase-4--unread-cycle-read-status-và-retention); chưa có trong schema, cần migration mới và kiểm DB/concurrency trước nghiệm thu.
 - Recheck target scope, nội dung generic và xử lý nguồn bị xóa/quyền đã đổi trước navigation.
 - Đổi interval cleanup từ mỗi giờ sang mỗi 24 giờ tại NotificationsService, giữ cleanup khi bootstrap và hủy timer khi destroy. Kiểm cutoff cho cả Customer/Staff và read/unread, lỗi DB/restart; bảo toàn Ticket/Message và audit nguồn.
 
