@@ -231,12 +231,13 @@ export function CustomerWorkspace({
       }
     }
     setNotiOpen(false);
-    if (item.link?.type === 'CONVERSATION') {
+    if (item.target?.type === 'CONVERSATION') {
       setActiveTab('chat');
-      if (item.link.id) {
-        router.push(`/customer?conversationId=${encodeURIComponent(item.link.id)}`);
+      if (item.target.id) {
+        router.push(`/customer?conversationId=${encodeURIComponent(item.target.id)}`);
       }
-    } else if (item.link?.type === 'TICKET') {
+    } else if (item.target?.type === 'TICKET' && item.target.id) {
+      setTicketToView(item.target.id);
       setActiveTab('tickets');
     }
   };
@@ -489,6 +490,7 @@ export function CustomerWorkspace({
                   notiOpen ? 'tw:bg-blue-50 tw:border-blue-200 tw:text-blue-600' : ''
                 }`}
                 title="Notifications"
+                aria-label={`Notifications, ${unreadCount} unread loaded`}
                 aria-expanded={notiOpen}
               >
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -508,7 +510,7 @@ export function CustomerWorkspace({
                       <span className="tw:text-xs tw:font-bold tw:text-slate-900">Notifications</span>
                       {unreadCount > 0 && (
                         <span className="tw:text-[10px] tw:font-bold tw:bg-amber-100 tw:text-amber-800 tw:px-1.5 tw:py-0.2 tw:rounded-full">
-                          {unreadCount} new
+                          {unreadCount} unread loaded
                         </span>
                       )}
                     </div>
@@ -530,10 +532,11 @@ export function CustomerWorkspace({
                       </div>
                     ) : (
                       notifications.map(item => (
-                        <div
+                        <button
+                          type="button"
                           key={item.id}
                           onClick={() => void handleNotificationClick(item)}
-                          className={`tw:p-3.5 tw:flex tw:items-start tw:gap-3 tw:cursor-pointer tw:transition-all ${
+                          className={`tw:w-full tw:text-left tw:p-3.5 tw:flex tw:items-start tw:gap-3 tw:cursor-pointer tw:transition-all ${
                             !item.isRead ? 'tw:bg-blue-50/40 tw:hover:bg-blue-50/70' : 'tw:hover:bg-slate-50'
                           }`}
                         >
@@ -569,7 +572,7 @@ export function CustomerWorkspace({
                           {!item.isRead && (
                             <span className="tw:w-2 tw:h-2 tw:rounded-full tw:bg-emerald-500 tw:shrink-0 tw:mt-1.5" />
                           )}
-                        </div>
+                        </button>
                       ))
                     )}
                   </div>
@@ -633,6 +636,7 @@ export function CustomerWorkspace({
             {isTickets && (
               <CustomerTickets key={actor.id}
                 initialTicketId={ticketToView}
+                onTicketOpened={() => setTicketToView(null)}
                 onOpenChat={() => setActiveTab('chat')}
                 csrfToken={csrfToken}
                 blocked={blocked}

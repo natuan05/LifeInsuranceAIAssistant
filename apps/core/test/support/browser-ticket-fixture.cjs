@@ -14,10 +14,14 @@ async function cleanup(){
  await db.$transaction(async tx=>{
  if(ids.length)await tx.$queryRaw`SELECT id FROM business.users WHERE id::text IN (${Prisma.join([...ids].sort())}) ORDER BY id FOR UPDATE`;
  const rows=await tx.supportTicket.findMany({where:{customerId:{in:ids}},select:{id:true}}),tickets=rows.map(x=>x.id);
- await tx.auditLog.deleteMany({where:{actorId:{in:ids}}});await tx.outboxEvent.deleteMany({where:{aggregateType:'TICKET',aggregateId:{in:tickets}}});
- await tx.notification.deleteMany({where:{ticketId:{in:tickets}}});
+ const chats=await tx.conversation.findMany({where:{customerId:{in:ids}},select:{id:true}}),conversations=chats.map(x=>x.id);
+ await tx.auditLog.deleteMany({where:{actorId:{in:ids}}});await tx.outboxEvent.deleteMany({where:{aggregateId:{in:[...tickets,...conversations]}}});
+ await tx.notification.deleteMany({where:{OR:[{ticketId:{in:tickets}},{conversationId:{in:conversations}}]}});
  await tx.supportTicket.deleteMany({where:{id:{in:tickets}}});
  await tx.ticketDraft.deleteMany({where:{customerId:{in:ids}}});
+ await tx.conversationCommandReceipt.deleteMany({where:{actorId:{in:ids}}});
+ await tx.message.deleteMany({where:{conversationId:{in:conversations}}});
+ await tx.conversationHandoff.deleteMany({where:{conversationId:{in:conversations}}});
  await tx.conversation.deleteMany({where:{customerId:{in:ids}}});
  await tx.insurancePolicy.deleteMany({where:{customerId:{in:ids}}});
  await tx.insuranceProduct.deleteMany({where:{productCode:'P2-'+runId}});
@@ -27,8 +31,9 @@ async function cleanup(){
 }
 async function actor(role){
  const id=randomUUID(),token=randomBytes(32).toString('hex'),csrf=randomBytes(32).toString('hex');
- await db.user.create({data:{id,role,email:emails[role==='STAFF'?0:1],accountCode:`${role==='STAFF'?'STF':'CUS'}-${BigInt('0x'+id.replaceAll('-','')).toString().slice(0,22)}`,passwordHash:'synthetic-browser-not-for-login',passwordChangeRecommended:false,...(role==='STAFF'?{staffProfile:{create:{fullName:'Synthetic TK04 Staff'}}}:{customerProfile:{create:{fullName:'Synthetic TK04 Customer'}}})}});
- await db.authSession.create({data:{userId:id,tokenHash:hash(token),csrfTokenHash:hash(csrf),expiresAt:new Date(Date.now()+3600000)}});return {id,token,csrf};
+ const fullName=`Synthetic TK04 ${role==='STAFF'?'Staff':'Customer'} ${runId.slice(0,8)}`;
+ await db.user.create({data:{id,role,email:emails[role==='STAFF'?0:1],accountCode:`${role==='STAFF'?'STF':'CUS'}-${BigInt('0x'+id.replaceAll('-','')).toString().slice(0,22)}`,passwordHash:'synthetic-browser-not-for-login',passwordChangeRecommended:false,...(role==='STAFF'?{staffProfile:{create:{fullName}}}:{customerProfile:{create:{fullName}}})}});
+ await db.authSession.create({data:{userId:id,tokenHash:hash(token),csrfTokenHash:hash(csrf),expiresAt:new Date(Date.now()+3600000)}});return {id,token,csrf,fullName};
 }
 async function setup(){try{
  const staff=await actor('STAFF'),customer=await actor('CUSTOMER');await db.staffAssignment.create({data:{staffId:staff.id,customerId:customer.id,operatorId:runId}});

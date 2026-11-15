@@ -63,9 +63,9 @@ Outbox aggregateType=TICKET, aggregateId=Ticket.id, eventType TICKET_CREATED ho�
 {"schemaVersion": 1, "version": 1}
 ```
 
-version integer>=0, ACCEPTED>=1. Consumer tra source bằng eventId/aggregate/type, không tin đối tượng caller; schema sai gây retry/DLQ. Không gửi title/aiSummary/chat/confirmed snapshot/cookie trong event hoặc frame.
+version integer>=0, CREATED=0, ACCEPTED>=1. Consumer tra source bằng eventId/aggregate/type, không tin đối tượng caller; schema sai gây retry/DLQ. Không gửi title/aiSummary/chat/confirmed snapshot/cookie trong event hoặc frame.
 
-Lock sorted users → Customer → assignment → Ticket; recheck Ticket customer/recipient/active assignment và Staff active sau lock. Ticket.version phải >= event.version; ACCEPTED chỉ khi current IN_PROGRESS/RESOLVED/CLOSED. Không recipient Staff/unassigned/ngoài scope thì không tạo notification hoặc frame cho Staff đó; việc này không được bỏ qua notification Customer theo N02. Source còn early return cần sửa. Customer khóa vẫn được Staff phục vụ theo TK01. Reassignment không biến assignment thành quyền nhận Ticket của Staff khác.
+Lock sorted users → Customer → assignment → Ticket; recheck Ticket customer/recipient/active assignment và Staff active sau lock. Ticket.version phải >= event.version; ACCEPTED chỉ khi current IN_PROGRESS/RESOLVED/CLOSED. Không recipient Staff/unassigned/ngoài scope thì không tạo notification hoặc frame cho Staff đó; Customer nhận TICKET_CREATED độc lập theo N02. Customer khóa vẫn được Staff phục vụ theo TK01. Reassignment không biến assignment thành quyền nhận Ticket của Staff khác.
 
 Notification dedupKey=eventId:recipient:kind, DB unique/upsert. Title generic: New support ticket hoặc Support ticket accepted; body null, không private preview. Dedup là theo event/recipient, không theo mọi event cùng Ticket.
 
@@ -196,7 +196,7 @@ Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](
 - [x] WS minimal + session/Ticket recheck; UI routing/catch-up không F5.
 - [x] Core/migration/browser tests và fixture cleanup; docs/index đồng bộ.
 - [x] Application Phase 2 tạo Ticket/snapshot cơ bản bằng xác nhận hợp lệ; Ticket/audit/outbox commit nguyên tử, có kiểm rollback bằng DB thật.
-- [ ] Phase 3 sửa version của event tạo Ticket và delivery tới Customer, kể cả khi chưa có Staff phụ trách; không lấy việc outbox đã ghi làm bằng chứng notification đã giao.
+- [x] Phase 3: event tạo Ticket có version=0, recipient Customer độc lập Staff, retry/dedup và repair/replay theo [N02](../../../customer/plans/notifications/02-conditional-center.md#repairreplay-ticket-event).
 - [ ] I07 tích hợp nguồn Agent thật và sáu nhóm summary/source refs; ngoài Phase 2.
 **Phần mở rộng chưa chọn:** Benchmark/SLA/multi-replica/cloud không thuộc checklist hoàn thiện Staff local.
 

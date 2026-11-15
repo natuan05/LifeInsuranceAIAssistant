@@ -81,8 +81,12 @@ for (const fault of ['lost-ack', 'before-commit', 'close']) {
    const own=await (await context.request.get('/api/v1/customers/me/tickets/'+body.items[0].id)).json();
    expect(own.ticket.confirmationSource).toBe('CUSTOMER_SUBMITTED');
    const staff=await customerContext(browser,data.staff);
-   try { const assigned=await staff.newPage(); await assigned.goto('/staff/tickets/'+body.items[0].id);
-    await expect(assigned.getByRole('region',{name:'Confirmed ticket content',exact:true})).toContainText('Synthetic description for recovery.');
+   try { const assigned=await staff.newPage();
+    const loaded=assigned.waitForResponse(response=>new URL(response.url()).pathname==='/api/v1/staff/tickets/'+body.items[0].id&&response.request().method()==='GET');
+    await assigned.goto('/staff/tickets/'+body.items[0].id);
+    const response=await loaded;expect(response.status()).toBe(200);
+    expect((await response.json()).ticket.confirmationSource).toBe('CUSTOMER_SUBMITTED');
+    await expect(assigned.getByRole('region',{name:'Confirmed ticket content',exact:true})).toContainText('Synthetic description for recovery.',{timeout:15000});
    }finally{await staff.close();}
    expect(errors).toEqual([]);
   } finally {try{await context?.close();}finally{expect(fixture('cleanup',runId)).toEqual({users:0,tickets:0});}}

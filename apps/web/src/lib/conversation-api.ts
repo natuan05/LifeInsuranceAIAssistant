@@ -73,13 +73,14 @@ export type CustomerNotification = {
   title: string;
   isRead: boolean;
   createdAt: string;
-  link: { type: 'CONVERSATION' | 'TICKET'; id: string } | null;
+  body: string | null;
+  target: { type: 'CONVERSATION' | 'TICKET'; id: string | null };
 };
 export const customerNotifications = (cursor: string | undefined, signal: AbortSignal) =>
   request<CursorPage<CustomerNotification>>(`customers/me/notifications?${query({ cursor })}`, signal);
 export const readCustomerNotification = (id: string, csrf: string, signal: AbortSignal) =>
-  request<{ notification: { id: string; isRead: boolean } }>(`customers/me/notifications/${encodeURIComponent(id)}/read`, signal, csrf, {});
+  request<{ id: string; isRead: boolean }>(`customers/me/notifications/${encodeURIComponent(id)}/read`, signal, csrf, {});
 export const readAllCustomerNotifications = (csrf: string, signal: AbortSignal) =>
-  request<{ success: boolean; markedCount: number }>('customers/me/notifications/read-all', signal, csrf, {});
-export const markConversationRead = (role: 'STAFF' | 'CUSTOMER', id: string, csrf: string, signal: AbortSignal) =>
-  request<{ success: boolean; readAt: string }>(`${role === 'STAFF' ? 'staff' : 'customers/me'}/conversations/${encodeURIComponent(id)}/read`, signal, csrf, {});
+  request<{ success: boolean; count: number }>('customers/me/notifications/read-all', signal, csrf, {});
+export const markConversationRead = (_role: 'STAFF' | 'CUSTOMER', id: string, csrf: string, signal: AbortSignal) =>
+  request<{ success: boolean; readAt: string }>(`conversations/${encodeURIComponent(id)}/read`, signal, csrf, {});

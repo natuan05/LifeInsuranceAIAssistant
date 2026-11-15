@@ -215,7 +215,7 @@ export class TicketService {
           targetType: 'SupportTicket', targetId: ticket.id, outcome: 'SUCCESS', requestId: request.requestId ?? randomUUID(),
           metadata: { ticketCode: ticket.ticketCode, status: 'OPEN', ...(draft ? { draftId: draft.id } : { manual: true }) } } });
         await tx.outboxEvent.create({ data: { aggregateType: 'TICKET', aggregateId: ticket.id, eventType: 'TICKET_CREATED',
-          payload: { schemaVersion: 1, ticketId: ticket.id, customerId: actorId, assignedStaffId: ticket.assignedStaffId, status: 'OPEN' } } });
+          payload: { schemaVersion: 1, version: 0 } } });
         return { ...this.customerReceiptView(ticket), replayed: false };
       }); } catch (error) {
         const uniqueTarget = error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'

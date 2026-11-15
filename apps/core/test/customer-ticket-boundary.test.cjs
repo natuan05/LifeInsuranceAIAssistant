@@ -4,6 +4,7 @@ const { test, before, beforeEach, after } = require('node:test');
 const assert = require('node:assert/strict');
 const { randomUUID, randomBytes } = require('node:crypto');
 const { readFileSync } = require('node:fs');
+const { execFileSync } = require('node:child_process');
 const { Module } = require('@nestjs/common');
 const { NestFactory } = require('@nestjs/core');
 const { PrismaPg } = require('@prisma/adapter-pg');
@@ -19,6 +20,11 @@ const { ConversationCommandService } = require('../dist/conversations/services/c
 const { StaffTicketController } = require('../dist/tickets/controllers/staff-ticket.controller');
 const { CustomerTicketController } = require('../dist/tickets/controllers/customer-ticket.controller');
 const { configureHttp } = require('../dist/http/http-foundation');
+const { TicketEventService } = require('../dist/tickets/services/ticket-event.service');
+const { OutboxDispatcherService } = require('../dist/outbox/services/outbox-dispatcher.service');
+const { CustomerNotificationsController } = require('../dist/notifications/customer-notifications.controller');
+const { CommonConversationController } = require('../dist/conversations/controllers/common-conversation.controller');
+const { conversationTestProviders } = require('./support/conversation-test.module.cjs');
 process.env.NODE_ENV = 'test';
 const users = [], conversations = [];
 const client = role => new PrismaClient({ adapter: new PrismaPg({
@@ -27,8 +33,8 @@ const client = role => new PrismaClient({ adapter: new PrismaPg({
 }) });
 const admin = client('admin'), core = client('core');
 class TestModule {}
-Module({ controllers: [CustomerTicketController, StaffTicketController], providers: [
-  AuthService, TicketDraftService, TicketService, TicketAccessService, TicketCursorService,
+Module({ controllers: [CustomerTicketController, StaffTicketController, CustomerNotificationsController, CommonConversationController], providers: [
+  ...conversationTestProviders(core), TicketEventService, AuthService, TicketDraftService, TicketService, TicketAccessService, TicketCursorService,
   ConversationAccessService, ConversationCommandService, { provide: DatabaseService, useValue: { prisma: core } },
 ] })(TestModule);
 let app, base, owner, other, staff, conversationId, foreignConversationId, draft;
@@ -99,6 +105,7 @@ after(async () => {
       await tx.auditLog.deleteMany({ where: { OR: [{ actorId: { in: users } }, { targetId: { in: ticketIds } }] } });
       await tx.supportTicket.deleteMany({ where: { customerId: { in: users } } });
       await tx.ticketDraft.deleteMany({ where: { customerId: { in: users } } });
+      await tx.message.deleteMany({ where: { conversationId: { in: conversations } } });
       await tx.conversation.deleteMany({ where: { id: { in: conversations } } });
       await tx.authSession.deleteMany({ where: { userId: { in: users } } });
       await tx.staffAssignment.deleteMany({ where: { OR: [{ customerId: { in: users } }, { staffId: { in: users } }] } });
@@ -438,4 +445,95 @@ test('A2-01 invalid PostgreSQL text characters are rejected before Ticket or dra
   const saved=await call('GET','/customers/me/tickets/'+created.ticket.id,owner,undefined,200);
   assert.equal(saved.ticket.confirmedContent.title,valid.title);assert.equal(saved.ticket.confirmedContent.description,valid.description);
 
+});
+
+
+// A3: real producers, database routing, recovery and authenticated read contracts.
+test('A3 manual/confirm notify the owner with or without a valid Staff recipient', async () => {
+  const service = app.get(TicketEventService);
+  await admin.staffAssignment.deleteMany({ where: { customerId: owner.id } });
+  for (const assigned of [false, true]) {
+    if (assigned) await admin.staffAssignment.create({ data: { customerId: owner.id, staffId: staff.id, operatorId: randomUUID() } });
+    try {
+      for (const operation of ['manual', 'confirm']) {
+        await resetWrites();
+        const d = operation === 'confirm' ? await proposed() : null;
+        const result = await call('POST', '/customers/me/tickets' + (d ? '' : '/manual'), owner,
+          d ? confirmRequest(d.id) : manual(), 200);
+        const event = await admin.outboxEvent.findFirstOrThrow({ where: { aggregateId: result.ticket.id, eventType: 'TICKET_CREATED' } });
+        assert.deepEqual(event.payload, { schemaVersion: 1, version: 0 });
+        await Promise.all([service.route(event), service.route(event)]);
+        const notices = await admin.notification.findMany({ where: { ticketId: result.ticket.id } });
+        assert.equal(notices.filter(n => n.recipientCustomerId === owner.id).length, 1);
+        assert.equal(notices.filter(n => n.recipientStaffId === staff.id).length, assigned ? 1 : 0);
+        const listed = await call('GET', '/customers/me/notifications', owner, undefined, 200);
+        const item = listed.items.find(n => n.target.id === result.ticket.id);
+        assert(item); assert.equal(item.target.type, 'TICKET'); assert.equal(item.body, null);
+        assert.deepEqual(await call('POST', '/customers/me/notifications/' + item.id + '/read', owner, {}, 200), { id: item.id, isRead: true });
+        await call('POST', '/customers/me/notifications/' + item.id + '/read', other, {}, 404);
+      }
+    } finally { if (assigned) await admin.staffAssignment.deleteMany({ where: { customerId: owner.id } }); }
+  }
+  const all = await call('POST', '/customers/me/notifications/read-all', owner, {}, 200);
+  assert.deepEqual(Object.keys(all).sort(), ['count', 'success']); assert.equal(all.success, true);
+});
+
+test('A3 legacy repair uses creation evidence, preserves id/version and replays after worker failure', async () => {
+  const result = await call('POST', '/customers/me/tickets/manual', owner, manual(), 200);
+  const ticket = await admin.supportTicket.findUniqueOrThrow({ where: { id: result.ticket.id } });
+  const event = await admin.outboxEvent.findFirstOrThrow({ where: { aggregateId: ticket.id, eventType: 'TICKET_CREATED' } });
+  const legacy = { schemaVersion: 1, ticketId: ticket.id, customerId: owner.id, assignedStaffId: null, status: 'OPEN' };
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { payload: legacy, status: 'FAILED_DLQ', retryCount: 8 } });
+  await admin.supportTicket.update({ where: { id: ticket.id }, data: { version: 3, status: 'RESOLVED' } });
+  const service = app.get(TicketEventService);
+  await Promise.all([service.replayCreated(event.id), service.replayCreated(event.id)]);
+  assert.deepEqual((await admin.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).payload, { schemaVersion: 1, version: 0 });
+  const failed = new OutboxDispatcherService({ prisma: core }, {}, { publishTicket: async () => { throw new Error('Synthetic delivery fault'); } }, service);
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { status: 'PROCESSING', leaseOwner: failed.owner, leaseExpiresAt: new Date(Date.now() + 3600000) } });
+  await assert.rejects(service.replayCreated(event.id));
+  await failed.process({ ...event, retryCount: 1 });
+  assert.equal((await admin.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).status, 'PENDING');
+  const restarted = new OutboxDispatcherService({ prisma: core }, {}, { publishTicket: async () => {} }, service);
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { status: 'PROCESSING', leaseOwner: restarted.owner } });
+  await restarted.process({ ...event, retryCount: 2 });
+  assert.equal((await admin.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).status, 'PUBLISHED');
+  assert.deepEqual(await service.replayCreated(event.id), { queued: false });
+  const replayOutput = execFileSync(process.execPath, ['dist/outbox/replay-ticket-event.js', event.id], {
+    encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], timeout: 15000,
+    env: { ...process.env, PGUSER: 'core_runtime', PGDATABASE: process.env.I01_TEST_DATABASE, DATABASE_PASSWORD_FILE: '/credentials/core/password' },
+  });
+  assert.match(replayOutput, /already published/);
+  assert.equal(await admin.notification.count({ where: { ticketId: ticket.id, recipientCustomerId: owner.id } }), 1);
+  assert.equal((await admin.supportTicket.findUniqueOrThrow({ where: { id: ticket.id } })).version, 3);
+  assert.equal(await admin.outboxEvent.count({ where: { aggregateId: ticket.id, eventType: 'TICKET_CREATED' } }), 1);
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { payload: { ...legacy, customerId: other.id }, status: 'FAILED_DLQ' } });
+  await assert.rejects(service.replayCreated(event.id));
+  assert.equal((await admin.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).status, 'FAILED_DLQ');
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { payload: legacy } });
+  await admin.auditLog.deleteMany({ where: { targetId: ticket.id, action: 'TICKET_CREATED' } });
+  await assert.rejects(service.replayCreated(event.id));
+  await admin.outboxEvent.update({ where: { id: event.id }, data: { status: 'PROCESSING', leaseOwner: failed.owner } });
+  await failed.process({ ...event, retryCount: 8 });
+  const rejected = await admin.outboxEvent.findUniqueOrThrow({ where: { id: event.id } });
+  assert.equal(rejected.status, 'FAILED_DLQ'); assert.equal(rejected.lastError, 'DISPATCH_FAILED');
+  assert.deepEqual(rejected.payload, legacy);
+});
+
+test('A3 common conversation read preserves auth/CSRF/transcript gates; bell read does not read chat', async () => {
+  const message = await admin.message.create({ data: { conversationId, senderType: 'STAFF', senderId: staff.id,
+    content: 'Synthetic unread boundary', sequence: 1n, audience: 'CUSTOMER_VISIBLE' } });
+  const notice = await admin.notification.create({ data: { conversationId, recipientCustomerId: owner.id,
+    kind: 'STAFF_MESSAGE_UNREAD', title: 'Synthetic unread', dedupKey: randomUUID() } });
+  await call('POST', '/customers/me/notifications/' + notice.id + '/read', owner, {}, 200);
+  await call('POST', '/customers/me/notifications/read-all', owner, {}, 200);
+  assert.equal((await admin.message.findUniqueOrThrow({ where: { id: message.id } })).readAt, null);
+  const route = '/conversations/' + conversationId + '/read';
+  await call('POST', route, null, {}, 401);
+  await call('POST', route, owner, {}, 403, undefined, { 'X-CSRF-Token': null });
+  await call('POST', route, other, {}, 404);
+  await call('POST', route, staff, {}, 404);
+  await call('POST', route + '?unexpected=1', owner, {}, 400);
+  const read = await call('POST', route, owner, {}, 200);
+  assert.equal(read.success, true); assert(!Number.isNaN(Date.parse(read.readAt)));
+  assert((await admin.message.findUniqueOrThrow({ where: { id: message.id } })).readAt);
 });

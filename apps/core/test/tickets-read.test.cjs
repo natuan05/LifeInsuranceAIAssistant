@@ -71,10 +71,10 @@ after(async()=>{try{
  await tx.conversation.deleteMany({where:{id:{in:chats}}});
  await tx.insurancePolicy.deleteMany({where:{id:{in:policies}}});await tx.insuranceProduct.deleteMany({where:{id:{in:products}}});
  await tx.authSession.deleteMany({where:{userId:{in:users}}});
- await tx.rateLimitBucket.deleteMany({where:{clientToken:{in:users.map(id=>tokenHash(id.toLowerCase()))},endpointGroup:{in:['TICKET_READ','TICKET_ACCEPT']}}});
+ await tx.rateLimitBucket.deleteMany({where:{clientToken:{in:users.map(id=>tokenHash(id.toLowerCase()))}}});
  await tx.staffAssignment.deleteMany({where:{customerId:{in:users}}});
  await tx.customerProfile.deleteMany({where:{userId:{in:users}}});await tx.staffProfile.deleteMany({where:{userId:{in:users}}});await tx.user.deleteMany({where:{id:{in:users}}});});
- assert.equal(await admin.user.count({where:{id:{in:users}}}),0);assert.equal(await admin.supportTicket.count({where:{id:{in:tickets}}}),0);
+ assert.equal(await admin.rateLimitBucket.count({where:{clientToken:{in:users.map(id=>tokenHash(id.toLowerCase()))}}}),0);assert.equal(await admin.user.count({where:{id:{in:users}}}),0);assert.equal(await admin.supportTicket.count({where:{id:{in:tickets}}}),0);
  }finally{await Promise.all([admin.$disconnect(),core.$disconnect()]);}});
 test('real sessions and role gates return safe HTTP envelopes',async()=>{
  await get('',null,401);await get('',customer,403);
@@ -271,10 +271,10 @@ test('TK05 scope loss filters list/read and suppresses creation before routing, 
  const row=await fixture(),event=await ticketEvent(row),service=app.get(TicketEventService);await service.route(event);const item=await admin.notification.findFirst({where:{ticketId:row.id}});
  try{
  await admin.staffAssignment.update({where:{id:assignment.id},data:{isActive:false,endedAt:new Date()}});
- assert.deepEqual(await service.route(event),[]);assert(!(await notifications()).items.some(x=>x.target.id===row.id));await notifications(staff,item.id,404);
+ assert.deepEqual(await service.route(event),[customer.id]);assert(!(await notifications()).items.some(x=>x.target.id===row.id));await notifications(staff,item.id,404);
  }finally{await admin.staffAssignment.update({where:{id:assignment.id},data:{isActive:true,endedAt:null}});}
- try{await admin.user.update({where:{id:staff.id},data:{status:'LOCKED'}});assert.deepEqual(await service.route(event),[]);}finally{await admin.user.update({where:{id:staff.id},data:{status:'ACTIVE'}});}
- const foreign=await fixture('ASSIGNED',other.id);assert.deepEqual(await service.route(await ticketEvent(foreign)),[]);
+ try{await admin.user.update({where:{id:staff.id},data:{status:'LOCKED'}});assert.deepEqual(await service.route(event),[customer.id]);}finally{await admin.user.update({where:{id:staff.id},data:{status:'ACTIVE'}});}
+ const foreign=await fixture('ASSIGNED',other.id);assert.deepEqual(await service.route(await ticketEvent(foreign)),[customer.id]);
 });
 test('TK05 worker retry after notification commit deduplicates; lease loss cannot publish and exhausted work reaches DLQ',async()=>{
  const row=await fixture(),event=await ticketEvent(row),events=app.get(TicketEventService);

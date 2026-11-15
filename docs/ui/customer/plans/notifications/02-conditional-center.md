@@ -16,7 +16,7 @@
 
 Schema/migrations theo N01 đã có trong source. N02 tác động cao tới permissions, event retry, read status, projection cả hai role và state browser. Masking thêm theo [ma trận dữ liệu](../../../../configuration-and-data.md#customer-sensitive-data) còn P.
 
-## 2. API và DTO cần thống nhất
+## 2. API và DTO
 
 Prefix `/api/v1`. Bảng theo response Core hiện tại để đồng bộ client/Swagger/tests.
 
@@ -27,14 +27,14 @@ Prefix `/api/v1`. Bảng theo response Core hiện tại để đồng bộ clie
 | POST /customers/me/notifications/read-all | `{success:true,count:number}` |
 | POST /conversations/:conversationId/read | `{success:true,readAt:string}` |
 
-GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes hiện có ở Customer/Staff controller và cùng gọi markAsRead, nên không kết luận thiếu endpoint. Phase 3 chuẩn hóa Web về common route theo [spec Application](../../../../application-code-alignment-spec.md#7-phase-3--contract-notification-và-ticket-event), giữ auth/CSRF và transcript/owner gate.
+GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes hiện có ở Customer/Staff controller và cùng gọi markAsRead, nên không kết luận thiếu endpoint. Web hai role dùng common route theo [spec Application](../../../../application-code-alignment-spec.md#7-phase-3--contract-notification-và-ticket-event), giữ auth/CSRF và transcript/owner gate.
 
-`target` là DTO thống nhất cho navigation; single-read trả object phẳng, read-all dùng `count`. Source Web còn khai báo `link`, single-read bọc `notification` và read-all `markedCount`; cần sửa client/consumer cho khớp Core và chạy network regression. Không đánh dấu đã hoàn tất từ việc có file wrapper.
+`target` dùng cho navigation; single-read trả object phẳng, read-all dùng `count`. Web mở đúng Ticket/chat và refetch tài nguyên theo quyền hiện hành.
 
 ## 3. Producer, consumer và trạng thái đọc
 
 1. Business transaction ghi event cùng nghiệp vụ. Handoff Accept đồng thời ghi SYSTEM vào transcript và sinh notification Customer qua consumer.
-2. Ticket created sinh notification Customer theo owner; trường hợp chưa có Staff vẫn phải xét đường Customer độc lập với routing Staff. Producer và consumer cần thống nhất schemaVersion/version.
+2. Ticket created sinh notification Customer theo owner; trường hợp chưa có Staff vẫn phải xét đường Customer độc lập với routing Staff. Producer/consumer dùng schemaVersion=1/version=0 cho TICKET_CREATED.
 3. Staff gửi tin chưa đọc sinh STAFF_MESSAGE_UNREAD; Customer gửi tin sinh CUSTOMER_MESSAGE_UNREAD cho Staff có quyền. Theo phương án A ở N01, tin mới cùng chu kỳ chưa đọc chat cập nhật notification cũ, giữ id và bật lại isRead=false, dù chuông đã được đánh dấu đọc.
 4. Đọc hội thoại cập nhật messages.read_at cho tin đối phương theo CUSTOMER_VISIBLE và quyền. Mốc tin đã đọc kết thúc chu kỳ tương ứng; cập nhật notification và outbox/invalidation phải xử lý đồng thời với tin mới, không nuốt thông báo cho tin sau mốc này.
 5. Đọc từng notification hoặc read-all chỉ đổi Notification.isRead, không kết thúc chu kỳ chat. Retry event cũ không tự bật lại unread; consumer cần nhận diện tin mới và chu kỳ bền vững. Link target tiếp tục được API tài nguyên kiểm quyền.
@@ -47,15 +47,25 @@ Policy đã duyệt ngày 13/11/2026: retention 30 ngày cho cả Customer và S
 
 Các điểm source còn cần kiểm chứng/sửa:
 
-- DTO Core/Web lệch như mục 2, target navigation và update state sau read/read-all.
-- Ticket event producer Customer hiện thiếu version mà consumer yêu cầu; nhánh consumer đang return sớm khi Ticket chưa có assignedStaffId, có thể bỏ qua notification Customer.
 - Consumer hiện lọc isRead=false để tìm mục gộp, nên sau mark-read/read-all có thể tạo dòng mới. Cần nhận diện chu kỳ theo mốc đọc chat, tái dùng id và bật unread chỉ khi có tin mới. State conversation_notification_states và constraint/backfill đã được đề xuất tại [Phase 4](../../../../application-code-alignment-spec.md#8-phase-4--unread-cycle-read-status-và-retention); chưa có trong schema, cần migration mới và kiểm DB/concurrency trước nghiệm thu.
 - Recheck target scope, nội dung generic và xử lý nguồn bị xóa/quyền đã đổi trước navigation.
 - Đổi interval cleanup từ mỗi giờ sang mỗi 24 giờ tại NotificationsService, giữ cleanup khi bootstrap và hủy timer khi destroy. Kiểm cutoff cho cả Customer/Staff và read/unread, lỗi DB/restart; bảo toàn Ticket/Message và audit nguồn.
 
+### Repair/replay Ticket event
+
+Consumer tự sửa payload TICKET_CREATED cũ thiếu version khi audit tạo Ticket và snapshot xác nhận đủ bằng chứng. Version tạo luôn là 0, không lấy version hiện tại. Event không xác minh được tiếp tục báo lỗi/retry/DLQ.
+
+Đưa một event PENDING/FAILED_DLQ đã xác minh về hàng đợi bằng ID cũ:
+
+```powershell
+docker compose exec -T core node dist/outbox/replay-ticket-event.js '<event-id>'
+```
+
+Lệnh giữ nguyên Ticket/event ID, từ chối event đang có lease; event PUBLISHED không phát lại. Worker retry và dedup theo event/recipient.
+
 ## 5. Test cases
 
-Các ca API/DB/browser/realtime dưới đây dùng fixture synthetic, chưa chạy lại trong lần đồng bộ tài liệu.
+Các ca dùng fixture synthetic. DTO/navigation/common read và Ticket recipient/repair thuộc Phase 3; chu kỳ unread và cleanup theo Phase 4.
 
 | Mã | Ca | Kết quả mong đợi |
 | --- | --- | --- |
@@ -75,7 +85,8 @@ Các ca API/DB/browser/realtime dưới đây dùng fixture synthetic, chưa ch�
 - [x] Center + chat, recipient và retention 30 ngày cho cả Customer/Staff đã được duyệt.
 - [x] Source có schema/API/UI/read status/cleanup.
 - [x] Đã duyệt gộp đến khi đọc chat; tin mới giữ id và bật lại unread trong cùng chu kỳ.
-- [ ] Hoàn thiện DTO/event và nhận diện chu kỳ bền vững; kiểm N02-T05/T10 và các điểm review tại mục 4.
+- [x] DTO/navigation/common read, Ticket recipient và repair/replay theo Phase 3.
+- [ ] Nhận diện chu kỳ bền vững; kiểm N02-T05/T10 theo Phase 4.
 - [x] Đã duyệt cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ.
 - [ ] Đổi interval trong source và kiểm retention/timer theo N02-T07/T09.
 - [ ] Chạy hồi quy synthetic API/DB/browser/realtime trước nghiệm thu.

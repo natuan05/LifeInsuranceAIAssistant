@@ -52,9 +52,11 @@ function CustomerTicketPanel({
   csrfToken = '',
   blocked = false,
   initialTicketId = null,
+  onTicketOpened,
 }: {
   onOpenChat: () => void;
   initialTicketId?: string | null;
+  onTicketOpened?: () => void;
   csrfToken?: string;
   blocked?: boolean;
 }) {
@@ -70,6 +72,14 @@ function CustomerTicketPanel({
 
   // Detail Modal
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(initialTicketId);
+  const [previousInitialTicketId, setPreviousInitialTicketId] = useState(initialTicketId);
+  if (initialTicketId !== previousInitialTicketId) {
+    setPreviousInitialTicketId(initialTicketId);
+    if (initialTicketId) setSelectedTicketId(initialTicketId);
+  }
+  useEffect(() => {
+    if (initialTicketId) onTicketOpened?.();
+  }, [initialTicketId, onTicketOpened]);
   const [ticketDetail, setTicketDetail] = useState<CustomerTicketDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
 
