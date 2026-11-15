@@ -733,7 +733,7 @@ Mở Policy Lookup/PDF là thao tác đọc, không sửa Conversation.linkedPol
 - Core gửi mã lượt để liên kết yêu cầu và callback. Core kiểm tra callback rồi ghi nhận trạng thái/kết quả; chỉ công bố câu trả lời hoàn chỉnh đã qua kiểm tra. Web nhận cập nhật qua Core, giao thức Web–Core còn mở.
 - Callback cần xác thực/giao lại/chống trùng/thứ tự/xử lý kết quả muộn/kiểm tiếp quản. Lưu sự kiện chờ giao/khôi phục phải bền vững; callback không tự bảo đảm đúng một lần/sống qua mọi lỗi.
 - ACK/ID lượt–attempt–event theo luật dưới. Cần đặc tả endpoint/schema/ID/mã phản hồi/timeout–retry/đối soát mất ACK. URL callback từ cấu hình tin cậy, không từ LLM/tài liệu.
-- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; framework HTTP đã chốt Starlette + uvicorn ngày 13/11/2026. Code phía Agent có trên `origin/agent/task-6-http-delivery` tại `5043e8d`, với app factory và uvicorn entrypoint, chưa merge vào main. Phạm vi G3 còn lại tiếp tục theo contracts. [Contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
+- SSE đã được xem xét nhưng chưa chọn cho Core–Agent. Adapter AgentCore Runtime và cách giữ runtime hoạt động cho tác vụ nền cần được kiểm chứng riêng; framework HTTP đã chốt Starlette + uvicorn ngày 13/11/2026. Code phía Agent có trên `origin/agent/task-6-http-delivery` tại `5043e8d`, với app factory và uvicorn entrypoint, đã merge main ngày 15/11/2026. Phạm vi G3 còn lại tiếp tục theo contracts. [Contracts mục 12.13](../../contracts/agent-v1.md#1213-quyết-định-g2g3-ngày-06112026).
 
 <a id="durable-ack"></a>
 ### ACK sau khi lưu bền vững
@@ -798,7 +798,7 @@ Mở Policy Lookup/PDF là thao tác đọc, không sửa Conversation.linkedPol
 
 ### HMAC LI-HMAC-SHA256-v1 và Core tra quyền theo lượt
 
-**Đã chốt HMAC dịch vụ và Core tra quyền theo lượt ngày 29/10/2026, xác nhận profile LI-HMAC-SHA256-v1 ngày 13/11/2026.** Core lưu/tra quyền theo run_id/attempt_id. Code ký/kiểm phía Agent có trên nhánh Task 6 tại 5043e8d, chưa merge main. Tích hợp Core và quản lý khóa theo các phần review tương ứng.
+**Đã chốt HMAC dịch vụ và Core tra quyền theo lượt ngày 29/10/2026, xác nhận profile LI-HMAC-SHA256-v1 ngày 13/11/2026.** Core lưu/tra quyền theo run_id/attempt_id. Code ký/kiểm phía Agent có trên nhánh Task 6 tại 5043e8d, đã merge main ngày 15/11/2026. Tích hợp Core và quản lý khóa theo các phần review tương ứng.
 
 - Core/Agent ký/kiểm tại lớp tích hợp, khóa ngoài Git. HMAC xác thực/toàn vẹn; Core quyết quyền lượt. Cần quản lý/giới hạn truy cập/xoay khóa; credentials không vào prompt/checkpoint/log/mẫu tài liệu.
 - Agent → Core: xác thực dịch vụ → attempt giao đúng dịch vụ → còn hiệu lực → thao tác đúng phạm vi → actor còn quyền Customer. Adapter lấy mã lượt/attempt từ runtime context tin cậy; LLM không chọn actor/đổi lượt.
@@ -1178,7 +1178,7 @@ Có bảng business/rag không chứng minh có Business APIs/retrieval/checkpoi
 | Nội dung cũ/chưa thống nhất | Cách đọc trong tài liệu chuẩn |
 | --- | --- |
 | v0.1 một sản phẩm; v0.2 dự kiến 3 chính/4–5 bổ trợ | MVP 28/10/2026 thay bằng [7 sản phẩm: 4 chính, 3 bổ trợ](#mvp-products). Public/Private cho Customer/Staff; tham gia theo hợp đồng Private, còn mapping phiên bản |
-| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | Framework Starlette + uvicorn đã chốt ngày 13/11/2026, có code trên nhánh Task 6 chưa merge main. Profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026, có code phía Agent trên nhánh Task 6. Service auth dùng HMAC và Core tra quyền theo lượt theo quyết định 29/10; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
+| FastAPI, JWT/OIDC, AI Runtime “chỉ SELECT” | Framework Starlette + uvicorn đã chốt ngày 13/11/2026, có code trên nhánh Task 6 đã merge main ngày 15/11/2026. Profile LI-HMAC-SHA256-v1 đã chốt ngày 13/11/2026, có code phía Agent trên nhánh Task 6. Service auth dùng HMAC và Core tra quyền theo lượt theo quyết định 29/10; Core local dùng session. Chỉ retrieval đọc RAG; checkpoint cần quyền ghi riêng |
 | Harness, model/vector 768 cố định | Harness đã loại theo người dùng; custom LangGraph đã chọn. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Mục 5 giữ các ứng viên lịch sử |
 | Scope rỗng vừa `DENIED` vừa `INSUFFICIENT`; lỗi DB cũng `INSUFFICIENT` | Đã chốt [năm trạng thái retrieval](#rag-retrieval-statuses), tách độ đủ/lỗi/thiếu nguồn/không khớp/denied. Scope hợp lệ rỗng `NO_SOURCE`, lỗi scope `ERROR`. Còn schema/nguyên nhân/HTTP; không tiết lộ Private |
 | “Customer ngoài quyền → DENIED, không gọi Core” | Không để Agent/LLM tự xác định quyền. Chỉ có thể dừng trước API nếu đã có kết luận policy tin cậy; cơ chế cụ thể cần chốt |
@@ -1211,3 +1211,5 @@ RAG **lịch sử, không phải cam kết hiện tại**: tuần 7 corpus/manif
 ## Ngoại lệ dữ liệu được người dùng cho phép ngày 03/11/2026
 
 [Bản hợp đồng đầy đủ có dữ liệu demo](../../data/private/manulife-demo-full-v1/README.md) được dùng trực tiếp từ nguồn đã khử định danh và được phép lưu Git. `synthetic=false`, chưa human/RAG approval; không tự seed/chunk/embedding. Các quy định synthetic-only ở trên tiếp tục áp dụng cho dữ liệu khác. Không dùng số liệu/đáp án fixture rút gọn cho bản đầy đủ; ô đã loại là dữ liệu thiếu.
+
+**Lựa chọn G5 phần Private ngày 06/11/2026 (người dùng chọn khi làm mốc 5):** chỉ [fixture tham chiếu synthetic `SYN-CONTRACT-001`](../../data/synthetic/manulife-demo-v1/README.md) được chunk/embed/gửi provider để thử Private, nhiều lượt và Copilot; bản đầy đủ ở trên không được gửi. Hai quyền lợi `DEMO-TITAN` của fixture giữ chưa ánh xạ sang bổ trợ thương mại, fixture không sửa; Core double của bộ đánh giá trả `ridersComplete=false`. Portfolio runtime `policies.json` (từ 08/11/2026) là nguồn bootstrap ứng dụng, không có bổ trợ; index Private cho các hợp đồng đó cần document/version do Core cấp ở Task 3/10. Chưa có quyết định nguồn UL049 trang 29: giữ cảnh báo. Lựa chọn này không duyệt corpus Public hay mapping nghiệp vụ. Cách chạy ở [README Agent](../../apps/agent/README.md#trạng-thái-mốc-5--private-và-copilot-thử-nghiệm).

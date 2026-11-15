@@ -1,6 +1,6 @@
 # Agent contracts v1
 
-**Trạng thái review G1 và G2/G3.** Framework Starlette + uvicorn và profile `LI-HMAC-SHA256-v1` đã được người dùng chốt ngày 13/11/2026. Các phần còn lại theo bảng trạng thái ở mục 12. Thực hiện Task 1–2 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md) theo [Agent Design](../docs/specifications/Agent_Design.md#design-overview). Main có lưu bền phía Agent ở Task 4. HTTP/HMAC phía Agent có code trên `origin/agent/task-6-http-delivery` tại `5043e8d`, chưa merge main. Protocol/persistence và tích hợp Core tiếp tục theo các mục review tương ứng.
+**Trạng thái review G1 và G2/G3.** Framework Starlette + uvicorn và profile `LI-HMAC-SHA256-v1` đã được người dùng chốt ngày 13/11/2026. Các phần còn lại theo bảng trạng thái ở mục 12. Thực hiện Task 1–2 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md) theo [Agent Design](../docs/specifications/Agent_Design.md#design-overview). Main có lưu bền phía Agent ở Task 4. HTTP/HMAC phía Agent có code trên `origin/agent/task-6-http-delivery` tại `5043e8d`, đã merge main ngày 15/11/2026. Protocol/persistence và tích hợp Core tiếp tục theo các mục review tương ứng.
 
 | File | Nội dung |
 | --- | --- |
@@ -185,9 +185,8 @@ Lịch sử người dùng hiển thị `RUN_OUTCOME.code` đã lọc (thêm `ST
 | Mục | Trạng thái | Nguồn ghi nhận/review | Ngày ghi nhận |
 | --- | --- | --- | --- |
 | 12.2–12.8 Storage, state machine, fencing, ledger, final record, crash matrix (G2) | Phương án 4 đã chốt A ngày 14/11/2026, phương án 1–3 và phần G2 còn lại tiếp tục review | Người dùng xác nhận chính sách lỗi/quá hạn, tích hợp còn P | 14/11/2026 |
-| 12.9–12.10 HMAC, endpoint, framework (G3) | Profile LI-HMAC-SHA256-v1 và Starlette + uvicorn đã chốt. Retention dữ liệu khôi phục Agent trong MVP đã chốt giữ theo A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục review | Người dùng xác nhận HMAC/framework ngày 13/11 và retention MVP ngày 14/11, code Agent tại nhánh Task 6 chưa merge main | 14/11/2026 |
+| 12.9–12.10 HMAC, endpoint, framework (G3) | Profile LI-HMAC-SHA256-v1 và Starlette + uvicorn đã chốt. Retention dữ liệu khôi phục Agent trong MVP đã chốt giữ theo A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục review | Người dùng xác nhận HMAC/framework ngày 13/11 và retention MVP ngày 14/11, code Agent tại nhánh Task 6 đã merge main ngày 15/11/2026 | 14/11/2026 |
 | 12.11 DDL | Core: đề xuất cho Task 3; Agent: migration Task 4 đã có, không tự đóng G2 | — | — |
-
 
 ### 12.1 Bất biến cần giữ
 
@@ -331,9 +330,16 @@ UPDATE agent_runtime.thread_owners SET writer_epoch = writer_epoch + 1, revoked 
 | Agent → Core | `POST /api/v1/internal/agent/events` | `AgentEvent` → `DurableAck` |
 | Agent → Core | Các đọc nội bộ Task 3 (history, linked-history, scope, contracts) | Ký cùng profile; quyền theo attempt hiện hành |
 
+**Phía Agent đã có code (Task 6, viết 06/11/2026, review lại và merge 15/11/2026; chờ Core ở Task 3/6):**
+
+- Lỗi xác thực trả 401 `{"error":{"code":"AUTH_FAILED"}}` hoặc `REPLAY_REJECTED`, không kèm `DurableAck`, vì chưa có ID đáng tin. Body đã xác thực nhưng sai schema trả 400 `DurableAck` `REJECTED`/`SCHEMA_INVALID` nếu có `run_id`/`attempt_id` hợp lệ, không thì `{"error":{"code":"SCHEMA_INVALID"}}`. Kho Agent lỗi trả 503 (không ACK, Core gửi lại). Revoke có `attempt_id` trên path khác body → 400 `REJECTED`/`SCHEMA_INVALID`; receipt thuộc run/hội thoại khác → 400 `REJECTED`/`PAYLOAD_MISMATCH` (không phải thu hồi thành công). `GET /healthz` không cần chữ ký và không trả chi tiết.
+- Event nhận `REJECTED` từ Core vẫn được giữ và gửi lại theo backoff tới hạn tối đa (theo 12.4), payload không đổi; mục 4 "dừng, không tự sửa payload" được hiểu là không sửa nội dung. Hết hạn thì ghi `gave_up_at` và log sự cố; Core gửi lại `RunRequest` (`DUPLICATE`) mở lại việc giao. Migration `002_delivery.sql` thêm `gave_up_at`, `last_failure`.
+- **Đọc nội bộ theo đúng đường dẫn của kế hoạch Task 3** dưới `/api/v1/internal/agent`: `GET /runs/{runId}/history`, `GET /runs/{runId}/linked-history`, `POST /runs/{runId}/scope`, `GET /runs/{runId}/contracts`, `GET /runs/{runId}/contracts/{policyNumber}` (mã hợp đồng được URL-encode). Đề xuất cho phần kế hoạch chưa định (đội application xác nhận hoặc đổi): `attemptId` đi trong query đã ký, `cursor` trong query của hai đọc lịch sử; Core phân trang theo view đã lưu cho run, không nhận view từ caller. Body scope `{attempt_id, kind, policy_number}`. Trả 200 với `ConversationHistoryPage`, `DocumentScope`, `{"contracts":[ContractSummary]}`, `ContractOverview`; lỗi `{"error":{"code":…}}` với 403 `NOT_AUTHORIZED`, 404 `NOT_FOUND`, 409 `INVALID_ATTEMPT`, 400 `INVALID_INPUT`. Agent kiểm schema mọi câu trả lời; sai dạng hoặc 5xx là `UNAVAILABLE`. Bàn giao chi tiết: [handoff cho đội application](../docs/superpowers/plans/2026-11-07-agent-core-handoff.md).
+- Test vector chung [`fixtures/hmac-v1.json`](fixtures/hmac-v1.json) (khóa chỉ dùng cho test, công khai), kiểm bằng Python và `node --test apps/core/test/agent-hmac-vector.test.cjs` (chỉ `node:crypto`).
+
 Giao lại đề xuất: backoff mũ 1 → 60 giây có jitter. Dispatch/revoke lặp tới khi có ACK hoặc tới hạn của run. Event lặp tối đa 24 giờ rồi ghi sự cố. **Retention MVP A chốt 14/11/2026:** event đã ACK và dữ liệu khôi phục Agent được giữ để đối soát, chưa tự xóa theo thời gian. Thời hạn production còn cần chốt. Các mức 3 giây/4 request/1 retry của Business Tools không áp vào callback. URL callback lấy từ cấu hình, không từ model/tài liệu/body.
 
-**HTTP framework phía Agent đã chốt ngày 13/11/2026 theo phương án A.** Dùng Starlette + uvicorn. Code Task 6 phía Agent có tại `origin/agent/task-6-http-delivery`, commit `5043e8d`, chưa merge main. Nhánh này pin `starlette==1.10.0` và `uvicorn==0.54.0` trong pyproject.toml. Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
+**HTTP framework phía Agent đã chốt ngày 13/11/2026 theo phương án A.** Dùng Starlette + uvicorn. Code Task 6 phía Agent có tại `origin/agent/task-6-http-delivery`, commit `5043e8d`, đã merge main ngày 15/11/2026. Nhánh này pin `starlette==1.10.0` và `uvicorn==0.54.0` trong pyproject.toml. Handler chỉ làm xác thực → lưu → ACK; graph chạy ở worker đọc receipt từ DB, không chạy trong background task của request.
 
 ### 12.11 DDL đề xuất
 
@@ -425,8 +431,8 @@ Agent — schema `agent_runtime`: đã triển khai ở Task 4 bằng [`apps/age
 | FIFO, một `RUNNING`/hội thoại, history view gồm kết quả commit muộn | Task 3: enqueue B khi A chạy, A commit sau B; nhiều dispatcher chỉ một claim |
 | Không ghi đè sau revoke | Task 4: `test_stale_process_cannot_publish_checkpoint_after_revoke_ack` với hai tiến trình |
 | Budget không cấp lại sau crash | Task 4: `test_core_budget_survives_crash_after_send_before_checkpoint`, `test_token_reservations_survive_replay` |
-| Không chạy lại graph khi giao lại | Task 6: `test_restart_after_lost_ack_redelivers_without_graph` |
-| HMAC | Task 6: sửa body/path/header, sai khóa, lệch giờ, nonce lặp, gửi lại nonce mới cùng ID nghiệp vụ |
+| Không chạy lại graph khi giao lại | Task 6: `test_restart_after_lost_ack_redelivers_without_graph` (đã có phía Agent với Core double; Core thật ở Task 10) |
+| HMAC | Task 6: sửa body/path/header, sai khóa, lệch giờ, nonce lặp, gửi lại nonce mới cùng ID nghiệp vụ — phía Agent có trong `apps/agent/tests/test_delivery.py`; phía Core chờ Task 3 |
 | Takeover/late event | Task 6/10: takeover khi tool đang chờ; event muộn không đổi kết quả |
 
 <a id="1213-quyết-định-g2g3-ngày-06112026"></a>
@@ -441,7 +447,7 @@ Lịch sử nhánh ghi: “Người dùng giao Agent tự chọn và ghi lại n
 | 2 | Checkpointer | **Tự viết lớp con `BaseCheckpointSaver`** trên psycopg trong schema `agent_runtime`, kiểm `(thread_id, attempt_id, writer_epoch)` trong cùng transaction với mọi đường ghi; pin `langgraph-checkpoint` 4.3.1 | `langgraph-checkpoint-postgres` tự quản bảng/migration và không cho chèn bước kiểm quyền ghi vào cùng transaction, kể cả pending writes; kế hoạch yêu cầu dừng nếu thư viện không hook được mọi đường ghi |
 | 3 | Revoke không tới được Agent | **Chấp nhận khoảng hở ở 12.5**, không thêm điều kiện lease vào câu kiểm. Core chặn ngay tool/scope/history/event của attempt cũ, không giao attempt mới hay tin kế tiếp cho hội thoại tới khi có `RevocationAck`, gửi lại revoke theo backoff và để trạng thái chờ hiện cho vận hành | Lease không giải quyết trường hợp này (writer mất mạng tới Core vẫn tới được DB và gia hạn được) mà thêm heartbeat; các lần ghi muộn không thành kết quả Core và attempt kế tiếp chỉ đọc sau ACK |
 | 4 | Agent báo lỗi kỹ thuật/quá deadline | **A đã chốt 14/11/2026.** Run kết thúc `FAILED`, UI báo lỗi để Customer chủ động gửi lại/hỏi tiếp bằng tin mới. Không tự chạy lại lượt hoặc tạo attempt thay thế. Mất ACK gửi lại cùng ID theo receipt, takeover theo `CANCELLED` hiện hành | Tin mới có lượt/budget riêng, lượt lỗi giữ lịch sử. Retry tạm thời trong request theo ngân sách hiện hành. `RETRY` dành cho luồng chủ động cần đặc tả riêng, tích hợp Core/UI còn P |
-| 5 | Xác thực và framework | **Profile `LI-HMAC-SHA256-v1` đã chốt 13/11/2026** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn đã chốt 13/11/2026** phía Agent. Nhánh Task 6 tại `5043e8d` pin `starlette` 1.10.0 / `uvicorn` 0.54.0, chưa merge main. Retention dữ liệu khôi phục Agent trong MVP đã chốt A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục theo review G3 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
+| 5 | Xác thực và framework | **Profile `LI-HMAC-SHA256-v1` đã chốt 13/11/2026** (12.9: ±120 giây, nonce lưu 10 phút, keyring theo `key_id`); **Starlette + uvicorn đã chốt 13/11/2026** phía Agent. Nhánh Task 6 tại `5043e8d` pin `starlette` 1.10.0 / `uvicorn` 0.54.0, đã merge main ngày 15/11/2026. Retention dữ liệu khôi phục Agent trong MVP đã chốt A ngày 14/11, lịch giao lại và tích hợp Core tiếp tục theo review G3 | Profile ngắn, kiểm được bằng thư viện chuẩn hai phía và test vector chung; RFC 9421 đầy đủ cần thư viện/canonicalization phức tạp hơn mức hai dịch vụ nội bộ cần. Starlette đủ cho vài endpoint ASGI, ít phụ thuộc hơn FastAPI (không cần Pydantic/OpenAPI vì đã kiểm bằng JSON Schema); `http.server` không dành cho production |
 
 Còn đề xuất, chưa chốt:
 

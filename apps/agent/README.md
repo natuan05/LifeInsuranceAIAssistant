@@ -131,3 +131,54 @@ Triển khai phần Agent của [gói G2/G3](../../contracts/agent-v1.md#12-prot
 7. Đổi `LIFE_AGENT_STORE_DSN` sang đích, mở lại nhận việc.
 
 Rollback: nếu đích **chưa nhận ghi**, chỉ cần trỏ lại nguồn (nguồn còn nguyên). Nếu đích **đã nhận ghi**, phải chép các dòng mới của đích về nguồn (hoặc giữ đích) rồi chạy `fence_after_restore()` trên bên dùng tiếp. Không chạy hai bên song song, không dual-write/CDC.
+
+## Trạng thái: mốc 5 — Private và Copilot (thử nghiệm)
+
+Phần Private/Copilot của Tasks 5, 7–9 trên **fixture tham chiếu hoàn toàn synthetic** `SYN-CONTRACT-001` (`contract.md`/`contract.json`/15 đáp án) trong [`manulife-demo-v1`](../../data/synthetic/manulife-demo-v1/README.md). Từ 08/11/2026 bootstrap ứng dụng dùng portfolio `policies.json` (bốn hợp đồng `BH-*`, không bổ trợ); fixture cũ chỉ còn là bộ tham chiếu, UUID trong `contract.json` không phải ID runtime. Vì vậy chunk/embedding của fixture chỉ phục vụ đánh giá với Core double và nên nạp vào DB đánh giá cô lập, không coi là tài liệu Private của ứng dụng. Index Private cho bốn hợp đồng runtime cần document/version do Core cấp (Task 3/10), chưa làm ở đây. Lựa chọn G5 người dùng đưa ra ngày 06/11/2026 khi làm mốc này:
+
+- Chỉ bộ synthetic được chunk, embed và gửi provider. Bản đầy đủ đã khử định danh [`manulife-demo-full-v1`](../../data/private/manulife-demo-full-v1/README.md) (`synthetic=false`) không được chuẩn bị/index; `prepare_private_fixture` từ chối dữ liệu không synthetic hoặc lệch checksum manifest.
+- Hai quyền lợi `DEMO-TITAN` của fixture tham chiếu giữ **chưa ánh xạ** sang sản phẩm bổ trợ thương mại; không sửa fixture. Core double của bộ đánh giá trả hai mục theo nhãn fixture với `riders_complete=false`, nên Agent không được kết luận “không tham gia” một bổ trợ khác. Không áp cờ này cho portfolio runtime (ở đó `riders=[]`, `ridersComplete=true` theo khai báo synthetic).
+- Chưa có quyết định nguồn cho UL049 trang 29: giữ cảnh báo nguồn như mốc 3. Corpus Public vẫn chưa được người duyệt.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `corpus.py` | `prepare_private_fixture`: `PRIVATE_POLICY`, `document_type=CONTRACT`, `policy_id`/`owner_customer_id` từ `contract.json` chỉ để kiểm chéo (quyền vẫn do Core cấp), vị trí là anchor `syn-*` không tạo trang PDF. Writer ghi `policy_id`/`owner_customer_id`, từ chối Private thiếu metadata chủ sở hữu hoặc Public có metadata đó; fingerprint Private gồm chủ sở hữu. CLI `--private-fixture` |
+| `evaluation/evaluate.py` | `LocalCore` mô phỏng quyền dự kiến của fixture: khách sở hữu và Staff được phân công đọc được; Staff không được phân công bị `NOT_AUTHORIZED`; hợp đồng ngoài phạm vi của khách trả `NOT_FOUND` như hợp đồng không tồn tại (contracts mục 5), scope Private là `DENIED`. Lịch sử hội thoại và chat liên kết theo view đã chốt. Không chứng minh quyền Core (Task 3/10). Ca `multi_turn` chạy thật từng lượt trước rồi lưu như lịch sử Core đã nhận; ca `copilot` đọc chat Customer synthetic cắt tại `linked_through` |
+| `evaluation/cases.json` | 84 ca: 43 Public, 21 Private (15 từ `expected-answers.json`), 8 kết hợp Private + Public Hành Trình Hạnh Phúc, 6 nhiều lượt, 6 Copilot. Đích Private khớp đúng anchor |
+
+Kiểm bắt buộc thêm: `cross_access_denied` (không bằng chứng/trích dẫn Private của hợp đồng actor không được đọc ở mọi lượt; chế độ retrieval còn đòi trạng thái `DENIED`) và `linked_view_frozen` (mọi lần đọc chat liên kết dùng đúng view của lượt, tin commit sau mốc không vào câu trả lời). `review_checks` tách riêng, không đổi `mandatory_status`: Copilot không kèm action (code kiểm), còn lại — không soạn nháp, phạm vi gần/từ đầu, rider chưa ánh xạ, không hỏi sức khỏe, không lấy giá trị tài khoản thay giá trị hoàn lại… — là `NOT_RUN` tới khi người chấm điền `--human-review`. File chấm tay chỉ điền kiểm còn `NOT_RUN` hoặc hạ một kiểm code `PASS` thành `FAIL`; không xóa được `FAIL` do code phát hiện. Lượt có nhiều lần retrieval được chấm trên thứ hạng xen kẽ giữa các lần gọi. Ca nhiều lượt chỉ chấm bằng chứng của đúng tin cuối; lượt lỗi trước Prepare không nhận bằng chứng của lượt trước. Copilot mà Core từ chối chat liên kết thì lượt dừng `PERMISSION_DENIED` trước khi gọi model (`expect_failure`).
+
+Báo cáo mặc định không ghi câu hỏi/câu trả lời/query của ca không phải Public. `--include-synthetic-private-text` cho phép ghi để người chấm, chỉ với ca dùng dữ liệu synthetic; nội dung chunk không bao giờ được ghi.
+
+### Chạy
+
+Từ `apps/agent`, sau phần chạy của mốc 3 (cùng `trial-config.json`, đã có `private_fixture`):
+
+```bash
+python -m life_agent.corpus --manifest ../../data/public/manifest-manulife-text.json --trial evaluation/trial-config.json --private-fixture ../../data/synthetic/manulife-demo-v1 --index
+python evaluation/evaluate.py --cases evaluation/cases.json --mode retrieval --kind private mixed
+python evaluation/evaluate.py --cases evaluation/cases.json --mode end-to-end --kind private mixed multi_turn copilot --include-synthetic-private-text
+```
+
+Index dựng trước `rag-chunk-v2` (sửa review Public RAG) có fingerprint khác nên lần chạy đầu sẽ dựng lại cả tài liệu Public, có gọi embedding; các lần sau cùng dữ liệu/cấu hình mới được bỏ qua. `--out` của corpus CLI phải nằm ngoài repo, kiểm trước khi đọc corpus. `--kind public` giữ phép đo Public để so sánh.
+
+## Trạng thái: Task 6 phía Agent — HTTP/HMAC và giao lại kết quả
+
+Người dùng chọn ngày 06/11/2026 làm phần Agent của Task 6 trước, vì GitHub chưa có API Core của Task 3. Phần Core của Task 6 (`apps/core/src/agent/…`, `npm run test:agent-delivery`) và E2E Task 10 chờ Task 3; việc của đội application ở [handoff](../../docs/superpowers/plans/2026-11-07-agent-core-handoff.md). Core trong test là double; không chứng minh transaction, quyền hay HMAC của Core.
+
+| Thành phần | Nội dung |
+| --- | --- |
+| `signing.py` | Profile `LI-HMAC-SHA256-v1` bằng thư viện chuẩn: ký/kiểm trên byte body thô, ±120 giây, nonce bền 10 phút (`request_nonces`, chỉ ghi sau khi chữ ký đúng), body ≤ 1 MiB, keyring theo `key_id` để xoay khóa; lỗi chỉ trả `AUTH_FAILED`/`REPLAY_REJECTED` |
+| `http.py` | `AgentService` (xác thực → lưu receipt/revoke → ACK; graph không chạy trong request), app Starlette, `deliver_pending` (gửi nguyên event đã lưu, ký lại mỗi lần, backoff, bỏ cuộc sau hạn tối đa), `Worker` (chạy receipt `ACCEPTED` đọc từ DB, cũng là đường phục hồi sau restart), `serve` |
+| `core_client.HttpCoreClient` | Đọc Core có ký theo đường dẫn nội bộ của kế hoạch Task 3 (`/api/v1/internal/agent/runs/{runId}/…`), luôn kèm `attemptId`; phần query/body chưa có trong kế hoạch là đề xuất ([contracts 12.10](../../contracts/agent-v1.md#1210-endpoint-giao-lại-và-framework-g3)) |
+| `migrations/002_delivery.sql` | `gave_up_at`, `last_failure` cho `outbound_events`; index nonce theo thời gian |
+
+Lịch gửi lại (1 → 60 giây, jitter 0,2, bỏ cuộc sau 24 giờ) và hạn lưu vẫn là đề xuất của 12.10, đặt qua `.env`. Lease không gia hạn trong lúc chạy nên `LIFE_AGENT_LEASE_S` phải lớn hơn deadline Core gửi. Pin `starlette` 1.10.0 (thay 1.9.0 dự kiến) và `uvicorn` 0.54.0.
+
+### Chạy
+
+1. Cài lại từ `apps/agent` để có Starlette/uvicorn, rồi `python -m life_agent.store migrate` (áp `002_delivery`).
+2. `.env` root: thêm các biến của khối "Agent HTTP service" trong `.env.example` root. Hai keyring (Core → Agent, Agent → Core) mỗi khóa ≥ 32 byte ngẫu nhiên, cùng giá trị phía Core; không đưa vào Git/chat/log.
+3. `python -m pytest tests/test_delivery.py` (ca DB cần `LIFE_AGENT_TEST_STORE_DSN`), `node --test ../core/test/agent-hmac-vector.test.cjs`.
+4. `python -m life_agent.http serve` khi Core đã có endpoint của Task 3; trước đó service vẫn nhận việc, nhưng đọc Core và gửi kết quả sẽ thử lại theo lịch.
+

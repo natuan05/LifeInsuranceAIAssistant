@@ -14,7 +14,7 @@ from life_agent.config import load_env
 from life_agent.core_client import CoreError
 from life_agent.graph import build_graph
 from life_agent.store import (BudgetExhausted, CheckpointConflict, EventConflict, PgRuntimeStore, StaleWriter, copy_runtime_data,
-                              execute_attempt, migrate)
+                              MIGRATIONS_DIR, execute_attempt, migrate)
 
 import store_procs
 from fakes import (FakeCore, FakeRetrieval, ManualClock, ScriptedModel, answer_citing, config, draft, reply,
@@ -25,6 +25,7 @@ DSN = ENV.get("LIFE_AGENT_TEST_STORE_DSN")
 MIGRATOR = ENV.get("LIFE_AGENT_TEST_STORE_MIGRATOR_DSN")
 ADMIN = ENV.get("LIFE_AGENT_TEST_ADMIN_DSN")
 pytestmark = pytest.mark.skipif(not DSN, reason="store test database DSN not configured")
+ALL_MIGRATIONS = sorted(p.stem for p in MIGRATIONS_DIR.glob("*.sql"))  # every file applies on a fresh DB
 CAPS = {"retrieval_calls": 3, "core_read_requests": 4, "model_calls": 8, "model_tokens": 1000}
 RESULT = {"response_type": "ANSWER", "message": "Thông tin tham khảo.", "citations": [], "actions": []}
 
@@ -573,7 +574,7 @@ def test_bootstrap_keeps_migration_metadata_private_before_and_after_migrate(ids
         target_runtime = make_conninfo(DSN, dbname=target_db)
         with psycopg.connect(target_admin, autocommit=True) as admin:
             admin.execute(grants)  # First bootstrap precedes migrations: metadata table does not exist yet.
-        assert migrate(target_migrator) == ["001_durable_runtime"]
+        assert migrate(target_migrator) == ALL_MIGRATIONS
 
         def assert_metadata_denied(runtime):
             for sql in ("SELECT 1 FROM agent_runtime.schema_migrations",
@@ -650,7 +651,7 @@ def test_split_target_is_built_by_migrations_and_restores_a_thread(store, ids):
             conn.execute("ALTER DEFAULT PRIVILEGES FOR ROLE agent_migrator IN SCHEMA agent_runtime "
                          "GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO agent_runtime")
             assert conn.execute("SELECT count(*) FROM pg_namespace WHERE nspname IN ('business', 'rag')").fetchone()[0] == 0
-        assert migrate(make_conninfo(MIGRATOR, dbname=target_db)) == ["001_durable_runtime"]
+        assert migrate(make_conninfo(MIGRATOR, dbname=target_db)) == ALL_MIGRATIONS
         source_admin = make_conninfo(ADMIN, dbname=conninfo_to_dict(DSN).get("dbname", "life_insurance"))
         counts = copy_runtime_data(source_admin, target_admin)
         assert counts["checkpoints"] >= 1 and counts["outbound_events"] >= 1
