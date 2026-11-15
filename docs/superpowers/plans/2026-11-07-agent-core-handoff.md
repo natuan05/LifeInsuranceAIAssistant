@@ -1,22 +1,24 @@
 # Bàn giao Agent → đội application: Core và Web cho Agent/RAG
 
-07/11/2026 · Người nhận: đội application (Core/Web). Người review phía Agent: anh Tuấn.
+07/11/2026, cập nhật 15/11/2026 sau khi toàn bộ nhánh Agent vào `main` · Người nhận: đội application (Core/Web). Người review phía Agent: anh Tuấn.
 
 Tài liệu này liệt kê phần việc mà [kế hoạch Agent/RAG](2026-10-31-agent-rag-implementation.md) giao cho đội application, cùng contract chính xác mà code Agent hiện đang gọi và mong đợi. Theo mục "Phân công phạm vi" của kế hoạch, đội application nhận: **Task 3**, **phần Core của Task 2 và Task 6**, **phần UI/Core của Task 10**. Mọi tên API/kiểu dữ liệu chuẩn nằm trong [contracts/agent-v1.md](../../../contracts/agent-v1.md) và [agent-v1.schema.json](../../../contracts/agent-v1.schema.json); file này không thay thế chúng.
 
 ## 1. Hiện trạng phía Agent
 
-Phần Python của Tasks 1, 2, 4, 5, 6 (phía Agent), 7, 8, 9 đã có code và test. Mỗi mốc là một nhánh, xếp chồng theo thứ tự dưới, chưa merge vào `main`; review/merge theo đúng thứ tự này.
+Phần Python của Tasks 1, 2, 4, 5, 6 (phía Agent), 7, 8, 9 đã có code và test, và đã ở `main`. Anh Tuấn review và merge contracts, graph, Public RAG, durable protocol, durable store (kèm các commit sửa sau review). Private/Copilot và Task 6 phía Agent được review lại theo plan/design rồi merge ngày 15/11/2026.
 
-| Thứ tự | Nhánh | Nội dung | Liên quan tới đội application |
-| --- | --- | --- | --- |
-| 1 | `agent/task-1-contracts` | JSON Schema, fixtures, contracts | Kiểu dữ liệu Core phải gửi/nhận |
-| 2 | `agent/task-5-graph-fakes` | Graph bốn node, tool, prompt, Copilot | Hành vi Agent khi Core trả lỗi/rỗng |
-| 3 | `agent/task-7-9-public-rag` | Corpus, hybrid retrieval, đánh giá | Role DB `rag_indexer`/`rag_retriever` |
-| 4 | `agent/task-2-durable-protocol` | Protocol bền vững (contracts mục 12), reference model Node | Bản mẫu state machine Core phải theo |
-| 5 | `agent/task-4-durable-store` | Lưu bền phía Agent (`agent_runtime`) | Role DB `agent_migrator`/`agent_runtime` |
-| 6 | `agent/milestone-5-private-copilot` | Private synthetic, Copilot, 84 ca đánh giá | Quyền Private/Copilot Core phải cấp |
-| 7 | `agent/task-6-http-delivery` | HTTP/HMAC, ACK bền, giao lại kết quả | Endpoint hai chiều ở mục 3 |
+| Phần | Nội dung | Liên quan tới đội application |
+| --- | --- | --- |
+| Contracts (Task 1) | JSON Schema, fixtures, contracts | Kiểu dữ liệu Core phải gửi/nhận |
+| Graph (Task 5) | Graph bốn node, tool, prompt, Copilot | Hành vi Agent khi Core trả lỗi/rỗng hoặc từ chối |
+| Public RAG (Tasks 7–9) | Corpus, hybrid retrieval, đánh giá | Role DB `rag_indexer`/`rag_retriever` |
+| Durable protocol (Task 2) | Protocol bền vững (contracts mục 12), reference model Node | Bản mẫu state machine Core phải theo |
+| Durable store (Task 4) | Lưu bền phía Agent (`agent_runtime`) | Role DB `agent_migrator`/`agent_runtime` |
+| Private/Copilot (Tasks 5, 7–9) | Fixture synthetic, Copilot, 84 ca đánh giá | Quyền Private/Copilot Core phải cấp |
+| Task 6 phía Agent | HTTP/HMAC, ACK bền, giao lại kết quả | Endpoint hai chiều ở mục 3 |
+
+Các lựa chọn G2/G3 ghi ở contracts 12.13 vẫn là **phương án chờ duyệt** (theo review của anh Tuấn), trừ quyết định bổ sung ngày 12/11/2026 về `PERMISSION_CHANGED`/`CANCELLED_BY_CORE`. Code Agent đang theo các phương án đó; đội application cần xác nhận với người duyệt trước khi dựng phần Core phụ thuộc.
 
 Đã kiểm chứng: test Python với PostgreSQL thật, test Node của reference model và test vector HMAC. **Chưa kiểm chứng:** mọi phần cần Core thật. Các test Agent dùng Core double, nên chưa chứng minh quyền, FIFO hay transaction của Core.
 
@@ -27,14 +29,14 @@ Phần Python của Tasks 1, 2, 4, 5, 6 (phía Agent), 7, 8, 9 đã có code và
 Đặc tả đầy đủ ở [kế hoạch, Task 3](2026-10-31-agent-rag-implementation.md#task-3-core-apis-quyền-hiện-hành-và-fifo-durable-dispatch) và [contracts 12.3, 12.11](../../../contracts/agent-v1.md#123-core-run-và-attempt). Tóm tắt việc cần làm:
 
 1. **Migration `business`:** `agent_runs`, `agent_attempts`, `agent_run_events`, `agent_request_nonces` theo DDL đề xuất ở contracts 12.11 (đã chạy thử trên PostgreSQL 16). Thêm migration mới, không sửa migration cũ; cập nhật `verify-models.mjs`.
-2. **Module:** theo quyết định 12.13 #1, API Web ↔ Core mở rộng module `conversations` hiện có. Run/attempt/event, dispatcher, API nội bộ cho Agent và HMAC đặt trong module mới `apps/core/src/agent/`.
+2. **Module:** theo phương án 12.13 #1 (chờ duyệt), API Web ↔ Core mở rộng module `conversations` hiện có. Run/attempt/event, dispatcher, API nội bộ cho Agent và HMAC đặt trong module mới `apps/core/src/agent/`.
 3. **API Web ↔ Core** (mở rộng `conversations`): tạo hội thoại có chống trùng (Customer; Staff kèm `targetCustomerId`, `linkedContextConversationId` cho Copilot); list/read/history **không tạo hội thoại/tin/run**; `ConversationSummary.currentRun`; lịch sử có mục `AGENT_RESULT` và `RUN_OUTCOME`; gửi tin trả ACK chỉ sau khi tin + run đã lưu, gửi lại cùng key trả `replayed=true` (contracts mục 3).
 4. **`acceptMessage` / `claimNext`** (contracts 12.3): cấp `messages.sequence`, tạo run `QUEUED`; claim khóa hội thoại, một run `RUNNING`/hội thoại, cố định `history_view` lúc claim, tạo attempt `DISPATCHING` cùng `RunRequest` đã lưu, **commit trước khi gửi HTTP**. Copilot: cố định `linked_history_view` lúc nhận câu hỏi Staff.
 5. **Dispatcher + đối soát:** vòng polling trong tiến trình Core (`FOR UPDATE SKIP LOCKED`), gửi lại đúng request đã lưu khi chưa có ACK, chạy lại được sau restart. Không reset `RUNNING` chỉ vì browser ngắt.
-6. **Thu hồi attempt:** `invalidateAttempt` → `INVALIDATING`, chặn ngay tool/scope/history/event của attempt cũ, gửi revoke tới khi có `RevocationAck`. Staff takeover gọi trong cùng transaction với `ConversationHandoff` hiện có: tăng `controlVersion`, run đang chạy và run `QUEUED` → `CANCELLED`. Quá deadline → `FAILED`. Attempt lỗi/quá hạn **không** tự tạo attempt mới (12.13 #4). Takeover chat Customer không hủy lượt Copilot của Staff đang hỗ trợ.
+6. **Thu hồi attempt:** `invalidateAttempt` → `INVALIDATING`, chặn ngay tool/scope/history/event của attempt cũ, gửi revoke tới khi có `RevocationAck`. Staff takeover gọi trong cùng transaction với `ConversationHandoff` hiện có: tăng `controlVersion`, run đang chạy và run `QUEUED` → `CANCELLED`. Quá deadline → `FAILED`; `PERMISSION_CHANGED`/`CANCELLED_BY_CORE` → `CANCELLED` (xác nhận 12/11/2026, contracts 12.3). Attempt lỗi/quá hạn **không** tự tạo attempt mới (phương án 12.13 #4, chờ duyệt). Chỉ `RevocationAck` hợp lệ, đúng run/attempt mới mở barrier cho attempt/tin tiếp theo. Takeover chat Customer không hủy lượt Copilot của Staff đang hỗ trợ.
 7. **`AgentAccessService`:** mỗi lần Agent đọc, kiểm attempt đang là `current_attempt_id` và còn sống, rồi kiểm lại quyền hiện hành của actor (Customer sở hữu; Staff có assignment active). Lịch sử chỉ theo view đã lưu cho run. Không lộ việc hợp đồng/hội thoại có tồn tại hay không.
 8. **Hai đọc nghiệp vụ + `benefitsSnapshot`:** `{schemaVersion, riders, ridersComplete}`; JSON cũ hoặc thiếu cờ → `ridersComplete=false`; bổ trợ chưa ánh xạ danh mục không được làm danh sách thành đầy đủ.
-9. **Scope tài liệu:** trả đúng cặp document/version Core cấp. Private kèm `policy_id`; không thay bằng `currentVersion` mới nhất; scope hợp lệ rỗng là `GRANTED` với `documents=[]`.
+9. **Scope tài liệu:** trả đúng cặp document/version Core cấp. Private kèm `policy_id`; không thay bằng `currentVersion` mới nhất; scope hợp lệ rỗng là `GRANTED` với `documents=[]`. Index Private cho bốn hợp đồng runtime trong `policies.json` cần document/version do Core cấp; Core cần một cách cho indexer offline lấy danh sách document/version và nội dung tương ứng (đề xuất: lệnh maintenance xuất catalog, không qua API công khai). UUID trong `contract.json` của fixture tham chiếu không phải ID runtime.
 10. **Test và runner:** `apps/core/test/agent-runs.test.cjs`, `agent-access.test.cjs`, đăng ký `npm run test:agent-core` theo runner stdin hiện có. Các test bắt buộc có tên trong kế hoạch: `fresh_user_starts_and_rediscovers_chat_via_api`, `foreign_conversation_create_list_and_history_denied`, `copilot_source_view_is_frozen_per_staff_question`, `customer_takeover_keeps_authorized_staff_copilot_separate`, cùng ca FIFO "enqueue B khi A đang chạy" của Step 7.
 
 Reference model [`agent-protocol-model.cjs`](../../../apps/core/test/helpers/agent-protocol-model.cjs) và [`agent-protocol.test.cjs`](../../../apps/core/test/agent-protocol.test.cjs) mô tả state machine run/attempt/event bằng code thuần. Bản cài đặt thật nên đi qua cùng các kịch bản này với DB thật.
@@ -68,7 +70,7 @@ Các endpoint dưới đây là những gì code Agent ở nhánh `agent/task-6-
 | Endpoint | Body | Phản hồi |
 | --- | --- | --- |
 | `POST /internal/runs` | `RunRequest` | 202 `ACCEPTED`; 200 `DUPLICATE`/`IGNORED_STALE`; 409 `CONFLICT` (`PAYLOAD_MISMATCH`); 400 `REJECTED`/`SCHEMA_INVALID`; 401 `{"error":{"code":"AUTH_FAILED"\|"REPLAY_REJECTED"}}` (không phải ACK); 503 `UNAVAILABLE` (kho Agent lỗi, không ACK → Core gửi lại) |
-| `POST /internal/attempts/{attemptId}/revoke` | `AttemptRevocation` | 200 `RevocationAck` `REVOKED`/`ALREADY_REVOKED` kèm `writer_epoch`; 400 `REJECTED` nếu `attemptId` trên path khác body |
+| `POST /internal/attempts/{attemptId}/revoke` | `AttemptRevocation` | 200 `RevocationAck` `REVOKED`/`ALREADY_REVOKED` kèm `writer_epoch`; 400 `REJECTED` khi `attemptId` trên path khác body (`SCHEMA_INVALID`) hoặc receipt thuộc run/hội thoại khác (`PAYLOAD_MISMATCH`). Chỉ 200 hợp lệ, đúng run/attempt mới coi là đã thu hồi |
 | `GET /healthz` | — | 200 `{"status":"ok"}`, không cần chữ ký |
 
 `RunRequest` phải đủ trường theo schema. `limits` gồm 4 giá trị đã chốt (`retrieval_calls_max=3`, `core_read_requests_max=4`, `core_request_timeout_ms=3000`, `core_retry_per_call=1`) và 4 giá trị G4 bắt buộc khác `null`. Còn thiếu thì Agent trả lỗi kỹ thuật thay vì tự đặt. Giá trị thử hiện dùng ở `apps/agent/evaluation/trial-config.json` (`model_calls_max=6`, `graph_steps_max=30`, `turn_token_budget=120000`, `finish_reserve_tokens=12000`, deadline 120 giây); đây là giá trị thử, chưa duyệt.
@@ -114,8 +116,8 @@ ACK phải là `DurableAck` có đúng `run_id`, `attempt_id`, `event_id` của 
 ## 5. Điểm cần đội application xác nhận hoặc quyết định
 
 1. **Chi tiết các đọc nội bộ** đánh dấu đề xuất ở mục 3.2: `attemptId` trong query, body scope, dạng `{"contracts":[…]}`, 404 chung cho không tồn tại/không được phép.
-2. **Copilot soạn nháp:** [Staff Copilot C01](../../ui/staff/plans/08-copilot-contract.md) có "Soạn gợi ý trả lời / Use draft". Kế hoạch Agent (ràng buộc chung, quyết định 01/11/2026) ghi Copilot **không soạn nháp** câu trả lời gửi Customer trong MVP. System prompt Copilot của Agent hiện theo quyết định này, và code từ chối mọi action trong kênh Copilot. Hai tài liệu cần thống nhất trước khi làm CP03.
-3. **Route Copilot:** A24–A26 (`/api/v1/staff/conversations/:id/copilot…`) trong tài liệu Staff khác hướng 12.13 #1 (Copilot là một hội thoại `STAFF_COPILOT` trong API `conversations` chung, có link chat Customer). Chọn một hướng và cập nhật tài liệu còn lại.
+2. **Copilot soạn nháp:** đã thống nhất. Tài liệu [Staff Copilot](../../ui/staff/plans/08-copilot-contract.md) xác nhận Copilot MVP không soạn nháp/Use draft, khớp kế hoạch Agent; Agent từ chối mọi action trong kênh Copilot.
+3. **Route Copilot:** A24–A26 (`/api/v1/staff/conversations/:id/copilot…`) trong tài liệu Staff khác hướng phương án 12.13 #1 (Copilot là một hội thoại `STAFF_COPILOT` trong API `conversations` chung, có link chat Customer). Chọn một hướng và cập nhật tài liệu còn lại.
 4. **Đề xuất Ticket:** Agent trả `PROPOSE_TICKET {summary}` với đúng sáu nhóm (contracts mục 6); kế hoạch Ticket I07 dự kiến `proposeDraft({title, description, policyId?, sourceMessageIds?})`. Cách ánh xạ thuộc G6 (chưa chốt). Hiện Agent chỉ đề xuất, không tạo Ticket, và không báo đã tạo.
 5. **Lịch gửi lại và hạn lưu** (12.10, còn đề xuất): dispatch/revoke backoff 1 → 60 giây có jitter, lặp tới khi có ACK hoặc tới hạn run; event lặp tối đa 24 giờ; event đã ACK giữ 30 ngày.
 6. **Service `agent` trong Compose** (mục 4).

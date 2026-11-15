@@ -111,7 +111,8 @@ class AgentService:
                          "writer_epoch": None, "reason": "SCHEMA_INVALID"}
         ack = self._store.revoke(payload)
         log.info("revoke attempt=%s reason=%s outcome=%s", attempt_id, payload["reason"], ack["outcome"])
-        return 200, ack
+        # REJECTED (receipt of another run/thread) must not look like a completed revoke to Core.
+        return (400 if ack["outcome"] == "REJECTED" else 200), ack
 
 
 def create_app(service: AgentService):

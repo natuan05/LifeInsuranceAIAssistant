@@ -730,3 +730,20 @@ def test_keys_and_delivery_schedule_come_from_configuration_only():
         keyring_from_env(env, "LIFE_AGENT_AGENT_TO_CORE")  # missing: startup fails, nothing is defaulted
     with pytest.raises(ConfigError):
         DeliveryPolicy.from_env({})
+
+
+
+@needs_db
+def test_revoke_for_another_run_or_thread_is_rejected_over_http(db):
+    ids, open_store = db
+    ring = keyring()
+    req = ids.request()
+    svc = AgentService(open_store(), ring, clock=time.time)
+    assert call(svc, ring, "/internal/runs", req, now=time.time())[0] == 202
+    target = f"/internal/attempts/{req['attempt_id']}/revoke"
+    for change in ({"run_id": str(uuid.uuid4())}, {"conversation_id": str(uuid.uuid4())}):
+        status, ack = call(svc, ring, target, {**revocation_of(req), **change}, now=time.time())
+        assert (status, ack["outcome"], ack["reason"]) == (400, "REJECTED", "PAYLOAD_MISMATCH")
+        assert contracts.is_valid("RevocationAck", ack)
+    status, ack = call(svc, ring, target, revocation_of(req), now=time.time())
+    assert (status, ack["outcome"]) == (200, "REVOKED")
