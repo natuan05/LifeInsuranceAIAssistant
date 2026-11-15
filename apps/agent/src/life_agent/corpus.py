@@ -850,12 +850,16 @@ def _main(argv: Sequence[str] | None = None) -> int:
                                                  "Private fixture offline.")
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--trial", required=True, type=Path, help="approved trial configuration JSON")
-    parser.add_argument("--out", type=Path, help="write chunk JSONL here (must be inside an ignored local area)")
+    parser.add_argument("--out", type=Path, help="write chunk JSONL here (outside the repository)")
     parser.add_argument("--index", action="store_true", help="embed and write to rag (needs indexer credential)")
     parser.add_argument("--env-file", type=Path)
     parser.add_argument("--embed-retries", type=int, default=4, help="retries per batch on provider outage (offline)")
     parser.add_argument("--private-fixture", type=Path, help="also prepare/index a synthetic Private fixture directory")
     args = parser.parse_args(argv)
+    out = args.out.resolve() if args.out else None
+    if out is not None and out.is_relative_to(REPO_ROOT.resolve()):
+        # Host tool output stays outside the checkout (AGENTS.md); refused before any work or provider call.
+        raise CorpusError("--out must be outside the repository")
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(encoding="utf-8")
     trial = json.loads(args.trial.read_text(encoding="utf-8"))
@@ -868,10 +872,7 @@ def _main(argv: Sequence[str] | None = None) -> int:
         prepared.append((private, resolve_refs(build_chunks(private))))
     summary = corpus_summary(prepared)
     print(json.dumps({"inventory": inv, "summary": summary["totals"], "refs": summary["refs"]}, ensure_ascii=False))
-    if args.out:
-        out = args.out.resolve()
-        if not str(out).startswith(str((REPO_ROOT / ".local").resolve())):
-            raise CorpusError("--out must be inside the repository's ignored .local/ directory")
+    if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w", encoding="utf-8") as fh:
             for version, report in prepared:

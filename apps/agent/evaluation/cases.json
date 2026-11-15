@@ -20,7 +20,8 @@
   "turns": "multi_turn: các tin trước chạy thật qua graph rồi lưu như lịch sử Core đã nhận; chỉ chấm `question`",
   "linked_chat": "copilot: chat Customer synthetic; linked_through = số mục nằm trong view đã chốt, phần sau commit sau lúc Staff hỏi; after_view_marker không được xuất hiện trong câu trả lời",
   "review": "kiểm hành vi cần người chấm (NOT_RUN đến khi có file --human-review); không đổi mandatory_status",
-  "seed": "case_id trong data/synthetic/manulife-demo-v1/expected-answers.json"
+  "seed": "case_id trong data/synthetic/manulife-demo-v1/expected-answers.json",
+  "expect_failure": "end-to-end: mã TechnicalFailure mong đợi khi lượt phải dừng (vd. PERMISSION_DENIED)"
  },
  "cases": [
   {
@@ -2200,14 +2201,9 @@
    "actor": "unassigned_staff",
    "expected": [],
    "expect_status": null,
-   "expect_response": [
-    "ANSWER",
-    "REFUSAL"
-   ],
    "expect_denied": true,
-   "review": [
-    "states_missing_context"
-   ]
+   "expect_failure": "PERMISSION_DENIED",
+   "notes": "Core từ chối đọc chat liên kết: lượt dừng PERMISSION_DENIED trước khi gọi model/retrieval."
   }
  ]
 }

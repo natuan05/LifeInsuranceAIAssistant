@@ -182,6 +182,17 @@ def _pair(item: Mapping[str, Any]) -> tuple[str, str]:
     return item["document_id"], item["document_version"]
 
 
+def apply_human_review(checks: dict[str, dict[str, Any]], human: Mapping[str, str] | None) -> dict[str, dict[str, Any]]:
+    """A reviewer verdict fills a check that code left NOT_RUN, or makes a code PASS stricter (FAIL). It never turns a
+    code FAIL into anything else: a detected mandatory violation cannot be cleared by a review file."""
+    for name, verdict in (human or {}).items():
+        if name not in checks or verdict not in CHECK_STATES or checks[name]["status"] == "FAIL":
+            continue
+        if checks[name]["status"] == "NOT_RUN" or verdict == "FAIL":
+            checks[name] = check(verdict, source="human")
+    return checks
+
+
 def case_checks(case: Mapping[str, Any], run: Mapping[str, Any], mode: str, human: Mapping[str, str] | None) -> dict:
     checks: dict[str, dict[str, Any]] = {}
     pairs = {tuple(p) for p in run["scope_pairs"]}
@@ -242,10 +253,7 @@ def case_checks(case: Mapping[str, Any], run: Mapping[str, Any], mode: str, huma
             known = {e["evidence_id"] for e in evidence}
             unknown = [c for c in run["result"]["citations"] if c["evidence_id"] not in known]
             checks["citations_resolve"] = check("FAIL" if unknown else "PASS")
-    for name, verdict in (human or {}).items():
-        if name in checks and verdict in CHECK_STATES:
-            checks[name] = check(verdict, source="human")
-    return checks
+    return apply_human_review(checks, human)
 
 
 def review_checks(case: Mapping[str, Any], run: Mapping[str, Any], mode: str, human: Mapping[str, str] | None) -> dict:
@@ -261,10 +269,7 @@ def review_checks(case: Mapping[str, Any], run: Mapping[str, Any], mode: str, hu
                                         check("FAIL" if result["actions"] else "PASS"))
     for name in case.get("review", []):
         checks[name] = check("NOT_RUN", reason="no result to review" if result is None else "needs human review")
-    for name, verdict in (human or {}).items():
-        if name in checks and verdict in CHECK_STATES:
-            checks[name] = check(verdict, source="human")
-    return checks
+    return apply_human_review(checks, human)
 
 
 MANDATORY = ("scope_and_version", "cross_access_denied", "linked_view_frozen", "failure_status_kept",
@@ -295,7 +300,7 @@ def evaluate(cases: Sequence[Mapping[str, Any]], dataset_id: str, config_id: str
     quality: dict[str, list[float | None]] = {f"recall@{k}": [] for k in ks}
     quality.update({f"ndcg@{k}": [] for k in ks})
     quality.update({"mrr": [], "status_match": [], "response_type_match": [], "answer_has_citation": [],
-                    "cited_expected": []})
+                    "cited_expected": [], "failure_match": []})
     for case in cases:
         run = runner(case)
         checks = case_checks(case, run, mode, human_review.get(case["id"]))
@@ -316,6 +321,8 @@ def evaluate(cases: Sequence[Mapping[str, Any]], dataset_id: str, config_id: str
             metrics["status_match"] = 1.0 if first["status"] == case["expect_status"] else 0.0
         result = run.get("result")
         if mode == "end-to-end":
+            if case.get("expect_failure"):
+                metrics["failure_match"] = 1.0 if (run.get("failure") or {}).get("code") == case["expect_failure"] else 0.0
             if case.get("expect_response"):
                 metrics["response_type_match"] = 1.0 if result and result["response_type"] in case["expect_response"] else 0.0
             if expected and case.get("expect_response") == ["ANSWER"]:
@@ -497,8 +504,10 @@ class LocalCore:
     def get_contract_overview(self, ctx, policy_number, *, timeout):
         from life_agent.core_client import CoreError
 
+        if ctx["actor"]["role"] == "STAFF" and not self.may_read_policy(ctx):
+            raise CoreError("NOT_AUTHORIZED")  # no active assignment for the target Customer
         if not self.may_read_policy(ctx) or policy_number != self.policy.policy_number:
-            raise CoreError("NOT_AUTHORIZED")
+            raise CoreError("NOT_FOUND")  # contracts 5: not in scope -> NOT_FOUND, same answer as unknown
         self.released = True
         return {"policy_number": self.policy.policy_number, "main_product": dict(self.policy.main),
                 "riders": [dict(r) for r in self.policy.riders], "riders_complete": False}
@@ -573,12 +582,16 @@ class CaseSetup:
         for index, entry in enumerate(chat):
             position = str(index + 1)
             if entry["from"] == "AGENT":
-                asked = items[-1]
+                asked = items[-1] if items else None
+                if asked is None or asked["kind"] != "USER_MESSAGE" or asked["run"] is None:
+                    raise ValueError(f"case {self.case['id']}: an AGENT entry must answer the CUSTOMER message before it")
                 item = {"kind": "AGENT_RESULT", "position": position, "runId": asked["run"]["id"],
                         "messageId": asked["messageId"], "createdAt": created,
                         "result": {"response_type": "ANSWER", "message": entry["text"], "citations": [], "actions": []}}
             else:
-                answered = index + 1 < len(chat) and chat[index + 1]["from"] == "AGENT"
+                if entry["from"] not in ("CUSTOMER", "STAFF"):
+                    raise ValueError(f"case {self.case['id']}: linked_chat entries come from CUSTOMER, STAFF or AGENT")
+                answered = entry["from"] == "CUSTOMER" and index + 1 < len(chat) and chat[index + 1]["from"] == "AGENT"
                 item = {"kind": "USER_MESSAGE", "position": position, "messageId": self.ident(f"src-message:{index}"),
                         "senderType": entry["from"], "content": entry["text"], "createdAt": created,
                         "run": {"id": self.ident(f"src-run:{index}"), "status": "COMPLETED"} if answered else None}
@@ -801,7 +814,10 @@ def end_to_end_runner(rt, trial, env) -> Callable[[Mapping], dict]:
                 event = {"kind": "ERROR", "payload": {"failure": {"code": type(error).__name__, "retryable": False}}}
             latencies.append(round((time.perf_counter() - started) * 1000, 1))
             values = graph.get_state({"configurable": {"thread_id": f"conv:{request['conversation_id']}"}}).values
-            outputs = (values.get("work") or {}).get("source_outputs", [])
+            work = values.get("work") or {}
+            # Only this message's work: a turn that failed before Prepare stored state must not inherit the previous
+            # turn's evidence (it would be scored and leak-checked twice).
+            outputs = work.get("source_outputs", []) if work.get("message_id") == request["message_id"] else []
             retrievals = [o["result"] for o in outputs if o["tool"].startswith("retrieve_") and not o["replaced"]]
             result = event["payload"].get("result") if event["kind"] == "RESULT" else None
             if turn < len(texts) - 1:  # earlier turns: kept for leak checks, then accepted into Core history

@@ -239,3 +239,13 @@ def test_index_writer_requires_owner_metadata_for_private_and_none_for_public():
                 dataclasses.replace(prepared(), policy_id=private.policy_id)):
         with pytest.raises(CorpusError, match="nothing written"):
             writer.write_version(bad, [])
+
+
+def test_corpus_cli_refuses_output_inside_the_repository_before_any_work(monkeypatch, tmp_path):
+    from life_agent import corpus
+
+    monkeypatch.setattr(corpus, "prepare_corpus", lambda *a, **k: pytest.fail("work started before the path check"))
+    trial = corpus.REPO_ROOT / "apps" / "agent" / "evaluation" / "trial-config.json"
+    manifest = corpus.REPO_ROOT / "data" / "public" / "manifest-manulife-text.json"
+    with pytest.raises(CorpusError, match="outside the repository"):
+        corpus._main(["--manifest", str(manifest), "--trial", str(trial), "--out", str(corpus.REPO_ROOT / ".local" / "c.jsonl")])

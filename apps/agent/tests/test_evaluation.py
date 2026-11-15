@@ -328,8 +328,12 @@ def test_local_core_grants_the_owner_and_assigned_staff_only():
     other, xctx = ctx_of({"id": "x", "kind": "private", "question": "q", "actor": "other_customer"})
     assert other.core.scope(xctx, "PRIVATE", POLICY.policy_number, timeout=1)["decision"] == "DENIED"
     assert other.core.list_contracts(xctx, timeout=1) == []  # valid-empty, not an error
-    with pytest.raises(CoreError):
+    with pytest.raises(CoreError) as raised:
         other.core.get_contract_overview(xctx, POLICY.policy_number, timeout=1)
+    assert raised.value.code == "NOT_FOUND"  # contracts 5: another owner's policy looks like an unknown one
+    with pytest.raises(CoreError) as raised:
+        owner.core.get_contract_overview(octx, "SYN-POL-2025-0002", timeout=1)
+    assert raised.value.code == "NOT_FOUND"
     assert other.protected_pairs() == [POLICY.pair] and other.core.released is False
 
     staff, sctx = ctx_of({"id": "s", "kind": "copilot", "question": "q", "linked_chat": [], "linked_through": 0})
@@ -340,6 +344,13 @@ def test_local_core_grants_the_owner_and_assigned_staff_only():
         stranger.core.list_contracts(uctx, timeout=1)
     with pytest.raises(CoreError):
         stranger.core.linked_history(uctx, stranger.linked_view, None, timeout=1)
+    with pytest.raises(CoreError) as raised:
+        stranger.core.get_contract_overview(uctx, POLICY.policy_number, timeout=1)
+    assert raised.value.code == "NOT_AUTHORIZED"  # no active assignment: denied, not "not found"
+    for bad_chat in ([{"from": "AGENT", "text": "x"}], [{"from": "STAFF", "text": "s"}, {"from": "AGENT", "text": "x"}],
+                     [{"from": "SYSTEM", "text": "x"}]):
+        with pytest.raises(ValueError):
+            ev.CaseSetup({"id": "c", "kind": "copilot", "question": "q", "linked_chat": bad_chat}, PAIRS, POLICY)
     with pytest.raises(ValueError):
         ev.CaseSetup({"id": "bad", "kind": "private", "question": "q", "actor": "assigned_staff"}, PAIRS, POLICY)
 
@@ -395,7 +406,7 @@ def synthetic_runtime(monkeypatch, steps):
 
     version = prepare_private_fixture(SYNTHETIC_FIXTURE, corpus_config())
     cfg = embedding_config()
-    fp = fingerprint(version, cfg.config_id)
+    fp = fingerprint(version, cfg.identity())
     rows = [Row(f"r{c.ordinal}", version.document_id, version.document_version, c.content,
                 {**chunk_metadata(version, c, fp=fp, embedding=cfg.identity()), "policy_id": version.policy_id,
                  "access_scope": "PRIVATE_POLICY"}) for c in resolve_refs(build_chunks(version)).chunks]
@@ -427,21 +438,21 @@ def test_end_to_end_runner_replays_turns_through_core_history(monkeypatch):
     assert checks["scope_and_version"]["status"] == "PASS" and checks["citations_resolve"]["status"] == "PASS"
 
 
-def test_end_to_end_runner_keeps_the_copilot_view_and_denies_an_unassigned_staff(monkeypatch):
-    from fakes import draft, reply, tool
-
+def test_end_to_end_runner_keeps_the_copilot_view_and_stops_an_unassigned_staff(monkeypatch):
     chat = [{"from": "CUSTOMER", "text": "Tin trong mốc"}, {"from": "CUSTOMER", "text": "Tin sau mốc SAU-MOC-B"}]
-    rt, trial, scripted = synthetic_runtime(monkeypatch, [
-        reply(tool("retrieve_private", query="hạn mức", policy_number=POLICY.policy_number)),
-        reply(draft("Không có quyền xem hợp đồng hoặc chat của khách này.", response_type="REFUSAL"))])
+    rt, trial, scripted = synthetic_runtime(monkeypatch, [])
     case = {"id": "cu", "kind": "copilot", "actor": "unassigned_staff", "question": "Tóm tắt", "linked_chat": chat,
-            "linked_through": 1, "after_view_marker": "SAU-MOC-B", "expect_denied": True, "expected": []}
+            "linked_through": 1, "after_view_marker": "SAU-MOC-B", "expect_denied": True, "expected": [],
+            "expect_failure": "PERMISSION_DENIED"}
     run = ev.end_to_end_runner(rt, trial, {})(case)
     assert run["linked_views_used"] and all(v == run["linked_view"] for v in run["linked_views_used"])
-    assert run["protected_pairs"] == [POLICY.pair] and run["retrievals"][0]["status"] == "DENIED"
+    # Core denies the linked chat: the turn stops before any model call or retrieval (main graph, Task 5 review)
+    assert run["failure"]["code"] == "PERMISSION_DENIED" and run["result"] is None and run["retrievals"] == []
+    assert scripted.contexts == [] and run["protected_pairs"] == [POLICY.pair]
     checks = ev.case_checks(case, run, "end-to-end", None)
     assert checks["cross_access_denied"]["status"] == "PASS" and checks["linked_view_frozen"]["status"] == "PASS"
-    assert ev.review_checks(case, run, "end-to-end", None)["copilot_no_actions"]["status"] == "PASS"
+    report = ev.evaluate([case], "d", "cfg", runner=lambda c: run, mode="end-to-end", meta=META, doc_ids=PRIVATE_IDS)
+    assert report["cases"][0]["metrics"]["failure_match"] == 1.0
 
 
 def test_retrieval_runner_goes_through_core_scope_for_private_and_denied_cases(monkeypatch):
@@ -453,3 +464,39 @@ def test_retrieval_runner_goes_through_core_scope_for_private_and_denied_cases(m
     assert other["private_statuses"] == ["DENIED"] and other["retrievals"][0]["evidence"] == []
     case = {"id": "x", "kind": "private", "expected": [], "expect_denied": True}
     assert ev.case_checks(case, other, "retrieval", None)["cross_access_denied"]["status"] == "PASS"
+
+
+def test_a_review_file_cannot_clear_a_violation_found_by_code():
+    checks = {"scope_and_version": ev.check("FAIL", reason="evidence outside granted pairs"),
+              "no_claim_commitment": ev.check("NOT_RUN", reason="needs human review"),
+              "citations_resolve": ev.check("PASS")}
+    ev.apply_human_review(checks, {"scope_and_version": "PASS", "no_claim_commitment": "PASS", "citations_resolve": "FAIL"})
+    assert checks["scope_and_version"] == {"status": "FAIL", "source": "code", "reason": "evidence outside granted pairs"}
+    assert checks["no_claim_commitment"] == {"status": "PASS", "source": "human"}
+    assert checks["citations_resolve"] == {"status": "FAIL", "source": "human"}  # a reviewer may only be stricter
+    c = {"id": "x1", "kind": "private", "question": "q", "expected": [], "expect_status": "DENIED", "expect_denied": True}
+    leak = {"scope_pairs": [POLICY.pair], "protected_pairs": [POLICY.pair], "private_statuses": ["OK"],
+            "retrievals": [retrieval(private_evidence("syn-benefits"))]}
+    report = ev.evaluate([c], "d", "cfg", runner=runner({"x1": leak}), mode="retrieval", meta=META, doc_ids=PRIVATE_IDS,
+                         human_review={"x1": {"cross_access_denied": "PASS"}})
+    assert report["mandatory_checks"]["cross_access_denied"]["status"] == "FAIL" and report["acceptance"] == "NOT_ACCEPTED"
+
+
+def test_a_turn_that_fails_before_prepare_does_not_inherit_the_previous_turn_evidence(monkeypatch):
+    from fakes import answer_citing, reply, tool
+
+    rt, trial, scripted = synthetic_runtime(monkeypatch, [
+        reply(tool("retrieve_private", query="quyền lợi nội trú DEMO-TITAN", policy_number=POLICY.policy_number)),
+        answer_citing("Hai quyền lợi nội trú demo.", which=[0])])
+    original = ev.LocalCore.history
+
+    def broken(self, ctx, view, cursor, *, timeout):
+        if view["through_cursor"]:  # the second turn's history read: an unexpected (non-Core) failure
+            raise RuntimeError("history store unavailable")
+        return original(self, ctx, view, cursor, timeout=timeout)
+
+    monkeypatch.setattr(ev.LocalCore, "history", broken)
+    case = {"id": "mt2", "kind": "multi_turn", "turns": ["Có quyền lợi nội trú nào?"], "question": "Thời gian chờ?"}
+    run = ev.end_to_end_runner(rt, trial, {})(case)
+    assert run["failure"]["code"] == "RuntimeError" and run["result"] is None
+    assert len(run["prior_retrievals"]) == 1 and run["retrievals"] == [] and run["tool_calls"] == []
