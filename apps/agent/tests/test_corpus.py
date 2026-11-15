@@ -170,3 +170,72 @@ def test_real_corpus_chunks_respect_limits_and_carry_location():
             elif "<table" not in c.content:
                 assert len(c.content) <= cfg.child_max_chars + 2 * cfg.child_max_chars  # long single rows/blocks
         assert version.approval["human_approved"] is False
+
+
+# ---------------------------------------------------------------------------------------------- Private (G5, 06/11/2026)
+
+SYN_ANCHORS = {"syn-persons", "syn-schedule", "syn-benefits", "syn-premiums", "syn-snapshot", "syn-private-conditions",
+               "syn-terms", "syn-forms"}
+
+
+def test_synthetic_private_fixture_keeps_owner_policy_and_anchor_locations():
+    import json
+
+    from life_agent.corpus import SYNTHETIC_FIXTURE, prepare_private_fixture
+
+    contract = json.loads((SYNTHETIC_FIXTURE / "contract.json").read_text(encoding="utf-8"))
+    version = prepare_private_fixture(SYNTHETIC_FIXTURE, corpus_config())
+    assert version.access_scope == "PRIVATE_POLICY" and version.document_type == "CONTRACT"
+    assert (version.document_id, version.document_version) == (contract["private_document"]["proposed_uuid"], "synthetic-v1")
+    assert version.policy_id == contract["contract"]["proposed_uuid"]
+    assert version.owner_customer_id == contract["owner_customer"]["proposed_uuid"]
+    assert version.page_count == 0 and version.approval["human_approved"] is False
+    chunks = chunks_of(version)
+    anchored = [c for c in children(chunks) if c.anchor]
+    assert {c.anchor for c in anchored} == SYN_ANCHORS  # Markdown anchors, never invented PDF pages
+    assert {c.section_key for c in children(chunks) if not c.anchor} == {chunks[0].section_key}  # only the preamble
+    assert all(not c.pages for c in chunks)
+    benefits = " ".join(c.content for c in children(chunks) if c.anchor == "syn-benefits")
+    assert "DEMO-TITAN" in benefits and "SYN-BEN-001" in benefits  # riders stay as the fixture labels them (unmapped)
+    assert "Lá Chắn Xanh" not in benefits
+
+
+def test_private_fixture_refuses_changed_or_non_synthetic_data(tmp_path):
+    import json
+
+    from life_agent.corpus import SYNTHETIC_FIXTURE, prepare_private_fixture
+
+    copy_dir = tmp_path / "fixture"
+    shutil.copytree(SYNTHETIC_FIXTURE, copy_dir)
+    md = copy_dir / "contract.md"
+    md.write_text(md.read_text(encoding="utf-8").replace("750.000.000", "950.000.000"), encoding="utf-8")
+    with pytest.raises(CorpusError, match="checksum"):
+        prepare_private_fixture(copy_dir, corpus_config())
+    shutil.copy(SYNTHETIC_FIXTURE / "contract.md", md)
+    manifest = json.loads((copy_dir / "manifest.json").read_text(encoding="utf-8"))
+    manifest["synthetic"] = False
+    (copy_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(CorpusError, match="synthetic"):
+        prepare_private_fixture(copy_dir, corpus_config())
+
+
+def test_deidentified_full_contract_is_not_prepared():
+    """G5: manulife-demo-full-v1 (synthetic=false) is never chunked or sent to the provider. Only its manifest is read."""
+    from life_agent.corpus import REPO_ROOT, prepare_private_fixture
+
+    with pytest.raises((CorpusError, KeyError, FileNotFoundError)):
+        prepare_private_fixture(REPO_ROOT / "data" / "private" / "manulife-demo-full-v1", corpus_config())
+
+
+def test_index_writer_requires_owner_metadata_for_private_and_none_for_public():
+    import dataclasses
+
+    from life_agent.corpus import SYNTHETIC_FIXTURE, PgIndexWriter, prepare_private_fixture
+
+    private = prepare_private_fixture(SYNTHETIC_FIXTURE, corpus_config())
+    writer = PgIndexWriter("unused", embedder=None, embedding_config=None,
+                           connect=lambda: pytest.fail("must refuse before connecting"))
+    for bad in (dataclasses.replace(private, owner_customer_id=None), dataclasses.replace(private, policy_id=None),
+                dataclasses.replace(prepared(), policy_id=private.policy_id)):
+        with pytest.raises(CorpusError, match="nothing written"):
+            writer.write_version(bad, [])
