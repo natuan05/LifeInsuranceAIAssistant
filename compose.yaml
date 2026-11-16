@@ -288,9 +288,11 @@ services:
     build:
       context: .
       dockerfile: apps/agent/Dockerfile
-    command: ["python", "-m", "life_agent.store", "migrate"]
-    environment:
-      LIFE_AGENT_STORE_MIGRATOR_DSN: ${LIFE_AGENT_STORE_MIGRATOR_DSN:-postgresql://agent_migrator:${DB_AGENT_MIGRATOR_PASSWORD:-LocalDbAgentMigrate-2026!}@postgres:5432/life_insurance}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export LIFE_AGENT_STORE_MIGRATOR_DSN="postgresql://agent_migrator:$$(cat /credentials/agent_migrator/password)@postgres:5432/life_insurance"; exec python -m life_agent.store migrate'
+    volumes:
+      - credential_agent_migrator:/credentials/agent_migrator:ro
     depends_on:
       bootstrap: { condition: service_completed_successfully }
     restart: "no"
@@ -300,13 +302,14 @@ services:
     build:
       context: .
       dockerfile: apps/agent/Dockerfile
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export LIFE_AGENT_STORE_DSN="postgresql://agent_runtime:$$(cat /credentials/agent_runtime/password)@postgres:5432/life_insurance"; export LIFE_AGENT_RAG_RETRIEVER_DSN="postgresql://rag_retriever:$$(cat /credentials/rag_retriever/password)@postgres:5432/life_insurance"; exec python -m life_agent.http serve'
     environment:
       LIFE_AGENT_HTTP_HOST: "0.0.0.0"
       LIFE_AGENT_HTTP_PORT: "8090"
       LIFE_AGENT_RUNTIME_CONFIG: evaluation/trial-config.json
       LIFE_AGENT_CORE_BASE_URL: http://core:4000
-      LIFE_AGENT_STORE_DSN: ${LIFE_AGENT_STORE_DSN:-postgresql://agent_runtime:${DB_AGENT_RUNTIME_PASSWORD:-LocalDbAgentRuntime-2026!}@postgres:5432/life_insurance}
-      LIFE_AGENT_RAG_RETRIEVER_DSN: ${LIFE_AGENT_RAG_RETRIEVER_DSN:-postgresql://rag_retriever:${DB_RAG_RETRIEVER_PASSWORD:-LocalDbRagRetriever-2026!}@postgres:5432/life_insurance}
       LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-local-core-to-agent}
       LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-local-core-to-agent:7WWdWEcjho0hph4XuJ0o3s0EzRYD-lh_osVdT_-Bgs4}
       LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-local-agent-to-core}
@@ -315,6 +318,9 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
     ports:
       - "127.0.0.1:${AGENT_HTTP_PORT:-8090}:8090"
+    volumes:
+      - credential_agent_runtime:/credentials/agent_runtime:ro
+      - credential_rag_retriever:/credentials/rag_retriever:ro
     depends_on:
       agent-migrate: { condition: service_completed_successfully }
       core: { condition: service_healthy }
