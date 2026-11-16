@@ -236,6 +236,7 @@ services:
       STORAGE_ACCESS_KEY_FILE: /credentials/storage-reader/access-key
       STORAGE_SECRET_KEY_FILE: /credentials/storage-reader/secret-key
       CORS_ORIGINS: ${CORE_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081}}
+      AGENT_BASE_URL: ${AGENT_BASE_URL:-http://agent:8090}
     volumes:
       - credential_core:/credentials/core:ro
       - credential_storage_reader:/credentials/storage-reader:ro
@@ -280,6 +281,49 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    restart: unless-stopped
+
+  agent-migrate:
+    image: life-insurance-agent:local
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    command: ["python", "-m", "life_agent.store", "migrate"]
+    environment:
+      LIFE_AGENT_STORE_MIGRATOR_DSN: ${LIFE_AGENT_STORE_MIGRATOR_DSN:-postgresql://agent_migrator:${DB_AGENT_MIGRATOR_PASSWORD:-LocalDbAgentMigrate-2026!}@postgres:5432/life_insurance}
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    restart: "no"
+
+  agent:
+    image: life-insurance-agent:local
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    environment:
+      LIFE_AGENT_HTTP_HOST: "0.0.0.0"
+      LIFE_AGENT_HTTP_PORT: "8090"
+      LIFE_AGENT_RUNTIME_CONFIG: evaluation/trial-config.json
+      LIFE_AGENT_CORE_BASE_URL: http://core:4000
+      LIFE_AGENT_STORE_DSN: ${LIFE_AGENT_STORE_DSN:-postgresql://agent_runtime:${DB_AGENT_RUNTIME_PASSWORD:-LocalDbAgentRuntime-2026!}@postgres:5432/life_insurance}
+      LIFE_AGENT_RAG_RETRIEVER_DSN: ${LIFE_AGENT_RAG_RETRIEVER_DSN:-postgresql://rag_retriever:${DB_RAG_RETRIEVER_PASSWORD:-LocalDbRagRetriever-2026!}@postgres:5432/life_insurance}
+      LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-local-core-to-agent}
+      LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-local-core-to-agent:7WWdWEcjho0hph4XuJ0o3s0EzRYD-lh_osVdT_-Bgs4}
+      LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-local-agent-to-core}
+      LIFE_AGENT_AGENT_TO_CORE_KEYS: ${LIFE_AGENT_AGENT_TO_CORE_KEYS:-local-agent-to-core:sCDSorQBg6zoR4Is85YXGlO8BhEzAJgviaA5hucJL7w}
+      LIFE_AGENT_LEASE_S: ${LIFE_AGENT_LEASE_S:-180}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+    ports:
+      - "127.0.0.1:${AGENT_HTTP_PORT:-8090}:8090"
+    depends_on:
+      agent-migrate: { condition: service_completed_successfully }
+      core: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
 
   database-ui:
