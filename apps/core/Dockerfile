@@ -15,6 +15,7 @@ RUN npm run db:generate
 CMD ["node", "scripts/migrate.mjs"]
 
 FROM migrator AS test
+COPY contracts /app/contracts
 COPY data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json /app/data/synthetic/manulife-demo-v1/
 COPY data/public/manifest-manulife-text.json /app/data/public/manifest-manulife-text.json
 COPY data/public/manulife/text/ /app/data/public/manulife/text/
@@ -24,7 +25,9 @@ CMD ["node", "--test", "test/conversation-permissions.test.cjs"]
 
 FROM migrator AS build
 RUN npm run build
+RUN mkdir -p /tmp/ajv-deps && cp -r /app/node_modules/ajv /app/node_modules/fast-deep-equal /app/node_modules/fast-uri /app/node_modules/json-schema-traverse /app/node_modules/require-from-string /tmp/ajv-deps/
 RUN npm prune --omit=dev --offline --ignore-scripts --workspace @life-insurance/core --include-workspace-root=false --no-audit --no-fund
+RUN cp -rn /tmp/ajv-deps/* /app/node_modules/ && rm -rf /tmp/ajv-deps
 RUN mkdir -p /app/apps/core/node_modules
 
 FROM base AS seed
@@ -33,6 +36,7 @@ COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/apps/core/node_modules ./apps/core/node_modules
 COPY --from=build --chown=node:node /app/apps/core/dist ./apps/core/dist
 COPY --from=build --chown=node:node /app/apps/core/package.json ./apps/core/package.json
+COPY --chown=node:node contracts ./contracts
 COPY --chown=node:node apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf apps/web/public/fonts/OFL-Lexend.txt ./apps/core/dist/cli/assets/
 COPY --chown=node:node data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json ./data/synthetic/manulife-demo-v1/
 COPY --chown=node:node data/public/manifest-manulife-text.json ./data/public/manifest-manulife-text.json
@@ -44,5 +48,5 @@ CMD ["node", "dist/main.js"]
 
 FROM seed AS runtime
 USER root
-RUN rm -rf /app/apps/core/dist/cli /app/data
+RUN rm -rf /app/apps/core/dist/cli /app/data/synthetic /app/data/public/manulife
 USER node

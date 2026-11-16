@@ -237,6 +237,10 @@ services:
       STORAGE_SECRET_KEY_FILE: /credentials/storage-reader/secret-key
       CORS_ORIGINS: ${CORE_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081}}
       AGENT_BASE_URL: ${AGENT_BASE_URL:-http://agent:8090}
+      LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-local-core-to-agent}
+      LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-local-core-to-agent:7WWdWEcjho0hph4XuJ0o3s0EzRYD-lh_osVdT_-Bgs4}
+      LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-local-agent-to-core}
+      LIFE_AGENT_AGENT_TO_CORE_KEYS: ${LIFE_AGENT_AGENT_TO_CORE_KEYS:-local-agent-to-core:sCDSorQBg6zoR4Is85YXGlO8BhEzAJgviaA5hucJL7w}
     volumes:
       - credential_core:/credentials/core:ro
       - credential_storage_reader:/credentials/storage-reader:ro

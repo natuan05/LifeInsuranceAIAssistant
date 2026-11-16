@@ -1,3 +1,4 @@
+import { AgentModule } from './agent/agent.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { OutboxModule } from './outbox/outbox.module';
 import { NotificationsModule } from './notifications/notifications.module';
@@ -11,5 +12,5 @@ import { PoliciesModule } from './policies/policies.module';
 import { ProductsModule } from './products/products.module';
 import { ConversationsModule } from './conversations/conversations.module';
 
-@Module({ imports: [DatabaseModule, AuthModule, CustomersModule, PoliciesModule, ProductsModule, ConversationsModule, RealtimeModule, OutboxModule, NotificationsModule, TicketsModule], controllers: [AppController] })
+@Module({ imports: [DatabaseModule, AuthModule, CustomersModule, PoliciesModule, ProductsModule, ConversationsModule, AgentModule, RealtimeModule, OutboxModule, NotificationsModule, TicketsModule], controllers: [AppController] })
 export class AppModule {}

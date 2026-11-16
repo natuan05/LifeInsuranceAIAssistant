@@ -1,4 +1,5 @@
-import { ForbiddenException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, Optional, UnauthorizedException } from '@nestjs/common';
+import { AgentRunService } from '../../agent/services/agent-run.service';
 import { AuthService } from '../../auth/services/auth.service';
 import { DatabaseService } from '../../database/database.service';
 import type { SendMessageDto } from '../dto/send-message.dto';
@@ -11,7 +12,8 @@ import { ConversationAccessService } from './conversation-access.service';
 export class ConversationSendingService {
   constructor(private readonly auth: AuthService, private readonly database: DatabaseService,
     private readonly messages: ConversationMessageService, private readonly session: ConversationSessionService,
-    private readonly rate: ConversationRateLimitService, private readonly access: ConversationAccessService) {}
+    private readonly rate: ConversationRateLimitService, private readonly access: ConversationAccessService,
+    @Optional() private readonly agentRuns?: AgentRunService) {}
   async send(request: ConversationRequest, role: ConversationRole, id: string, input: SendMessageDto) {
     const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);
     if (actor.role !== role) throw new ForbiddenException();
@@ -20,6 +22,9 @@ export class ConversationSendingService {
       const current = await this.auth.authorizeWrite(request, tx);
       if (current.actor.id !== actor.id || current.actor.role !== role) throw new UnauthorizedException();
     });
+    if (role === 'CUSTOMER' && this.agentRuns) {
+      void this.agentRuns.claimNext(id).catch(() => {});
+    }
     const projection = await this.lookup(request, role, id, input.clientMessageId, false);
     return { ...projection, replayed: result.replayed };
   }
