@@ -2,6 +2,31 @@
 
 05/11/2026 · **Kế hoạch triển khai** · [Contract](../05-policies-contract.md) · [Inbox Contract](../03-inbox-contract.md) · [Chung](../00-staff-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
+
+**Thay đổi của phase:** Quick Lookup dùng cùng projection Staff, không bypass bằng customerId hoặc lấy raw profile bổ sung modal. Mở PDF/tab mới không tăng quyền hay đổi linkedPolicy/Agent context.
+
+**Kiểm thử cần bổ sung, chưa chạy:** API/network/DOM: modal/tab/dossier cùng projection, query không contact; revoke giữa lookup và cấp file chặn đúng.
+
+**Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
+
+**Liên hệ Customer — cập nhật 14/11/2026.** Hiện không có contact card raw trong chức năng này. Hiện/Ẩn tại Customers đã triển khai theo CU01/CU02; Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+
+## Data model và phạm vi ảnh hưởng
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
+| documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
+
+**Schema/migration:** Không migration. Chọn/xem policy không ghi conversations.linked_policy_id; không cập nhật PDF/version/snapshot.
+
+**Nhất quán và hồi quy:** Web không ghi DB trực tiếp; audit access chỉ khi gọi POST cấp PDF, không theo mỗi invalidation. Core vẫn kiểm assignment riêng dù mở từ Inbox. Kiểm race đổi customer/actor, version/revoke và giữ viewer/focus khi refetch cùng tài nguyên.
+
 ## 1. Phạm vi và mục tiêu
 
 * **Mục tiêu**: Bổ sung tính năng tra cứu danh sách hợp đồng bảo hiểm của khách hàng đang tương tác (`visible.customer.id`) ngay tại panel bên phải của màn hình Staff Inbox (`rightPanelTab === 'lookup'`).
@@ -15,12 +40,13 @@
 
 ## 2. **Vị trí code và phân chia trách nhiệm**:
 
-| Vị trí file | Trách nhiệm |
-| --- | --- |
-| `apps/web/src/components/staff-inbox-policy-lookup.tsx` | Component tra cứu nhanh hợp đồng của khách hàng hiện tại: fetch dữ liệu, tìm kiếm/lọc client-side, render danh sách thẻ hợp đồng, trạng thái loading/empty/error, mở modal xem hồ sơ tại chỗ hoặc mở tab mới độc lập. |
-| `apps/web/src/components/staff-inbox.tsx` | Nhúng `StaffInboxPolicyLookup` vào tab `rightPanelTab === 'lookup'`, truyền `customerId={visible.customer.id}` và `customerName={visible.customer.fullName}`; nút chuyển tab nhanh từ Case Details. |
-| `apps/web/src/lib/policy-api.ts` | Tái sử dụng hàm `customerPolicies(id, page, signal)` đã được xây dựng sẵn để gọi API Core. |
-| `apps/core/src/policies/controllers/staff-policy.controller.ts` | Endpoint `GET /api/v1/staff/customers/:customerId/policies` đã hoạt động ổn định trong Core, không cần sửa đổi backend. |
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-inbox-policy-lookup.tsx](<../../../../../apps/web/src/components/staff-inbox-policy-lookup.tsx>) | Hiện có | Panel list policy cho visible customer | Trung bình | Selection/paging tại Inbox |
+| [apps/web/src/components/staff-inbox.tsx](<../../../../../apps/web/src/components/staff-inbox.tsx>) | Hiện có | Truyền customerId theo metadata đã cấp quyền | Cao | Không suy grant policy từ transcript |
+| [apps/web/src/lib/policy-api.ts](<../../../../../apps/web/src/lib/policy-api.ts>) | Hiện có | Reuse customerPolicies theo assignment | Trung bình | Policy directory và panel |
+| [apps/core/src/policies/controllers/staff-policy.controller.ts](<../../../../../apps/core/src/policies/controllers/staff-policy.controller.ts>) | Hiện có | A14/A15/A16 và document access Staff | Cao | Customers policies, Policy Lookup và Inbox panel |
+| [apps/core/src/policies/services/policy.service.ts](<../../../../../apps/core/src/policies/services/policy.service.ts>) | Hiện có | Scope/query/projection/catalog, dùng chung owner methods | Cao | Staff và Customer policies |
 
 ## 3. API và cấu trúc dữ liệu
 
@@ -78,22 +104,65 @@ flowchart TD
      * Quyền lợi bảo hiểm: `Sum assured` và `Periodic premium`, cùng `Effective date`.
      * **Mở tab mới (New Tab)**: Nút "Open in new tab" (`target="_blank" rel="noopener noreferrer"`) trên thẻ và liên kết "Browse all policies" ở cuối panel mở trang Policy Lookup `/staff/policies` trong tab mới độc lập, giúp tư vấn viên vừa xem toàn bộ PDF điều khoản vừa tiếp tục trò chuyện với khách hàng mà không bị che khuất màn hình.
 
-## 5. Kế hoạch kiểm thử (Test Cases)
+**Copilot — B chốt 14/11/2026.** Panel lookup/PDF chỉ đọc dữ liệu theo quyền, Staff nêu hợp đồng khi hỏi Copilot. Mở panel hoặc PDF không sửa linkedPolicy/controlVersion, trường hợp mơ hồ được hỏi lại theo CP01/CP04. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection).
 
-Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.spec.mjs`:
-1. **Hiển thị danh sách hợp đồng**:
-   * Khi chọn khách hàng có hợp đồng và mở tab Policy Lookup, kiểm tra danh sách render đúng số lượng thẻ hợp đồng, đúng số HĐ và tên sản phẩm.
-2. **Tìm kiếm tại chỗ**:
-   * Nhập số hợp đồng vào ô tìm kiếm: chỉ hiển thị thẻ hợp đồng tương ứng.
-   * Xóa ô tìm kiếm: hiển thị lại đầy đủ tất cả các hợp đồng.
-3. **Khách hàng không có hợp đồng**:
-   * Khi khách hàng có danh sách rỗng từ API: render đúng thông báo empty state.
-4. **Xử lý lỗi mạng và Thử lại**:
-   * Giả lập API lỗi (network error): giao diện hiện nút "Thử lại", click thử lại thành công sẽ nạp lại danh sách mà không F5.
-5. **Cách ly ngữ cảnh phiên chat**:
-   * Chuyển sang khách hàng khác: panel lập tức hủy request cũ, tải danh sách hợp đồng của khách hàng mới, không để lẫn dữ liệu của khách cũ.
-6. **Mở hồ sơ trên tab mới**:
-   * Kiểm tra liên kết mở tab mới có thuộc tính `target="_blank"` và `href` chính xác trỏ đến `/staff/policies/:policyId`.
+## 5. Test cases
+
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
+
+### PL05-T01 — Mở lookup theo khách đang chat
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có cuộc của C-A; C-A có 2 policy; C-B có policy riêng.
+
+**Các bước:**
+
+1. Chọn cuộc của C-A rồi mở Quick Policy Lookup.
+2. Đối chiếu các thẻ với GET customer policies.
+3. Mở chi tiết policy trong modal hoặc tab mới theo control hiện có.
+
+**Kết quả mong đợi:** Chỉ hợp đồng C-A; link đúng policyId; modal không thay cuộc chat hoặc làm mất draft.
+
+### PL05-T02 — Lọc tại chỗ và khách không hợp đồng
+
+**Lớp kiểm thử:** Browser + Network.
+**Điều kiện và dữ liệu:** Catalog policy C-A đã tải; C-Z không có hợp đồng.
+
+**Các bước:**
+
+1. Gõ số hợp đồng rồi tên/mã sản phẩm trong panel.
+2. Xóa từ khóa.
+3. Chuyển sang C-Z và mở lookup.
+
+**Kết quả mong đợi:** Lọc đúng catalog đang tải, không request search mới nếu client-side theo contract; C-Z empty, không giữ thẻ C-A.
+
+### PL05-T03 — Đổi khách khi request pending
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ response policies C-A; có cuộc C-B khác.
+
+**Các bước:**
+
+1. Mở lookupA rồi chọn cuộc B.
+2. Trả responseB rồi responseA muộn.
+3. Kiểm header/thẻ/link trong panel.
+
+**Kết quả mong đợi:** Chỉ render B; responseA bị abort/bỏ, không mở link dựa trên context A.
+
+### PL05-T04 — Retry, quyền và focus
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** LookupA có biến thể network 503 và 404; popup đang mở.
+
+**Các bước:**
+
+1. Retry lỗi mạng tại panel.
+2. Cho request tiếp theo404 sau revoke.
+3. Dùng Escape để đóng modal và quay focus.
+
+**Kết quả mong đợi:** Retry không F5;404 clear thẻ/link cũ; focus về control mở lookup, composer/draft không bị thay đổi.
+
+**Suite tham khảo:** [staff-inbox.spec.mjs](../../../../../apps/web/tests/browser/staff-inbox.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
 ## 6. Checklist và giới hạn an toàn
 
@@ -103,7 +172,7 @@ Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.s
 - [x] Mở xem chi tiết hợp đồng đầy đủ qua tab mới độc lập mà không điều hướng rời khỏi phiên chat hoặc che khuất giao diện chat.
 - [x] Dọn dẹp sạch sẽ tài nguyên sau khi triển khai và kiểm thử.
 
-## 7. Kết quả triển khai 05/11/2026
+## 7. Ghi chú triển khai
 
 * **Thực thi**:
   * Tạo component `apps/web/src/components/staff-inbox-policy-lookup.tsx`.
@@ -111,6 +180,27 @@ Kiểm thử bằng Playwright trong suite `apps/web/tests/browser/staff-inbox.s
   * Hiển thị thẻ hợp đồng tinh gọn kèm đầy đủ thông tin quyền lợi, phí định kỳ, hiệu lực; nút "Mở tab mới" sử dụng `target="_blank" rel="noopener noreferrer"`.
   * Toàn bộ link mở trang ngoài đều dùng `target="_blank" rel="noopener noreferrer"`.
 * **Kiểm chứng**:
-  * Suite Playwright `apps/web/tests/browser/staff-inbox.spec.mjs`: **20/20 test pass**, gồm 5 ca kiểm thử quick policy lookup, lọc tìm kiếm, empty state và new tab links.
   * Không phát sinh lỗi hồi quy trên toàn bộ workspace Inbox.
 
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/customers/customerId/policies
+    C->>D: Kiểm session, role và assignment của Customer đang chọn
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

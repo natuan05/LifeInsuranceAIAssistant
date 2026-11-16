@@ -4,12 +4,26 @@
 
 Đối chiếu **05/11/2026**. TK01 nền và TK02 A21/A22 read đã có; TK03 A23 Accept đã có; TK04 UI list/detail/Accept đã nối; TK05 consumer notification/realtime đã có; producer I07 còn P. Ticket tách rõ khỏi chat/handoff.
 
+**Cập nhật 13/11/2026 — phương án A:** source có Customer draft/manual/read/edit/confirm/list/detail và migration snapshot. Các lỗi xác nhận/replay/concurrency cùng tích hợp nguồn Agent được theo dõi tại I07; các kết quả nghiệm thu TK01–TK05 trước đây chỉ thuộc phạm vi Staff tương ứng.
+
+## Truy vết data model và vị trí code theo phase
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [TK01 — Quyền, dữ liệu và version Ticket](tickets/01-scope-model-contract.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc) | [apps/core/prisma/schema.prisma](<../../../../apps/core/prisma/schema.prisma>); [apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql](<../../../../apps/core/prisma/migrations/202611040003_ticket_foundation/migration.sql>) | Cao — Generated client và mutations TK03 |
+| [TK02 — Staff Tickets list/detail](tickets/02-staff-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc) | [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>); [apps/core/src/tickets/services/ticket.service.ts](<../../../../apps/core/src/tickets/services/ticket.service.ts>) | Cao — Staff Ticket list/detail |
+| [TK03 — Nhận Ticket độc lập chat](tickets/03-accept-command.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); support_tickets (Ghi status và tăng version khi đổi hợp lệ); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>); [apps/core/src/tickets/services/ticket.service.ts](<../../../../apps/core/src/tickets/services/ticket.service.ts>) | Cao — Staff Ticket list/detail |
+| [TK04 — Staff Tickets UI](tickets/04-list-detail-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); support_tickets (Ghi gián tiếp qua TK03) | [apps/web/src/components/staff-tickets.tsx](<../../../../apps/web/src/components/staff-tickets.tsx>); [apps/web/src/lib/ticket-api.ts](<../../../../apps/web/src/lib/ticket-api.ts>) | Cao — Đổi view không reload trang |
+| [TK05 — Ticket notification và invalidation](tickets/05-notification-events.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); support_tickets (Đọc); notifications (Đọc); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/tickets/services/ticket-event.service.ts](<../../../../apps/core/src/tickets/services/ticket-event.service.ts>); [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>) | Cao — Ticket created/accepted/status notifications |
+| [I07 — Ticket riêng và liên kết với Inbox](tickets/06-agent-confirmation.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); support_tickets (Đọc); ticket_drafts và confirmed snapshot (đã có schema source; còn review I07); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | `apps/core/src/tickets/controllers/customer-ticket.controller.ts`; `apps/core/src/tickets/services/ticket-draft.service.ts` — hiện có source, cần kiểm chứng I07 | Cao — Customer review, service identity Agent |
+
 ## Ranh giới đã chốt
 
-- Ticket là nhánh **Agent gợi ý tạo → Customer xem/xác nhận → Core tạo**. Yêu cầu Staff/Direct/Accept chat không bắt buộc và không tự tạo Ticket.
+- Ticket hỗ trợ cả hai luồng tạo: **Agent gợi ý → Customer xem xét/sửa/xác nhận** và **Customer tự tạo qua Form thủ công** (chốt 13/11/2026). Yêu cầu Staff/Direct/Accept chat không bắt buộc và không tự tạo Ticket.
+- Mọi Ticket mới tạo từ Customer **luôn khởi tạo ở trạng thái `OPEN`** (dù đã có hay chưa có Staff phụ trách). Staff vào danh sách xem và bấm Tiếp nhận (Accept) để chuyển sang `IN_PROGRESS`.
 - TicketStatus OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED là trạng thái Ticket. Chat không có nghiệp vụ Closed; ConversationStatus đã bỏ CLOSED qua migration mới, không thay TicketStatus.
 - Ticket có thể liên kết Conversation hoặc không; đọc/accept/close Ticket không tự cấp quyền transcript, nhận chat hoặc thay mode chat. Biết conversationId vẫn phải Direct/Accept gate ở Core.
-- Tickets là trang riêng; không nhét list vào accordion chat/Customers. Form Ticket thủ công của kế hoạch MVP cũ để backlog riêng, không triển khai trong đợt Inbox đang chốt.
+- Tickets là trang riêng; không nhét list vào accordion chat/Customers. Khách hàng có trang danh sách vé riêng và form tạo vé.
 
 ## Model và contract còn thiếu
 
@@ -31,9 +45,9 @@ Yêu cầu người dùng05/11 đã mở lifecycle resolve/close/reopen Ticket; 
 
 Nhánh đọc/tiếp nhận **có thể triển khai trước Agent** theo [TK01](tickets/01-scope-model-contract.md) → [TK02 read](tickets/02-staff-read-api.md) → [TK03 accept](tickets/03-accept-command.md) → [TK04 UI](tickets/04-list-detail-ui.md) → [TK05 events](tickets/05-notification-events.md). TK01 đã triển khai nền version/policy/legacy projection; TK02 đã có read API; TK03 A23 Accept đã có; TK04 UI đã nối; TK05 consumer events đã E; I07 producer tạo riêng còn P. Quyền đã chốt active assignment **và** Ticket recipient chính Staff; không unassigned/global OPEN queue. Staff khóa mất quyền; Customer khóa vẫn được phục vụ, không mở grant chat.
 
-Schema SupportTicket hiện đã có version Int default0/CHECK nonnegative từ TK01 (migration202611040003_ticket_foundation); chưa updatedAt/confirmedContent/sourceDraftId. Immutable confirmed snapshot/draft do I07 sau này. Legacy confirmedAt không chứng minh aiSummary/extractedDetails là nguyên văn Customer xác nhận: detail ghi LEGACY_UNVERIFIED và confirmedContent=null, không backfill giả.
+Schema source có TicketDraft/sourceDraftId/confirmedContent qua migration 202611130001. I07 sở hữu hai luồng tạo OPEN. Phase 2 đã tách snapshot cơ bản CUSTOMER_SUBMITTED/CUSTOMER_CONFIRMED và LEGACY_UNVERIFIED/null, giữ kiểm quyền riêng của Ticket. Sáu nhóm/nguồn Agent còn theo I07.
 
-Nguồn tạo Ticket từ Agent/Customer confirmation vẫn do [I07](tickets/06-agent-confirmation.md) cùng Customer T01/T02 sở hữu. Không endpoint tạo Ticket giả, không nhét seed cá nhân vào bootstrap; fixture test không chứng minh Agent. SRS nguồn chưa yêu cầu toàn workflow xử lý→hoàn tất→phản hồi; người dùng05/11 chọn bổ sung status resolve/close/reopen ở TK03, không thêm phản hồi/Claim/payment.
+Nguồn tạo Ticket thủ công và draft Agent do [I07](tickets/06-agent-confirmation.md) cùng Customer T01/T02 sở hữu. Không endpoint tạo Ticket giả, không nhét seed cá nhân vào bootstrap; fixture test không chứng minh Agent. SRS nguồn chưa yêu cầu toàn workflow xử lý→hoàn tất→phản hồi; người dùng05/11 chọn bổ sung status resolve/close/reopen ở TK03, không thêm phản hồi/Claim/payment.
 
 ## API và routes của chức năng
 

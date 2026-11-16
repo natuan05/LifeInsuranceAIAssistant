@@ -28,6 +28,41 @@ export type PolicyDocuments = { policyId: string; total: number;
     accessScope: 'PUBLIC' | 'PRIVATE_POLICY'; versionId: string; versionNumber: string; versionCreatedAt: string }[];
 };
 export const customerPolicies = (id: string, page: number, signal: AbortSignal) => coreRequest<PolicyList>(`staff/customers/${encodeURIComponent(id)}/policies?page=${page}&pageSize=10`, { signal });
+export function ownPolicies(page: number, search: string, status: string, signal: AbortSignal): Promise<PolicyList>;
+export function ownPolicies(page: number, signal: AbortSignal, status?: string): Promise<PolicyList>;
+export function ownPolicies(
+  page: number,
+  arg2: string | AbortSignal,
+  arg3?: string | AbortSignal,
+  arg4?: AbortSignal,
+): Promise<PolicyList> {
+  let search = '';
+  let status = '';
+  let signal: AbortSignal;
+
+  if (typeof arg2 === 'string') {
+    search = arg2;
+    status = typeof arg3 === 'string' ? arg3 : '';
+    signal = arg4!;
+  } else {
+    signal = arg2;
+    status = typeof arg3 === 'string' ? arg3 : '';
+  }
+
+  const query = new URLSearchParams({ page: String(page), pageSize: '10' });
+  if (search.trim()) query.set('search', search.trim());
+  if (status) query.set('status', status);
+  return coreRequest<PolicyList>(`customers/me/policies?${query}`, { signal });
+}
+export const ownPolicyDetail = (id: string, signal: AbortSignal) => coreRequest<{ policy: PolicyDetail }>(`customers/me/policies/${encodeURIComponent(id)}`, { signal });
+export const ownPolicyDocuments = (id: string, signal: AbortSignal) => coreRequest<PolicyDocuments>(`customers/me/policies/${encodeURIComponent(id)}/documents`, { signal });
+export async function ownDocumentAccess(policyId: string, document: PolicyDocument, intent: 'view' | 'download', signal: AbortSignal) {
+  const session = await me(signal);
+  return coreRequest<{ url: string; expiresAt: string }>(`customers/me/documents/${document.documentId}/versions/${document.versionId}/${intent}`, {
+    method: 'POST', signal, headers: { 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': session.csrfToken },
+    body: JSON.stringify({ policyId }),
+  });
+}
 export const policyDetail = (id: string, signal: AbortSignal) => coreRequest<{ policy: PolicyDetail }>(`staff/policies/${encodeURIComponent(id)}`, { signal });
 export const policyDocuments = (id: string, signal: AbortSignal) => coreRequest<PolicyDocuments>(`staff/policies/${encodeURIComponent(id)}/documents`, { signal });
 export type PolicyDocument = PolicyDocuments['items'][number];

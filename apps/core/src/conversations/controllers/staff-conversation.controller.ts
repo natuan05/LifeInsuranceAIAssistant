@@ -7,16 +7,20 @@ import { ConversationMetadataResponseDto } from '../dto/conversation-response.dt
 import { StaffInboxService } from '../services/staff-inbox.service';
 import { AcceptCommandQuery, ConversationVersionCommandDto } from '../dto/conversation-entry.dto';
 import { MessageQueryDto } from '../dto/message-query.dto';
-import { AcceptResponseDto, CommandReceiptDto, TranscriptResponseDto } from '../dto/conversation-workflow-response.dto';
+import { AcceptResponseDto, CommandReceiptDto, MarkConversationReadResponseDto, TranscriptResponseDto } from '../dto/conversation-workflow-response.dto';
 import { ConversationHandoffService } from '../services/conversation-handoff.service';
 import { ConversationTranscriptService } from '../services/conversation-transcript.service';
-import type { ConversationRequest } from '../services/conversation-session.service';
+import { ConversationMessageService } from '../services/conversation-message.service';
+import { ConversationCommandService } from '../services/conversation-command.service';
+import { ConversationSessionService, type ConversationRequest } from '../services/conversation-session.service';
 
 @ApiTags('Staff Inbox') @ApiCookieAuth('session')
 @Controller('staff/conversations')
 export class StaffConversationController {
   constructor(private readonly inbox: StaffInboxService, private readonly handoff: ConversationHandoffService,
-    private readonly transcript: ConversationTranscriptService, private readonly sending: ConversationSendingService) {}
+    private readonly transcript: ConversationTranscriptService, private readonly sending: ConversationSendingService,
+    private readonly messagesService: ConversationMessageService, private readonly commands: ConversationCommandService,
+    private readonly session: ConversationSessionService) {}
   @Post(':conversationId/accept') @HttpCode(200) @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'A11: Accept a Customer-confirmed handoff; full-history grant/control/outbox commit atomically. No Ticket.' })
   @ApiOkResponse({ type: AcceptResponseDto }) @ApiResponse({ status: 409, description: 'STALE_CONVERSATION, ALREADY_ACCEPTED or IDEMPOTENCY_CONFLICT.' })
@@ -66,5 +70,14 @@ export class StaffConversationController {
     @Query() query: Record<string, unknown>) {
     if (Object.keys(query).length) throw new BadRequestException();
     return this.inbox.metadata(request, id);
+  }
+  @Post(':conversationId/read') @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Mark all unread customer messages in conversation as read.' })
+  @ApiOkResponse({ type: MarkConversationReadResponseDto })
+  markRead(@Req() request: ConversationRequest, @Param('conversationId', new ParseUUIDPipe()) id: string, @Query() query: Record<string, unknown>) {
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.session.write(request, 'STAFF', 'NOTIFICATION_READ',
+      (tx, actorId) => this.commands.lock(tx, actorId, id),
+      (tx, actorId) => this.messagesService.markAsRead(tx, { id: actorId, role: 'STAFF' }, id));
   }
 }

@@ -39,8 +39,8 @@ class TicketDetailDto extends TicketItemDto {
   @ApiProperty() version!: number;
   @ApiProperty({ type: TicketPolicyDto, nullable: true }) policy!: TicketPolicyDto | null;
   @ApiProperty({ format: 'date-time' }) confirmedAt!: string;
-  @ApiProperty({ enum: ['LEGACY_UNVERIFIED'] }) confirmationSource!: string;
-  @ApiProperty({ type: String, nullable: true, description: 'Legacy rows have no immutable confirmation snapshot.' }) confirmedContent!: null;
+  @ApiProperty({ enum: ['CUSTOMER_SUBMITTED', 'CUSTOMER_CONFIRMED', 'LEGACY_UNVERIFIED'] }) confirmationSource!: string;
+  @ApiProperty({ type: Object, nullable: true, description: 'Allowlisted immutable snapshot; null for legacy or invalid snapshots.' }) confirmedContent!: Record<string, unknown> | null;
   @ApiProperty({ type: String, nullable: true }) aiSummary!: string | null;
   @ApiProperty({ type: TicketActionsDto }) allowedActions!: TicketActionsDto;
   @ApiProperty({ type: TicketChatLinkDto, nullable: true }) chatLink!: TicketChatLinkDto | null;

@@ -12,7 +12,7 @@
   "files": [
     {
       "path": "README.md",
-      "sha256": "2bcad48fc5e5db3063d1c20a8955d48742661eadfbd0a6b02040b8ede1f68166"
+      "sha256": "6af679b7f7d24aa71c572dbd32539ed5ce89baabd8a3984d52114876ffc85f17"
     },
     {
       "path": "contract.md",
@@ -25,6 +25,10 @@
     {
       "path": "expected-answers.json",
       "sha256": "90d34bee9aea7eedb9beb5fa8be4541c1df6f190f59abe35d9cc67c5029bcc86"
+    },
+    {
+      "path": "policies.json",
+      "sha256": "34dfe16570cf6155b1a4910a336011928fd451729f4d9cb6ef241e2c72edc961"
     }
   ],
   "public_references": [
@@ -40,5 +44,7 @@
     "agent_evaluation": "not_run",
     "commercial_pricing_or_compatibility": "not_validated",
     "checked_date": "2026-10-29"
-  }
+  },
+  "application_portfolio_version": 2,
+  "application_fixture": "policies.json"
 }

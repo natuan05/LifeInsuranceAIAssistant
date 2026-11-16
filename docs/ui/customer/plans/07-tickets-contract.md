@@ -1,43 +1,39 @@
-# C07 — Ticket do Agent gợi ý, Customer xác nhận
+# C07 — Customer Tickets
 
-04/11/2026 · **Chưa triển khai** · C07 · [I07 owner](../../staff/plans/tickets/06-agent-confirmation.md).
+**Quyết định 13/11/2026, đã xác nhận phương án A:** Customer tạo Ticket thủ công hoặc từ draft Agent, được sửa draft trước xác nhận. Ticket mới có trạng thái OPEN. [I07 canonical](../../staff/plans/tickets/06-agent-confirmation.md).
 
-## 1. Ranh giới
+## 1. Phạm vi và phase
 
-FR-009/012, phía Staff FR-010; handoff không Ticket, Ticket không grant transcript. Model SupportTicket hiện có chưa lưu đủ draft/immutable confirmation. **Staff I07 là contract Core chung**, Customer không xây Ticket service/schema thứ hai. Nếu sửa contract I07 phải cập nhật phase sở hữu trước phần phụ thuộc.
-
-| Phase | Kết quả | Gate |
+| Phase | Trách nhiệm | Phụ thuộc |
 | --- | --- | --- |
-| [T01](tickets/01-confirmation-core-contract.md) | Phần Customer của Core I07: draft/read/confirm/reconcile/detail | Agent boundary cho draft thật; fixtures trusted chỉ test |
-| [T02](tickets/02-review-result-ui.md) | Review/xác nhận rõ ràng/result/detail | T01 thật; Agent draft thật cho E2E nghiệp vụ |
+| [T01 — Core Customer Ticket](tickets/01-confirmation-core-contract.md) | Draft read/edit/confirm, manual create, receipt, own list/detail | Contract và transaction chung I07 |
+| [T02 — Customer Ticket UI](tickets/02-review-result-ui.md) | Popup review/sửa/xác nhận, form thủ công, list/detail và lỗi/retry | T01; trusted Agent proposal cho luồng Agent đầy đủ |
 
-## 2. Scope
+Form thủ công là chức năng Customer trong phạm vi đã chọn. Handoff/Direct/Accept chat là luồng riêng. Staff xử lý Ticket theo quyền recipient/assignment.
 
-Giữ TicketStatus OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED; enum không mở thêm workflow resolve/complete/reply ngoài MVP. Customer thấy trạng thái persisted từ Core, không lời hứa Staff đã tiếp nhận chat. Không tạo form Ticket thủ công vì không thuộc nhánh được chốt. Customer Ticket list tổng quát là mở rộng UX có thể làm sau; I07 hiện chỉ cần result/detail để theo dõi Ticket vừa tạo.
+## 2. Dữ liệu và vị trí code
 
-- [ ] T01/I07 snapshot/version/hash/idempotency/owner/atomicoutbox tests pass.
-- [ ] T02 explicit review, kết quả chưa rõ, draft stale/expired, access tests pass.
-- [ ] Source Agent thật và fixture synthetic trusted được ghi khác nhau; không đánh dấu Ticket flow thật từ fixture.
+| Dữ liệu | Thao tác | Vị trí từ root repo |
+| --- | --- | --- |
+| ticket_drafts | Owner read/edit/consume, TTL/version/hash | `apps/core/src/tickets/services/ticket-draft.service.ts` |
+| support_tickets, audit_logs, outbox_events | Tạo OPEN + snapshot/audit/outbox atomic, own list/detail | `apps/core/src/tickets/services/ticket.service.ts` |
+| Customer API | Xác thực/validation/CSRF theo I07 | `apps/core/src/tickets/controllers/customer-ticket.controller.ts` |
+| Web | Hai luồng tạo, theo dõi kết quả và receipt | `apps/web/src/components/customer-tickets.tsx`, `customer-ticket-confirmation.tsx`, `lib/ticket-api.ts` |
 
-## UX và baseline của chức năng
+Source có migration draft/snapshot và các thành phần trên. Phase 2 đã sửa validation/replay/concurrency và snapshot cơ bản của Application; ánh xạ summary/nguồn Agent tiếp tục tại I07. Mức ảnh hưởng cao ở nội dung xác nhận, snapshot, quyền và notification.
 
-## Luồng đích
+## 3. Luồng
 
-Agent gợi ý tạo Ticket → Customer xem nội dung, xác nhận → Core kiểm ownership/confirmation/chống trùng → Ticket + outbox commit → hiển thị mã Ticket. Nếu hỗ trợ sửa, phải có revision server/version/hash mới và review lại; không bật Edit trước contract revision. Agent/Staff không thay xác nhận hợp lệ của Customer.
+1. **Từ Agent:** nhận draft server → xem → tùy chọn sửa và lưu revision → xác nhận version hiện hành → Core commit Ticket OPEN.
+2. **Thủ công:** nhập title/description/policy tùy chọn → gửi form với request key → Core commit Ticket OPEN.
+3. List/detail hiển thị trạng thái persisted. Có Staff phụ trách vẫn tạo OPEN; Staff Accept chuyển sang IN_PROGRESS.
+4. Timeout đối soát bằng key gốc. Tạo Ticket không tự chia sẻ chat AI.
 
-Ticket có mã/tiêu đề/nội dung đã xác nhận/quan hệ policy hoặc conversation khi hợp lệ. Lưu Ticket không nghĩa Staff đã nhận chat. Mở liên kết chat vẫn phải Direct/Accept gate; Ticket accept/close không cấp quyền lịch sử AI.
+**Nội dung draft Agent, phương án A:** giữ đủ sáu nhóm request/context/customer_statements/verified_findings/attempted_steps/pending_issues và nguồn qua review, revision và snapshot confirmedContent. Cách lưu/projection/hash được mô tả tại [I07](../../staff/plans/tickets/06-agent-confirmation.md#ticket-handoff-content). Title/description phục vụ mô tả nhanh; form thủ công dùng dữ liệu Customer tự gửi.
 
-## Trạng thái riêng
+## 4. Checklist
 
-TicketStatus OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED giữ riêng. Chat mới không dùng Closed; không dùng TicketStatus đóng/mở chat. UI/API resolve/hoàn tất/phản hồi chưa triển khai chỉ vì enum tồn tại.
-
-Timeout phải reconcile khóa cũ trước retry; delivery lỗi không xóa Ticket đã lưu. Nội dung draft/AI summary không được trình bày như đã commit hoặc đã Customer xác nhận.
-
-## Phạm vi và checklist
-
-Form Ticket thủ công từng được đề xuất trong MVP để backlog riêng, không triển khai trong đợt Inbox đang chốt; cần xác nhận scope riêng nếu làm tiếp. Đợt hiện tại ưu tiên nhánh Agent gợi ý/Customer xác nhận.
-
-- [ ] Review/triển khai I07/T01 content/source/version/confirmation/idempotency; không tạo Ticket module/schema thứ hai.
-- [ ] Tạo/đọc/list đúng quyền, Ticket + outbox atomic, mã chỉ sau commit.
-- [ ] Không tạo Ticket khi Customer chỉ chọn Yêu cầu Staff hoặc Staff Accept chat.
-- [ ] Link Ticket không vượt quyền transcript trước Accept; không sửa chat mode khi nhận Ticket.
+- [x] Phạm vi hai luồng, chỉnh sửa draft, own list/detail và OPEN đã chốt.
+- [x] Có code schema/API/UI trong source.
+- [x] Phần Application I07/T01/T02: validation, khóa/CAS, fingerprint, snapshot, receipt và hồi quy Core/browser.
+- [ ] Nghiệm thu luồng Agent khi trusted proposal và summary mapping hoàn tất.

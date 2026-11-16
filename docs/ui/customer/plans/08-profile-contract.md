@@ -1,37 +1,36 @@
-# C08 — Hồ sơ Customer, account và bảo mật
+# C08 — Hồ sơ Customer, Account và bảo mật
 
-04/11/2026 · **Kế hoạch phần sửa; read/auth đã có** · C08 · [Chung](00-customer-contract.md).
+**Quyết định chốt 13/11/2026, xác nhận phương án A:** Customer chỉ xem hồ sơ cá nhân. [Chung](00-customer-contract.md).
 
-## 1. Căn cứ và model
+## 1. Phạm vi
 
-FR-002 còn thiếu Customer tự sửa. GET `/customers/me` đã có User.email/phone/accountCode/status + CustomerProfile.fullName/birth/address + Staff contact theo availability. Password/logout đã E qua auth, không viết lại. CustomerProfile không có updatedAt; User.updatedAt không tự đổi khi sửa chỉ profile, assignmentVersion chỉ cho routing. Không sao chép expectedUpdatedAt Staff một cách sai nguồn.
+FR-002 trong MVP gồm Customer xem hồ sơ bản thân và Staff xem Customer theo assignment. Customer xem fullName, accountCode, email, phone, birth, address và status theo allowlist, cùng Staff contact khi khả dụng. Đổi mật khẩu và đăng xuất theo Auth.
 
-| Phase | Kết quả | Gate |
-| --- | --- | --- |
-| [PF01](profile/01-self-edit-core.md) | Chốt editable fields, profileVersion/migration, PATCH ownership/concurrency | Model/auth/audit contract trước UI |
-| [PF02](profile/02-profile-account-ui.md) | Profile read/edit và ghép Account hiện có | H01+PF01 |
+Customer không tự sửa hồ sơ. Bỏ kế hoạch editor, PATCH self-profile và migration concurrency dành cho Customer. Quy chuẩn writer được cấp quyền nếu có phạm vi triển khai riêng được ghi tại PF01.
 
-## 2. Phạm vi đề xuất
+## 2. Phase, data model và vị trí code
 
-Customer sửa fullName/phone/birth/address chính mình; email/accountCode/role/status/citizenId/assignment chỉ đọc hoặc không expose như baseline. Chốt validation và giới hạn field trước code tại PF01. Không cập nhật policy snapshot/PDF lịch sử theo profile mới. Không hồ sơ KYC/upload hoặc đổi Staff.
+| Phase | Kết quả | Dữ liệu | Vị trí từ root repo |
+| --- | --- | --- | --- |
+| [PF01 — API đọc hồ sơ](profile/01-owner-read-api.md) | GET own profile, role/owner và contact | users, customer_profiles, auth_sessions, staff_assignments, staff_profiles — đọc | [customer.controller.ts](../../../../apps/core/src/customers/controllers/customer.controller.ts), [customer.service.ts](../../../../apps/core/src/customers/services/customer.service.ts) |
+| [PF02 — Hồ sơ chỉ đọc và Account](profile/02-profile-account-ui.md) | Read-only view, refresh, security và logout | Hiển thị own projection; Auth mutation qua API hiện có | [customer-account.tsx](../../../../apps/web/src/components/customer-account.tsx), [customer-api.ts](../../../../apps/web/src/lib/customer-api.ts) |
 
-- [ ] PF01 model/version/atomic update/uniquephone/conflict tests pass.
-- [ ] PF02 form keyboard/dirty/409/unknown outcome/401/mobile/no-F5 và E2E thật pass.
-- [ ] Đổi password/logout hai role giữ behavior cũ; FR-002 chỉ đánh dấu phần tự sửa sau khi thật.
+Hai phase dùng schema hiện có. `assignment_version` là routing fence cho phân công. Thay đổi projection cần kiểm Customer Account/Home và Staff callers cùng nguồn dữ liệu. [Data Model](../../../specifications/Data_Model.md#iii-bản-đồ-tác-động-khi-triển-khai-chức-năng) mô tả phụ thuộc xuyên module.
 
-## UX và baseline của chức năng
+## 3. API và UX
 
-## Thành phần và thao tác hiện có
+- `GET /api/v1/customers/me` trả own profile, assignmentStatus và Staff contact theo availability.
+- `/customer` và `/account` hiển thị hồ sơ chỉ đọc. Dữ liệu thiếu hiển thị `Not provided`.
+- Account dùng `POST /api/v1/auth/change-password` và `POST /api/v1/auth/logout`.
+- Refresh/retry giữ nội dung đúng actor và cập nhật tại chỗ; logout/401 xóa dữ liệu riêng, bỏ response đến muộn.
+- Phần giảm/che thông tin theo vai trò còn P tại [đặc tả bảo vệ dữ liệu](../../../configuration-and-data.md#customer-sensitive-data).
 
-- `/customer`: actor và hồ sơ read-only (name/code/email/phone/birth/address/status) từ `GET /api/v1/customers/me`; contact Staff được phân công khi khả dụng.
-- `/account`: actor từ `GET /auth/me`, form `POST /auth/change-password` với current/new/confirm, hiện/ẩn từng password, lỗi/thành công; `POST /auth/logout` về `/login`.
-- Không có API sửa hồ sơ/KYC, tự đổi phân công hoặc khóa tài khoản. Dữ liệu thiếu hiển thị Not provided.
+## 4. Trạng thái và kiểm chứng
 
-## Trạng thái và checklist
+- [x] Đã chốt quyền Customer chỉ xem hồ sơ.
+- [x] GET own profile và UI chỉ đọc đã có trong source.
+- [x] Account/password/logout có implementation hiện hành.
+- [ ] Chạy lại các ca hồi quy PF01/PF02 sau khi đồng bộ contract.
+- [ ] Nghiệm thu masking theo ma trận dữ liệu khi triển khai.
 
-- [x] Loading/rỗng/lỗi, phiên hết hạn; Staff ASSIGNED/UNASSIGNED/STAFF_UNAVAILABLE từ Core.
-- [x] Đổi mật khẩu/logout thật; password mới 6 ký tự đến 72 byte UTF-8, không trim, thu hồi các phiên cũ.
-- [x] Lời nhắc password có Later; refresh thủ công và WebSocket ready/invalidate tải lại dữ liệu theo quyền.
-- [x] Refresh nền giữ nội dung khi cùng actor; không refetch profile mỗi lần focus, vẫn kiểm lại session.
-- [ ] Layout/menu/font Customer theo H01/PF02, Tailwind4 `tw:` và Lexend/tokens cùng hệ Staff; giữ auth/chat đang chạy.
-- [ ] Chỉnh sửa hồ sơ chỉ làm sau khi chốt trường, quyền và API; không đánh dấu FR-002 hoàn tất chỉ vì đọc được hồ sơ.
+Checkbox source ghi nhận code hiện có. Kết quả chạy test cần ghi theo đợt kiểm chứng tương ứng.

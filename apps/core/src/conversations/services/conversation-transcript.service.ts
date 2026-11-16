@@ -5,7 +5,7 @@ import type { MessageQueryDto } from '../dto/message-query.dto';
 import { ConversationAccessService } from './conversation-access.service';
 import { ConversationSessionService, type ConversationRequest, type ConversationRole } from './conversation-session.service';
 import { decodeMessageCursor, encodeMessageCursor } from './message-cursor';
-const select = { id: true, sequence: true, senderType: true, content: true, createdAt: true, citations: true,
+const select = { id: true, sequence: true, senderType: true, content: true, createdAt: true, readAt: true, citations: true,
   sender: { select: { customerProfile: { select: { fullName: true } }, staffProfile: { select: { fullName: true } } } },
 } satisfies Prisma.MessageSelect;
 type Row = Prisma.MessageGetPayload<{ select: typeof select }>;
@@ -40,7 +40,7 @@ export class ConversationTranscriptService {
       return { items: visible.map(row => ({ id: row.id, sequence: row.sequence.toString(), senderType: row.senderType,
         sender: { displayName: row.senderType === 'CUSTOMER' ? row.sender?.customerProfile?.fullName ?? 'Customer'
           : row.senderType === 'STAFF' ? row.sender?.staffProfile?.fullName ?? 'Staff' : row.senderType === 'AI_AGENT' ? 'AI assistant' : 'System' },
-        content: row.content, createdAt: row.createdAt.toISOString(), citations: citations.get(row.id) ?? [] })),
+        content: row.content, createdAt: row.createdAt.toISOString(), readAt: row.readAt ? row.readAt.toISOString() : null, citations: citations.get(row.id) ?? [] })),
         pageInfo: { beforeCursor: visible.length || boundary !== null ? encodeMessageCursor(actorId, id, role, 'before', first) : null,
           afterCursor: encodeMessageCursor(actorId, id, role, 'after', last), hasMoreBefore, hasMoreAfter } };
     });

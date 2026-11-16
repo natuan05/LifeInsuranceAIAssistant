@@ -2,7 +2,16 @@
 
 [Chỉ mục Staff](../README.md) · [API](00-staff-contract.md#api-theo-chức-năng) · [Policies](05-policies-contract.md) · [Khoảng trống](README.md#phần-còn-lại-theo-chức-năng)
 
-Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; Inbox/Ticket theo khách chưa có.
+Đối chiếu **03/11/2026**. Căn cứ: FR-002/003, UC-003, NFR-001/002. Danh sách/search/hồ sơ/hợp đồng đã nối Core; hồ sơ có liên kết Inbox/Ticket theo khách.
+
+**Bảo vệ email/phone — đã triển khai 14/11/2026:** Staff mặc định nhận giá trị đã che ở cả danh sách và chi tiết Customer. Staff có Show/Hide từng trường để liên hệ, Core kiểm lại quyền/phân công và audit khi reveal. Core projection, Web và các caller theo [CU01/CU02](customers/01-assignment-read-api.md#customer-privacy-api) và [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data); Core trả projection Staff đã che và API reveal riêng. Search đã chốt A: chỉ tên/mã Customer, bỏ email/phone; Core/Swagger/placeholder đã đồng bộ theo CU01/CU02. Ngày sinh/địa chỉ Staff detail đã chốt A: chỉ năm sinh/tỉnh-thành đã xác minh, thiếu căn cứ thì ẩn từng trường; DTO dùng birthYear/provinceCity; chưa có nguồn xác minh nên trả null. Định dạng A đã duyệt cho email giữ 1 ký tự đầu và phone giữ 2 số cuối, phần bị che dùng `***`. Core projection và Web render đã triển khai, có kiểm thử CU01-T06.
+
+## Truy vết data model và vị trí code theo phase
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [CU01 — Customers API theo phân công](customers/01-assignment-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/core/src/customers/controllers/customer.controller.ts](<../../../../apps/core/src/customers/controllers/customer.controller.ts>); [apps/core/src/customers/services/customer.service.ts](<../../../../apps/core/src/customers/services/customer.service.ts>) | Cao — Customers list/detail |
+| [CU02 — Danh sách, hồ sơ và vùng policies](customers/02-directory-profile-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); users + customer_profiles (Đọc projection) | [apps/web/src/components/staff-customer-directory.tsx](<../../../../apps/web/src/components/staff-customer-directory.tsx>); [apps/web/src/lib/customer-api.ts](<../../../../apps/web/src/lib/customer-api.ts>) | Trung bình — Back/Forward, empty/error, không F5 |
 
 ## Hiện trạng
 
@@ -12,8 +21,10 @@
 - [x] Deep link/breadcrumb/Back–Forward; tìm kiếm/phân trang/retry không F5 hoặc remount workspace.
 - [x] Loading/empty/no match/error/retry; request cũ bị hủy; 401/403/404 xóa dữ liệu riêng.
 - [x] Realtime refresh nền cho list/hồ sơ cùng query, giữ dữ liệu trong lúc chờ; kiểm phiên khi focus/visible vẫn có.
-- [x] Có 15 regression browser Chromium với API/WebSocket giả lập.
-- [ ] Liên kết theo khách sang Inbox/Tickets sau khi triển khai [kế hoạch](inbox/00-inbox-spec.md); hiện chưa có link/API/UI hỗ trợ trong Customers.
+- [x] Có regression browser với API/WebSocket giả lập và kiểm Customers qua gateway/Core thật.
+- [x] Hồ sơ khách có Conversations/Tickets mở màn nghiệp vụ với customerId; Core giữ kiểm assignment/Direct/consent, không nhúng chat vào Customers.
+
+**Hiện liên hệ — triển khai 14/11/2026.** Email/phone mặc định che theo A ngày 13/11 và có Hiện/Ẩn để Staff liên hệ. API reveal kiểm lại quyền/phân công, ghi audit metadata và trả riêng trường cần dùng. CU01/CU02 sở hữu DTO/nút/state/revoke và tests CU01-T07/CU02-T06. [Quyết định chuẩn](../../../configuration-and-data.md#staff-contact-reveal).
 
 ## API hiện có
 
@@ -23,10 +34,11 @@ Prefix `/api/v1`; actor/role từ session. Session, assignment và list/count đ
 | --- | --- |
 | A05 GET /staff/customers | page 1–100000 (default 1), pageSize 1–50 (default 10), search tùy chọn; `{items,total,page,pageSize}` |
 | A06 GET /staff/customers/:customerId | UUID; `{customer}` đúng active assignment; ngoài quyền/không tồn tại cùng 404 |
+| POST /staff/customers/:customerId/contact-reveal | `{field:"email"\|"phone"}`; `{customerId,field,value}`; Staff/Origin/CSRF, no-store, audit metadata |
 
-List item: `{id,fullName,accountCode,email,phone,status}`. Detail thêm birth/address nullable; FE hiện “Not provided” khi thiếu. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
+List item: `{id,fullName,accountCode,email,phone,status}`. Họ tên/mã Customer đã chốt A ngày 13/11, hiển thị đầy đủ cho Staff có active assignment hợp lệ, khớp source hiện tại. Detail dùng birthYear/provinceCity nullable và không có raw birth/address. Chưa có nguồn xác minh nên cả hai trả null, UI hiện “Not provided”. Không trả citizenId/KYC, password/token hoặc metadata nội bộ. status là UserStatus ACTIVE/LOCKED, không phải trạng thái hợp đồng/hội thoại.
 
-Search trim, tối đa 100 ký tự, chuỗi con không phân biệt hoa thường theo fullName/accountCode/email/phone; rỗng/space tương đương bỏ lọc. Không bỏ dấu hoặc chuẩn hóa phone. `%`, `_`, backslash là ký tự thường. Query lạ/lặp/sai kiểu/control chars/quá dài trả 400. Scope và search áp trước count/phân trang, không tìm trên riêng trang hiện tại; thứ tự userId tăng dần. Trang vượt phạm vi có items rỗng nhưng giữ total.
+**Contract search A ngày 13/11:** chỉ fullName/accountCode. Source hiện vẫn tìm cả email/phone; cần bỏ hai predicate này, cập nhật Swagger/placeholder và chạy CU01-T02, chưa nghiệm thu thay đổi. Search giữ trim, tối đa 100 ký tự, chuỗi con không phân biệt hoa thường; rỗng/space tương đương bỏ lọc. Không tự bỏ dấu hoặc suy diễn loại dữ liệu từ chuỗi tìm kiếm. `%`, `_`, backslash là ký tự thường. Query lạ/lặp/sai kiểu/control chars/quá dài trả 400. Scope và search áp trước count/phân trang, không tìm trên riêng trang hiện tại; thứ tự userId tăng dần. Trang vượt phạm vi có items rỗng nhưng giữ total.
 
 Staff chưa có khách nhận list rỗng. Customer LOCKED vẫn được Staff còn assignment phục vụ; Staff bị khóa/phiên không hợp lệ không đọc được. 401 chuyển login, 403/404 xóa dữ liệu không còn quyền; lỗi mạng/5xx có Try again tại vùng lỗi. Các lần đọc mới quan sát thay đổi quyền đã commit; UI không là nguồn cấp quyền.
 
@@ -34,17 +46,69 @@ Hồ sơ chỉ đọc: không sửa KYC, khóa tài khoản hoặc phân công. 
 
 ## Bố cục và điều hướng
 
-Danh sách là bảng tên/mã/email/phone/status với cuộn ngang trong vùng riêng ở màn hình nhỏ. Detail có breadcrumb Customers → Customer details, tên/avatar/mã/status; Insurance policies là vùng chính, Personal information là cột phụ. Mobile xếp policies trước hồ sơ.
+Danh sách là bảng tên/mã/email/phone/status với cuộn ngang trong vùng riêng ở màn hình nhỏ. Detail có breadcrumb Customers → Customer details, tên/avatar/mã/status; Insurance policies là vùng chính, Personal information là cột phụ; đích đã duyệt chỉ hiện năm sinh/tỉnh-thành đã xác minh, nguồn thiếu thì Not provided từng trường. Mobile xếp policies trước hồ sơ.
 
 Hợp đồng dùng [contract Policies](05-policies-contract.md), có loading/empty/error/retry riêng; chỉ hiện chưa có hợp đồng sau phản hồi rỗng thành công. Mở policy bằng Next Link; URL gọn, ngữ cảnh search/page/policyPage quay về lưu trong sessionStorage theo tab, được kiểm customerId. Không nhúng chat/composer/takeover/Copilot hoặc list Ticket vào Customers.
 
 List/hồ sơ không refetch theo focus/visibility; realtime ready/invalidate kích hoạt refetch nền cho cùng actor/query. Đổi khách/trang tải mới và hủy request cũ. Vòng đời preview PDF đã tách khỏi metadata refetch: giữ iframe/src khi cùng file/version, vẫn kiểm quyền/binding; xem [Policies](05-policies-contract.md#giao-diện-hiện-tại).
 
-## Kiểm thử và giới hạn
+## Test cases
 
-Các đợt trước ghi nhận 7 Core integration tests cho scope/role, search ngoài trang đầu/count/phân trang, ký tự literal và thay đổi phân công. Regression browser 03/11 có 15 ca cho search/clear/URL/deep link/breadcrumb/Back–Forward, bàn phím, retry mạng, realtime giữ filter/draft/focus/sidebar, response cũ, 401/403/404 và responsive 375/768/1600px.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../README.md#quy-ước-test-case-và-sequence-diagram).
 
-Bộ `apps/web/tests/browser/staff-customers.spec.mjs` tạo fixture trong bộ nhớ, không phụ thuộc số khách trên máy/không seed hoặc sửa DB. HTTP/WebSocket được Playwright giả lập trên Web Docker. Đây là browser regression FE; Core authorization là lớp riêng, chưa phải E2E browser/Core/DB và chưa tự động kiểm nội dung PDF tải về. Việc 02 ngày 03/11 đã chạy lại 15 ca Customers cùng các suite Account/Session/Policies; giới hạn mock vẫn giữ nguyên.
+### S03-T01 — Scope trước search và phân trang
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A được gán C-A1…C-A12; S-B được gán C-B; tên đều synthetic.
+
+**Các bước:**
+
+1. GET /staff/customers?page=1&pageSize=10 bằng S-A.
+2. Lấy page 2 rồi search tên một khách chỉ có ở page 2.
+3. GET lại bằng S-B.
+
+**Kết quả mong đợi:** S-A có tổng12, trang10/2; search tìm trên toàn bộ scope; không có khách S-B trong items hoặc total.
+
+### S03-T02 — Search và Back giữ context
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có hơn10 khách; biết mã một khách ở trang2.
+
+**Các bước:**
+
+1. Mở Customers, sang trang2.
+2. Tìm mã khách bằng Enter, mở hồ sơ.
+3. Bấm Back, xóa search rồi Enter.
+
+**Kết quả mong đợi:** Search đúng toàn tập; URL/selection/page khôi phục theo thao tác; không Search/Clear buttons, không F5.
+
+### S03-T03 — Detail và thu hồi phân công
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** S-A được gán C-A, không được gán C-B; harness có thao tác revoke riêng.
+
+**Các bước:**
+
+1. GET detail C-A và C-B bằng S-A.
+2. Thu hồi assignment C-A trong fixture.
+3. GET lại detail C-A và list.
+
+**Kết quả mong đợi:** C-A ban đầu có allowlist profile, không KYC/citizenId; C-B404; sau revoke C-A404 và không còn trong list.
+
+### S03-T04 — Lỗi vùng, focus và responsive
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Mock list 503 trước, sau đó detail 503; viewport 375px.
+
+**Các bước:**
+
+1. Retry list rồi mở một khách.
+2. Retry detail mà không đổi trang.
+3. Dùng Tab và zoom 200%.
+
+**Kết quả mong đợi:** Lỗi được phục hồi theo vùng, không navigation document mới; tên dài/email/controls không tràn; focus vẫn thao tác được.
+
+**Suite tham khảo:** [staff-customers.spec.mjs](../../../../apps/web/tests/browser/staff-customers.spec.mjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
 ## Chạy browser regression
 
@@ -58,8 +122,8 @@ Mặc định `http://localhost:8080`, đổi bằng `BROWSER_TEST_BASE_URL`. Sc
 
 ## Phần còn lại
 
-- [ ] Sau khi Inbox/Tickets hoạt động: liên kết từ hồ sơ bằng customerId đã kiểm quyền; chi tiết hỗ trợ vẫn ở đúng màn hình nghiệp vụ.
-- [ ] E2E tích hợp browser/Core/DB và hồi quy các trình duyệt khác.
+- [x] Liên kết từ hồ sơ bằng customerId đã kiểm quyền; Inbox tự mở nhóm đúng khách, chi tiết hỗ trợ ở đúng màn nghiệp vụ, Back giữ tìm kiếm.
+- [x] E2E browser/gateway/Core/DB cho search/page/profile/support links/Back và ngoài assignment; hồi quy Chromium/Firefox/WebKit theo CU01/CU02.
 
 Dữ liệu kiểm thử phải hoàn toàn synthetic; bộ regression tạo fixture độc lập trong bộ nhớ để chạy được trên mọi máy.
 
@@ -75,8 +139,13 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | --- | --- | --- |
 | A05 E | GET /staff/customers | search/page/pageSize trong toàn tập active assignment; [Customers](02-customers-contract.md#api-hiện-có) |
 | A06 E | GET /staff/customers/:customerId | Hồ sơ đúng assignment; không citizenId/KYC |
+| E | POST /staff/customers/:customerId/contact-reveal | Hiện một trường email/phone sau kiểm quyền và CSRF; no-store/audit |
 
 | Route | Trạng thái |
 | --- | --- |
 | /staff/customers | Search Enter/list/page — CU01/CU02 |
 | /staff/customers/:customerId | Hồ sơ readonly và policies; không nhúng chat/Tickets |
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.

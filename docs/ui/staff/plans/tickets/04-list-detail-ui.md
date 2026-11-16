@@ -2,11 +2,45 @@
 
 05/11/2026 · **E: list/detail/status + Notifications chung** · [Contract](../07-tickets-contract.md) · [Chung](../00-staff-contract.md).
 
+## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
+
+Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data).
+
+**Thay đổi của phase:** Chỉ DTO Ticket có quyền, không nối raw Customer/chat để lấp trường che. Phân biệt bản duyệt với bản hiển thị lược bỏ; Accept/status không sửa snapshot.
+
+**Kiểm thử cần bổ sung, chưa chạy:** DOM/network: title/copy/tooltip/URL không rò canary; Back/revoke không hồi raw, status/reopen giữ CAS và confirmed content.
+
+**Số hợp đồng — A đã chốt 14/11/2026.** policyNumber được hiển thị đầy đủ trong scope phân công và gate tài nguyên, khớp source hiện tại. Giữ nguyên chuỗi nghiệp vụ, kiểm ký tự/số đầu và phân biệt policyNumber với policyId. Contact email/phone dùng che mặc định + Hiện/Ẩn theo CU01/CU02. [Policy chuẩn](../../../../configuration-and-data.md#staff-policy-number).
+
+**Liên hệ Customer — cập nhật 14/11/2026.** Hiện không có contact card raw trong chức năng này. Hiện/Ẩn tại Customers đã triển khai theo CU01/CU02; Contact card che email/phone mặc định và có Hiện/Ẩn để Staff liên hệ. Core kiểm lại quyền/phân công tại thời điểm reveal, response riêng từng trường. Raw được xóa khỏi UI state khi Ẩn/đổi khách/logout/revoke. [CU01/CU02 và policy chuẩn](../../../../configuration-and-data.md#staff-contact-reveal).
+
+## Data model và phạm vi ảnh hưởng
+
+**Bổ sung 13/11/2026 — summary Agent, phương án A:** Ticket detail hiển thị sáu nhóm và nguồn từ snapshot được Core cấp theo [I07](06-agent-confirmation.md#ticket-handoff-content). Finding đã xác minh và lời Customer có nhãn riêng; nhóm thiếu dữ liệu, nguồn không khả dụng và legacy cần trạng thái rõ. Không dựng lại summary từ chat mới hoặc cho phép sửa snapshot sau commit. Cần thêm DOM/network tests cho đủ nhóm/nguồn, quyền và source version; phần UI này chưa nghiệm thu.
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| support_tickets | status/version; đọc assigned_staff_id/customer_id | Ghi gián tiếp qua TK03 | Lock row + expectedVersion/CAS + current assignment; không tạo confirmation evidence | Cao — đủ TicketStatus theo transitions hiện hành, reopen riêng Ticket; ConversationStatus không CLOSED |
+
+**Schema/migration:** Không migration, không browser update DB trực tiếp.
+
+**Nhất quán và hồi quy:** List → detail dùng DTO+allowed actions; dropdown submit expectedVersion, không tự gán actor hoặc chat status. Kiểm Back giữ search/filter, 409 reload đúng vùng, đủ enum và no-op.
+
 ## 1. Phạm vi và code
 
-Tickets riêng /staff/tickets và /staff/tickets/:ticketId. FR-010 read/Accept đã có; người dùng05/11 yêu cầu quản lý status như task, gồm resolve/close/reopen. Không thêm tạo Ticket thủ công, phản hồi, Claim/payment hoặc Agent producer.
+Tickets riêng /staff/tickets và /staff/tickets/:ticketId. FR-010 read/Accept đã có; người dùng05/11 yêu cầu quản lý status như task, gồm resolve/close/reopen. Form tạo thủ công thuộc Customer T01/T02. Staff UI quản lý read/Accept/status; phản hồi, Claim/payment và Agent producer có phạm vi riêng.
 
 Code: apps/web/src/components/staff-tickets.tsx, lib/ticket-api.ts, slot Tickets của staff-reference-workspace.tsx. Dùng useAuthorizedRead/useCooldown, Tailwind/Lexend và session/realtime chung; không dependency mới.
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/web/src/components/staff-tickets.tsx](<../../../../../apps/web/src/components/staff-tickets.tsx>) | Hiện có | List/detail/status dropdown | Trung bình | Đổi view không reload trang |
+| [apps/web/src/lib/ticket-api.ts](<../../../../../apps/web/src/lib/ticket-api.ts>) | Hiện có | Status DTO/CSRF/version | Cao | TK03 contract |
+| [apps/web/src/components/staff-reference-workspace.tsx](<../../../../../apps/web/src/components/staff-reference-workspace.tsx>) | Hiện có | Mount Ticket routes và actor scope | Trung bình | Inbox/Customers/Policy giữ nguyên |
+| [apps/web/src/components/use-authorized-read.ts](<../../../../../apps/web/src/components/use-authorized-read.ts>) | Hiện có | Revalidation giữ cùng resource | Cao | Các danh sách Staff dùng chung |
 
 ## 2. Bố cục và điều hướng
 
@@ -22,7 +56,7 @@ Code: apps/web/src/components/staff-tickets.tsx, lib/ticket-api.ts, slot Tickets
 
 A21 list/A22 detail và PATCH /api/v1/staff/tickets/:ticketId/status theo [TK03 mục7](03-accept-command.md#7-mở-rộng-lifecycle-do-người-dùng-chốt--05112026).
 
-Dropdown luôn đủ5 status: Open, Assigned, In progress, Resolved, Closed. Theo quyết định người dùng05/11, được chọn trực tiếp bất kỳ status nào; không bắt buộc đi tuần tự. Core trả4 đích trong allowedActions.transitions, FE thêm current status; quyền/version/CSRF vẫn do Core kiểm tra.
+Dropdown luôn đủ 5 status: Open, Assigned, In progress, Resolved, Closed. Theo quyết định người dùng05/11, được chọn trực tiếp bất kỳ status nào; không bắt buộc đi tuần tự. Core trả 4 đích trong allowedActions.transitions, FE thêm current status; quyền/version/CSRF vẫn do Core kiểm tra.
 
 Gửi {expectedVersion,status} + CSRF. Lock đồng bộ chống thao tác trùng; disable pending/blocked/session error/refresh/unknown/cooldown. Chỉ cập nhật sau ACK commit hoặc GET reconcile; ACK version mới không bị read nền cũ ghi đè. UI bỏ nút Accept riêng; POST Accept cũ giữ tương thích API.
 
@@ -55,17 +89,87 @@ flowchart TD
   H --> B
 ```
 
-## 6. Kiểm thử và kết quả
+## 6. Test cases
 
-staff-tickets.spec.mjs:14 browser tests với API mock, gồm full-width list/detail/Back/query/load more/no-F5; workflow/reopen; legacy/chat link; pending/unknown/409/429/denied/session; late response; mobile375px/zoom200%; popup portal parent body/bounds/keyboard/Escape; background DOM/pages/draft/focus.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
-ticket-flow.integration.spec.mjs:1 **browser E2E thật hai tab** Web→gateway→Core/PostgreSQL/outbox/WS. Search/detail/status IN_PROGRESS→RESOLVED→CLOSED→IN_PROGRESS; tab còn lại cập nhật, notification mark read/target và3 status notifications. Helper browser-ticket-fixture.cjs tạo isolated synthetic/session và teardown theo lock order, không bootstrap/seed riêng.
+### TK04-T01 — Danh sách → chi tiết → Back
 
-conversation-realtime.spec.mjs:7 regression tests handoff/notification/transcript/scope/reconnect. Tổng **22 browser tests pass**. Không gộp backend tests thành E2E; không screenshot/trace/video. Web lint/typecheck/build pass.
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** S-A có hơn20 Ticket và một mã ở trang sau.
 
-```powershell
-npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.integration.spec.mjs conversation-realtime.spec.mjs --reporter=list
-```
+**Các bước:**
+
+1. Search bằng Enter, lọc status và Load more.
+2. Bấm dòng Ticket để mở detail.
+3. Back về list và dùng Back/Forward trình duyệt.
+
+**Kết quả mong đợi:** Detail riêng không sidebar kết quả; query/pages giữ đúng; dòng không underline/visited tím; không F5.
+
+### TK04-T02 — Dropdown đủ 5 và status cập nhật sau ACK
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** Detail T-A đang IN_PROGRESS; Core trả 4 transitions còn lại.
+
+**Các bước:**
+
+1. Mở dropdown và đếm5 option.
+2. Chọn CLOSED rồi OPEN rồi ASSIGNED.
+3. Giữ chậm một ACK và thử thao tác lần2.
+
+**Kết quả mong đợi:** Cho chọn trực tiếp; current chỉ đổi theo ACK/reconcile; pending khóa control, không gửi mutation trùng.
+
+### TK04-T03 — Unknown và 409 không auto-write
+
+**Lớp kiểm thử:** Browser + API barrier.
+**Điều kiện và dữ liệu:** Giữ/ngắt ACK sau commit; biến thể riêng PATCH409.
+
+**Các bước:**
+
+1. Chọn status mới rồi làm ACK mất.
+2. Cho GET reconcile cũng lỗi, bấm Check status sau khi khôi phục.
+3. Với409 quan sát request tiếp theo.
+
+**Kết quả mong đợi:** Unknown chỉ kiểm GET, không PATCH version mới; current state được cập nhật để người dùng review, không false success.
+
+### TK04-T04 — Detail denied và response cũ
+
+**Lớp kiểm thử:** Browser + API mock.
+**Điều kiện và dữ liệu:** T-A đang mở; giữ responseA rồi chọn B; sau đó B bị revoke.
+
+**Các bước:**
+
+1. Trả responseA muộn.
+2. Cho detail B403/404 hoặc session 401.
+3. Kiểm nội dung/actions và điều hướng.
+
+**Kết quả mong đợi:** Không dữ liệu A ghi đè B; denied clear Ticket/actions,401 về login; không giữ Private dưới thông báo lỗi.
+
+### TK04-T05 — Notification và hai tab realtime
+
+**Lớp kiểm thử:** Browser E2E.
+**Điều kiện và dữ liệu:** Hai tab S-A cùng T-A; worker/WS đang chạy, fixture riêng.
+
+**Các bước:**
+
+1. Tab1 đổi status.
+2. Tab2 chờ update và mở Notifications.
+3. Đánh dấu đọc/mở target, kiểm version qua API.
+
+**Kết quả mong đợi:** Tab2 tự cập nhật đúng status; target là Tickets, không Inbox; thông báo generic; read không đổi status; không F5.
+
+### TK04-T06 — Mobile và zoom
+
+**Lớp kiểm thử:** Browser.
+**Điều kiện và dữ liệu:** Ticket/title/Customer có chuỗi dài, viewport 375px.
+
+**Các bước:**
+
+1. Mở list rồi detail.
+2. Zoom200%, Tab tới Back/dropdown/chat link nếu có.
+3. Đo bounds các panel và popup Notifications.
+
+**Kết quả mong đợi:** Không tràn ngang hoặc popup bị clipping; focus thấy được; không cần hiển thị dòng nhắc Enter để search vẫn hoạt động.
 
 ## 7. Checklist
 
@@ -74,4 +178,28 @@ npm run test:browser --workspace apps/web -- staff-tickets.spec.mjs ticket-flow.
 - [x] Pending/unknown/reconcile/denied/cooldown và late response.
 - [x] Notifications toolbar/portal không bị che, keyboard/mobile/zoom.
 - [x] Browser mock + E2E thật và fixture/artifact cleanup.
-- [ ] I07 producer tạo/xác nhận và immutable snapshot; không thuộc UI phase này.
+- [x] Application Phase 2 tạo/xác nhận Ticket và snapshot cơ bản bất biến; Staff detail phân biệt nội dung đã xác nhận với legacy chưa xác minh, có kiểm Core/browser tại T01/T02/I07.
+- [ ] I07 tích hợp nguồn Agent thật, sáu nhóm summary/source refs và UI tương ứng; ngoài Phase 2.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Mở danh sách hoặc chi tiết
+    W->>C: GET /staff/tickets và Ticket detail
+    C->>D: Kiểm session, role và recipient và active assignment
+    D-->>C: Scope hiện hành và dữ liệu trong snapshot
+    alt Không đủ quyền hoặc phiên không hợp lệ
+        C-->>W: Lỗi an toàn, không entity riêng tư
+        W-->>U: Clear vùng mất quyền hoặc yêu cầu login
+    else Hợp lệ
+        C-->>W: DTO allowlist và pagination nếu có
+        W-->>U: Hiển thị đúng resource, không F5
+    end
+```

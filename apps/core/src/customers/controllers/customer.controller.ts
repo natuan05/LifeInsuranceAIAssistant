@@ -1,6 +1,7 @@
-import { BadRequestException, Controller, Get, Header, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Header, HttpCode, Post, Param, ParseUUIDPipe, Query, Req } from '@nestjs/common';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { IncomingMessage } from 'node:http';
+import { ContactRevealDto } from '../dto/contact-reveal.dto';
 import { CustomerService } from '../services/customer.service';
 import { CustomerListQuery } from '../dto/customer-query.dto';
 
@@ -26,4 +27,13 @@ export class CustomerController {
     if (Object.keys(query).length) throw new BadRequestException();
     return this.customers.detail(request, id);
   }
+
+  @Post('staff/customers/:customerId/contact-reveal') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Reveal one contact field for a currently assigned Customer.' })
+  reveal(@Req() request: IncomingMessage, @Param('customerId', new ParseUUIDPipe()) id: string,
+    @Body() body: ContactRevealDto, @Query() query: Record<string, unknown>) {
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.customers.reveal(request, id, body.field);
+  }
+
 }

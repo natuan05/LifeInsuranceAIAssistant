@@ -2,23 +2,39 @@
 
 04/11/2026 · **CH01–CH03 là kế hoạch mới** · C06 · [Chung](00-customer-contract.md).
 
+## Truy vết data model và vị trí code theo phase
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [CH01 — Ghép Conversations UI trên I03–I06](chat/01-existing-chat-workspace.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + messages + conversation_handoffs + conversation_command_receipts (Ghi gián tiếp qua I03/I05, không từ UI trực tiếp); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/customer-handoff-dialog.tsx](<../../../../apps/web/src/components/customer-handoff-dialog.tsx>) | Cao — Customer shell và Direct/AI tabs |
+| [CH02 — Contract Core–Agent, durable turns và tool scope](chat/02-agent-boundary.md) | conversations + conversation_handoffs (Đọc); messages (Đọc); insurance_policies + insurance_products (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../apps/core/src/conversations/services/conversation-message.service.ts>); [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Cao — SYSTEM/Customer/Staff append giữ semantics |
+| [CH03 — AI answers, citations và lời gợi ý có xác nhận](chat/03-agent-answers-ui.md) | messages (Đọc); documents + document_versions (Đọc); Durable turn — P, chưa có bảng app (DDL và ghi dự kiến, chưa triển khai) | [apps/web/src/components/customer-conversations.tsx](<../../../../apps/web/src/components/customer-conversations.tsx>); [apps/web/src/components/conversation-transcript.tsx](<../../../../apps/web/src/components/conversation-transcript.tsx>) | Cao — Customer shell và Direct/AI tabs |
+
 ## 1. Baseline và yêu cầu
 
-FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/history, Direct, consent/request/Accept, gửi chống trùng, realtime catch-up và SYSTEM tiếp nhận. `apps/agent` vẫn placeholder, chưa provider/transport/checkpoint/runtime. Không làm lại REST/chat từ đầu hoặc giả AI đã phản hồi.
+FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/history, Direct, consent/request/Accept, gửi chống trùng, realtime catch-up và SYSTEM tiếp nhận. Source `apps/agent` có graph, Public RAG/adapter Gemini thử nghiệm và checkpointer PostgreSQL theo Agent README. Provider Gemini API đã chốt cho MVP ngày 13/11/2026. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. HTTP/Core end-to-end, limits và nghiệm thu còn cần hoàn thiện. Không làm lại REST/chat từ đầu hoặc giả AI đã phản hồi.
 
 | Phase | Kết quả | Gate |
 | --- | --- | --- |
-| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat đang chạy vào shell/route Customer mới | H01; không Agent |
+| [CH01](chat/01-existing-chat-workspace.md) | Đưa chat vào shell Customer mới (Đã triển khai) | H01; không Agent |
 | [CH02](chat/02-agent-boundary.md) | Service identity, durable turns, tools/retrieval/fence và contract Agent | Review kiến trúc/migration trước nối LLM |
 | [CH03](chat/03-agent-answers-ui.md) | Hiển thị tiến trình/answer/citations/gợi ý đã được Core cho phép | CH02+Agent thật, D01/D02 nếu mở policy PDF |
 
 ## 2. Quyết định phải giữ
 
+**Logout/hết phiên — B đã chốt 14/11/2026.** Các yêu cầu AI Core đã nhận tiếp tục xử lý theo quyền tài khoản/tài nguyên hiện hành. UI phiên cũ xóa nội dung riêng, login lại cùng actor đọc history/current run bằng phiên mới. Tích hợp còn P trong CH02-T08/CH03-T07 và Auth. [Chính sách chuẩn](../../../specifications/Agent_Design.md#agent-logout-session-policy).
+
+**Lịch sử MVP — A đã chốt 14/11/2026.** Giữ hội thoại/tin nhắn để Customer xem lại, chưa tự xóa theo thời gian. New AI chat tạo cuộc mới và lịch sử cũ vẫn đọc theo ownership/session, Staff đọc theo grant/phân công hiện hành. CH01-T06 kiểm hồi quy. [Chính sách chuẩn](../../../configuration-and-data.md#mvp-chat-history-retention).
+
+**Lượt AI lỗi/quá hạn — A đã chốt 14/11/2026.** Core lưu FAILED và UI báo lỗi để Customer chủ động gửi lại/hỏi tiếp bằng tin mới. Lượt lỗi không tự chạy lại, reload/reconnect đối soát cùng run. Retry giao nhận theo ID/receipt và retry tạm thời trong request theo ngân sách hiện hành. Tích hợp/history/UI còn P trong CH02-T07/CH03-T06. [Quyết định chuẩn](../../../specifications/Agent_Design.md#failed-turn-policy).
+
+**Chat mới sau Staff — đã chốt 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc. New AI chat/create đã có, CH01 giữ hành vi này, CH02/CH03 còn kiểm context/callback và tích hợp Agent/Core. [Quyết định chuẩn](../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
+
 ConversationStatus chỉ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE, không CLOSED. Customer có nhiều cuộc theo chủ đề/tên/thời gian, không unread/counts giả. Staff không xem AI riêng; request pending chỉ metadata Customer chia sẻ; sau consent toàn bộ lịch sử + Staff Accept mới toàn bộ Customer-visible trong chính cuộc. Direct có provenance riêng, không đổi flag của cuộc AI cũ. Ticket là nhánh I07, không hậu quả tự động của handoff hoặc SYSTEM.
 
-CH02 là phase phân tích kỹ thuật/contract và triển khai nền sau khi quyết định được ghi lại; không tự chọn AgentCore/provider/HTTPframework/checkpoint từ đề xuất ADR. Cần test Core với adapter giả trong harness rồi Agent thật; không lấy mock answer làm FR-005 đã đạt.
+CH02 hoàn thiện contract và tích hợp theo các quyết định đã chốt trong Agent Design, gồm HTTP + callback, Starlette + uvicorn, LI-HMAC-SHA256-v1 và Gemini API. Storage/fence và hosting cụ thể theo phần review G2/G3 hiện hành. Cần test Core với adapter giả trong harness rồi Agent thật, nghiệm thu FR-005 theo chứng cứ từng luồng.
 
-- [ ] CH01 giữ quyền/nháp/reconcile/realtime I03–I06.
+- [x] CH01 giữ quyền/nháp/reconcile/realtime I03–I06, giao diện 100% tiếng Anh, tối ưu header và composer.
 - [ ] CH02 boundary/security/durability được chốt và kiểm chứng riêng.
 - [ ] CH03 nguồn/citation/handoff/Ticket-gate/no-F5 tests; FR-005 không xong chỉ vì gửi được tin.
 

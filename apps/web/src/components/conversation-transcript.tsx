@@ -53,7 +53,27 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
       else setError(failure instanceof ConversationError ? failure.message : 'Unable to load messages. Retry to continue.');
     } finally { if (!abort.signal.aborted) { lock.current = false; setPending(false); if (dirty.current) queueMicrotask(() => sync.current()); } }
   }, [id, onDenied, role]);
-  useLayoutEffect(() => { sync.current = () => { if (lock.current) { dirty.current = true; return; } dirty.current = false; void load(pageRef.current ? 'after' : 'initial'); }; }, [load]);
+  useLayoutEffect(() => {
+    sync.current = async () => {
+      if (lock.current) { dirty.current = true; return; }
+      dirty.current = false;
+      if (pageRef.current) {
+        const abort = new AbortController();
+        try {
+          const result = await conversationMessages(id, {}, abort.signal, role);
+          setMessages(current => mergeMessages(current, result.items));
+          const element = viewport.current;
+          const atBottom = !element || element.scrollHeight - element.clientHeight - element.scrollTop < 80;
+          if (atBottom) anchor.current = 'bottom';
+        } catch {
+          // Fallback to load after if latest fetch fails
+          void load('after');
+        }
+      } else {
+        void load('initial');
+      }
+    };
+  }, [id, load, role]);
   useEffect(() => {
     if (!refreshToken) return;
     let disposed = false; queueMicrotask(() => { if (!disposed) sync.current(); });
@@ -155,6 +175,26 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
                       </li>
                     ))}
                   </ul>
+                )}
+                {isMe && (
+                  <div className="tw:mt-1 tw:flex tw:items-center tw:gap-1 tw:text-[10px] tw:text-slate-400">
+                    {message.readAt ? (
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="tw:text-blue-500">
+                          <polyline points="20 6 9 17 4 12"/>
+                          <polyline points="20 12 15 17 10 12"/>
+                        </svg>
+                        <span className="tw:text-blue-600 tw:font-medium">Đã xem</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="tw:text-slate-400">
+                          <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                        <span>Đã gửi</span>
+                      </>
+                    )}
+                  </div>
                 )}
               </div>
             </li>

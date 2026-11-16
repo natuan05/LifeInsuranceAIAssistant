@@ -77,6 +77,40 @@ export class ConversationMessageService {
       `Staff ${profile.fullName} has accepted your request and will respond as soon as possible.`, null, handoffId);
   }
 
+  async markAsRead(tx: Prisma.TransactionClient, actor: { id: string; role: 'CUSTOMER' | 'STAFF' }, id: string) {
+    if (actor.role === 'STAFF') await this.access.requireTranscript(tx, actor.id, id);
+    else await this.access.requireCustomer(tx, actor.id, id);
+    const now = new Date();
+    const targetSenderType = actor.role === 'CUSTOMER' ? { not: 'CUSTOMER' as const } : 'CUSTOMER';
+    const updated = await tx.message.updateMany({
+      where: { conversationId: id, senderType: targetSenderType, readAt: null, audience: 'CUSTOMER_VISIBLE' },
+      data: { readAt: now },
+    });
+    if (actor.role === 'CUSTOMER') {
+      await tx.notification.updateMany({
+        where: { recipientCustomerId: actor.id, conversationId: id, kind: 'STAFF_MESSAGE_UNREAD', isRead: false },
+        data: { isRead: true },
+      });
+    } else if (actor.role === 'STAFF') {
+      await tx.notification.updateMany({
+        where: { recipientStaffId: actor.id, conversationId: id, kind: 'CUSTOMER_MESSAGE_UNREAD', isRead: false },
+        data: { isRead: true },
+      });
+    }
+    if (updated.count > 0) {
+      const conv = await tx.conversation.findUniqueOrThrow({ where: { id }, select: { controlVersion: true } });
+      await tx.outboxEvent.create({
+        data: {
+          aggregateType: 'CONVERSATION',
+          aggregateId: id,
+          eventType: 'MESSAGE_COMMITTED',
+          payload: { schemaVersion: 1, controlVersion: conv.controlVersion },
+        },
+      });
+    }
+    return { success: true, readAt: now.toISOString() };
+  }
+
   private async append(tx: Prisma.TransactionClient, id: string, senderType: 'CUSTOMER' | 'STAFF' | 'AI_AGENT' | 'SYSTEM',
     senderId: string | null, content: string, clientMessageId: string | null, internalMessageId: string | null) {
     const previous = await tx.conversation.findUniqueOrThrow({ where: { id }, select: { lastCustomerFacingActivityAt: true, controlVersion: true } });

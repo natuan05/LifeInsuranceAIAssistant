@@ -7,7 +7,7 @@ import { AuthError, login, logout, me, type Actor, type Session } from '@/lib/au
 import { ChangePasswordForm } from './change-password-form';
 import { LoginPanel } from './login-panel';
 import { StaffPortal } from './staff-portal';
-import { CustomerWorkspace } from './customer-workspace';
+import { CustomerPortal } from './customer-portal';
 const home = (actor: Actor) => actor.role === 'STAFF' ? '/staff/customers' : '/customer';
 function loginDestination(actor: Actor) {
     if (actor.role === 'STAFF') {
@@ -125,8 +125,10 @@ export function AuthScreen({ mode }: {
         };
     }, [mode, router, isLogin, loginPath]);
     useEffect(() => {
-        if (!refreshingSession) retryButton.current?.focus();
-    }, [refreshingSession]);
+        if (loading || refreshingSession || !error) return;
+        const frame = requestAnimationFrame(() => retryButton.current?.focus());
+        return () => cancelAnimationFrame(frame);
+    }, [loading, refreshingSession, error]);
     async function submit(event: FormEvent<HTMLFormElement>) {
         event.preventDefault();
         if (pending)
@@ -175,6 +177,10 @@ export function AuthScreen({ mode }: {
         return <StaffPortal actor={actor} csrfToken={session?.csrfToken ?? ''} account={mode === 'account'} pending={pending} error={error} onSignOut={signOut}>
     {mode === 'account' && session && <ChangePasswordForm appearance="staff" session={session} onChanged={setSession} onExpired={() => { setSession(null); router.replace('/staff/login'); }}/>}
   </StaffPortal>;
+    if (!loading && actor?.role === 'CUSTOMER' && (mode === 'CUSTOMER' || mode === 'account'))
+        return <CustomerPortal actor={actor} csrfToken={session?.csrfToken ?? ''} account={mode === 'account'} pending={pending} error={error} onSignOut={signOut}>
+    {mode === 'account' && session && <ChangePasswordForm session={session} onChanged={setSession} onExpired={() => { setSession(null); router.replace('/login'); }}/>}
+  </CustomerPortal>;
     if (loading || !actor)
         return <main className={"session-screen tw:min-h-[100dvh] tw:grid tw:place-content-center tw:gap-[24px] tw:bg-[#f8fafc] tw:text-[#0f172a] tw:font-login tw:text-center tw:pt-[24px] tw:pr-[24px] tw:pb-[24px] tw:pl-[24px] tw:[:where(&)_h1]:mt-[16px] tw:[:where(&)_h1]:mr-[0] tw:[:where(&)_h1]:mb-[16px] tw:[:where(&)_h1]:ml-[0] tw:[:where(&)_h1]:text-[clamp(30px,_6vw,_42px)] tw:[:where(&)_h1]:tracking-[-1.5px] tw:[:where(&)_button]:flex tw:[:where(&)_button]:items-center tw:[:where(&)_button]:justify-between tw:[:where(&)_button]:gap-[16px] tw:[:where(&)_button]:w-full tw:[:where(&)_button]:pt-[16px] tw:[:where(&)_button]:pr-[18px] tw:[:where(&)_button]:pb-[16px] tw:[:where(&)_button]:pl-[18px] tw:[:where(&)_button]:border-0 tw:[:where(&)_button]:rounded-[8px] tw:[:where(&)_button]:bg-[#1b5a48] tw:[:where(&)_button]:text-white tw:[:where(&)_button]:text-[14px] tw:[:where(&)_button]:font-semibold tw:[:where(&)_button]:cursor-pointer tw:[:where(&)_button:hover]:bg-[#154b3b] tw:[:where(&)_button:focus-visible]:[outline:3px_solid_#8dc8ac] tw:[:where(&)_button:focus-visible]:[outline-offset:3px] tw:[:where(&)_button:disabled]:opacity-[.65] tw:[:where(&)_button:disabled]:cursor-wait tw:[:where(&)_pre]:mt-[14px] tw:[:where(&)_pre]:mr-[0] tw:[:where(&)_pre]:mb-[14px] tw:[:where(&)_pre]:ml-[0] tw:[:where(&)_pre]:pt-[16px] tw:[:where(&)_pre]:pr-[16px] tw:[:where(&)_pre]:pb-[16px] tw:[:where(&)_pre]:pl-[16px] tw:[:where(&)_pre]:bg-[#f4f7f4] tw:[:where(&)_pre]:[border:1px_solid_var(--tw-color-portal-line)] tw:[:where(&)_pre]:rounded-[8px] tw:[:where(&)_pre]:overflow-x-auto tw:[:where(&)_pre]:text-portal-ink tw:[:where(&)_pre]:text-[12px] tw:[:where(&)_footer]:pt-[24px] tw:[:where(&)_footer]:pr-[24px] tw:[:where(&)_footer]:pb-[24px] tw:[:where(&)_footer]:pl-[24px] tw:[:where(&)_footer]:text-center tw:[:where(&)_footer]:text-[#82938a] tw:[:where(&)_footer]:text-[11px]"} aria-busy={loading || refreshingSession}>
     <div className={"session-brand tw:text-[22px] tw:font-semibold tw:tracking-[-.02em]"}>AegisLife</div>
@@ -189,12 +195,12 @@ export function AuthScreen({ mode }: {
         <section className={"auth-card tw:bg-white tw:[border:1px_solid_#dce6e1] tw:rounded-[18px] tw:pt-[32px] tw:pr-[32px] tw:pb-[32px] tw:pl-[32px] tw:[box-shadow:0_12px_40px_#163e2f08] tw:[&_h1]:text-[30px] tw:[&_h1]:leading-[1.3] tw:[&_h1]:mt-[14px] tw:[&_h1]:mr-[0] tw:[&_h1]:mb-[14px] tw:[&_h1]:ml-[0] tw:[&_h2]:text-[27px] tw:[&_h2]:mt-[0] tw:[&_h2]:mr-[0] tw:[&_h2]:mb-[10px] tw:[&_h2]:ml-[0] tw:[&>p]:text-[#687c72] tw:[&>p]:text-[14px] tw:max-[700px]:pt-[24px] tw:max-[700px]:pr-[24px] tw:max-[700px]:pb-[24px] tw:max-[700px]:pl-[24px]"}><p className={"auth-eyebrow tw:text-[11px] tw:tracking-[2px] tw:font-bold tw:text-[#39725b]"}>CUSTOMER PORTAL</p><h1>{mode === 'account' ? 'Your account' : `Hello, ${actor.fullName}`}</h1><p>You are signed in.</p>
           <dl className={"auth-details tw:grid tw:[grid-template-columns:1fr_1fr] tw:gap-[24px] tw:mt-[30px] tw:[&_dt]:text-[12px] tw:[&_dt]:text-[#708176] tw:[&_dd]:mt-[7px] tw:[&_dd]:mr-[0] tw:[&_dd]:mb-[0] tw:[&_dd]:ml-[0] tw:[&_dd]:text-[15px] tw:[&_dd]:wrap-anywhere tw:max-[700px]:[grid-template-columns:1fr]"}><div><dt>Full name</dt><dd>{actor.fullName}</dd></div><div><dt>Account code</dt><dd>{actor.accountCode}</dd></div><div><dt>Email</dt><dd>{actor.email}</dd></div><div><dt>Role</dt><dd>Customer</dd></div></dl>
         </section>
-        {mode === 'CUSTOMER' && <CustomerWorkspace key={actor.id} actorId={actor.id} csrfToken={session?.csrfToken ?? ''} blocked={Boolean(error) || pending}/>}
+        {mode === 'CUSTOMER' && <CustomerPortal actor={actor} csrfToken={session?.csrfToken ?? ''} account={false} pending={pending} error={error} onSignOut={signOut} />}
         {mode === 'account' && session && <ChangePasswordForm session={session} onChanged={setSession} onExpired={() => {
                 setSession(null);
                 router.replace('/login');
             }}/>}
       </div>
-    <footer className={"auth-footer tw:flex tw:justify-between tw:text-[12px] tw:text-[#75877d] tw:pt-[26px] tw:pr-[0] tw:pb-[26px] tw:pl-[0] tw:gap-[16px] tw:[&_a]:text-inherit tw:max-[700px]:flex-wrap"}>LifeCare · Customer Portal <Link href="/connection">Connection status</Link></footer>
+    <footer className={"auth-footer tw:flex tw:justify-between tw:text-[12px] tw:text-[#75877d] tw:pt-[26px] tw:pr-[0] tw:pb-[26px] tw:pl-[0] tw:gap-[16px] tw:[&_a]:text-inherit tw:max-[700px]:flex-wrap"}>AegisLife · Customer Portal <Link href="/connection">Connection status</Link></footer>
   </main>;
 }

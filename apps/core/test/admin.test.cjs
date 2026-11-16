@@ -12,6 +12,8 @@ const { hashPassword, verifyPassword } = require('../dist-admin/accounts/utils/p
 const { DatabaseService } = require('../dist/database/database.service');
 const { AuthService } = require('../dist/auth/services/auth.service');
 const { AuthController } = require('../dist/auth/controllers/auth.controller');
+const { ConversationCommandService } = require('../dist/conversations/services/conversation-command.service');
+const { ConversationRateLimitService } = require('../dist/conversations/services/conversation-rate-limit.service');
 const { CustomerService } = require('../dist/customers/services/customer.service');
 const { CustomerController } = require('../dist/customers/controllers/customer.controller');
 const { configureHttp } = require('../dist/http/http-foundation');
@@ -48,7 +50,7 @@ async function loginUser(account,password=account.initialPassword) {
 const publicGet=(path,cookie)=>fetch(publicBase+'/'+path,{headers:{Cookie:cookie}});
 before(async()=>{
   class PublicTestModule {}
-  Module({controllers:[AuthController,CustomerController],providers:[AuthService,CustomerService,{provide:DatabaseService,useValue:{prisma:core}}]})(PublicTestModule);
+  Module({controllers:[AuthController,CustomerController],providers:[AuthService,CustomerService,ConversationCommandService,ConversationRateLimitService,{provide:DatabaseService,useValue:{prisma:core}}]})(PublicTestModule);
   publicApp=await NestFactory.create(PublicTestModule,{logger:false});configureHttp(publicApp,{origins:['http://localhost:3000'],docsEnabled:false});await publicApp.listen(0,'127.0.0.1');publicBase=(await publicApp.getUrl())+'/api/v1';
   app=await createAdminApp(db,{username:credential.username,passwordHash:await hashPassword(credential.password)},4101);await app.listen(4101,'127.0.0.1');
 });
@@ -59,7 +61,7 @@ after(async()=>{
     await tx.authSession.deleteMany({where:{userId:{in:ids}}});await tx.staffAssignment.deleteMany({where:{OR:[{staffId:{in:ids}},{customerId:{in:ids}}]}});
     await tx.auditLog.deleteMany({where:{OR:[{operatorId:credential.username},{targetId:{in:ids}}]}});
     await tx.customerProfile.deleteMany({where:{userId:{in:ids}}});await tx.staffProfile.deleteMany({where:{userId:{in:ids}}});await tx.user.deleteMany({where:{id:{in:ids}}});
-    await tx.rateLimitBucket.deleteMany({where:{clientToken:{in:[digest(credential.username+':127.0.0.1'),...users.map(u=>digest(u.email))]}}});
+    await tx.rateLimitBucket.deleteMany({where:{clientToken:{in:[digest(credential.username+':127.0.0.1'),...users.flatMap(u=>[digest(u.email),digest(u.id)])]}}});
   });await db.$disconnect();await core.$disconnect();
 });
 

@@ -1,7 +1,12 @@
 import { HttpException } from '@nestjs/common';
 
 const errors = {
+  TICKET_CODE_UNAVAILABLE: { status: 503, message: 'Unable to allocate a ticket code. Retry this request with the same key.' },
   STALE_TICKET: { status: 409, message: 'The ticket has changed. Check its current state.' },
+  DRAFT_EXPIRED: { status: 409, message: 'The ticket draft has expired.' },
+  STALE_DRAFT: { status: 409, message: 'The ticket draft has changed. Review its current content.' },
+  DRAFT_ALREADY_CONFIRMED: { status: 409, message: 'The ticket draft has already been confirmed.' },
+  DRAFT_NOT_EDITABLE: { status: 409, message: 'The ticket draft can no longer be edited.' },
   INVALID_CURSOR: { status: 400, message: 'Invalid pagination cursor.' },
   RATE_LIMITED: { status: 429, message: 'Too many requests.' },
   STALE_CONVERSATION: { status: 409, message: 'The conversation has changed. Check its current state.' },

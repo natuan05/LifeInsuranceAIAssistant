@@ -103,6 +103,15 @@ enum TicketStatus {
   @@schema("business")
 }
 
+enum TicketDraftState {
+  DRAFT
+  CONFIRMED
+  EXPIRED
+  SUPERSEDED
+
+  @@schema("business")
+}
+
 enum OutboxStatus {
   PENDING
   PROCESSING
@@ -152,6 +161,8 @@ model CustomerProfile {
   documents         Document[]
   conversations     Conversation[]
   tickets           SupportTicket[]
+  notifications     Notification[]
+  ticketDrafts      TicketDraft[]
 
   @@unique([userId, role])
   @@map("customer_profiles")
@@ -277,6 +288,7 @@ model InsurancePolicy {
   documents        Document[]
   conversations    Conversation[]
   tickets          SupportTicket[]
+  ticketDrafts     TicketDraft[]
 
   @@unique([id, customerId])
   @@index([customerId])
@@ -347,6 +359,7 @@ model Conversation {
   copilotConversations Conversation[]      @relation("CopilotContext")
   messages             Message[]
   tickets              SupportTicket[]
+  ticketDrafts         TicketDraft[]
   notifications        Notification[]
   directAssignment StaffAssignment? @relation("DirectAssignment", fields: [directAssignmentId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: NoAction)
   handoffs ConversationHandoff[]
@@ -370,11 +383,13 @@ model Message {
   content           String
   citations         Json?        @db.JsonB
   toolCallsMetadata Json?        @map("tool_calls_metadata") @db.JsonB
+  readAt            DateTime?    @map("read_at") @db.Timestamptz(3)
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
   sender            User?        @relation(fields: [senderId], references: [id], onDelete: Restrict)
 
   @@index([conversationId, createdAt])
+  @@index([conversationId, readAt])
   @@unique([conversationId, sequence])
   @@unique([conversationId, senderId, clientMessageId])
   @@unique([conversationId, internalMessageId])
@@ -437,15 +452,44 @@ model SupportTicket {
   version          Int                @default(0)
   idempotencyKey   String             @unique @map("idempotency_key") @db.VarChar(255)
   confirmedAt      DateTime           @map("confirmed_at") @db.Timestamptz(3)
+  sourceDraftId    String?            @unique @map("source_draft_id") @db.Uuid
+  requestFingerprint String? @map("request_fingerprint") @db.VarChar(64)
+  confirmedContent Json?              @map("confirmed_content") @db.JsonB
   createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
   conversation     Conversation?      @relation(fields: [conversationId], references: [id], onDelete: Restrict)
   customer         CustomerProfile    @relation(fields: [customerId], references: [userId], onDelete: Restrict)
   staff            StaffProfile?      @relation(fields: [assignedStaffId], references: [userId], onDelete: Restrict)
-  policy           InsurancePolicy? @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
+  policy           InsurancePolicy?   @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
+  sourceDraft      TicketDraft?       @relation(fields: [sourceDraftId], references: [id], onDelete: Restrict)
   notifications    Notification[]
 
   @@index([customerId, createdAt])
   @@map("support_tickets")
+  @@schema("business")
+}
+
+model TicketDraft {
+  id             String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId String?          @map("conversation_id") @db.Uuid
+  customerId     String           @map("customer_id") @db.Uuid
+  version        Int              @default(1)
+  title          String           @db.VarChar(255)
+  description    String           @db.Text
+  policyId       String?          @map("policy_id") @db.Uuid
+  state          TicketDraftState @default(DRAFT)
+  payloadHash    String?          @map("payload_hash") @db.VarChar(64)
+  expiresAt      DateTime         @map("expires_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime         @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  customer       CustomerProfile  @relation(fields: [customerId], references: [userId], onDelete: Restrict)
+  conversation   Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  policy         InsurancePolicy? @relation(fields: [policyId, customerId], references: [id, customerId], onDelete: Restrict)
+  ticket         SupportTicket?
+
+  @@index([customerId, state])
+  @@index([conversationId, state])
+  @@map("ticket_drafts")
   @@schema("business")
 }
 
@@ -470,22 +514,25 @@ model OutboxEvent {
 }
 
 model Notification {
-  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  recipientStaffId String         @map("recipient_staff_id") @db.Uuid
-  ticketId         String?        @map("ticket_id") @db.Uuid
-  conversationId   String?        @map("conversation_id") @db.Uuid
-  title            String         @db.VarChar(255)
-  kind             String?        @db.VarChar(50)
-  body             String?
-  isRead           Boolean        @default(false) @map("is_read")
-  dedupKey         String         @unique @map("dedup_key") @db.VarChar(255)
-  deliveredAt      DateTime?      @map("delivered_at") @db.Timestamptz(3)
-  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  recipient        StaffProfile   @relation(fields: [recipientStaffId], references: [userId], onDelete: Restrict)
-  ticket           SupportTicket? @relation(fields: [ticketId], references: [id], onDelete: Restrict)
-  conversation     Conversation?  @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientStaffId    String?          @map("recipient_staff_id") @db.Uuid
+  recipientCustomerId String?          @map("recipient_customer_id") @db.Uuid
+  ticketId            String?          @map("ticket_id") @db.Uuid
+  conversationId      String?          @map("conversation_id") @db.Uuid
+  title               String           @db.VarChar(255)
+  kind                String?          @db.VarChar(50)
+  body                String?
+  isRead              Boolean          @default(false) @map("is_read")
+  dedupKey            String           @unique @map("dedup_key") @db.VarChar(255)
+  deliveredAt         DateTime?        @map("delivered_at") @db.Timestamptz(3)
+  createdAt           DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+  recipientStaff      StaffProfile?    @relation(fields: [recipientStaffId], references: [userId], onDelete: Restrict)
+  recipientCustomer   CustomerProfile? @relation(fields: [recipientCustomerId], references: [userId], onDelete: Restrict)
+  ticket              SupportTicket?   @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  conversation        Conversation?    @relation(fields: [conversationId], references: [id], onDelete: Restrict)
 
   @@index([recipientStaffId, isRead, createdAt])
+  @@index([recipientCustomerId, isRead, createdAt])
   @@map("notifications")
   @@schema("business")
 }

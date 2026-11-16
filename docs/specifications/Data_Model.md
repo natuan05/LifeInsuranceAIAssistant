@@ -1,7 +1,6 @@
 # Mô hình Dữ liệu & Từ điển Dữ liệu (Data Model & Data Dictionary)
 
-> **Đối chiếu model app05/11/2026:** Có19 model ứng dụng,10 migrations đến 202611050002_ticket_status_notifications. I01 thêm ConversationHandoff/ConversationCommandReceipt và provenance/control/audience/sequence/keys; I06 thêm outbox lease/notification kind. I01–I06 API/UI/send/realtime đã có. Legacy không tự grant Staff, giữ nội dung/time/link. TK01 đã thêm SupportTicket.version default0/CHECK nonnegative và policy nội bộ; TK02–TK05 read/Accept/UI/notification đã có; chưa updatedAt/confirmedContent/sourceDraftId hoặc TicketDraft. Snapshot/draft I07 vẫn P. [I01](../ui/staff/plans/inbox/01-model-permissions.md), [I06](../ui/staff/plans/inbox/06-realtime-routing.md), [bảng18](#bảng-18-conversation_handoffs), [bảng19](#bảng-19-conversation_command_receipts).
-
+> **Đối chiếu source 14/11/2026:** Prisma có 20 model ứng dụng và 14 migrations; mới nhất 202611140001_ticket_request_fingerprint. Application Phase 2 đã bổ sung nullable requestFingerprint, validation/replay/CAS và snapshot Ticket cơ bản. Sáu nhóm/source registry Agent và các thay đổi Notification/read-status vẫn theo phase riêng.
 
 > **Cập nhật local 03/11/2026 — đã migration enum:** ConversationStatus chỉ còn AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus.CLOSED giữ nguyên. Migration 202611030001_remove_conversation_closed chuyển Customer Support CLOSED cũ về AI_ACTIVE/controller NULL, bảo toàn lịch sử/liên kết/thời gian và audit trạng thái/controller cũ; không tạo consent/Accept/grant. Copilot CLOSED chưa review sẽ chặn migration và rollback. Assignment/assignedStaffId đơn lẻ không đủ quyền xem lịch sử AI: pending chỉ metadata, sau Accept mới toàn bộ transcript Customer-facing trong cuộc đó. Inbox không counts/conversationCode; handoff khác SupportTicket. [Spec](../ui/staff/plans/inbox/00-inbox-spec.md#2-data-model-hiện-có-và-đích-thay-đổi), [quyết định nguồn](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026).
 
@@ -9,11 +8,10 @@
 
 > Cập nhật local 25/10/2026 theo thống nhất: giữ 16 bảng nguồn và bổ sung bảng 17 `AUTH_SESSIONS` để quản lý phiên đăng nhập. Không dùng bảng `ADMIN_REQUESTS`. Các khác biệt triển khai còn lại được ghi trong [baseline data model](../architecture.md#local-data-model); bản nguồn bên ngoài repo không tự thay đổi.
 
-> **Đã chốt 30/10/2026:** [dữ liệu hợp đồng tối thiểu](Contract_Data_Design.md) giữ `product_id` cho sản phẩm chính, dùng `benefits_snapshot` cho danh sách mã bổ trợ và mức đầy đủ. Chi tiết khác tra qua RAG đúng quyền/phiên bản. Không bổ sung bảng/cột; validation và seed chưa triển khai.
+> **Đã chốt 30/10/2026:** [dữ liệu hợp đồng tối thiểu](Contract_Data_Design.md) giữ `product_id` cho sản phẩm chính, dùng `benefits_snapshot` cho danh sách mã bổ trợ và mức đầy đủ. Chi tiết khác tra qua RAG đúng quyền/phiên bản. Không bổ sung bảng/cột cho portfolio dev; Core read/PDF và seed synthetic đã có, validation thương mại/Agent vẫn theo kế hoạch riêng.
 
-> **Tài liệu chuyển đổi từ:** `Data Model.pdf`  
 > **Hệ thống:** Enterprise Customer Service AI Agent — Bảo hiểm Nhân thọ (SRS-BHNT)  
-> **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector (Tách 2 schema: `business` và `rag`)
+> **Cơ sở dữ liệu:** PostgreSQL 16+ tích hợp pgvector. Baseline application có `business` và `rag`; checkpoint/runtime Agent dự kiến có schema, role, pool và migration riêng, tên/cấu trúc chờ G2.
 
 > Bổ sung local 03/11/2026: ERD và từ điển CONVERSATIONS dưới đây đã bỏ CLOSED theo Prisma/migration mới; nguồn online cũ từng có giá trị này, không sửa nguồn online.
 
@@ -31,20 +29,20 @@ erDiagram
     USERS ||--o{ AUTH_SESSIONS : "user_id"
 
     STAFF_PROFILES ||--o{ STAFF_ASSIGNMENTS : "staff_id (phụ trách)"
-    CUSTOMER_PROFILES ||--|| STAFF_ASSIGNMENTS : "customer_id (duy nhất 1 staff)"
+    CUSTOMER_PROFILES ||--o{ STAFF_ASSIGNMENTS : "lịch sử phân công, tối đa một active"
     INSURANCE_PRODUCTS ||--o{ INSURANCE_POLICIES : "product_id"
     CUSTOMER_PROFILES ||--o{ INSURANCE_POLICIES : "customer_id"
 
     INSURANCE_PRODUCTS ||--o{ DOCUMENTS : "product_id (PDF chung)"
     INSURANCE_POLICIES ||--o{ DOCUMENTS : "policy_id (PDF hợp đồng)"
     CUSTOMER_PROFILES ||--o{ DOCUMENTS : "owner_customer_id"
-    DOCUMENTS ||--|{ DOCUMENT_VERSIONS : "document_id"
-    CUSTOMER_PROFILES ||--|{ CONVERSATIONS : "customer_id (bắt buộc)"
+    DOCUMENTS ||--o{ DOCUMENT_VERSIONS : "document_id"
+    CUSTOMER_PROFILES ||--o{ CONVERSATIONS : "customer_id (bắt buộc)"
     STAFF_PROFILES ||--o{ CONVERSATIONS : "assigned_staff_id (Staff được phân công; nullable)"
     INSURANCE_POLICIES ||--o{ CONVERSATIONS : "linked_policy_id"
     CONVERSATIONS ||--o{ CONVERSATIONS : "linked_context_conv_id (Staff Copilot)"
 
-    CONVERSATIONS ||--|{ MESSAGES : "conversation_id"
+    CONVERSATIONS ||--o{ MESSAGES : "conversation_id"
     USERS ||--o{ MESSAGES : "sender_id"
     CONVERSATIONS ||--o{ SUPPORT_TICKETS : "conversation_id"
     CUSTOMER_PROFILES ||--o{ SUPPORT_TICKETS : "customer_id"
@@ -53,6 +51,7 @@ erDiagram
     SUPPORT_TICKETS ||--o{ NOTIFICATIONS : "ticket_id"
     CONVERSATIONS ||--o{ NOTIFICATIONS : "conversation_id"
     STAFF_PROFILES ||--o{ NOTIFICATIONS : "recipient_staff_id"
+    CUSTOMER_PROFILES ||--o{ NOTIFICATIONS : "recipient_customer_id"
     DOCUMENTS ||..o{ RAG_KNOWLEDGE_CHUNKS : "document_id (Logic FK)"
     INSURANCE_POLICIES ||..o{ RAG_KNOWLEDGE_CHUNKS : "policy_id (Scoped Filter)"
     CUSTOMER_PROFILES ||..o{ RAG_KNOWLEDGE_CHUNKS : "owner_customer_id (Scoped Filter)"
@@ -236,8 +235,29 @@ erDiagram
         varchar status "OPEN | ASSIGNED | IN_PROGRESS | RESOLVED | CLOSED"
         int version "TK01: NOT NULL DEFAULT 0; >= 0"
         varchar idempotency_key UK "Chống tạo trùng NFR-005"
+        uuid source_draft_id FK,UK "NULL"
+        jsonb confirmed_content "NULL; snapshot schemaVersion=1"
+        varchar request_fingerprint "NULL legacy; SHA-256 cho request mới"
         timestamptz confirmed_at
         timestamptz created_at
+    }
+    CUSTOMER_PROFILES ||--o{ TICKET_DRAFTS : customer_id
+    CONVERSATIONS o|--o{ TICKET_DRAFTS : conversation_id
+    INSURANCE_POLICIES o|--o{ TICKET_DRAFTS : policy_id
+    TICKET_DRAFTS o|--o| SUPPORT_TICKETS : source_draft_id
+    TICKET_DRAFTS {
+        uuid id PK
+        uuid conversation_id FK "NULL"
+        uuid customer_id FK
+        uuid policy_id FK "NULL"
+        int version "DEFAULT 1, >=1"
+        varchar title
+        text description
+        varchar state "DRAFT | CONFIRMED | EXPIRED | SUPERSEDED"
+        varchar payload_hash "NULL"
+        timestamptz expires_at
+        timestamptz created_at
+        timestamptz updated_at
     }
     OUTBOX_EVENTS {
         uuid id PK
@@ -292,8 +312,9 @@ erDiagram
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh duy nhất toàn hệ thống, tự động sinh `gen_random_uuid()`. |
-| **email** | VARCHAR(255) | UK, NOT NULL | Địa chỉ email đăng nhập và nhận thông báo chính thức (vd: `an.nguyen@gmail.com`). |
-| **phone** | VARCHAR(20) | UK, NOT NULL | Số điện thoại di động đăng nhập, nhận OTP và tra cứu nhanh (vd: `0912345678`). |
+| **account_code** | VARCHAR(32) | UK, NOT NULL | Mã tài khoản do Core cấp; Customer/Staff search và UI dùng chung, không dùng làm session actor. |
+| **email** | VARCHAR(254) | UK, NOT NULL | Email đăng nhập; ví dụ synthetic `anh.customer@dev.example.invalid`, không cho tự sửa qua Staff/Customer profile PATCH. |
+| **phone** | VARCHAR(20) | UK, NULLable | Thông tin liên hệ; hồ sơ cho phép null, xung đột unique trả lỗi an toàn. Không mặc định có OTP/login bằng phone. |
 | **password_hash** | VARCHAR(255) | NOT NULL | Mật khẩu băm bảo mật (Argon2id hoặc Bcrypt). Tuyệt đối không lưu plain-text. |
 | **role** | VARCHAR(20) | CHECK | Vai trò người dùng trong hệ thống: `'CUSTOMER'` (Khách hàng) hoặc `'STAFF'` (Nhân viên). |
 | **status** | VARCHAR(20) | DEFAULT `'ACTIVE'` | Trạng thái tài khoản: `'ACTIVE'` (hoạt động) hoặc `'LOCKED'` (bị tạm khóa). |
@@ -305,15 +326,19 @@ erDiagram
 ---
 
 ### Bảng 2: `CUSTOMER_PROFILES`
+
+**Projection liên hệ 14/11/2026.** Staff mặc định nhận email/phone đã che, Hiện/Ẩn dùng API reauthorize riêng trường và audit metadata. Chức năng đọc/projection dùng dữ liệu gốc hiện có, DTO/API reveal còn P trong CU01/CU02. policyNumber trong InsurancePolicy hiển thị đầy đủ theo scope đã duyệt riêng. [Policy liên hệ](../configuration-and-data.md#staff-contact-reveal), [số hợp đồng](../configuration-and-data.md#staff-policy-number).
 > **Mục đích:** Hồ sơ định danh cá nhân và thông tin KYC pháp lý của khách hàng tham gia bảo hiểm (FR-002, NFR-002).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
-| **user_id** | UUID | PK, FK | Khóa chính và là khóa ngoại tham chiếu 1-1 tới `business.users(id)`. Xóa user thì cascade. |
-| **citizen_id** | VARCHAR(20) | UK, NOT NULL | Số Căn cước công dân (12 số) hoặc Hộ chiếu. Dùng định danh pháp lý và tra cứu O(1) cho Staff. |
+| **user_id** | UUID | PK, FK composite với role, RESTRICT | Hồ sơ 1:1 với User có role CUSTOMER; không cascade xóa tài khoản/hợp đồng/lịch sử. |
+| **role** | UserRole | NOT NULL, default CUSTOMER | Cùng user_id tham chiếu User(id,role), giữ phân biệt Customer/Staff. |
+| **citizen_id** | VARCHAR(20) | UK, NULLable | Định danh pháp lý nếu có; không thuộc search Staff Customers/Policy Lookup hiện hành, không tự thêm vào DTO. |
 | **full_name** | VARCHAR(255) | NOT NULL | Họ và tên đầy đủ có dấu của khách hàng (vd: Nguyễn Văn An). |
-| **birth** | DATE | NOT NULL | Ngày tháng năm sinh (vd: `1992-08-20`), dùng để tính độ tuổi tham gia bảo hiểm. |
+| **birth** | DATE | NULLable | Ngày sinh date-only; thiếu dữ liệu giữ null, không tự suy ngày sinh từ PDF. |
 | **address** | TEXT | NULLable | Địa chỉ thường trú hoặc địa chỉ liên lạc nhận hồ sơ giấy tờ. |
+| **assignment_version** | INT | NOT NULL, default 0 | Routing fence khi phân công đổi; không dùng làm version sửa hồ sơ Customer. Customer chỉ xem hồ sơ theo PF01. |
 
 ---
 
@@ -322,22 +347,25 @@ erDiagram
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
-| **user_id** | UUID | PK, FK | Khóa chính và là khóa ngoại tham chiếu 1-1 tới `business.users(id)`. Xóa user thì cascade. |
+| **user_id** | UUID | PK, FK composite với role, RESTRICT | Hồ sơ 1:1 với User có role STAFF; không cascade xóa assignment/notification/Ticket. |
+| **role** | UserRole | NOT NULL, default STAFF | Cùng user_id tham chiếu User(id,role). |
 | **full_name** | VARCHAR(255) | NOT NULL | Họ và tên đầy đủ của nhân viên CSKH (vd: Trần Thị Mai). |
-| **department** | VARCHAR(100) | DEFAULT | Bộ phận công tác nội bộ (vd: Chăm sóc khách hàng & Quản lý Ticket). |
+| **department** | VARCHAR(100) | NULLable | Bộ phận do vận hành quản lý; Staff self PATCH không được sửa. |
 
 ---
 
 ### Bảng 4: `STAFF_ASSIGNMENTS`
-> **Mục đích:** Phân công trách nhiệm quản lý cố định: Mỗi khách hàng chỉ gắn chặt với duy nhất 1 nhân viên chịu trách nhiệm (FR-003, NFR-001).
+> **Mục đích:** Lưu lịch sử phân công: một Customer có nhiều assignment theo thời gian, tối đa một assignment active. Không đồng nhất quan hệ phân công với grant đọc chat AI (FR-003, NFR-001).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh bản ghi phân công. |
 | **staff_id** | UUID | FK, NOT NULL | Tham chiếu tới `staff_profiles(user_id)`: Nhân viên được giao quản lý khách. |
-| **customer_id** | UUID | FK, UK, NOT NULL | Tham chiếu `customer_profiles(user_id)`. Ràng buộc UNIQUE đảm bảo 1 khách chỉ gắn với 1 Staff duy nhất. |
+| **customer_id** | UUID | FK, NOT NULL; partial unique khi active | Tham chiếu CustomerProfile; giữ được nhiều row lịch sử, unique active thực thi bằng SQL migration, không UNIQUE toàn cột. |
 | **is_active** | BOOLEAN | DEFAULT `TRUE` | Trạng thái phân công còn hiệu lực hay đã bàn giao. |
 | **assigned_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm bắt đầu phân công quản lý. |
+| **ended_at** | TIMESTAMPTZ | NULLable | Mốc kết thúc phân công; đổi assignment phải revoke grant Direct/handoff cũ theo transaction. |
+| **operator_id** | VARCHAR(100) | NOT NULL | Operator thực hiện, không lấy identity từ LLM hoặc body Customer. |
 
 ---
 
@@ -416,7 +444,7 @@ erDiagram
 | **product_id** | UUID | FK, NULLable | Tham chiếu `insurance_products(id)` nếu là file tài liệu giới thiệu sản phẩm chung. |
 | **policy_id** | UUID | FK, NULLable | Tham chiếu `insurance_policies(id)` nếu là file hợp đồng bảo hiểm cá nhân. |
 | **owner_customer_id** | UUID | FK, NULLable | Tham chiếu `customer_profiles(user_id)`: Chủ sở hữu file (dùng để Core Backend kiểm tra quyền tải). |
-| **current_version** | VARCHAR(20) | DEFAULT `'v1.0'` | Phiên bản tài liệu đang hoạt động hiện tại. |
+| **current_version** | VARCHAR(20) | NULLable, FK composite | Publication hiện tại, FK (id,current_version) → DocumentVersion(document_id,version_number); không default hoặc MAX(version). Policy áp dụng version qua binding riêng, không tự nâng theo publication. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Ngày tạo bản ghi tài liệu. |
 
 ---
@@ -438,6 +466,8 @@ erDiagram
 ---
 
 ### Bảng 11: `CONVERSATIONS`
+
+**Quyết định chat mới 14/11/2026.** New AI chat tạo Conversation riêng qua create/receipt hiện có. Cuộc cũ giữ origin/handoff và quyền đọc/gửi theo policy hiện hành. Context/checkpoint gắn đúng conversation, grant của cuộc cũ không mở cuộc AI mới. Quyết định này dùng ba trạng thái chat đã có, không yêu cầu DDL Close hoặc metadata kết thúc. [Nghiệp vụ chuẩn](Agent_Design.md#new-ai-chat-after-staff).
 > **Mục đích:** Quản lý phiên tương tác, chu trình chuyển giao giữa AI Bot và Nhân viên CSKH (FR-004, FR-005, FR-006, FR-007, UC-005, UC-006).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
@@ -457,12 +487,14 @@ erDiagram
 ---
 
 ### Bảng 12: `MESSAGES`
+
+**Lưu lịch sử MVP — A đã chốt 14/11/2026.** Conversation/Message được giữ để xem lại, chưa đặt TTL/job tự xóa theo thời gian. API history vẫn lọc quyền và audience/cursor như contract hiện hành. Notification có retention 30 ngày riêng, checkpoint/biên nhận/kết quả Agent giữ trong MVP theo A ngày 14/11, log/audit/cache và production còn theo review. [Chính sách chuẩn](../configuration-and-data.md#mvp-chat-history-retention).
 > **Mục đích:** Lưu trữ nội dung chi tiết từng tin nhắn qua lại trong phòng chat, kèm nguồn trích dẫn tài liệu của AI (FR-011, NFR-003).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh tin nhắn. |
-| **conversation_id** | UUID | FK, NOT NULL | Tham chiếu `conversations(id)`: Thuộc phiên chat nào. Xóa conversation thì cascade. |
+| **conversation_id** | UUID | FK, NOT NULL, RESTRICT | Tham chiếu `conversations(id)`; không cascade xóa lịch sử Message khi xóa Conversation. |
 | **sender_type** | VARCHAR(50) | CHECK | Người gửi: `'CUSTOMER'`, `'STAFF'`, `'AI_AGENT'`, hoặc `'SYSTEM'`. |
 | **sender_id** | UUID | FK, NULLable | Tham chiếu `users(id)`. NULL nếu do AI Bot hoặc hệ thống tự động sinh. |
 | **content** | TEXT | NOT NULL | Nội dung tin nhắn bằng văn bản thuần hoặc định dạng Markdown. |
@@ -473,7 +505,7 @@ erDiagram
 ---
 
 ### Bảng 13: `SUPPORT_TICKETS`
-> **Mục đích:** Phiếu yêu cầu hỗ trợ chính thức được tạo sau khi Customer xác nhận bàn giao từ AI sang Staff (FR-009, FR-010, UC-005, NFR-005).
+> **Mục đích:** Phiếu nghiệp vụ riêng của Customer qua form thủ công hoặc draft Agent được review/xác nhận theo Core. Source có API/draft/snapshot cơ bản, validation và nội dung bàn giao đầy đủ tiếp tục theo I07/T01/T02. Handoff/Accept dùng ConversationHandoff, Ticket có lifecycle riêng (FR-009, FR-010, UC-005, NFR-005).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
@@ -489,7 +521,10 @@ erDiagram
 | **status** | VARCHAR(50) | CHECK | Trạng thái: `'OPEN'` (mới tạo), `'ASSIGNED'` (đã phân công), `'IN_PROGRESS'` (đang xử lý), `'RESOLVED'`, `'CLOSED'`. |
 | **idempotency_key** | VARCHAR(255) | UK, NOT NULL | Khóa chống tạo trùng Ticket khi người dùng click liên tục hoặc mạng retry (NFR-005). |
 | **version** | INTEGER | NOT NULL DEFAULT 0, CHECK >=0 | TK01: token concurrency cho Ticket; legacy backfill0, không là bằng chứng consent/content đã xác nhận. Mutation TK03 sẽ increment atomic. |
-| **confirmed_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm khách hàng bấm nút xác nhận tạo Ticket. |
+| **confirmed_at** | TIMESTAMPTZ(3) | NOT NULL, Core ghi | Thời điểm xác nhận do Core ghi trong workflow tạo Ticket. |
+| **source_draft_id** | UUID | UNIQUE, nullable, FK ticket_drafts(id), RESTRICT | Draft nguồn của Ticket, manual/legacy có thể null. |
+| **confirmed_content** | JSONB | nullable | Snapshot cơ bản schemaVersion=1: source, title/description/policyId/policyNumber, contentHash, confirmedAt, draftId/draftVersion/textVersion. Core ghi trong transaction tạo; immutable qua API. Sáu nhóm summary/nguồn Agent tiếp tục theo I07. |
+| **request_fingerprint** | VARCHAR(64) | nullable, CHECK null hoặc SHA-256 hex | Phase 2: hash actor + operation + input tạo Ticket đã chuẩn hóa; request mới bắt buộc có. Legacy giữ null, không backfill bằng nội dung hiện tại. |
 | **created_at** | TIMESTAMPTZ | DEFAULT `NOW()` | Thời điểm bản ghi được ghi bền vững vào cơ sở dữ liệu. |
 
 ---
@@ -515,16 +550,19 @@ erDiagram
 ---
 
 ### Bảng 15: `NOTIFICATIONS`
+
+**Cập nhật N01/N02:** source đã có recipient Customer và messages.read_at qua migrations 202611080001/202611090001. Retention thông báo 30 ngày cho cả Customer/Staff đã duyệt ngày 13/11/2026, áp dụng read/unread theo created_at; không xóa Ticket/Message hoặc audit nguồn. Phương án B đã duyệt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ; source vẫn lặp mỗi giờ, cần đồng bộ và kiểm thử theo N02. Message.readAt cập nhật qua API đọc hội thoại, độc lập với Notification.isRead. Phương án A gộp notification tin nhắn đến khi người nhận đọc chat: tin mới cùng chu kỳ giữ id và bật lại unread. Source còn dùng isRead=false để tìm mục gộp; cần thiết kế nhận diện chu kỳ bền vững theo N01/N02, DDL cụ thể chưa chốt.
 > **Mục đích:** Lưu thông báo in-app hiển thị trên icon quả chuông (🔔) cho nhân viên CSKH (FR-013, NFR-006, ADR-CLOUD-003).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh thông báo. |
-| **recipient_staff_id** | UUID | FK, NOT NULL | Tham chiếu `staff_profiles(user_id)`: Nhân viên nhận thông báo này. |
+| **recipient_staff_id** | UUID | FK, NULLable | Tham chiếu staff_profiles(user_id); CHECK đúng một recipient Staff hoặc Customer. |
+| **recipient_customer_id** | UUID | FK, NULLable | Tham chiếu customer_profiles(user_id); Customer owner của event theo N01/N02. |
 | **ticket_id** | UUID | FK, NULLable | Tham chiếu `support_tickets(id)` nếu thông báo liên quan đến Ticket (click mở ticket). |
 | **conversation_id** | UUID | FK, NULLable | Tham chiếu `conversations(id)` nếu thông báo liên quan đến cuộc chat cần tiếp nhận. |
 | **title** | VARCHAR(255) | NOT NULL | Tiêu đề thông báo ngắn gọn (vd: `'Yêu cầu hỗ trợ mới: #TK-0042'`). |
-| **kind** | VARCHAR(50) | NULLable, CHECK | I06 HANDOFF_REQUESTED; TK05 TICKET_CREATED/TICKET_ACCEPTED và mở rộng TICKET_STATUS_CHANGED; legacy null giữ nguyên. CHECK typed target: handoff chỉ conversation_id, Ticket chỉ ticket_id. A27 chỉ trả kind hỗ trợ và target scope còn hợp lệ. |
+| **kind** | VARCHAR(50) | NULLable, CHECK | HANDOFF_REQUESTED, TICKET_CREATED/TICKET_ACCEPTED/TICKET_STATUS_CHANGED cho Staff; STAFF_ACCEPTED_HANDOFF, SUPPORT_TICKET_CREATED, STAFF_MESSAGE_UNREAD cho Customer; CUSTOMER_MESSAGE_UNREAD cho Staff. Typed target và recipient theo migration 202611080001/202611090001. |
 | **body** | TEXT | NULLable | Handoff I06 để null; title generic, không preview AI/private chat. |
 | **is_read** | BOOLEAN | DEFAULT `FALSE` | Trạng thái đọc: `false` (chưa đọc, hiện chấm đỏ), `true` (đã click xem). |
 | **dedup_key** | VARCHAR(255) | UK, NOT NULL | Khóa chống trùng (Idempotent Consumer) bảo đảm dù Worker retry thì nhân viên chỉ nhận 1 thông báo duy nhất. |
@@ -534,22 +572,22 @@ erDiagram
 ---
 
 ### Bảng 16: `RAG_KNOWLEDGE_CHUNKS`
-> **Mục đích:** Kho tri thức Vector RAG (Schema: `rag`), lưu trữ các mẩu văn bản kèm vector embedding 768 chiều phục vụ tìm kiếm ngữ nghĩa (ADR-DATA-001, ADR-DATA-003, NFR-002).
+> **Mục đích:** Kho tri thức RAG (schema `rag`) cho PostgreSQL full-text search + pgvector + RRF. Embedding MVP đã chốt gemini-embedding-2, 1536 chiều ngày 13/11/2026. Cấu hình index và nghiệm thu chất lượng/hiệu năng tiếp tục theo G4. Bảng đã có, pipeline/indexer/retrieval chưa được nghiệm thu từ baseline application. Prisma app dùng `Unsupported("public.vector")`. Profile MVP yêu cầu kiểm identity model/version/config và vector 1536 chiều ở cả lúc index lẫn query. Thay đổi schema/index vật lý được review riêng theo nhu cầu triển khai.
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
 | :--- | :--- | :--- | :--- |
 | **id** | UUID | PK | Mã định danh đoạn chunk vector. |
 | **document_id** | UUID | Logic FK, NOT NULL | Khóa ngoại logic sang `business.documents(id)`. Không dùng FK vật lý để bảo đảm độc lập giữa 2 schema. |
-| **document_version** | VARCHAR(20) | NULLable | Phiên bản của file tài liệu lúc cắt chunk (vd: `'v1.0'`). |
+| **document_version** | VARCHAR(20) | NOT NULL | Phiên bản của tài liệu lúc cắt chunk; luôn truy xuất theo cặp document/version Core cấp, không tự đổi sang current version. |
 | **chunk_index** | INT | NOT NULL | Số thứ tự đoạn trong tài liệu (0, 1, 2...) để ghép lại văn bản khi cần. |
-| **content** | TEXT | NOT NULL | Nội dung văn bản thuần của đoạn chunk (500 - 1000 ký tự) đưa vào prompt cho LLM đọc. |
+| **content** | TEXT | NOT NULL | Nội dung nguồn của chunk; cỡ chunk/overlap cần đo, không cố định từ ví dụ nguồn. Metadata prefix phục vụ tìm kiếm được giữ riêng, không coi là nguyên văn trích dẫn. |
 | **embedding** | VECTOR | Index | Tọa độ không gian (vector) để đo tương đồng Cosine. |
 | **access_scope** | VARCHAR(50) | CHECK | Phạm vi bảo mật: `'PUBLIC'`, `'PRIVATE_POLICY'`. Dùng để Pre-filter trước khi tìm vector (NFR-002). |
 | **product_id** | UUID | NULLable | Mã sản phẩm nếu là chunk của tài liệu sản phẩm chung. |
 | **policy_id** | UUID | NULLable | Mã hợp đồng nếu là chunk của hợp đồng cá nhân. |
 | **owner_customer_id** | UUID | NULLable | ID khách hàng sở hữu (Core Backend lọc chỉ khách này hoặc Staff phụ trách mới được tìm kiếm). |
 | **page_number** | INT | NULLable | Trang số mấy trong file PDF gốc, dùng để AI đính kèm trích dẫn citations. |
-| **metadata** | JSONB | NULLable | Thông tin bổ sung (tiêu đề mục, tiêu đề chương, từ khóa chính). |
+| **metadata** | JSONB | NULLable | Baseline chưa ép schema JSON. Task 7 đặc tả parent/child, section key, vị trí trang/anchor, explicit references/trạng thái phân giải, cảnh báo nguồn và corpus/model/config version; xem phần III. |
 
 ---
 
@@ -570,7 +608,6 @@ erDiagram
 Index: UNIQUE `token_hash`, index `(user_id, revoked_at)` và index `expires_at`.
 
 Phiên chỉ hợp lệ khi chưa hết hạn, chưa bị thu hồi và tài khoản còn được phép đăng nhập. Kiểm tra này và việc thu hồi phiên thuộc Core API; hiện đã có cấu trúc bảng, chưa triển khai luồng auth. Thời hạn phiên/cookie sẽ chốt khi làm auth. Không ghi token gốc vào log hoặc tài liệu.
-
 
 ### Bổ sung local I01 cho bảng 11 và 12 — 04/11/2026
 
@@ -626,3 +663,99 @@ Local I01, Prisma `ConversationCommandReceipt`, bảng `business.conversation_co
 Không lưu response Private nguyên khối. Cùng key/hash replay sau reauthorize; khác payload409. Receipt không cấp quyền, không phát lại dữ liệu sau revoke. Chưa TTL/xóa tự động. Message/receipt/audit/outbox commit cùng transaction; không thêm Ticket/read marker hoặc counts.
 
 Bổ sung I06 04/11/2026: migration `202611040002_inbox_realtime` chỉ thêm lease/index và Notification.kind; không thêm bảng. SYSTEM sau Accept dùng Message hiện có, internalMessageId gắn handoffId, audience CUSTOMER_VISIBLE và sequence atomic. Inbox không có counts, notification.isRead không là transcript read receipt hoặc Accept.
+
+### Bảng 20: `TICKET_DRAFTS`
+
+Source `business.ticket_drafts`, Prisma `TicketDraft`, migration `202611130001_customer_ticket_drafts_and_confirmed_content`. Draft thuộc Customer, Core kiểm quyền/revision/hiệu lực trước xác nhận theo I07/T01/T02.
+
+| Cột | Kiểu/ràng buộc | Ý nghĩa |
+| --- | --- | --- |
+| id | UUID PK, default gen_random_uuid | Định danh draft |
+| customer_id | UUID NOT NULL, FK customer_profiles(user_id) | Customer sở hữu |
+| conversation_id | UUID nullable, FK conversations(id) | Cuộc liên quan, Core kiểm cùng Customer |
+| policy_id | UUID nullable, composite FK (policy_id,customer_id) → insurance_policies(id,customer_id) | Policy cùng Customer |
+| version | INTEGER NOT NULL DEFAULT 1, CHECK >=1 | Revision của draft |
+| title | VARCHAR(255) NOT NULL | Tiêu đề được review |
+| description | TEXT NOT NULL | Nội dung được review |
+| state | TicketDraftState NOT NULL DEFAULT DRAFT | DRAFT / CONFIRMED / EXPIRED / SUPERSEDED |
+| payload_hash | VARCHAR(64) nullable | Hash nội dung theo revision |
+| expires_at | TIMESTAMPTZ(3) NOT NULL | Hạn hiệu lực draft |
+| created_at | TIMESTAMPTZ(3) NOT NULL DEFAULT now | Thời điểm tạo |
+| updated_at | TIMESTAMPTZ(3) NOT NULL DEFAULT now, ORM @updatedAt | Thời điểm sửa draft |
+
+Index (customer_id,state) và (conversation_id,state). SupportTicket.source_draft_id unique nullable tham chiếu draft, FK RESTRICT. Payload summary sáu nhóm và registry nguồn đầy đủ ở handoff_payload vẫn là phần cần triển khai I07. Source đã có draft/API/snapshot cơ bản, validation xác nhận, replay/concurrency và tích hợp Agent theo checklist I07/T01/T02.
+
+## III. Mở rộng Agent/RAG dự kiến — chưa là schema đã triển khai
+
+**Logout/hết phiên — B chốt 14/11/2026.** Run đã được Core nhận tiếp tục theo actor/target/grant tin cậy đã lưu và quyền hiện hành, trạng thái auth_sessions vẫn dùng cho Web/API/WS. Re-login không đổi owner của run hoặc sao chép task sang actor mới. Tích hợp transaction accept/logout, discovery và quyền service/run còn P theo CH02/Auth. [Chính sách chuẩn](Agent_Design.md#agent-logout-session-policy).
+
+**Dữ liệu khôi phục Agent trong MVP — A đã chốt 14/11/2026.** Giữ checkpoint, biên nhận xử lý và kết quả/sự kiện do Agent lưu để khôi phục, chống trùng và đối soát, gồm dữ liệu đã giao/ACK. MVP chưa đặt TTL hoặc lịch tự xóa các bản ghi này theo thời gian. Quyền đọc/ghi, trạng thái run/attempt, writer fence và điều kiện giao lại tiếp tục theo protocol. Cơ chế lưu bền hiện có tại schema agent_runtime. Lịch ACK/retry và quyền/fence theo contract, Notification/nonce/log có chính sách riêng. [Chính sách chuẩn](../configuration-and-data.md#mvp-agent-recovery-retention).
+
+Đồng bộ 06/11/2026 theo [Agent Design](Agent_Design.md), [plan Tasks 2–4, 6–8](../superpowers/plans/2026-10-31-agent-rag-implementation.md) và [contract Task 1 đề xuất G1](../../contracts/agent-v1.md). Phần này không tăng số bảng baseline hoặc tự cấp quyền migration. Tên bảng/cột, DDL/constraints và ownership cuối cùng chờ review G2; metadata index chờ Task 7/G4/G5.
+
+| Nhóm lưu trữ | Owner / yêu cầu dữ liệu | Phần phải đặc tả trước code |
+| --- | --- | --- |
+| Lượt xử lý, attempt và sự kiện nhận ở Core | Gắn conversation/tin nguồn, trạng thái QUEUED/RUNNING/COMPLETED/FAILED/CANCELLED, attempt hiện hành, thứ tự, dispatch và dedup/fingerprint. Lưu linked-history view Copilot tại lúc Core nhận câu hỏi. | Ánh xạ `Turn` trong CH02 và `Run` trong plan Agent thành cùng một khái niệm; không tạo hai lifecycle độc lập. Kết nối Conversation/Message/receipt/outbox đã có; unique một lượt hoạt động/hội thoại và event dedup theo protocol G2. |
+| Receipt nhận việc và quyền ghi Agent | Nhận run bền vững trước ACK; claim/lease, thread/attempt/writer epoch để chặn writer cũ. | Schema/role/pool/migration riêng; mọi đường ghi checkpoint, kể cả pending writes của thư viện, phải qua fence. Không FK/join/transaction chung sang business/rag. |
+| Checkpoint graph và ledger ngân sách | Checkpoint lưu context/work có version. Ledger theo tin nhắn lưu reservation trước external call; retry/attempt mới không cấp lại budget đã tiêu hoặc chưa rõ kết quả. | Chọn thư viện/checkpointer version, schema payload và quy trình rebuild. `ConversationContext`/`MessageWork` là payload state, không mặc định thành bảng/cột business riêng. Counters trong checkpoint không thay ledger. |
+| Kết quả cuối và sự kiện chờ giao ở Agent | Final record, immutable event, sequence/completion và ACK để gửi lại sau restart mà không chạy lại model/tool. | Tính nguyên tử, fingerprint và recovery theo G2/G3, retention MVP đã chốt A ngày 14/11, không dùng outbox business hiện có như checkpoint store hoặc transaction chung giữa Core và Agent. |
+| Corpus/metadata RAG | Stable child/parent/section keys, document/version, pages/anchor, raw reference/đích/trạng thái, cảnh báo nguồn; checksum, dataset/model/config version và số chiều. | Đặc tả cách lưu parent content/reference và metadata trong cấu trúc hiện có trước khi quyết định thêm bảng/cột. Nạp atomic theo document/version/profile; không trộn vector khác model. Chọn FTS/vector indexes sau đo, chưa mặc định HNSW/BM25. |
+
+Core là nguồn lịch sử nghiệp vụ và quyền hiện hành. Summary/pending trong checkpoint không thay lịch sử gốc hoặc cấp quyền; `ExecutionContext` được code dựng từ request tin cậy, không lưu nguyên khối vào checkpoint hay gửi model. Dữ liệu Private trong state/index vẫn chịu kiểm quyền và chính sách lưu/xóa; Git approval không đồng nghĩa RAG approval.
+
+<a id="iii-bản-đồ-tác-động-khi-triển-khai-chức-năng"></a>
+## IV. Bản đồ tác động khi triển khai chức năng
+
+Đối chiếu schema app hiện hành và service Core; dictionary nguồn cũ không phải lý do nới FK hoặc thêm API chưa có. **Đọc** là đọc nghiệp vụ, **ghi** gồm tác động phụ trợ như quota/audit; phase UI mô tả ghi gián tiếp qua API. Mức ảnh hưởng theo [quy ước UI](../ui/README.md#quy-ước-data-model-vị-trí-code-và-mức-ảnh-hưởng). Ma trận này là đặc tả phụ thuộc, không là báo cáo test hoặc kế hoạch chạy tất cả migration.
+
+### 4.1. Bảng, writer và nơi chịu ảnh hưởng
+
+Các bảng thuộc `business` trừ hàng RAG. Tên file trong cột writer tính từ `apps/core/src/`; không đưa quyền DB cho Web hoặc Agent.
+
+| Bảng | Cột/khóa quan trọng | Writer hoặc nguồn thay đổi | Reader và phạm vi ảnh hưởng | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- | --- |
+| users | id/account_code/email/phone/role/status/password_hash/updated_at, unique email/phone/account_code | auth/services/auth.service.ts; accounts/services/account-management.service.ts; CLI dev-accounts | Auth, profile hai role, labels Customers/Inbox/Tickets; khóa tài khoản/đổi password ảnh hưởng phiên và realtime | Cao — kiểm login/role/phone unique và session cũ |
+| customer_profiles | user_id/role/full_name/birth/address/assignment_version | Account provisioning/profile writers; assignment mutation tăng routing fence | Customer self/Home, Staff Customers/Policy/Ticket/Inbox | Cao — Customer chỉ đọc; Staff projection đích chỉ năm sinh/tỉnh-thành đã xác minh, thiếu thì null; source còn birth/address, chưa có metadata xác minh/tỉnh-thành riêng; CU01-T05. assignment_version dùng cho routing |
+| staff_profiles | user_id/role/full_name/department | Staff self full_name qua Auth; operator quản lý department | Header/contact, SYSTEM Accept, assignment và notification recipient | Cao — User/profile cùng transaction, không tự sửa department từ self PATCH |
+| staff_assignments | id/staff_id/customer_id/is_active/ended_at, partial unique active + composite FK | accounts/services/account-management.service.ts | Customers, Policies, chat Direct/handoff, Ticket scope/notifications | Cao — cùng Staff gán lại không phục hồi grant của assignment cũ |
+| auth_sessions | user_id/token_hash/csrf_token_hash/expires_at/revoked_at | Auth login/logout/change-password | Mọi REST/WS cần session và CSRF; không xuất hashes | Cao — token/cookie rotation khác profile update |
+| rate_limit_buckets | PK client_token/endpoint_group, window_start/request_count/blocked_until | Auth/conversation/product/Ticket quota helpers | Cả API đọc và ghi nếu endpoint có quota; không phải unread/count nghiệp vụ | Trung bình — upsert atomic, không rollback quota chỉ vì read bị từ chối |
+| audit_logs | actor/action/target/outcome/request_id/metadata | Auth/business commands/PDF access và maintenance guard | Truy vết mutation/cấp quyền; không dùng audit làm grant hoặc confirmation nội dung | Cao — không chép PII/body/PDF/signed URL; atomic theo command sở hữu |
+| insurance_products | product_code unique, name/summary/is_active | Provision/import/CLI dev-policies; runtime catalog chỉ đọc | Products hai role, Policy product relation, document publication | Trung bình — deactivate catalog không sửa policy lịch sử |
+| insurance_policies | customer_id/product_id/policy_number/status, premium/date fields, benefits_snapshot, unique id/customer_id | Import/CLI dev-policies; runtime Staff/Customer API chỉ đọc | Owner policy, Staff Lookup/Customers/Inbox quick lookup, exact PDF binding | Cao — Decimal/date/null, không ghi lại từ PDF hoặc AI summary |
+| documents | product_id/policy_id/owner_customer_id/access_scope/current_version | Import/CLI dev-policies | Products PUBLIC/current; policy applied catalog; retrieval metadata | Cao — FK policy/owner cùng Customer, không có Document.kind |
+| document_versions | document_id/version_number unique, checksum_sha256/storage_bucket/storage_object_key/is_active | Import/CLI dev-policies + upload object tương ứng | PDF HEAD/sign/GET, immutable applied version và nguồn retrieval | Cao — DB/object storage không chung transaction; không overwrite version cũ |
+| conversations | owner/channel/origin/direct_assignment_id/linked_policy_id/linked_context_conv_id/status/control_version/next_message_sequence | conversation-entry/handoff/message/revocation services | Customer AI riêng, Staff Requests/Active, transcript/realtime; Copilot dùng INTERNAL | Cao — không CLOSED, không suy grant từ assigned_staff_id/status |
+| messages | conversation_id/sequence/audience/sender_id/type/client_message_id/internal_message_id/content/citations | conversation-message.service.ts append dưới lock | Transcript hai role, cursor catch-up và future Agent context | Cao — unique sequence/command keys, LEGACY_REVIEW/INTERNAL không lộ transcript |
+| conversation_handoffs | conversation/customer/assignment/recipient/state, consent fields, accepted/revoked evidence | conversation-handoff.service.ts; conversation-revocation.ts | Pending shared metadata, accepted whole CUSTOMER_VISIBLE history, routing notifications | Cao — không sửa consent/provenance hoặc xóa acceptance khi revoke |
+| conversation_command_receipts | actor_id/operation/client_request_id unique, request_hash/resource_id/result_version | conversation-command.service.ts trong command transaction | Reconcile/replay create/request/Accept/send sau kiểm quyền lại | Cao — resource_id không FK đa loại; không dùng làm receipt Ticket |
+| support_tickets | owner/recipient/policy/conversation links, status/version/idempotency_key/confirmed_at | ticket.service.ts status commands; Agent confirmation producer I07 còn P | Staff list/detail/allowed actions, notification target; Customer confirmation P | Cao — status+version+audit/outbox atomic; legacy ai_summary không là confirmedContent |
+| outbox_events | aggregate/type/payload/status/retry/next_attempt/lease | Business producer cùng transaction; outbox-dispatcher.service.ts claim/retry/mark | Conversation/Ticket event consumers và realtime invalidation | Cao — retry/lease không chứng minh browser đã nhận, payload không transcript |
+| notifications | recipient_staff_id/recipient_customer_id/typed target/kind/is_read/dedup_key | Conversation/Ticket consumers; notifications.service.ts read/read-all/cleanup | Chuông Staff/Customer và target scope | Cao — đúng một recipient, read chuông không kết thúc chu kỳ chat, tin mới cùng chu kỳ giữ id/bật unread (source cần sửa); retention 30 ngày chung Customer/Staff theo N01/N02 |
+| rag.rag_knowledge_chunks | document_id/document_version/chunk_index unique, scope/owner/policy/embedding | Pipeline/Agent owner, ngoài phạm vi triển khai Staff/Customer hiện tại | Retrieval đúng quyền/exact version; Core runtime không có grants schema rag | Cao — không tự chunk/embedding lại khi sửa UI hoặc seed business |
+
+### 4.2. Tác động xuyên module phải ghi trong phase
+
+| Thay đổi | Điều phải giữ | Nơi cần kiểm lại |
+| --- | --- | --- |
+| Sửa hồ sơ Staff | User.phone + StaffProfile.full_name + User.updated_at/audit; không rotate session chỉ vì sửa tên | Account editor, actor/header/contact và conflict hai phiên |
+| Customer đọc hồ sơ | Projection own profile đúng actor; phân công thay đổi theo routing fence | Customer Home/Account, Staff contact và realtime invalidation |
+| Đổi phân công | Giữ lịch sử assignment, tăng routing fence/revoke chat grant cũ cùng transaction | Customers/Policies/Ticket scope, Inbox REST/WS, pending notifications; không tự đổi recipient Ticket |
+| Request/Accept chat | Consent/receipt/status/control + audit/outbox, Accept thêm SYSTEM message và sequence | Customer dialog/transcript, Staff Requests/Active, no duplicate khi retry, revoke giữa chừng |
+| Gửi tin | Message + sequence/activity + receipt/audit/outbox atomic; không tăng control_version vì tin thường | Shared composer/transcript, before/after cursor, reconnect catch-up |
+| Đổi status Ticket | Ticket.status/version CAS + audit/outbox, không sửa ConversationStatus/consent | Staff list/detail/dropdown, reopen, notification consumer và target scope |
+| Công bố tài liệu Products | Current composite FK đúng document/version, PUBLIC/owner null, product active | Staff/Customer catalog/viewer và cấp URL khi current đổi; policy giữ applied version cũ |
+| Thay fixture policy/PDF | Cùng nguồn JSON/checksum cho DB và PDF; CLI có quyền riêng, bootstrap không reset dữ liệu đã sửa | Shared seed idempotency, 2/2/0 portfolio, object checksum, policy-only maintenance reference cleanup |
+| Nới quyền/đổi DTO chung | Projection allowlist và API spec cùng thay đổi, không return raw Prisma relation | Staff và Customer callers, Swagger/client types, tests scope trước count/cursor |
+
+### 4.3. Schema còn đề xuất và giới hạn migration
+
+**Đề xuất lưu summary Ticket Agent sau xác nhận phương án A:** TicketDraft.handoffPayload (handoff_payload JSONB nullable) chứa summary sáu nhóm và registry nguồn Core kiểm soát. Khi confirm, sao chép payload vào SupportTicket.confirmedContent cùng nội dung/version đã duyệt. Cột draft bổ sung chưa có trong schema; migration, mapping và projection theo [I07](../ui/staff/plans/tickets/06-agent-confirmation.md#ticket-handoff-content). Manual/legacy không tự nhận dữ liệu xác minh. Hash/revision phải bao phủ nội dung và nguồn.
+
+| Phạm vi P | Bảng/cột chưa có | Điều kiện trước code | Ảnh hưởng cần đánh giá |
+| --- | --- | --- | --- |
+| Ticket I07/T01 | TicketDraft, sourceDraftId/confirmedContent/hash/version evidence | Chốt snapshot bất biến/expiry/consume/idempotency, explicit Customer confirmation | Legacy Ticket giữ UNVERIFIED, Staff read/status không bị đổi nghĩa; source/outbox atomic |
+
+| Agent turns/Copilot tasks | Core task/turn record và checkpoint protocol | Phối hợp owner Agent chốt service identity/fence/task schema; chưa triển khai trong đợt này | Business commit khác checkpoint; không nới ConversationStatus hoặc cấp DB business cho Agent |
+
+Không chỉnh migration đã apply, tự backfill consent/confirmed snapshot từ AI text, cascade xóa lịch sử hoặc reset volumes để làm một phase chạy được. UI-only không tự kéo theo DDL. Dictionary phải ghi hiện trạng từ Prisma/SQL; kế hoạch P vẫn giữ P cho đến khi có code và migration tương ứng.

@@ -79,8 +79,69 @@ export class PolicyService {
         ...benefitsSnapshot(row.benefitsSnapshot) } };
     });
   }
+  ownerList(request: IncomingMessage, query: PolicyLookupQuery) {
+    return this.database.prisma.$transaction(async tx => {
+      const { actor } = await this.auth.me(request, tx);
+      if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+      const term = query.search?.trim() ? query.search.trim().replace(/[\\%_]/g, '\\$&') : '';
+      const contains = { contains: term, mode: 'insensitive' as const };
+      const where: Prisma.InsurancePolicyWhereInput = {
+        customerId: actor.id,
+        ...(query.status ? { status: query.status } : {}),
+        ...(term ? { OR: [{ policyNumber: contains }, { product: { name: contains } }, { product: { productCode: contains } }] } : {}),
+      };
+      const total = await tx.insurancePolicy.count({ where });
+      const rows = await tx.insurancePolicy.findMany({
+        where, select: policySelect, orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+        skip: (query.page - 1) * query.pageSize, take: query.pageSize,
+      });
+      return { items: rows.map(policyView), total, page: query.page, pageSize: query.pageSize };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
+  }
+  ownerDetail(request: IncomingMessage, policyId: string) {
+    return this.database.prisma.$transaction(async tx => {
+      const { actor } = await this.auth.me(request, tx);
+      if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+      const row = await tx.insurancePolicy.findFirst({
+        where: { id: policyId, customerId: actor.id },
+        select: {
+          ...policySelect,
+          product: { select: { id: true, productCode: true, name: true, isActive: true, summary: true } },
+          customer: { select: { userId: true, fullName: true, user: { select: { accountCode: true } } } },
+        },
+      });
+      if (!row) throw new NotFoundException();
+      return { policy: { ...policyView(row), customer: { id: row.customer.userId, fullName: row.customer.fullName, accountCode: row.customer.user.accountCode },
+        ...benefitsSnapshot(row.benefitsSnapshot) } };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
+  }
   documents(request: IncomingMessage, policyId: string): Promise<PolicyDocumentsResponseDto> {
     return this.read(request, (tx, actorId) => this.catalog(tx, actorId, policyId));
+  }
+  ownerDocuments(request: IncomingMessage, policyId: string): Promise<PolicyDocumentsResponseDto> {
+    return this.database.prisma.$transaction(async tx => {
+      const { actor } = await this.auth.me(request, tx);
+      if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+      return this.catalog(tx, actor.id, policyId, 'CUSTOMER');
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
+  }
+  ownerAccess(request: IncomingMessage & { requestId?: string }, policyId: string, documentId: string, versionId: string, intent: 'view' | 'download') {
+    return this.database.prisma.$transaction(async tx => {
+      const { actor } = await this.auth.me(request, tx);
+      if (actor.role !== 'CUSTOMER') throw new ForbiddenException();
+      await this.auth.authorizeWrite(request, tx);
+      const catalog = await this.catalog(tx, actor.id, policyId, 'CUSTOMER');
+      const binding = catalog.items.find(item => item.documentId === documentId && item.versionId === versionId);
+      if (!binding) throw new NotFoundException();
+      const version = await tx.documentVersion.findFirst({ where: { id: versionId, documentId, isActive: true },
+        select: { storageBucket: true, storageObjectKey: true } });
+      if (!version) throw new NotFoundException();
+      const result = await this.storage.access(version, `policy-${documentId}-v${binding.versionNumber.replace(/[^a-zA-Z0-9._-]/g, '_')}.pdf`, intent);
+      await tx.auditLog.create({ data: { actorType: 'USER', actorId: actor.id, actorRole: 'CUSTOMER', action: intent === 'view' ? 'POLICY_PDF_VIEW_ISSUED' : 'POLICY_PDF_DOWNLOAD_ISSUED',
+        targetType: 'DocumentVersion', targetId: versionId, outcome: 'SUCCESS', requestId: request.requestId ?? randomUUID(),
+        metadata: { policyId, documentId, versionId, intent } } });
+      return result;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead, timeout: 15000 });
   }
   async citationCatalog(tx: Prisma.TransactionClient, actorId: string, role: 'STAFF' | 'CUSTOMER', policyId: string) {
     return this.catalog(tx, actorId, policyId, role);

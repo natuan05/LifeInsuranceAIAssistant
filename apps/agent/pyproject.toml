@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "life-agent"
+version = "0.1.0"
+description = "Agent/RAG service (custom LangGraph): graph, durable runtime store, RAG, evaluation and the Core HTTP surface."
+requires-python = ">=3.13"
+# HTTP framework selected to match existing code: Starlette + uvicorn (contracts 12.9-12.10).
+# Core integration, delivery policy and retention remain under review. HMAC and outbound HTTP use the standard
+# library. Gemini adapters use the REST API through the standard library, so no provider SDK is pinned.
+# psycopg is the PostgreSQL driver for the rag index (pgvector) and the agent_runtime store.
+dependencies = [
+  "langgraph==1.2.20",
+  "langgraph-checkpoint==4.3.1",  # BaseCheckpointSaver for the fenced checkpointer (proposal 12.13 #2)
+  "jsonschema==4.26.0",
+  "psycopg[binary]==3.3.6",
+  "starlette==1.10.0",
+  "uvicorn==0.54.0",
+]
+
+[dependency-groups]
+dev = ["pytest==9.2.0"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"

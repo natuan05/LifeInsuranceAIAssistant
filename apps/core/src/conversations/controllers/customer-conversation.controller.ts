@@ -5,11 +5,13 @@ import { ApiBadRequestResponse, ApiConflictResponse, ApiCookieAuth, ApiCreatedRe
 import type { ServerResponse } from 'node:http';
 import { CreateConversationDto, CustomerCommandQuery, RequestHandoffDto } from '../dto/conversation-entry.dto';
 import { CustomerConversationsQuery, MessageQueryDto } from '../dto/message-query.dto';
-import { ChatSupportDto, CommandReceiptDto, CreateConversationResponseDto, CustomerConversationResponseDto, CustomerConversationsResponseDto, HandoffResponseDto, TranscriptResponseDto } from '../dto/conversation-workflow-response.dto';
+import { ChatSupportDto, CommandReceiptDto, CreateConversationResponseDto, CustomerConversationResponseDto, CustomerConversationsResponseDto, HandoffResponseDto, MarkConversationReadResponseDto, TranscriptResponseDto } from '../dto/conversation-workflow-response.dto';
 import { ConversationEntryService } from '../services/conversation-entry.service';
 import { ConversationHandoffService } from '../services/conversation-handoff.service';
 import { ConversationTranscriptService } from '../services/conversation-transcript.service';
-import type { ConversationRequest } from '../services/conversation-session.service';
+import { ConversationMessageService } from '../services/conversation-message.service';
+import { ConversationCommandService } from '../services/conversation-command.service';
+import { ConversationSessionService, type ConversationRequest } from '../services/conversation-session.service';
 const noQuery = (query: Record<string, unknown>) => { if (Object.keys(query).length) throw new BadRequestException(); };
 
 @ApiTags('Customer Conversations') @ApiCookieAuth('session')
@@ -22,7 +24,9 @@ const noQuery = (query: Record<string, unknown>) => { if (Object.keys(query).len
 @Controller('customers/me')
 export class CustomerConversationController {
   constructor(private readonly entry: ConversationEntryService, private readonly handoff: ConversationHandoffService,
-    private readonly transcript: ConversationTranscriptService, private readonly sending: ConversationSendingService) {}
+    private readonly transcript: ConversationTranscriptService, private readonly sending: ConversationSendingService,
+    private readonly messagesService: ConversationMessageService, private readonly commands: ConversationCommandService,
+    private readonly session: ConversationSessionService) {}
   @Get('chat-support') @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Current routing availability and server-controlled full-history consent text.' }) @ApiOkResponse({ type: ChatSupportDto })
   support(@Req() request: ConversationRequest, @Query() query: Record<string, unknown>) { noQuery(query); return this.entry.support(request); }
@@ -73,5 +77,14 @@ export class CustomerConversationController {
   @ApiOperation({ summary: 'Own Customer-facing transcript with exclusive before/after cursors; no Copilot or tool payload.' }) @ApiOkResponse({ type: TranscriptResponseDto })
   messages(@Req() request: ConversationRequest, @Param('conversationId', new ParseUUIDPipe()) id: string, @Query() query: MessageQueryDto) {
     return this.transcript.messages(request, 'CUSTOMER', id, query);
+  }
+  @Post('conversations/:conversationId/read') @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'Mark all unread staff messages in conversation as read and dismiss staff unread notification.' })
+  @ApiOkResponse({ type: MarkConversationReadResponseDto })
+  markRead(@Req() request: ConversationRequest, @Param('conversationId', new ParseUUIDPipe()) id: string, @Query() query: Record<string, unknown>) {
+    noQuery(query);
+    return this.session.write(request, 'CUSTOMER', 'NOTIFICATION_READ',
+      (tx, actorId) => this.commands.lock(tx, actorId, id),
+      (tx, actorId) => this.messagesService.markAsRead(tx, { id: actorId, role: 'CUSTOMER' }, id));
   }
 }

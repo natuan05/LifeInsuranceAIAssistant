@@ -21,4 +21,4 @@ Corpus công khai không có nghĩa ứng dụng cho phép truy cập ẩn danh.
 - Ưu tiên lớp chữ; 5 trang ảnh của hai ImportantNote đã được Luna chép và đối chiếu ngày 28/10/2026. Không tự suy đoán phần nguồn thiếu, không coi kiểm tra bằng AI là xác nhận nghiệp vụ.
 - Mỗi bản trích giữ số trang PDF để đối chiếu. Bảng nhiều cột/ô gộp phải giữ cấu trúc hoặc ghi rõ cần kiểm tra; không ghép dữ liệu theo phỏng đoán.
 
-Đối chiếu 04/11/2026 sau đồng bộ app: Staff đã có API policy/catalog và xem/tải PDF local. Chưa có Product API, truy cập PDF cho Customer hoặc RAG pipeline. Xem [checklist UI](../../docs/ui/implementation-status.md).
+Staff/Customer đã có Product API và xem/tải PDF theo quyền. Bootstrap tạo đủ bảy sản phẩm và 13 PDF dựng từ các bản Markdown Public, giữ các lựa chọn/phiên bản riêng. Mỗi hồ sơ trong portfolio synthetic gắn đúng điều khoản của sản phẩm đó; Xanh Ước Mơ chọn UL049 và không ghép ULP50. Có sản phẩm bổ trợ trong catalog không có nghĩa hợp đồng đã tham gia. Đây không phải nạp chunks/embeddings hoặc xác nhận human/RAG approval. Xem [checklist UI](../../docs/ui/implementation-status.md).

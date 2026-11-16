@@ -7,13 +7,17 @@ import { hashPassword, needsPasswordRehash, verifyPassword } from '../accounts/u
 // Public synthetic fixture credential, deliberately shared in Git for LOCAL dev only.
 export const sharedDevPassword = 'DevLocal-2026!';
 
-export type DevAccountDefinition = { accountCode: string; email: string; role: 'STAFF' | 'CUSTOMER'; fullName: string; staffCode?: string };
+export type DevAccountDefinition = { accountCode: string; email: string; role: 'STAFF' | 'CUSTOMER'; fullName: string; staffCode?: string;
+  phone?: string; birth?: string; address?: string; department?: string };
 export const devAccounts: readonly DevAccountDefinition[] = [
-  { accountCode: 'STF-000001', email: 'staff.a@dev.example.invalid', role: 'STAFF', fullName: 'Synthetic Staff A' },
-  { accountCode: 'STF-000002', email: 'staff.b@dev.example.invalid', role: 'STAFF', fullName: 'Synthetic Staff B' },
-  { accountCode: 'CUS-000001', email: 'customer.a@dev.example.invalid', role: 'CUSTOMER', fullName: 'Synthetic Customer A', staffCode: 'STF-000001' },
-  { accountCode: 'CUS-000002', email: 'customer.b@dev.example.invalid', role: 'CUSTOMER', fullName: 'Synthetic Customer B', staffCode: 'STF-000002' },
-  { accountCode: 'CUS-000003', email: 'customer.unassigned@dev.example.invalid', role: 'CUSTOMER', fullName: 'Synthetic Customer Unassigned' },
+  { accountCode: 'STF-000001', email: 'minh.staff@dev.example.invalid', role: 'STAFF', fullName: 'Nguyễn Hoàng Minh', phone: '+99900001001', department: 'Chăm sóc khách hàng' },
+  { accountCode: 'STF-000002', email: 'ha.staff@dev.example.invalid', role: 'STAFF', fullName: 'Trần Ngọc Hà', phone: '+99900001002', department: 'Dịch vụ hợp đồng' },
+  { accountCode: 'CUS-000001', email: 'anh.customer@dev.example.invalid', role: 'CUSTOMER', fullName: 'Lê Minh Anh', staffCode: 'STF-000001',
+    phone: '+99900002001', birth: '1987-07-01', address: '12 đường Hoa Ban, khu Bình An, thành phố Minh Sơn (địa chỉ giả lập)' },
+  { accountCode: 'CUS-000002', email: 'linh.customer@dev.example.invalid', role: 'CUSTOMER', fullName: 'Phạm Ngọc Linh', staffCode: 'STF-000002',
+    phone: '+99900002002', birth: '1987-07-01', address: '28 đường Hướng Dương, khu An Phú, thành phố Minh Sơn (địa chỉ giả lập)' },
+  { accountCode: 'CUS-000003', email: 'trang.customer@dev.example.invalid', role: 'CUSTOMER', fullName: 'Vũ Thu Trang',
+    phone: '+99900002003', birth: '1994-09-18', address: '7 đường Mộc Lan, khu An Nhiên, thành phố Minh Sơn (địa chỉ giả lập)' },
 ] as const;
 
 export type DevManifest = { version: 1; accounts: Array<{ accountCode: string; email: string; password: string }> };
@@ -71,6 +75,13 @@ export async function bootstrapInTransaction(tx: Prisma.TransactionClient, clien
     const account = await service.createInTransaction(tx, { accountCode: fixture.accountCode, email: fixture.email,
       role: fixture.role, fullName: fixture.fullName, password, ...(staffId ? { staffId } : {}) },
     { operatorId: 'dev-bootstrap', requestId: randomUUID() });
+    // Only canonical identities receive the fixed contact defaults. Isolated
+    // test accounts must not reuse their unique phone numbers.
+    if (devAccounts.some(row => row.accountCode === fixture.accountCode && row.email === fixture.email)) {
+      if (fixture.phone) await tx.user.update({ where: { id: account.id }, data: { phone: fixture.phone } });
+      if (fixture.role === 'STAFF') await tx.staffProfile.update({ where: { userId: account.id }, data: { department: fixture.department } });
+      else await tx.customerProfile.update({ where: { userId: account.id }, data: { birth: fixture.birth ? new Date(fixture.birth) : null, address: fixture.address } });
+    }
     ids.set(fixture.accountCode, account.id);
     result.push({ accountCode: fixture.accountCode, created: true, initialPasswordValid: true });
   }

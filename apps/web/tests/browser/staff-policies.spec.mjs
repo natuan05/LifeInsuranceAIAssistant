@@ -119,6 +119,7 @@ for (const selected of ['main', 'endorsement']) {
     if (selected === 'endorsement') await page.getByRole('button', { name: 'View Synthetic Endorsement', exact: true }).click();
     const summary = page.locator('summary').filter({ hasText: 'Policy information' });
     await summary.click();
+    await expect(summary.locator('..')).toHaveJSProperty('open', true);
     const source = await rememberFrame(page);
     await summary.focus();
     const scroll = await detail(page).evaluate(node => { node.scrollTop = 120; return node.scrollTop; });
@@ -138,6 +139,21 @@ for (const selected of ['main', 'endorsement']) {
     await sameFrame(page, source); expect(state.counts.view).toBe(views); expect(state.documents).toHaveLength(1);
   });
 }
+
+test('Policy information supports Enter and Space and retains its open state during refresh', async ({ page }) => {
+  const state = await setup(page);
+  const summary = page.locator('summary').filter({ hasText: 'Policy information' });
+  const disclosure = summary.locator('..');
+  await summary.focus(); await summary.press('Enter');
+  await expect(disclosure).toHaveJSProperty('open', true);
+  await summary.press('Space'); await expect(disclosure).toHaveJSProperty('open', false);
+  await summary.press('Enter'); await expect(disclosure).toHaveJSProperty('open', true);
+  const reads = state.counts.detail;
+  await state.invalidate(); await expect.poll(() => state.counts.detail).toBeGreaterThan(reads);
+  await expect(viewer(page)).toHaveAttribute('aria-busy', 'false');
+  await expect(disclosure).toHaveJSProperty('open', true); await expect(summary).toBeFocused();
+  expect(state.documents).toHaveLength(1);
+});
 
 for (const level of ['detail', 'catalog']) for (const failure of ['network', 500]) {
   test(`${level} ${failure} retains the current PDF with stale warning and retries in place`, async ({ page }) => {

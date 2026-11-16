@@ -25,11 +25,11 @@ export function localFixtureStorage(): FixtureStorage & { close(): void } {
     } catch (error) { if (status(error) === 404) return false; throw error; }
   }
   return { bucket, close: () => s3.destroy(), async ensure(key, body, checksum) {
-    if (!key.startsWith('dev-fixtures/policies-v1/') || !body.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('Invalid fixture object.');
+    if (!key.startsWith('dev-fixtures/synthetic-manulife-v1/') || !body.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new Error('Invalid fixture object.');
     if (await verify(key, checksum)) return false;
     try {
       await s3.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, IfNoneMatch: '*',
-        ContentType: 'application/pdf', CacheControl: 'private, no-store', Metadata: { sha256: checksum, fixture: 'policies-v1' } }),
+        ContentType: 'application/pdf', CacheControl: 'private, no-store', Metadata: { sha256: checksum, fixture: 'synthetic-manulife-v1' } }),
       { abortSignal: AbortSignal.timeout(10000) });
     } catch (error) { if (status(error) !== 412) throw error; }
     if (!await verify(key, checksum)) throw new Error('Fixture upload verification failed.');

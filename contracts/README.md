@@ -12,7 +12,7 @@ Core quản lý vòng đời lượt: tiếp nhận, xếp thứ tự và lưu t
 
 Hai chiều chỉ trả [ACK thành công sau khi lưu bền vững](../docs/specifications/Agent_Design.md#durable-ack). Đã chốt [ba mã run/attempt/event và luật chống gửi trùng](../docs/specifications/Agent_Design.md#run-attempt-event-ids), [sequence riêng từng attempt và xử lý sự kiện muộn](../docs/specifications/Agent_Design.md#callback-ordering), [bộ trạng thái lượt](../docs/specifications/Agent_Design.md#agent-run-status); mã phản hồi, state machine, retry và cơ chế lưu/khôi phục còn cần chốt.
 
-[Lưu/giao kết quả đã chốt](../docs/specifications/Agent_Design.md#durable-result-delivery): Agent lưu kết quả cuối đã qua Finalize và sự kiện trước khi gửi Core. Mất ACK/khởi động lại thì giao lại cùng sự kiện, không chạy lại LLM/tool; Core chống trùng và chặn attempt đã vô hiệu hóa. Nơi lưu, tính nguyên tử, lịch/hạn retry và retention còn mở; chưa triển khai.
+[Lưu/giao kết quả đã chốt](../docs/specifications/Agent_Design.md#durable-result-delivery): Agent lưu kết quả cuối đã qua Finalize và sự kiện trước khi gửi Core. Mất ACK/khởi động lại thì giao lại cùng sự kiện, không chạy lại LLM/tool; Core chống trùng và chặn attempt đã vô hiệu hóa. Phía Agent đã có store bền vững; tích hợp Core, tính nguyên tử toàn luồng và lịch/hạn retry còn phải nghiệm thu. Dữ liệu khôi phục MVP theo [chính sách lưu chung](../docs/configuration-and-data.md#mvp-agent-recovery-retention).
 
 [Kết quả Agent](../docs/specifications/Agent_Design.md#agent-result) gồm `response_type`, `message`, `citations`, `actions`. Action là đề xuất; Core kiểm quyền/nghiệp vụ và xác nhận Ticket trước khi ghi. Schema chi tiết chưa có.
 
@@ -26,7 +26,7 @@ Hai chiều chỉ trả [ACK thành công sau khi lưu bền vững](../docs/spe
 
 [Đầu vào Core gửi Agent](../docs/specifications/Agent_Design.md#agent-input) gồm mã run/attempt, hội thoại/tin nhắn/câu hỏi, người thao tác đã xác minh, Customer mục tiêu và deadline/ngân sách. [Lịch sử/context](../docs/specifications/Agent_Design.md#agent-history-sync) dùng checkpoint và lấy phần thiếu qua Core API. Còn schema/mốc đồng bộ và cơ chế xác thực/ủy quyền.
 
-Đã chốt [hai lớp danh tính dịch vụ và quyền thực thi theo run/attempt](../docs/specifications/Agent_Design.md#service-and-run-authorization), với quyền hiện hành được kiểm tra khi sử dụng. [Tạm chọn HMAC + Core tra quyền theo lượt](../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Profile chữ ký/chống phát lại, quản lý khóa, đường truyền và vòng đời quyền còn mở.
+Đã chốt [hai lớp danh tính dịch vụ và quyền thực thi theo run/attempt](../docs/specifications/Agent_Design.md#service-and-run-authorization), với quyền hiện hành được kiểm tra khi sử dụng. [HMAC + Core tra quyền theo lượt](../docs/specifications/Agent_Design.md#provisional-hmac-auth), chưa token riêng mỗi attempt hoặc dịch vụ cloud bổ sung. Profile chữ ký/chống phát lại đã chọn theo [contracts 12.9](agent-v1.md#129-profile-hmac-g3); quản lý khóa, đường truyền và vòng đời quyền tiếp tục review.
 
 [Ranh giới tool/API](../docs/specifications/Agent_Design.md#agent-tools-vs-system-apis): lịch sử/scope do code tích hợp Agent gọi; mở PDF và chuyển luồng tiếp quản do Web/Core. Hồ sơ, phí, Ticket không mặc định là tool LLM. Đã chốt [hai Business Tools đọc hợp đồng](../docs/specifications/Agent_Design.md#contract-read-tools): `list_contracts` và `get_contract_overview`; còn schema chi tiết, mã lỗi và giới hạn gọi.
 
@@ -63,8 +63,12 @@ Retry hai tool đọc: code adapter chỉ thử lại tối đa một lần khi 
 - Mẫu request/response chỉ chứa định danh và dữ liệu giả lập; không chứa token hay URL đã ký.
 
 
+## Agent contracts v1 — đề xuất chờ review G1
+
+[`agent-v1.md`](agent-v1.md), [`agent-v1.schema.json`](agent-v1.schema.json) và [`fixtures/agent-v1.json`](fixtures/agent-v1.json) đặc tả các kiểu Web ↔ Core, Core ↔ Agent, tool, kết quả truy xuất/kết quả Agent và state checkpoint theo Task 1 của [kế hoạch Agent/RAG](../docs/superpowers/plans/2026-10-31-agent-rag-implementation.md). Kiểm bằng `node --test apps/core/test/agent-contracts.test.cjs`. Profile HMAC/framework đã chọn theo code Agent hiện có ở mục 12.9–12.10; các phần G1/G2/G3 còn lại tiếp tục review. Phía Agent có store/HTTP, tích hợp Core thật chưa hoàn tất. Các điểm cần chốt nằm ở [mục 11](agent-v1.md#11-cần-chốt-ở-review-g1). Task 2 thêm [mục 12](agent-v1.md#12-protocol-bền-vững-và-tích-hợp--gói-đề-xuất-g2g3-task-2): gói đề xuất G2/G3 (state machine run/attempt, fencing checkpoint, ledger, crash matrix, HMAC, DDL), kiểm bằng reference model `node --test apps/core/test/agent-protocol.test.cjs`; các kiểm tra này không thay nghiệm thu DB/mạng/Core thật.
+
 ## Trạng thái 30/10/2026
 
 API local hiện đã có controller/DTO và Swagger cho auth/profile/assigned customers; native WebSocket `/api/v1/realtime` chỉ invalidation account/profile/assignment. Thư mục này chưa có schema giao tiếp được version hoặc generated client riêng, không có nghĩa toàn bộ dự án chưa có API.
 
-[Bản đồ API UI](../docs/ui/staff/api-map.md) phân biệt A01–06 đã có với A07–28 đề xuất. Contract policy context update, Customer business APIs và chat/Ticket/notification events/replay còn thiếu; kênh invalidation không xác lập các contract đó. Xem [checklist và gap](../docs/ui/implementation-status.md) trước khi thêm schema/client.
+[Bản đồ API UI](../docs/ui/staff/plans/00-staff-contract.md#api-theo-chức-năng) phân biệt A01–06 đã có với A07–28 đề xuất. Contract policy context update, Customer business APIs và chat/Ticket/notification events/replay còn thiếu; kênh invalidation không xác lập các contract đó. Xem [checklist và gap](../docs/ui/implementation-status.md) trước khi thêm schema/client.

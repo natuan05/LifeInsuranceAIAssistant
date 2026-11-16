@@ -2,6 +2,31 @@
 
 04/11/2026 · **E: A23 Core đã triển khai** · [Contract](../07-tickets-contract.md) · [Chung](../00-staff-contract.md).
 
+## Data model và phạm vi ảnh hưởng
+
+| Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
+| --- | --- | --- | --- | --- |
+| users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
+| staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
+| support_tickets | id/ticket_code/customer_id/assigned_staff_id/conversation_id/policy_id/status/version/title/ai_summary/extracted_details/confirmed_at | Đọc | Policy FK (policy_id,customer_id); Ticket quyền riêng, không cấp transcript grant; legacy không có confirmedContent/TicketDraft | Cao — list/detail/status và notification dùng cùng Ticket scope; confirmed_at không chứng minh AI text đã được duyệt |
+| support_tickets | status/version; đọc assigned_staff_id/customer_id | Ghi status và tăng version khi đổi hợp lệ | Lock row + expectedVersion/CAS + current assignment; không tạo confirmation evidence | Cao — đủ TicketStatus theo transitions hiện hành, reopen riêng Ticket; ConversationStatus không CLOSED |
+| rate_limit_buckets | client_token/endpoint_group/window_start/request_count/blocked_until | Ghi phụ trợ khi endpoint áp quota | PK (client_token,endpoint_group); tăng atomic, giới hạn theo actor/nhóm endpoint | Trung bình — quota có thể ghi dù nghiệp vụ bị từ chối; không log định danh nhạy cảm |
+| audit_logs | actor_id/action/target_type/target_id/outcome/request_id/metadata/created_at | Thêm khi mutation/cấp PDF theo service | actor_id → User.id; không sửa/xóa audit cũ; chỉ metadata allowlist | Cao — phải giữ bằng chứng đúng transaction nghiệp vụ; không lưu transcript/password/signed URL |
+| outbox_events | aggregate_type/aggregate_id/event_type/payload/status/retry_count/next_attempt_at/lease_owner/lease_expires_at/last_error | Thêm trong transaction nguồn; worker cập nhật trạng thái/lease | Index status/next_attempt_at/lease_expires_at; aggregate_id là reference kiểm bởi service, không FK đa loại | Cao — retry/reclaim/dedup, commit nghiệp vụ khác delivery; REST vẫn là nguồn dữ liệu |
+
+**Schema/migration:** Không DDL cho command; version TK01, outbox TK05. Không dùng ConversationCommandReceipt làm idempotency Ticket.
+
+**Nhất quán và hồi quy:** Lock/recheck/CAS và audit+event atomic; no-op/409 theo contract, không blind retry đổi token. Kiểm status/reopen/lost response/race reassignment và conversation không đổi.
+
+## Vị trí code và mức ảnh hưởng
+
+| Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
+| --- | --- | --- | --- | --- |
+| [apps/core/src/tickets/controllers/staff-ticket.controller.ts](<../../../../../apps/core/src/tickets/controllers/staff-ticket.controller.ts>) | Hiện có | List/detail/accept/status endpoints | Cao | Staff Ticket list/detail |
+| [apps/core/src/tickets/services/ticket.service.ts](<../../../../../apps/core/src/tickets/services/ticket.service.ts>) | Hiện có | Scope, lock, expectedVersion/CAS, audit/outbox | Cao | Status dropdown và notification source |
+| [apps/core/src/tickets/services/ticket-access.service.ts](<../../../../../apps/core/src/tickets/services/ticket-access.service.ts>) | Hiện có | Ticket scope và allowedActions | Cao | Notifications và deep link, không cấp chat grant |
+| [apps/core/src/tickets/dto/update-ticket-status.dto.ts](<../../../../../apps/core/src/tickets/dto/update-ticket-status.dto.ts>) | Hiện có | Enum/status/version allowlist | Trung bình | ticket-api.ts và Swagger |
+
 ## 1. Phạm vi và model
 
 FR-010 tiếp nhận; lifecycle status được người dùng bổ sung ở mục7, chưa có nghiệp vụ phản hồi/Claim/payment. Không A11 Accept chat/consent, không Agent producer. Dùng version từ TK01; không thêm migration/dependency. UI thuộc TK04, consumer notification thuộc TK05.
@@ -62,17 +87,76 @@ flowchart TD
 
 GET A22 để đọc lại. IN_PROGRESS chỉ xác nhận trạng thái hiện hành, không chứng minh click cụ thể này tạo receipt. Retry payload cũ trả current state nếu còn quyền; không tự POST bằng version mới. Nếu vẫn ASSIGNED nhưng version thay đổi, hiển thị conflict cho người dùng kiểm lại. Không success trước commit. Browser checking/unknown/reconcile thuộc TK04.
 
-## 5. Kiểm thử
+## 5. Test cases
 
-Dùng chung fixtures/teardown tại apps/core/test/tickets-read.test.cjs: 15 read tests TK02 và **7 command tests TK03**. Không tạo file test setup trùng hoặc seed/bootstrap dữ liệu riêng.
+Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](../../../README.md#quy-ước-test-case-và-sequence-diagram).
 
-TK03 gồm concurrent5 requests+replay chỉ một version/audit/event; stale/unsupported state; wrong actor/missing Ticket; CSRF/Origin/role/strict DTO; replay sau revoke/Staff khóa và Customer khóa; assignment đổi trước lock; injected outbox write failure rollback status/version/audit rồi retry; quota ghi riêng và Retry-After. Chat AI giữ nguyên, transcript vẫn404. Kiểm gateway bằng session synthetic, không log credential.
+### TK03-T01 — Chọn trực tiếp đủ 5 status
 
-```powershell
-docker compose --profile tests run --rm --no-deps core-tests node --test test/tickets-read.test.cjs test/ticket-foundation.test.cjs test/conversation-permissions.test.cjs test/http-foundation.test.cjs test/realtime.test.cjs
-```
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** T-A đúng scope S-A; A22 trả version n và transitions 4 đích còn lại.
 
-Kết quả04/11: **51/51 pass** (22 Ticket +16 Conversation +7 Ticket foundation +6 HTTP/WS), bao gồm Accept replay qua gateway. Core lint/typecheck và Docker build pass. Kiểm HTTP/PostgreSQL thật và fault injection có chủ đích, không browser E2E. Fixture audit/outbox/session/bucket/Ticket/chat/users đều teardown; không sửa bootstrap hoặc thêm producer giả.
+**Các bước:**
+
+1. PATCH status theo thứ tự CLOSED→OPEN→RESOLVED→ASSIGNED→IN_PROGRESS, mỗi lần dùng version vừa nhận.
+2. GET detail sau mỗi lần.
+3. Đối chiếu audit/outbox.
+
+**Kết quả mong đợi:** Mọi status đều chọn trực tiếp được; mỗi thay đổi thật version+1 và một audit/event; không ép tuần tự.
+
+### TK03-T02 — Hai tab và replay current state
+
+**Lớp kiểm thử:** API + DB barrier.
+**Điều kiện và dữ liệu:** Hai context S-A cùng đọc T-A ở version n.
+
+**Các bước:**
+
+1. Cùng PATCH target RESOLVED bằng n.
+2. Replay target hiện tại bằng payload cũ.
+3. Từ context còn giữ n PATCH sang status khác.
+
+**Kết quả mong đợi:** Một transition/audit/event; replay current trả current không ghi thêm; đổi target bằng version stale 409, không overwrite.
+
+### TK03-T03 — Authority và CSRF
+
+**Lớp kiểm thử:** API.
+**Điều kiện và dữ liệu:** T-A thuộc S-A; S-B/Customer không quyền; session synthetic độc lập.
+
+**Các bước:**
+
+1. PATCH bằng S-B, Customer, không cookie hoặc CSRF sai.
+2. Gửi status lạ, expectedVersion âm/string và trường ngoài DTO.
+3. GET T-A bằng actor có quyền.
+
+**Kết quả mong đợi:** Lỗi404/403/401/400 đúng contract, Ticket/version/audit/outbox không bị thay đổi.
+
+### TK03-T04 — Rollback và unknown outcome
+
+**Lớp kiểm thử:** API + DB/Network barrier.
+**Điều kiện và dữ liệu:** Harness inject lỗi sau update Ticket trước audit/outbox; biến thể khác ngắt ACK sau commit.
+
+**Các bước:**
+
+1. Gửi PATCH với version hiện hành.
+2. Đọc Ticket/audit/outbox khi lỗi trước commit.
+3. Với ACK mất, GET reconcile rồi chỉ retry payload cũ nếu cần.
+
+**Kết quả mong đợi:** Failure trước commit rollback toàn bộ; ACK mất không chứng minh rollback; không tự PATCH version mới hoặc tạo event trùng.
+
+### TK03-T05 — POST Accept tương thích và độc lập chat
+
+**Lớp kiểm thử:** API + DB.
+**Điều kiện và dữ liệu:** T-A ASSIGNED liên kết AI riêng; T-B CLOSED; command quota riêng.
+
+**Các bước:**
+
+1. POST accept T-A rồi replay.
+2. POST accept T-B.
+3. GET transcript AI và vượt quota bằng PATCH/accept xen kẽ.
+
+**Kết quả mong đợi:** Accept cũ chỉ ASSIGNED→IN_PROGRESS/replay; T-B409; chat vẫn deny; PATCH/accept chung quota 30/phút,429 có Retry-After.
+
+**Suite tham khảo:** [tickets-read.test.cjs](../../../../../apps/core/test/tickets-read.test.cjs). Tên suite là vị trí tự động hóa, không phải chứng nhận các ca đã chạy.
 
 ## 6. Checklist
 
@@ -92,8 +176,39 @@ PATCH /api/v1/staff/tickets/:ticketId/status body {expectedVersion,status}; sess
 | --- | --- |
 | OPEN / ASSIGNED / IN_PROGRESS / RESOLVED / CLOSED | Chọn trực tiếp bất kỳ status nào trong 5 giá trị; không bắt buộc đi tuần tự |
 
-Người dùng05/11 chốt dropdown luôn đủ5 status, cho phép chọn trực tiếp. Không claim Ticket unassigned hoặc đổi recipient. Core trả4 status còn lại trong allowedActions.transitions; FE thêm current status để hiển thị đủ5. Target đã là current status trả200 current, không thêm audit/event; đây là reconcile trạng thái, không receipt của thao tác. Thay đổi thật kiểm expectedVersion sau khóa, CAS, version+1, audit+outbox atomic. Giữ POST accept tương thích, chỉ ASSIGNED→IN_PROGRESS và replay IN_PROGRESS như trước.
+Người dùng05/11 chốt dropdown luôn đủ 5 status, cho phép chọn trực tiếp. Không claim Ticket unassigned hoặc đổi recipient. Core trả 4 status còn lại trong allowedActions.transitions; FE thêm current status để hiển thị đủ 5. Target đã là current status trả 200 current, không thêm audit/event; đây là reconcile trạng thái, không receipt của thao tác. Thay đổi thật kiểm expectedVersion sau khóa, CAS, version+1, audit+outbox atomic. Giữ POST accept tương thích, OPEN/ASSIGNED có recipient và active assignment hợp lệ → IN_PROGRESS; replay IN_PROGRESS giữ nguyên trạng thái.
 
-ASSIGNED→IN_PROGRESS phát TICKET_ACCEPTED; các bước còn lại phát TICKET_STATUS_CHANGED, payload {schemaVersion:1,version}. Consumer/dedup/realtime như TK05. Migration thứ10 202611050002_ticket_status_notifications chỉ mở rộng kind/typed-target CHECK, không thêm cột/bảng/enum. Đóng/mở lại Ticket không sửa chat/handoff/grant và không thực hiện Claim/payment.
+ASSIGNED→IN_PROGRESS phát TICKET_ACCEPTED; các bước còn lại phát TICKET_STATUS_CHANGED, payload {schemaVersion:1,version}. Consumer/dedup/realtime như TK05. Migration thứ 10 202611050002_ticket_status_notifications chỉ mở rộng kind/typed-target CHECK, không thêm cột/bảng/enum. Đóng/mở lại Ticket không sửa chat/handoff/grant và không thực hiện Claim/payment.
 
 Thêm3 Core tests: toàn lifecycle/reopen/replay; forbidden jump/stale/CSRF/role/scope; concurrent status change và notification consumer. Migration có test rollback/bảo toàn dữ liệu/typed target. Browser hai tab thật kiểm resolve→close→reopen và invalidation/notification.
+
+## Sequence diagram
+
+Luồng chính và nhánh quyền/lỗi; test case ở trên chỉ rõ dữ liệu và điểm kiểm tương ứng.
+
+```mermaid
+sequenceDiagram
+    actor U as Staff
+    participant W as Web
+    participant C as Core
+    participant D as PostgreSQL
+    U->>W: Xác nhận thao tác
+    W->>C: PATCH /staff/tickets/ticketId/status, expectedVersion và status
+    C->>D: Kiểm session, CSRF và khóa recipient, assignment và Ticket row
+    D-->>C: Quyền, version và state hiện hành
+    alt Không đủ quyền hoặc version stale
+        C-->>W: 401, 403, 404 hoặc409 an toàn
+        W-->>U: Giữ nháp phù hợp và review trạng thái
+    else Hợp lệ
+        C->>D: CAS status/version, audit và outbox atomic
+        D-->>C: COMMIT
+        C-->>W: 200 current detail, đủ 5 status được chọn trực tiếp
+        W-->>U: Cập nhật sau ACK
+    end
+    opt Timeout hoặc mất ACK
+        W->>C: GET current state hoặc receipt theo contract
+        C->>D: Kiểm lại quyền và đọc kết quả
+        C-->>W: Current state, không tự cấp quyền mới
+        W-->>U: Review trước khi ghi lại
+    end
+```

@@ -2,7 +2,20 @@
 
 Ngày **03/11/2026**. **I01–I06 đã triển khai/kiểm chứng 04/11/2026; I07/C01 Copilot chưa implement.** Enum chat CLOSED đã loại ở migration trước; I01 là migration foundation riêng. [Spec chính](inbox/00-inbox-spec.md) · [API](00-staff-contract.md#api-theo-chức-năng) · [Kế hoạch chung](../../../next-steps.md).
 
+## Truy vết data model và vị trí code theo phase
+
+| Phase sở hữu | Bảng/dữ liệu chính và thao tác | Code cần rà từ root repo | Mức ảnh hưởng khi sửa |
+| --- | --- | --- | --- |
+| [I01 — Model, quyền và migration Inbox](inbox/01-model-permissions.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + conversation_handoffs (Create/request/Accept/revoke ghi); messages + conversations (Append ghi, không sửa/xóa nội dung cũ); conversation_command_receipts (Thêm hoặc đọc để replay) | [apps/core/prisma/schema.prisma](<../../../../apps/core/prisma/schema.prisma>); [apps/core/prisma/migrations/](<../../../../apps/core/prisma/migrations>) | Cao — Generated client, mọi writer Conversation/Message |
+| [I02 — Read API nhóm khách, danh sách cuộc và request metadata](inbox/02-inbox-read-api.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc) | [apps/core/src/conversations/controllers/staff-inbox.controller.ts](<../../../../apps/core/src/conversations/controllers/staff-inbox.controller.ts>); [apps/core/src/conversations/services/staff-inbox.service.ts](<../../../../apps/core/src/conversations/services/staff-inbox.service.ts>) | Cao — Inbox accordion/search/filter |
+| [I03 — Customer entry, handoff, Accept và toàn bộ lịch sử](inbox/03-handoff-transcript.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + conversation_handoffs (Create/request/Accept/revoke ghi); messages + conversations (Append ghi, không sửa/xóa nội dung cũ); conversation_command_receipts (Thêm hoặc đọc để replay); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/conversations/controllers/customer-conversation.controller.ts](<../../../../apps/core/src/conversations/controllers/customer-conversation.controller.ts>); [apps/core/src/conversations/services/conversation-entry.service.ts](<../../../../apps/core/src/conversations/services/conversation-entry.service.ts>) | Cao — Customer chat và consent |
+| [I04 — Giao diện Inbox Staff, accordion và chat cuộn](inbox/04-staff-inbox-ui.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); conversations + conversation_handoffs (Ghi gián tiếp qua Accept I03) | [apps/web/src/components/staff-inbox.tsx](<../../../../apps/web/src/components/staff-inbox.tsx>); [apps/web/src/components/staff-inbox-directory.tsx](<../../../../apps/web/src/components/staff-inbox-directory.tsx>) | Trung bình — Staff shell và tab policy lookup |
+| [I05 — Gửi tin chống trùng và giao diện Customer hai đầu](inbox/05-messaging-customer.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); messages + conversations (Append ghi, không sửa/xóa nội dung cũ); conversation_command_receipts (Thêm hoặc đọc để replay); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease) | [apps/core/src/conversations/services/conversation-sending.service.ts](<../../../../apps/core/src/conversations/services/conversation-sending.service.ts>); [apps/core/src/conversations/services/conversation-message.service.ts](<../../../../apps/core/src/conversations/services/conversation-message.service.ts>) | Cao — Staff/Customer send |
+| [I06 — Realtime, outbox, thông báo handoff và thu hồi quyền](inbox/06-realtime-routing.md) | staff_assignments + customer_profiles + staff_profiles (Đọc); conversations + conversation_handoffs (Đọc); messages (Đọc); outbox_events (Thêm trong transaction nguồn; worker cập nhật trạng thái/lease); notifications (Consumer thêm handoff notification); messages + conversations (Append ghi, không sửa/xóa nội dung cũ) | [apps/core/src/outbox/services/outbox-dispatcher.service.ts](<../../../../apps/core/src/outbox/services/outbox-dispatcher.service.ts>); [apps/core/src/conversations/services/conversation-event.service.ts](<../../../../apps/core/src/conversations/services/conversation-event.service.ts>) | Cao — Chat và Ticket event consumer |
+
 ## 1. Quyết định đã chốt
+
+**Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 - All / Requests / Active, không AI active/Closed/New trong Inbox Staff.
 - Bỏ toàn bộ counts/badge/tổng số và A07 summary; lazy load bằng hasMore/nextCursor.
@@ -45,7 +58,7 @@ flowchart LR
   I06 --> I07[Ticket riêng]
 ```
 
-I01–I03 chưa phải chat UI hoàn chỉnh. I04 là mốc review bố cục/đọc/Accept. I05 chat hai đầu qua REST, cần tải lại vùng dữ liệu cho đến I06. I06 Inbox cập nhật liên tục. Agent sinh câu trả lời thật, checkpoint, attachments/typing/read receipts và Copilot cần kế hoạch riêng; không đánh dấu hoàn thành từ fixture AI hoặc GET history.
+I01–I03 chưa phải chat UI hoàn chỉnh. I04 là mốc review bố cục/đọc/Accept. I05 chat hai đầu qua REST, cần tải lại vùng dữ liệu cho đến I06. I06 Inbox cập nhật liên tục. Agent sinh câu trả lời thật, checkpoint và Copilot theo CH02/CH03/CP01–CP04; không đánh dấu hoàn thành từ fixture AI hoặc GET history. Read marker đã có source, phần review theo N01/N02.
 
 ## 4. Nội dung bắt buộc của kế hoạch I01
 
@@ -84,12 +97,12 @@ Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI d
 - [x] Review và triển khai I01, migration/policy/service tests đã pass. Các đề xuất cho endpoint/UI sau vẫn cần chốt trong phase sở hữu.
 - [x] Implement/nghiệm thu I01 model/quyền/legacy/receipt/sequence/revocation.
 - [x] Implement/nghiệm thu I02 groups/lazy/request metadata/search/cursor, không counts và không pending transcript.
-- [x] Implement/nghiệm thu I03 Customer entry/consent/request/Accept/history/lookup, 23 ca workflow pass.
+- [x] Implement/nghiệm thu I03 Customer entry/consent/request/Accept/history/lookup.
 - [x] I04 Staff Inbox: search/accordion/Accept/chat cuộn, browser mock và gateway E2E thật.
 - [x] I05 send/reconcile và Customer UI qua REST thật.
 - [x] I06-A: tin SYSTEM tiếp nhận lưu cùng transaction Accept; retry không trùng, không báo thành công trước commit.
 - [x] I06-B: realtime/outbox/notification/catch-up và thu hồi quyền.
-- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel hỏi/tóm tắt/gợi ý trả lời.
+- [ ] C01: [Copilot riêng cho Staff](08-copilot-contract.md#c01--kế-hoạch-ai-copilot-riêng-cho-staff), chốt Core–Agent/checkpoint trước triển khai panel tra cứu/giải thích/tóm tắt; không soạn nháp Customer hoặc Use draft.
 - [ ] Mở phạm vi/nghiệm thu I07 riêng, không chờ Ticket để dùng chat Staff.
 
 ## 9. Contract kỹ thuật dùng chung — đề xuất
@@ -145,7 +158,7 @@ Test race outbox không được claim event thật của người dùng: test w
 
 **I04 đã nối** Staff Inbox/accordion/request/Accept và transcript cuộn bằng API thật. I05 public send và Customer chat UI đã nối qua REST. I06 realtime local đã hoàn tất; tiếp theo review C01 Copilot/I07 theo phạm vi người dùng chọn.
 
-**Bổ sung 04/11 sau test tay:** người dùng xác nhận phần I04/I05 còn lại pass. I06-A SYSTEM và I06-B realtime đã triển khai; Copilot C01 là mốc riêng đã có kế hoạch trong S05, không tạo Ticket hoặc gửi trả lời khách tự động. Phạm vi Copilot chỉ Staff, chưa mở đợt sửa giao diện Customer.
+**Hiện trạng:** I04/I05 đã triển khai. I06-A SYSTEM và I06-B realtime đã triển khai; Copilot C01 là mốc riêng đã có kế hoạch trong S05, không tạo Ticket hoặc gửi trả lời khách tự động. Phạm vi Copilot chỉ Staff, chưa mở đợt sửa giao diện Customer.
 
 ## API và routes của chức năng
 
@@ -160,7 +173,7 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 | A11 E (reconcile) | GET /staff/conversations/:conversationId/commands/:clientRequestId?operation=ACCEPT_HANDOFF | Receipt chính Staff; recheck current grant, 404 không chứng minh chưa commit |
 | A12 E | POST /staff/conversations/:conversationId/messages | clientMessageId/content/expectedVersion; chống trùng và ACK sau commit |
 | A12 E (reconcile) | GET /staff/conversations/:conversationId/messages/by-client-id/:clientMessageId | Tra tin của chính actor sau timeout, không gửi lại bằng key mới |
-| A13 P | POST /staff/conversations/:conversationId/read | Read marker transcript; chưa có schema/spec hoàn chỉnh, không thuộc notification.isRead |
+| A13 E | POST /staff/conversations/:conversationId/read | Source có markAsRead, kiểm session/grant dưới lock và cập nhật readAt. Notification.isRead theo chuông riêng, read-cycle/DTO/event được review tại Customer N01/N02 |
 
 | Route | Trạng thái |
 | --- | --- |

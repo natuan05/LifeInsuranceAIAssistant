@@ -1,37 +1,44 @@
-# C09 — Customer notification center: chốt phạm vi riêng
+# C09 — Customer Notifications và trạng thái đọc
 
-04/11/2026 · **Đề xuất mở rộng, chưa vào đường triển khai bắt buộc** · C09 · [Chung](00-customer-contract.md).
+**Quyết định 08/11/2026, xác nhận phương án A ngày 13/11:** Customer nhận sự kiện trong chat và qua Notification Center lưu DB. Retention thông báo là 30 ngày cho cả Customer và Staff. [Chung](00-customer-contract.md).
 
-## 1. Căn cứ và baseline
+## 1. Phạm vi
 
-FR-013 là System→Staff khi có conversation/Request mới, không quy định Customer notification center. Customer đã nhận realtime chat/SYSTEM sau Staff Accept từ I06; đó không phải Notification row Customer. Model Notification chỉ recipientStaffId; không giả Customer là Staff hoặc dùng isRead của notification làm đã đọc tin nhắn.
+- Trong chat có realtime/SYSTEM khi Staff tiếp nhận và trạng thái đọc tin nhắn.
+- Chuông Customer có danh sách thông báo persisted, badge unread và thao tác đọc từng mục/tất cả.
+- Nội dung generic, target theo Customer owner. Xem notification không tự Accept chat/Ticket hoặc cấp transcript grant.
+- Message.readAt và Notification.isRead theo hai thao tác riêng. Đọc hội thoại cập nhật tin nhắn và notification unread tương ứng; đánh dấu đọc chuông không tự đánh dấu đã xem transcript.
 
-| Phase | Kết quả | Gate |
+## 2. Sự kiện
+
+| Sự kiện | Recipient/target |
+| --- | --- |
+| STAFF_ACCEPTED_HANDOFF | Customer của cuộc chat; target CONVERSATION, đồng thời có SYSTEM |
+| SUPPORT_TICKET_CREATED | Customer sở hữu Ticket; target TICKET |
+| STAFF_MESSAGE_UNREAD | Customer chưa đọc tin Staff; target CONVERSATION |
+| CUSTOMER_MESSAGE_UNREAD | Staff có quyền đang nhận cuộc; nghiệp vụ đối xứng phía Staff |
+
+Phương án A: thông báo tin nhắn gộp theo recipient/cuộc/kind đến khi người nhận đọc chat. Sau khi đọc chuông, tin mới cùng chu kỳ vẫn cập nhật mục cũ, giữ id và bật lại unread. Source hiện gộp theo isRead=false, còn cần sửa theo N01/N02. Nội dung chỉ gồm nhãn chung và mã tham chiếu an toàn, không raw chat/bệnh sử/CCCD/số tiền chi trả.
+
+## 3. Phase, dữ liệu và source
+
+| Phase | Trách nhiệm | Vị trí từ root repo |
 | --- | --- | --- |
-| [N01](notifications/01-scope-recipient-contract.md) | Quyết định có làm center không, events/recipient/retention/model | Chốt phạm vi sản phẩm trước API/UI |
-| [N02](notifications/02-conditional-center.md) | Core/UI center tối thiểu nếu N01 được chốt làm | Schema/recipient/producer đã rõ, không tự bật |
+| [N01](notifications/01-scope-recipient-contract.md) | Event, recipient, schema và retention | `apps/core/prisma/schema.prisma`, notification/conversation/Ticket event services |
+| [N02](notifications/02-conditional-center.md) | API, đọc tin, chuông/realtime, cleanup và tests | `apps/core/src/notifications/`, `apps/web/src/components/customer-workspace.tsx`, `lib/conversation-api.ts` |
 
-## 2. Phạm vi loại trừ
+Source có recipientCustomerId, messages.readAt và hai migration 202611080001/202611090001, cùng API/UI. Các lỗi DTO/event và tiêu chí chưa nghiệm thu được theo dõi tại N02. Mức ảnh hưởng cao ở quyền, dedup, transcript và notification hai role.
 
-Không đưa read receipts/typing/unread counts vào Inbox Staff; không email/push provider hoặc SLA chưa đo. Có thể giữ chỉ cập nhật trạng thái ngay trong chat để MVP gọn; nếu chọn cách đó dừng N02 và không đánh dấu Customer center là thiếu FR-013.
+## 4. Retention và bảo vệ dữ liệu
 
-- [ ] N01 ghi quyết định và danh sách event cần giữ thật.
-- [ ] Chỉ khi chốt làm mới triển khai N02, recipient/security/dedup/retention/tests tương ứng.
+Notification của cả Customer và Staff có created_at cũ hơn 30 ngày thuộc diện dọn dẹp, dù đã đọc hay chưa; không xóa Ticket/Message nguồn. Phương án B đã duyệt ngày 13/11/2026: NotificationsService dọn khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source hiện vẫn lặp mỗi giờ; cần đổi interval và kiểm thử theo N02, chưa coi cleanup hằng ngày đã triển khai. Scheduled Task Execution cloud đã loại theo [Cloud Architecture](../../../specifications/Cloud_Architecture.md#scheduled-task-removal).
 
-## UX và baseline của chức năng
+Payload generic và projection theo role được kiểm theo [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data). Phần masking bổ sung còn P.
 
-## Sự kiện đích
+## 5. Checklist
 
-- Yêu cầu chuyển Staff đã commit: hiển thị đang chờ, không mã Ticket nếu không có Ticket thực.
-- Staff Accept chat thành công: mở cùng cuộc, Staff được đọc toàn bộ lịch sử Customer-facing đã được Customer đồng ý chia sẻ.
-- Ticket được tạo theo đề xuất Agent và xác nhận riêng: mã Ticket, không đồng nghĩa đã nhận chat.
-- Tin Staff chưa đọc/read marker: mở rộng riêng cần yêu cầu và model, chưa nằm trong phase center tối thiểu; không thêm counts vào Inbox Staff.
-
-Mở/đánh dấu notification không tự Accept chat/Ticket hoặc mở rộng quyền. Payload tối thiểu, tránh transcript riêng; link tới cuộc/Ticket vẫn được Core kiểm gate/ownership. Delivery/reconnect/retry không nhân đôi sự kiện hoặc làm mất yêu cầu đã commit.
-
-## Checklist
-
-- [ ] Spec recipient/schema/dedup/read/delivery và quyền Customer trước code.
-- [ ] Tách thông báo handoff và Ticket, trạng thái đúng sau commit.
-- [ ] Không tự mở transcript hoặc nhận chat từ thao tác đọc notification.
-- [ ] Offline/reconnect và link hết quyền an toàn; chưa SLA được đo.
+- [x] Chat + Notification Center, retention 30 ngày cho cả Customer/Staff và nội dung generic đã được duyệt.
+- [x] Tin mới giữ notification cũ trong chu kỳ chưa đọc chat và bật lại unread đã được duyệt.
+- [x] Source có schema, API, UI, message read status và cleanup.
+- [ ] Hoàn thiện các điểm review N02, kiểm recipient/dedup/retry và tương thích DTO.
+- [ ] Chạy hồi quy API/DB/browser/realtime/retention trước nghiệm thu.

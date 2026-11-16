@@ -15,7 +15,7 @@ export function useCooldown(until?: number) {
   return until !== undefined && elapsed !== until;
 }
 
-type ReadOptions = { unavailable?: string; failure?: (status?: number, stale?: boolean) => string; eventName?: string };
+type ReadOptions = { unavailable?: string; failure?: (status?: number, stale?: boolean) => string; eventName?: string; loginPath?: string };
 export function useAuthorizedRead<T>(key: string, read: (signal: AbortSignal) => Promise<T>, realtime = true, options: ReadOptions = {}) {
   const router = useRouter();
   const [revision, setRevision] = useState(0);
@@ -37,7 +37,7 @@ export function useAuthorizedRead<T>(key: string, read: (signal: AbortSignal) =>
     }).catch(error => {
       if (controller.signal.aborted) return;
       const status = error instanceof AuthError ? error.status : undefined;
-      if (status === 401) router.replace('/staff/login');
+      if (status === 401) router.replace(options.loginPath ?? '/staff/login');
       const denied = status !== undefined && [401, 403, 404].includes(status);
       setState(previous => {
         const data = !denied && previous.key === key ? previous.data : undefined;
@@ -59,6 +59,6 @@ export function useAuthorizedRead<T>(key: string, read: (signal: AbortSignal) =>
     revoke: (status: number) => {
       request.current?.abort();
       setState({ key, revision, status, error: options.unavailable ?? 'This information is unavailable or is no longer assigned to you.' });
-      if (status === 401) router.replace('/staff/login');
+      if (status === 401) router.replace(options.loginPath ?? '/staff/login');
     } };
 }

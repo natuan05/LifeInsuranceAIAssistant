@@ -6,6 +6,12 @@ import { SafeApiException } from '../../http/safe-api.exception';
 @Injectable()
 export class ConversationRateLimitService {
   constructor(private readonly database: DatabaseService) {}
+  async customerRead(actorId: string) {
+    return this.consume(actorId, 'CUSTOMER_READ', 240);
+  }
+  async customerContactReveal(actorId: string) {
+    return this.consume(actorId, 'CUSTOMER_CONTACT_REVEAL', 30);
+  }
   async read(actorId: string) {
     return this.consume(actorId, 'INBOX_READ', 240);
   }

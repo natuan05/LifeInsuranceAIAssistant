@@ -1,11 +1,10 @@
 'use client';
 import Link from 'next/link';
 import { useChatRefresh } from '@/lib/chat-realtime';
-import { StaffNotifications } from './staff-notifications';
 import { ConversationComposer, type ComposerSnapshot } from './conversation-composer';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { acceptConversation, ConversationError, conversationDetail, inboxFilter, reconcileAccept, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
+import { acceptConversation, ConversationError, conversationDetail, inboxFilter, markConversationRead, reconcileAccept, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
 import { realtimeEvent } from '@/lib/realtime';
 import { ConversationTranscript, inboxButton, type TranscriptSnapshot } from './conversation-transcript';
 import { StaffInboxDirectory, type DirectorySnapshot } from './staff-inbox-directory';
@@ -31,9 +30,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const query = useSearchParams();
   const selected = params.conversationId;
   const filter = inboxFilter(query.get('filter'));
-  const querySearch = (query.get('search') ?? '').trim().slice(0, 100);
-  const [applied, setApplied] = useState(querySearch);
-  useEffect(() => { setApplied(querySearch); }, [querySearch]);
+  const applied = (query.get('search') ?? '').trim().slice(0, 100);
   const customerId = query.get('customerId') || undefined;
   const [draft, setDraft] = useState(applied);
   const [composing, setComposing] = useState(false);
@@ -65,7 +62,6 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const acceptLock = useRef(false);
   const input = useRef<HTMLInputElement>(null);
   const searchEditing = useRef(false);
-  useLayoutEffect(() => { searchEditing.current = false; }, [applied]);
   const currentId = useRef(selected);
   useLayoutEffect(() => { currentId.current = selected; }, [selected]);
   const href = (id?: string, nextFilter = filter, term = applied) => {
@@ -85,19 +81,24 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
     if (next !== `${window.location.pathname}${window.location.search}`) {
       window.history.pushState(null, '', next);
     }
-    setApplied(normalized);
   }, []);
   useEffect(() => {
     const onPop = () => {
       const term = (new URLSearchParams(window.location.search).get('search') ?? '').trim().slice(0, 100);
       searchEditing.current = false;
-      setApplied(term);
       setDraft(term);
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  useEffect(() => { let disposed = false; queueMicrotask(() => { if (!disposed && !searchEditing.current) setDraft(applied); }); return () => { disposed = true; }; }, [applied]);
+  useEffect(() => {
+    let disposed = false;
+    queueMicrotask(() => {
+      const current = (new URLSearchParams(window.location.search).get('search') ?? '').trim().slice(0, 100);
+      if (!disposed && !searchEditing.current && current === applied) setDraft(applied);
+    });
+    return () => { disposed = true; };
+  }, [applied]);
   useEffect(() => {
     if (!searchEditing.current || composing || draft.trim() === applied) return;
     const timer = setTimeout(() => { if (searchEditing.current) applySearch(draft); }, 300);
@@ -126,14 +127,25 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const refreshLive = useCallback(async (signal: AbortSignal) => {
     const epoch = privacyEpoch.current;
     try {
-      if (selected) { const result = await conversationDetail(selected, signal); if (!signal.aborted && epoch === privacyEpoch.current) { setDetail(result.conversation); setDenied(false); setLoading(false); setLiveRevision(value => value + 1); } }
+      if (selected) {
+        const result = await conversationDetail(selected, signal);
+        if (!signal.aborted && epoch === privacyEpoch.current) {
+          setDetail(result.conversation);
+          setDenied(false);
+          setLoading(false);
+          setLiveRevision(value => value + 1);
+          if (result.conversation.allowedActions.readMessages) {
+            void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => {});
+          }
+        }
+      }
       if (!signal.aborted && epoch === privacyEpoch.current) setDirectoryRevision(value => value + 1);
     } catch (failure) {
       if (signal.aborted || epoch !== privacyEpoch.current) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else setError('Live updates could not be loaded. Please retry.');
     }
-  }, [selected, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError]);
+  }, [selected, csrfToken, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError]);
   useChatRefresh(refreshLive, clearLiveScope, !blocked);
   useEffect(() => {
     const invalidate = (event: Event) => {
@@ -152,14 +164,20 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
     if (!selected || blocked) return;
     const abort = new AbortController(); const epoch = privacyEpoch.current; metadataController.current = abort; queueMicrotask(() => { if (!abort.signal.aborted) setLoading(true); });
     conversationDetail(selected, abort.signal).then(result => {
-      if (!abort.signal.aborted && epoch === privacyEpoch.current) { setDetail(result.conversation); setDenied(false); }
+      if (!abort.signal.aborted && epoch === privacyEpoch.current) {
+        setDetail(result.conversation);
+        setDenied(false);
+        if (result.conversation.allowedActions.readMessages) {
+          void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => {});
+        }
+      }
     }).catch(failure => {
       if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else setError(failure instanceof ConversationError ? failure.message : 'Unable to load this conversation. Retry to continue.');
     }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [selected, revision, blocked, onDenied]);
+  }, [selected, revision, blocked, csrfToken, onDenied]);
   useEffect(() => {
     if (!blocked) return;
     acceptController.current?.abort(); transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear();
@@ -309,7 +327,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                   </p>
                   {visible.request?.sharedReason && (
                     <div className="tw:mt-4 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:p-3 tw:text-left tw:text-xs tw:text-slate-700 tw:italic">
-                      "{visible.request.sharedReason}"
+                      &ldquo;{visible.request.sharedReason}&rdquo;
                     </div>
                   )}
                   {visible.allowedActions.accept && (
