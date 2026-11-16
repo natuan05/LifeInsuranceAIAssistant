@@ -4,24 +4,23 @@
 
 ## Trình tự rà soát đã thống nhất
 
-Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–3 hoàn tất trong phạm vi Application hiện có. Phase 4–5 còn kế hoạch. Spec không bao gồm nối Core–Agent hoặc code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
+Application Phase 0–5 đã hoàn tất trong phạm vi Core/Web và tool local hiện có. Nối Core–Agent và Agent/Copilot tiếp tục theo phạm vi riêng.
 
 ## Đã có
 
 - Core/Web/Docker gateway/PostgreSQL/MinIO, auth/session, tài khoản/hồ sơ, Staff assignment và tra cứu Customers.
 - Staff Policies/Products/PDF, Inbox I01–I06: Direct, Customer consent, Staff Accept, lịch sử/gửi tin/realtime/handoff notification.
 - Customer Home, Products, Policies/PDF theo ownership và nền chat hai đầu; dùng tài khoản được cấp sẵn, không tự đăng ký. Hồ sơ Customer chỉ đọc theo C08/PF01/PF02; Customer notification center theo phase sở hữu.
-- Staff Ticket TK01–TK05 đã có read/Accept/status/UI/notification. Customer I07/T01/T02 đã có source hai luồng thủ công và draft Core, tạo OPEN; Phase 2 đã sửa phần Application về validation/replay/CAS/snapshot/receipt. Đổi actor khi Ticket pending đã được kiểm theo [checklist Application](application-code-alignment-spec.md). Nguồn Agent thật và summary/refs tiếp tục theo I07.
+- Staff Ticket TK01–TK05 đã có read/Accept/status/UI/notification. Customer I07/T01/T02 đã có source hai luồng thủ công và draft Core, tạo OPEN; Phase 2 đã sửa phần Application về validation/replay/CAS/snapshot/receipt. Đổi actor khi Ticket pending đã được kiểm theo [tài liệu chức năng Application](ui/README.md). Nguồn Agent thật và summary/refs tiếp tục theo I07.
 - Corpus Markdown và thiết kế Agent đã có. Task 1 có contracts/schema/fixtures/tests để review G1, Task 5 có graph và unit tests với fake adapters. Source còn có Public RAG/adapter Gemini thử nghiệm và checkpointer PostgreSQL theo các mốc 3/4 của Agent README. Provider Gemini API cho model sinh/embedding đã chốt ngày 13/11/2026. Cặp model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều. HTTP/Core end-to-end, limits và nghiệm thu tiếp tục theo gates.
 
 ## Thứ tự tiếp theo
 
 ### Application hiện có
 
-1. Phase 4: event đúng message, unread/read cycle bền vững, chống phát lại và retention cleanup mỗi 24 giờ.
-2. Phase 5: verify/reset theo schema và quyền, kiểm migration/hồi quy Application.
+Checklist Phase 0–5 đã hoàn tất, gồm verify/reset và hồi quy Application. Các việc Agent/tích hợp bên dưới giữ phạm vi riêng.
 
-Chi tiết code/API và tiêu chí A2–A5 nằm tại [spec Application](application-code-alignment-spec.md). Không dùng các task nối Core–Agent dưới đây làm điều kiện đóng checklist này.
+Chi tiết code/API và tiêu chí kiểm thử theo các contract chức năng trong [tài liệu UI](ui/README.md).
 
 ### Agent/RAG — phạm vi riêng
 

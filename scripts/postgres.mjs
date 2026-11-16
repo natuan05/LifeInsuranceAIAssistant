@@ -3,7 +3,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { stateDirectory, ensureRootEnv } from './local-state.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -49,10 +49,12 @@ async function check() {
   }
   const sql = "SELECT count(*) FROM information_schema.tables WHERE table_schema IN ('business','rag') AND table_type='BASE TABLE' AND table_name <> '_prisma_migrations';";
   const command = 'export PGPASSWORD="$(cat /credentials/bootstrap/password)"; exec psql -X -h 127.0.0.1 -U local_owner -d life_insurance -v ON_ERROR_STOP=1 -At -c "$1"';
-  assert.equal(docker([...compose, 'exec', '-T', 'postgres', 'sh', '-c', command, 'check', sql]), '17');
+  const schema = readFileSync(join(root, 'apps/core/prisma/schema.prisma'), 'utf8');
+  const models = [...schema.matchAll(/^model\s+\w+\s*\{/gm)];
+  assert.equal(docker([...compose, 'exec', '-T', 'postgres', 'sh', '-c', command, 'check', sql]), String(models.length));
   const ui = docker([...compose, 'port', 'database-ui', '3000']);
   assert.equal((await fetch(`http://${ui}`, { signal: AbortSignal.timeout(10000) })).status, 200);
-  console.log('PASS 17 application tables and database UI.');
+  console.log(`PASS ${models.length} application tables and database UI.`);
 }
 try {
   const action = process.argv[2];

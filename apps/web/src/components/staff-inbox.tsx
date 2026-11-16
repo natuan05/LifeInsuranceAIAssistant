@@ -135,7 +135,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           setLoading(false);
           setLiveRevision(value => value + 1);
           if (result.conversation.allowedActions.readMessages) {
-            void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => {});
+            void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => { if (!signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
           }
         }
       }
@@ -168,7 +168,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
         setDetail(result.conversation);
         setDenied(false);
         if (result.conversation.allowedActions.readMessages) {
-          void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => {});
+          void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => { if (!abort.signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
         }
       }
     }).catch(failure => {

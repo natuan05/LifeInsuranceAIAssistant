@@ -844,6 +844,8 @@ Kiểm tích hợp theo CH02-T07/CH03 và Task 3/6/10: lưu lỗi/history, reloa
 - Auth tách graph/Business Tools để thay khi lên AWS. Chưa chọn IAM/OAuth/mTLS/cloud mới. Tham khảo [HTTP Message Signatures — RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html).
 - **Profile đã chọn theo code hiện có:** dùng profile tự đặt `LI-HMAC-SHA256-v1` (HMAC-SHA-256, ký method/path/timestamp/nonce/hash body/key id, lệch giờ ±120 giây, nonce lưu bền 10 phút, khóa riêng mỗi chiều theo `key_id`), không triển khai đủ RFC 9421. Đặc tả ở [contracts mục 12.9](../../contracts/agent-v1.md#129-profile-hmac-g3).
 
+**Hai đề xuất hỗ trợ Customer:** PROPOSE_HANDOFF chuẩn bị subject/reason tóm tắt cho Customer review/sửa và đồng ý chia sẻ trước khi Core ghi yêu cầu Staff hỗ trợ chat. Nút Request Staff support chủ động cũng cần bước chuẩn bị AI summary; operation tích hợp này còn P theo [CH02](../ui/customer/plans/chat/02-agent-boundary.md). PROPOSE_TICKET chuẩn bị summary Ticket sáu nhóm để Core lưu draft, Customer xác nhận revision rồi Core tạo Ticket OPEN. Hai action và consent độc lập; Agent không tự tạo handoff/Ticket hoặc cấp quyền transcript. Summary chia sẻ đã duyệt khác summary Private, context nén và Copilot.
+
 <a id="agent-tools-vs-system-apis"></a>
 ### Phân biệt tool Agent và API hệ thống
 
@@ -966,7 +968,7 @@ Phạm vi mục này là tóm tắt phục vụ Ticket. Yêu cầu Staff chủ �
 
 Viết ngắn theo các nhóm trên, chỉ gồm nội dung liên quan đến Ticket; không tạo dữ kiện để điền cho đủ mục. Áp dụng [quy tắc dữ liệu nhạy cảm](#clarification-sensitive-data): không lặp lại chi tiết không cần thiết trong bản tóm tắt hoặc đề xuất Ticket. Không tự kết luận chi trả, biến lời khách thành dữ liệu nghiệp vụ hoặc mô tả Ticket đã được tạo khi Core chưa xác nhận commit.
 
-Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xác nhận; Core kiểm tra xác nhận gắn với nội dung, quyền và chống trùng trước khi ghi Ticket + outbox. Quyết định này chốt mục đích và nhóm nội dung tóm tắt; [metadata nguồn đi cùng callback](../../contracts/agent-v1.md#ticket-source-metadata-callback) đã chọn về hướng. Schema/version wire mở rộng, phiên bản bản nháp, hiệu lực xác nhận và implementation lưu vẫn theo contract/I07, chưa triển khai nguồn Agent thật. Chưa triển khai prompt/code hoặc thêm tool tạo Ticket.
+Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xác nhận; Core kiểm tra xác nhận gắn với nội dung, quyền và chống trùng trước khi ghi Ticket + outbox. Quyết định này chốt mục đích và nhóm nội dung tóm tắt; [metadata nguồn đi cùng callback](../../contracts/agent-v1.md#ticket-source-metadata-callback) đã chọn về hướng. Schema/version wire mở rộng, phiên bản bản nháp, hiệu lực xác nhận và implementation lưu vẫn theo contract/I07, chưa triển khai nguồn Agent thật. Agent đã có prompt và action PROPOSE_TICKET; chưa nối action này vào Core draft/confirmation thật. Không có tool cho Agent tự tạo Ticket.
 
 **Nguồn đã kiểm tra ngày 01/11/2026:** [Oracle — Context-Aware AI and Summarize Human Handoff](https://docs.oracle.com/en/cloud/saas/readiness/service/26d/fscv-26d/26D-fsvc-wn-f50988.htm) mô tả bản tóm tắt nhu cầu, bối cảnh, việc đã thực hiện và vấn đề cần người hỗ trợ. Chỉ tham khảo cách bàn giao context; không kế thừa action/schema hoặc tích hợp dịch vụ Oracle.
 

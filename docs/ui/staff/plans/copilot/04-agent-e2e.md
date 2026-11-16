@@ -2,6 +2,8 @@
 
 04/11/2026 · **P, đợt Agent sau** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
+**Phạm vi bàn giao:** CP01–CP04 triển khai và nghiệm thu trong cùng đợt nối Core–Agent với Customer theo [CH02](../../../customer/plans/chat/02-agent-boundary.md#quyết-định-triển-khai-đã-chốt). Giữ bộ giới hạn local hiện có. Copilot giữ kênh/thread và quyền Staff riêng; kết quả không tự gửi sang Customer hoặc thay consent handoff/Ticket. Đợt nối chưa hoàn tất nếu mới kiểm xong luồng Customer.
+
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
 **Chính sách thông tin liên hệ:** [Ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data) quy định che email/phone Customer mặc định và Hiện/Ẩn sau kiểm quyền Core. Phase 1 đã triển khai tại Customers; DTO Customer ở Policy/Inbox/Ticket hiện chỉ có tên/mã, không có contact card raw. Quy định này không thay quyền đọc PDF/transcript hoặc trạng thái triển khai của chức năng trong plan.

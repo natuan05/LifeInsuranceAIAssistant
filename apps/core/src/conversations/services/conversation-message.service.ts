@@ -1,3 +1,4 @@
+import { readCycle } from './notification-cycle';
 import { SafeApiException } from '../../http/safe-api.exception';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
@@ -80,10 +81,13 @@ export class ConversationMessageService {
   async markAsRead(tx: Prisma.TransactionClient, actor: { id: string; role: 'CUSTOMER' | 'STAFF' }, id: string) {
     if (actor.role === 'STAFF') await this.access.requireTranscript(tx, actor.id, id);
     else await this.access.requireCustomer(tx, actor.id, id);
+    const boundary = await tx.message.aggregate({ where: { conversationId: id, audience: 'CUSTOMER_VISIBLE' }, _max: { sequence: true } });
+    const through = boundary._max.sequence ?? 0n;
+    await readCycle(tx, id, actor.id, actor.role, through);
     const now = new Date();
     const targetSenderType = actor.role === 'CUSTOMER' ? { not: 'CUSTOMER' as const } : 'CUSTOMER';
     const updated = await tx.message.updateMany({
-      where: { conversationId: id, senderType: targetSenderType, readAt: null, audience: 'CUSTOMER_VISIBLE' },
+      where: { conversationId: id, sequence: { lte: through }, senderType: targetSenderType, readAt: null, audience: 'CUSTOMER_VISIBLE' },
       data: { readAt: now },
     });
     if (actor.role === 'CUSTOMER') {
@@ -104,7 +108,7 @@ export class ConversationMessageService {
           aggregateType: 'CONVERSATION',
           aggregateId: id,
           eventType: 'MESSAGE_COMMITTED',
-          payload: { schemaVersion: 1, controlVersion: conv.controlVersion },
+          payload: { schemaVersion: 2, reason: 'MESSAGES_READ', readThroughSequence: through.toString(), controlVersion: conv.controlVersion },
         },
       });
     }
@@ -124,7 +128,7 @@ export class ConversationMessageService {
     await tx.auditLog.create({ data: { actorType: senderId ? 'USER' : 'SYSTEM', actorId: senderId,
       action: 'CONVERSATION_MESSAGE_APPENDED', targetType: 'Message', targetId: message.id, outcome: 'SUCCESS', requestId: randomUUID() } });
     await tx.outboxEvent.create({ data: { aggregateType: 'CONVERSATION', aggregateId: id, eventType: 'MESSAGE_COMMITTED',
-      payload: { schemaVersion: 1, controlVersion: previous.controlVersion } } });
+      payload: { schemaVersion: 2, reason: 'MESSAGE_APPENDED', messageId: message.id, sequence: message.sequence.toString(), controlVersion: previous.controlVersion } } });
     return message;
   }
 }

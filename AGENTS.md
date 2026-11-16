@@ -13,6 +13,7 @@
 - ADR có trạng thái đề xuất vẫn là đề xuất. Ghi lại điểm chưa chốt; không biến chúng thành mặc định trong code.
 - Chỉ thêm module, package dùng chung hoặc ứng dụng mới khi có nhu cầu cụ thể.
 - Không stage hoặc commit nếu người dùng chưa yêu cầu rõ ràng trong công việc hiện tại.
+- Review phải bao quát toàn bộ phạm vi thay đổi và các nhánh liên quan, gồm legacy/nâng cấp, dữ liệu lớn, retry, concurrency và phân quyền; không chỉ kiểm bản sửa gần nhất. Mỗi lỗi được sửa cần regression phù hợp và kiểm các nhánh tương tự. Nêu rõ giới hạn kiểm chứng, không kết luận hoàn tất chỉ vì bộ test hiện có đã qua.
 - Không chụp screenshot để kiểm chứng trừ khi người dùng yêu cầu; ưu tiên kết quả lệnh và log ngắn.
 
 - Ngoại lệ người dùng xác nhận ngày 02/11/2026: được dùng trực tiếp bản hợp đồng đã khử định danh 65 trang, bổ sung dữ liệu demo để chuẩn bị corpus Private local. Nguồn này vẫn `synthetic=false`, không gọi là sinh hoàn toàn giả lập; lưu trong `.local/private/manulife/`, chưa tự đưa Git, seed, chunk hoặc embedding. Không khôi phục định danh thật; ô bị loại chưa điền phải được coi là thiếu dữ liệu. Việc chuẩn bị bản demo không tự đồng nghĩa đã duyệt chất lượng nguồn.

@@ -1,3 +1,4 @@
+import { notifyMessage, reconcileMessages } from './notification-cycle';
 import { Injectable } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { ConversationAccessService } from './conversation-access.service';
@@ -9,13 +10,16 @@ export type ChatEvent = { id: string; aggregateId: string; eventType: string };
 export class ConversationEventService {
   constructor(private readonly database: DatabaseService, private readonly access: ConversationAccessService, private readonly commands: ConversationCommandService) {}
   route(event: ChatEvent): Promise<ChatRecipient[]> {
-    return this.database.prisma.$transaction(async tx => {
+    return this.commands.transaction(async tx => {
+      const discovered = await tx.conversation.findUnique({ where: { id: event.aggregateId }, select: { customerId: true } });
+      if (!discovered) return [];
+      await this.commands.lock(tx, discovered.customerId, event.aggregateId);
       const conversation = await tx.conversation.findUnique({ where: { id: event.aggregateId },
         select: { customerId: true, channelType: true, supportOrigin: true, status: true,
           directAssignment: { select: { staffId: true } }, handoffs: { select: { id: true, recipientStaffId: true, state: true } } } });
       if (!conversation || conversation.channelType !== 'CUSTOMER_SUPPORT' || conversation.supportOrigin === 'LEGACY_UNKNOWN') return [];
       let customerNotification = false;
-      let lastMessage: { senderType: string; readAt: Date | null } | null = null;
+      let lastMessage: { senderType: string; readAt: Date | null; sequence: bigint } | null = null;
       if (event.eventType === 'HANDOFF_ACCEPTED') {
         const dedupKey = `${event.id}:${conversation.customerId}:STAFF_ACCEPTED_HANDOFF`;
         await tx.notification.upsert({
@@ -31,46 +35,30 @@ export class ConversationEventService {
         });
         customerNotification = true;
       } else if (event.eventType === 'MESSAGE_COMMITTED') {
-        lastMessage = await tx.message.findFirst({
-          where: { conversationId: event.aggregateId, audience: 'CUSTOMER_VISIBLE' },
-          orderBy: { sequence: 'desc' },
-          select: { senderType: true, readAt: true },
-        });
-        if (lastMessage?.senderType === 'STAFF' && lastMessage.readAt === null) {
-          const existingCustomerNoti = await tx.notification.findFirst({
-            where: {
-              recipientCustomerId: conversation.customerId,
-              conversationId: event.aggregateId,
-              kind: 'STAFF_MESSAGE_UNREAD',
-              isRead: false,
-            },
-            select: { id: true },
-          });
-          if (existingCustomerNoti) {
-            await tx.notification.update({
-              where: { id: existingCustomerNoti.id },
-              data: { createdAt: new Date() },
-            });
-          } else {
-            const dedupKey = `${event.id}:${conversation.customerId}:STAFF_MESSAGE_UNREAD`;
-            await tx.notification.create({
-              data: {
-                dedupKey,
-                kind: 'STAFF_MESSAGE_UNREAD',
-                recipientCustomerId: conversation.customerId,
-                conversationId: event.aggregateId,
-                title: 'Bạn có tin nhắn mới từ nhân viên hỗ trợ',
-              },
-            });
-          }
-          customerNotification = true;
+        const source = await tx.outboxEvent.findFirst({ where: { id: event.id, aggregateType: 'CONVERSATION', aggregateId: event.aggregateId, eventType: event.eventType } });
+        const payload = source?.payload;
+        if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('Invalid message event');
+        if (payload.schemaVersion === 2 && payload.reason === 'MESSAGE_APPENDED') {
+          if (typeof payload.messageId !== 'string' || typeof payload.sequence !== 'string' || !/^[1-9][0-9]*$/.test(payload.sequence)) throw new Error('Invalid message event');
+          lastMessage = await tx.message.findFirst({ where: { id: payload.messageId, conversationId: event.aggregateId,
+            sequence: BigInt(payload.sequence), audience: 'CUSTOMER_VISIBLE' }, select: { senderType: true, readAt: true, sequence: true } });
+          if (!lastMessage) throw new Error('Missing event message');
+        } else if (payload.schemaVersion === 2 && payload.reason === 'MESSAGES_READ') {
+          if (typeof payload.readThroughSequence !== 'string' || !/^[0-9]+$/.test(payload.readThroughSequence)) throw new Error('Invalid read event');
+        } else if (payload.schemaVersion !== 1) throw new Error('Unsupported message event');
+        // Legacy v1 reconciles beyond durable watermarks with bounded queries.
+        if (lastMessage?.senderType === 'STAFF') customerNotification = await notifyMessage(tx, event.aggregateId, conversation.customerId, 'CUSTOMER', lastMessage);
+        if (payload.schemaVersion === 1) {
+          customerNotification = await reconcileMessages(tx, event.aggregateId, conversation.customerId, 'CUSTOMER');
         }
       }
       const recipients: ChatRecipient[] = [{
         actorId: conversation.customerId,
         role: 'CUSTOMER',
         transcript: event.eventType === 'MESSAGE_COMMITTED',
-        notification: customerNotification,
+        // Persistence dedup must not suppress publication retries. Read events
+        // also invalidate the bell because reading chat dismisses its notice.
+        notification: event.eventType === 'MESSAGE_COMMITTED' || customerNotification,
       }];
       if (event.eventType === 'CONVERSATION_ACCESS_REVOKED') {
         const former = new Set(conversation.handoffs.map(h => h.recipientStaffId));
@@ -82,34 +70,13 @@ export class ConversationEventService {
       const allowed = await tx.conversation.findFirst({ where: { id: event.aggregateId, AND: [this.access.staffScope(assignment.staffId, event.eventType === 'MESSAGE_COMMITTED' ? 'active' : 'all')] }, select: { id: true } });
       if (!allowed) return recipients;
       let notification = false;
-      if (event.eventType === 'MESSAGE_COMMITTED' && lastMessage?.senderType === 'CUSTOMER' && lastMessage.readAt === null) {
-        const existingStaffNoti = await tx.notification.findFirst({
-          where: {
-            recipientStaffId: assignment.staffId,
-            conversationId: event.aggregateId,
-            kind: 'CUSTOMER_MESSAGE_UNREAD',
-            isRead: false,
-          },
-          select: { id: true },
-        });
-        if (existingStaffNoti) {
-          await tx.notification.update({
-            where: { id: existingStaffNoti.id },
-            data: { createdAt: new Date() },
-          });
-        } else {
-          const dedupKey = `${event.id}:${assignment.staffId}:CUSTOMER_MESSAGE_UNREAD`;
-          await tx.notification.create({
-            data: {
-              dedupKey,
-              kind: 'CUSTOMER_MESSAGE_UNREAD',
-              recipientStaffId: assignment.staffId,
-              conversationId: event.aggregateId,
-              title: 'Bạn có tin nhắn mới từ khách hàng',
-            },
-          });
+      if (event.eventType === 'MESSAGE_COMMITTED') {
+        if (lastMessage?.senderType === 'CUSTOMER') notification = await notifyMessage(tx, event.aggregateId, assignment.staffId, 'STAFF', lastMessage);
+        const source = await tx.outboxEvent.findUnique({ where: { id: event.id } });
+        const payload = source?.payload;
+        if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload.schemaVersion === 1) {
+          notification = await reconcileMessages(tx, event.aggregateId, assignment.staffId, 'STAFF');
         }
-        notification = true;
       }
       if (event.eventType === 'HANDOFF_REQUESTED' && conversation.status === 'PENDING_HANDOFF') {
         const pending = conversation.handoffs.find(h => h.state === 'PENDING' && h.recipientStaffId === assignment.staffId);
@@ -130,7 +97,8 @@ export class ConversationEventService {
           }
         }
       }
-      recipients.push({ actorId: assignment.staffId, role: 'STAFF', transcript: event.eventType === 'MESSAGE_COMMITTED', notification });
+      recipients.push({ actorId: assignment.staffId, role: 'STAFF', transcript: event.eventType === 'MESSAGE_COMMITTED',
+        notification: event.eventType === 'MESSAGE_COMMITTED' || notification });
       return recipients;
     });
   }

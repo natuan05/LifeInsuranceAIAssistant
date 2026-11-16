@@ -7,9 +7,10 @@ Tài liệu mô tả Customer Portal và Staff Workspace. Tài liệu dùng ti�
 1. [Menu và phạm vi](menu.md): chức năng của từng vai trò.
 2. [Tiến độ](implementation-status.md): phần đã có và phần còn thiếu.
 3. Chọn chức năng trong [Staff](staff/plans/README.md) hoặc [Customer](customer/plans/README.md), rồi đọc contract và phase liên quan.
-4. [Spec đồng bộ Application](../application-code-alignment-spec.md): các sửa đổi Phase 0–5 còn phải hoàn tất.
 
 Tra cứu khi cần: [API và routes](staff/plans/00-staff-contract.md), [kiến trúc](../architecture.md), [Data Model](../specifications/Data_Model.md), [quyền và dữ liệu](../configuration-and-data.md). Cài đặt/vận hành tại [Getting Started](../getting-started.md).
+
+Nối Agent với Application: đọc [CH02 — bàn giao triển khai](customer/plans/chat/02-agent-boundary.md#bàn-giao-triển-khai-coreagent), rồi CH03/I03 và I07/T01/T02 theo chức năng. Trạng thái P và các mở rộng contract cần hoàn tất được nêu tại từng owner.
 
 ## Quy ước test case và sequence diagram
 

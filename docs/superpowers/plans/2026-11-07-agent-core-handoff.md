@@ -22,6 +22,12 @@ Profile HMAC và framework HTTP ở contracts 12.9–12.10 đã chọn theo code
 
 Đã kiểm chứng: test Python với PostgreSQL thật, test Node của reference model và test vector HMAC. **Chưa kiểm chứng:** mọi phần cần Core thật. Các test Agent dùng Core double, nên chưa chứng minh quyền, FIFO hay transaction của Core.
 
+## Phạm vi và giới hạn đã chốt cho đợt nối
+
+Triển khai **cả Customer và Staff Copilot** trong cùng đợt, gồm hai đề xuất hỗ trợ Customer có xác nhận riêng. AI summary lỗi cho Customer thử lại hoặc chủ động tự nhập; có tin mới phải cập nhật summary và Customer review/xác nhận lại. Không tự gửi từ summary hoặc dùng consent cũ cho nội dung mới. Chi tiết tại [CH02](../../ui/customer/plans/chat/02-agent-boundary.md#quyết-định-triển-khai-đã-chốt).
+
+Giữ nguyên code/config giới hạn thử hiện có để nối và test local. Quyết định này không thay quyền nguồn, không duyệt corpus/giá API hoặc cấu hình production.
+
 ## 2. Việc của đội application
 
 ### 2.1 Task 3 — Core APIs, quyền hiện hành và FIFO durable dispatch
@@ -75,7 +81,7 @@ Các endpoint dưới đây là những gì code Agent ở nhánh `agent/task-6-
 | `POST /internal/attempts/{attemptId}/revoke` | `AttemptRevocation` | 200 `RevocationAck` `REVOKED`/`ALREADY_REVOKED` kèm `writer_epoch`; 400 `REJECTED` khi `attemptId` trên path khác body (`SCHEMA_INVALID`) hoặc receipt thuộc run/hội thoại khác (`PAYLOAD_MISMATCH`). Chỉ 200 hợp lệ, đúng run/attempt mới coi là đã thu hồi |
 | `GET /healthz` | — | 200 `{"status":"ok"}`, không cần chữ ký |
 
-`RunRequest` phải đủ trường theo schema. `limits` gồm 4 giá trị đã chốt (`retrieval_calls_max=3`, `core_read_requests_max=4`, `core_request_timeout_ms=3000`, `core_retry_per_call=1`) và 4 giá trị G4 bắt buộc khác `null`. Còn thiếu thì Agent trả lỗi kỹ thuật thay vì tự đặt. Giá trị thử hiện dùng ở `apps/agent/evaluation/trial-config.json` (`model_calls_max=6`, `graph_steps_max=30`, `turn_token_budget=120000`, `finish_reserve_tokens=12000`, deadline 120 giây); đây là giá trị thử, chưa duyệt.
+`RunRequest` phải đủ trường theo schema. `limits` gồm 4 giá trị đã chốt (`retrieval_calls_max=3`, `core_read_requests_max=4`, `core_request_timeout_ms=3000`, `core_retry_per_call=1`) và 4 giá trị G4 bắt buộc khác `null`. Còn thiếu thì Agent trả lỗi kỹ thuật thay vì tự đặt. Giá trị thử hiện dùng ở `apps/agent/evaluation/trial-config.json` (`model_calls_max=6`, `graph_steps_max=30`, `turn_token_budget=120000`, `finish_reserve_tokens=12000`, deadline 120 giây); người dùng đã chọn giữ nguyên bộ giới hạn này để triển khai/test local; chưa nghiệm thu production hoặc các thông số thử khác ngoài giới hạn nêu trên.
 
 ### 3.2 Core phục vụ (Agent gọi), dưới `/api/v1/internal/agent`
 
@@ -119,14 +125,15 @@ ACK phải là `DurableAck` có đúng `run_id`, `attempt_id`, `event_id` của 
 
 1. **Chi tiết các đọc nội bộ** đánh dấu đề xuất ở mục 3.2: `attemptId` trong query, body scope, dạng `{"contracts":[…]}`, 404 chung cho không tồn tại/không được phép.
 2. **Copilot soạn nháp:** đã thống nhất. Tài liệu [Staff Copilot](../../ui/staff/plans/08-copilot-contract.md) xác nhận Copilot MVP không soạn nháp/Use draft, khớp kế hoạch Agent; Agent từ chối mọi action trong kênh Copilot.
-3. **Route Copilot:** A24–A26 (`/api/v1/staff/conversations/:id/copilot…`) trong tài liệu Staff khác hướng phương án 12.13 #1 (Copilot là một hội thoại `STAFF_COPILOT` trong API `conversations` chung, có link chat Customer). Chọn một hướng và cập nhật tài liệu còn lại.
+3. **Route Copilot:** đã chọn facade A24–A26 ở conversations, ánh xạ sang cuộc STAFF_COPILOT và dùng chung run/attempt/event, không có history/task store thứ hai. Request/response/discovery còn P theo CP01/CP02; không coi tên route là API đã triển khai.
 4. **Đề xuất Ticket:** Agent trả `PROPOSE_TICKET {summary}` đúng sáu nhóm. [Hướng metadata nguồn qua callback đã chọn](../../../contracts/agent-v1.md#ticket-source-metadata-callback): Agent dựng/lưu/giao lại metadata từ registry thật, Core xác thực/đối chiếu nguồn rồi lưu cùng draft/snapshot, Web chỉ nhận projection. Schema/version wire mới và implementation hai bên còn P; chưa mở rộng agent-v1 hiện tại hoặc nối nguồn Agent thật vào I07. Agent không tạo Ticket hoặc báo thành công trước Core commit.
 5. **Lịch gửi lại** (12.10, còn đề xuất): dispatch/revoke backoff 1 → 60 giây có jitter, lặp tới khi có ACK hoặc tới hạn run; event lặp tối đa 24 giờ. **Lưu dữ liệu khôi phục MVP:** theo [chính sách chung](../../configuration-and-data.md#mvp-agent-recovery-retention), gồm cả dữ liệu đã ACK; không áp hạn gửi lại thành TTL xóa dữ liệu.
-6. **Service `agent` trong Compose** (mục 4).
+6. **Service `agent` trong Compose** (mục 4). Cấu hình local Application tập trung ở `.env` root; không sao chép secret từ env thử của Agent vào tài liệu/log.
+7. **AI reason khi Customer tự bấm Request Staff support:** chưa có operation chuẩn bị summary trong wire agent-v1. Theo [CH02](../../ui/customer/plans/chat/02-agent-boundary.md), cần chốt API proposal, durable intent/mốc transcript và extension wire có version/fixtures trước code. Chuẩn bị summary trước consent; chỉ handoff command cuối mới pending/fence. PROPOSE_HANDOFF của Agent cũng đi qua cùng review, không tự tạo Ticket.
 
 ## 6. Khi nào coi phần này xong
 
-- `npm run test:agent-core`, `npm run test:agent-delivery`, `node --test apps/core/test/agent-protocol.test.cjs apps/core/test/agent-hmac-vector.test.cjs` và các test hồi quy hiện có (`test:customers`, `test:auth`, `test:http`, typecheck) đều pass.
+- Bổ sung scripts/suites còn P `test:agent-core`, `test:agent-delivery` khi triển khai; không giả định chúng đã có trong package.json. Sau đó `npm run test:agent-core`, `npm run test:agent-delivery`, `node --test apps/core/test/agent-protocol.test.cjs apps/core/test/agent-hmac-vector.test.cjs` và các test hồi quy hiện có (`test:customers`, `test:auth`, `test:http`, typecheck) đều pass.
 - Chạy local cả Core và Agent với cùng khóa: Core nhận tin → dispatch → Agent trả 202 → Agent đọc history/scope qua API nội bộ → `POST /events` → Core lưu Message `AI_AGENT` và run `COMPLETED`; gửi lại `RunRequest` cho `DUPLICATE`, không tạo kết quả thứ hai.
 - Báo phía Agent để chạy E2E Task 10 và sửa client nếu contract mục 3 đã đổi.
 

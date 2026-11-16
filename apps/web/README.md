@@ -1,6 +1,6 @@
 # Web
 
-Next.js App Router cho Customer Portal và Staff Workspace. Web gọi Core qua gateway; chạy bằng Docker Compose theo [Getting Started](../../docs/getting-started.md). [Tiến độ](../../docs/ui/implementation-status.md) và [spec Application](../../docs/application-code-alignment-spec.md) quản lý phần còn làm.
+Next.js App Router cho Customer Portal và Staff Workspace. Web gọi Core qua gateway; chạy bằng Docker Compose theo [Getting Started](../../docs/getting-started.md). Phần đã có/còn thiếu theo [tiến độ Application](../../docs/ui/implementation-status.md).
 
 ## Chức năng hiện có
 
@@ -20,4 +20,4 @@ Products/Customers/Policy Lookup tìm bằng Enter; Inbox có debounce/IME. PDF 
 
 ## Realtime và kiểm thử
 
-`useRealtime` nhận invalidation/session-expired; REST là nguồn dữ liệu/quyền cho resync và catch-up. Lệnh browser mock/gateway E2E tại [spec Application](../../docs/application-code-alignment-spec.md#application-tests). Chi tiết chức năng theo [Staff](../../docs/ui/staff/plans/README.md) và [Customer](../../docs/ui/customer/plans/README.md).
+`useRealtime` nhận invalidation/session-expired; REST là nguồn dữ liệu/quyền cho resync và catch-up. Lệnh browser mock/gateway E2E tại [tài liệu chức năng Application](../../docs/ui/README.md). Chi tiết chức năng theo [Staff](../../docs/ui/staff/plans/README.md) và [Customer](../../docs/ui/customer/plans/README.md).

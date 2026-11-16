@@ -108,3 +108,8 @@ export class TranscriptResponseDto {
   @ApiProperty({ type: [TranscriptMessageDto] }) items!: TranscriptMessageDto[];
   @ApiProperty({ type: TranscriptPageInfoDto }) pageInfo!: TranscriptPageInfoDto;
 }
+
+export class ConversationReadStateResponseDto {
+  @ApiProperty({ description: 'Decimal sequence prefix: every Customer-visible message sent by this actor role at or below it has readAt. Does not mark messages read.', pattern: '^(0|[1-9][0-9]*)$' })
+  readThroughSequence!: string;
+}

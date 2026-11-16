@@ -38,6 +38,8 @@ export const inboxCustomers = (filter: InboxFilter, search: string, customerId: 
 export const inboxConversations = (id: string, filter: InboxFilter, cursor: string | undefined, signal: AbortSignal) => request<CursorPage<ConversationRow>>(`staff/inbox/customers/${encodeURIComponent(id)}/conversations?${query({ filter, cursor })}`, signal);
 export const conversationDetail = (id: string, signal?: AbortSignal) => request<{ conversation: Conversation }>(`staff/conversations/${encodeURIComponent(id)}`, signal);
 export const conversationMessages = (id: string, direction: { before?: string; after?: string }, signal: AbortSignal, role: 'STAFF' | 'CUSTOMER' = 'STAFF') => request<MessagePage>(`${role === 'STAFF' ? 'staff' : 'customers/me'}/conversations/${encodeURIComponent(id)}/messages?${query({ limit: '50', ...direction })}`, signal);
+export const conversationReadState = (id: string, signal: AbortSignal) =>
+  request<{ readThroughSequence: string }>(`conversations/${encodeURIComponent(id)}/read-state`, signal);
 export type AcceptIntent = { clientRequestId: string; expectedVersion: number };
 export const acceptConversation = (id: string, intent: AcceptIntent, csrfToken: string, signal: AbortSignal) => request<{ conversation: Conversation; replayed: boolean }>(`staff/conversations/${encodeURIComponent(id)}/accept`, signal, csrfToken, intent);
 export const reconcileAccept = (id: string, intent: AcceptIntent, signal: AbortSignal) => request<{ state: 'COMMITTED'; resourceId: string; conversationId: string; controlVersion: number }>(`staff/conversations/${encodeURIComponent(id)}/commands/${encodeURIComponent(intent.clientRequestId)}?operation=ACCEPT_HANDOFF`, signal);

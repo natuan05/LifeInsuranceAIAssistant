@@ -68,9 +68,13 @@ after(async () => {
     assert.ok(userIds.every(id => /^[a-f0-9-]{36}$/.test(id)) && runId.startsWith('i01-'));
     const messageIds = (await admin.message.findMany({ where: { conversationId: { in: conversationIds } }, select: { id: true } })).map(m => m.id);
     await admin.$transaction(async tx => {
+      // The deployed dispatcher may have projected these synthetic events.
+      // Use its user lock order before removing events and their projections.
+      if (userIds.length) await tx.$queryRaw`SELECT id FROM business.users WHERE id::text IN (${Prisma.join([...userIds].sort())}) ORDER BY id FOR UPDATE`;
       await tx.auditLog.deleteMany({ where: { OR: [{ actorId: { in: userIds } }, { operatorId: runId }, { targetId: { in: messageIds } }] } });
       await tx.outboxEvent.deleteMany({ where: { aggregateType: 'CONVERSATION', aggregateId: { in: conversationIds } } });
       await tx.conversationCommandReceipt.deleteMany({ where: { actorId: { in: userIds } } });
+      await tx.notification.deleteMany({ where: { conversationId: { in: conversationIds } } });
       await tx.message.deleteMany({ where: { conversationId: { in: conversationIds } } });
       await tx.conversationHandoff.deleteMany({ where: { conversationId: { in: conversationIds } } });
       await tx.conversation.deleteMany({ where: { id: { in: conversationIds } } });

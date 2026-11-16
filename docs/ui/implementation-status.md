@@ -1,12 +1,14 @@
 # Tiến độ triển khai UI và độ phủ yêu cầu
 
-Customer và Staff có auth/account, Products, Policies/PDF và chat hai đầu. Customer Ticket có manual/draft/confirmation cơ bản; Staff có read/Accept/status. Phần Application còn lại theo [checklist Phase 0–5](../application-code-alignment-spec.md): unread/read-cycle và tool local. Nối Core–Agent/Copilot theo kế hoạch riêng.
+Customer và Staff có auth/account, Products, Policies/PDF và chat hai đầu. Customer Ticket có manual/draft/confirmation; Staff có read/Accept/status. Application Phase 0–5 đã triển khai; nối Core–Agent/Copilot theo kế hoạch riêng.
 
 [Thứ tự đọc](README.md) · [Menu đích](menu.md) · [Chỉ mục Staff](staff/README.md) · [API E/P](staff/plans/00-staff-contract.md#api-theo-chức-năng) · [Gap G01–G09](staff/plans/README.md#phần-còn-lại-theo-chức-năng)
 
 Products **P01/A17 và P02/A19/access đã có Core/MinIO/gateway**, P03 Staff UI đã triển khai: [Staff Products](staff/plans/04-products-contract.md). [Customer plans](customer/plans/README.md) có H01/H02, PR01/PR02 và PO01/PO02/D01/D02 đã triển khai; hồ sơ Customer chỉ đọc theo quyết định 13/11; Agent/Ticket confirmation và notification center Customer theo phase sở hữu. Tài khoản cấp sẵn đã chốt 07/11, không còn registration backlog trong MVP.
 
-Phần Application hiện có theo [checklist Phase 0–5](../application-code-alignment-spec.md): Phase 0–3 hoàn tất; Phase 4 unread/read-cycle/cleanup và Phase 5 tool local/hồi quy chưa hoàn tất. Nối Core–Agent không thuộc checklist này.
+Application Phase 0–5 đã hoàn tất, gồm tool local và hồi quy. Nối Core–Agent không thuộc phạm vi này.
+
+**Phần nối Agent còn P:** [CH02](customer/plans/chat/02-agent-boundary.md#bàn-giao-triển-khai-coreagent) là điểm bàn giao Core/Web. Agent đã có code; Request Staff support chưa tự điền AI summary vào reason, và PROPOSE_TICKET chưa được nối từ Agent thật vào draft sáu nhóm/nguồn. Hai hành động có review/xác nhận riêng, không tự thực thi lẫn nhau. Đợt nối bao gồm cả Customer và Staff Copilot, nghiệm thu riêng từng luồng.
 
 ## Quy ước
 
@@ -24,13 +26,13 @@ Phần Application hiện có theo [checklist Phase 0–5](../application-code-a
 | C06 | I03–I06 và CH01 đã nối | Own list/create/AI/Direct/history/handoff/consent/send/realtime/SYSTEM trong Customer shell | CH02/CH03 Agent trả lời thật/citations |
 | C07 | Application Phase 2 hoàn tất | Manual-create, draft read/edit/confirm, validation/replay/CAS/snapshot/receipt và own list/detail | Tích hợp nguồn Agent thật và sáu nhóm summary/source refs theo I07/T01/T02 |
 | C08 | Đã nối API local | Hồ sơ chỉ đọc/Staff contact, account/password/logout, menu cá nhân rút gọn | Hồ sơ chỉ đọc theo PF01/02; kiểm thử hồi quy và masking theo phạm vi riêng |
-| C09 | Source có schema/API/UI; cần review | Chat/SYSTEM, recipient Customer, read/read-all, message.readAt, chuông/realtime và cleanup | Phase 3 đã đồng bộ DTO/Ticket event; còn sửa gộp theo chu kỳ đọc chat, giữ id/bật unread khi có tin mới; đổi cleanup từ mỗi giờ sang khi khởi động + mỗi 24 giờ theo phương án B; chạy tests N01/N02, retention 30 ngày chung Customer/Staff |
+| C09 | Application Phase 3–4 hoàn tất | DTO/recipient, chuông và common read; event v2, watermark/chu kỳ unread, retry/dedup và cleanup mỗi 24 giờ với retention 30 ngày | Tool local/hồi quy Phase 5 đã kiểm |
 | S01 | Đã nối API local | Login/session/account/password/logout, GET/PATCH staff/me; regression + gateway/Core/DB E2E trên Chromium/Firefox/WebKit | Auth mở rộng ngoài MVP theo yêu cầu riêng |
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
 | S03 | Đã nối API local | Customers list/detail/search/page/retry, policies/PDF; Conversations/Tickets theo customerId, Back/no-F5, regression + real E2E ba browser | Phase CU01/CU02 sở hữu bảo trì và test cases |
 | S04 | Đã nối API local | A14/A15/A16/A18/A20, lookup/dossier/PDF/download, PL05 Inbox lookup; regression + real Core/DB/MinIO E2E hai role trên ba browser | Agent citations/context còn P; native PDF toolbar/zoom không thuộc kiểm DOM |
 | S05 | Chat hai đầu/realtime đã nối | Consent/handoff/Accept/history/send/SYSTEM/catch-up | Agent/Copilot/history nội bộ/summary/checkpoint |
-| S06 | TK01–TK05 Core/UI/consumer đã có | A21/A22 read; A23 Accept/version/audit/outbox; UI list→detail/status dropdown/reopen, Notifications toolbar/portal/no-F5 | Phase 3 đã đồng bộ TICKET_CREATED/version và recipient Customer độc lập Staff; Phase 4–5 theo spec Application. Nguồn Agent/summary thuộc I07 riêng; benchmark/fanout còn mở |
+| S06 | TK01–TK05 Core/UI/consumer đã có | A21/A22 read; A23 Accept/version/audit/outbox; UI list→detail/status dropdown/reopen, Notifications toolbar/portal/no-F5 | Phase 3 đã đồng bộ TICKET_CREATED/version và recipient Customer độc lập Staff; Phase 4 đã có unread cycle/cleanup hằng ngày; Phase 5 tool local/hồi quy đã kiểm theo spec Application. Nguồn Agent/summary thuộc I07 riêng; benchmark/fanout còn mở |
 | S07 | Handoff I06/Ticket TK05 đã có | A27/A28 union target, recipient/outbox/dedup/reconnect, WS Ticket/catch-up, badge đếm chưa đọc trên toolbar, inline mark read/mark all read, tích hợp Security Notice đổi mật khẩu | Customer center/message read status theo N01/N02 đã duyệt; kiểm riêng quyền và delivery của cả hai role |
 
 ## Nền đã triển khai
@@ -113,7 +115,7 @@ Mã gap/điều kiện đóng nằm duy nhất tại [G01–G09](staff/plans/REA
 | FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. Phase 2 đã sửa Customer draft/manual/confirmation, replay/CAS/snapshot/receipt; I07 còn tích hợp nguồn Agent/summary; AI Copilot còn phần triển khai; không đánh dấu đủ nhóm FR |
 | NFR-001/002 | Baseline auth/assignment/CSRF/allowlist/synthetic ở API hiện có; retrieval/tool scope chưa làm |
 | NFR-003 | Staff đọc DB/snapshot và exact document version; AI safety/retrieval pipeline chưa làm |
-| NFR-005/006 | Handoff và Ticket+outbox đã có source; Unread/read-cycle và retention còn Phase 4. Chưa đo workload/SLA thông báo5 giây, không suy từ test local |
+| NFR-005/006 | Handoff và Ticket+outbox đã có source; Unread/read-cycle và retention đã triển khai theo Phase 4. Chưa đo workload/SLA thông báo5 giây, không suy từ test local |
 | NFR-007 | Staff/Customer signed PDF access/TTL/phiên bản đã có. Signed URL không thu hồi tức thì, audit cấp link không chứng minh tải thành công |
 | NFR-004/008 | HTTP request metadata/audit local có một phần; chưa benchmark hoặc observability Agent/notification đầy đủ |
 
@@ -121,4 +123,4 @@ Bảng FR nguồn không có FR-004. Ticket thủ công đã thuộc phạm vi C
 
 ## Kiểm thử
 
-Các lớp API/DB, browser mock và gateway E2E theo [quy ước UI](README.md#quy-ước-test-case-và-sequence-diagram). Lệnh chạy tại [spec Application](../application-code-alignment-spec.md#application-tests); test case và trạng thái nghiệm thu theo phase chức năng.
+Các lớp API/DB, browser mock và gateway E2E theo [quy ước UI](README.md#quy-ước-test-case-và-sequence-diagram). Lệnh chạy tại [tài liệu chức năng Application](README.md); test case và trạng thái nghiệm thu theo phase chức năng.

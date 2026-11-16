@@ -122,6 +122,7 @@ enum OutboxStatus {
 }
 
 model User {
+  notificationStates ConversationNotificationState[]
   id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   accountCode               String           @unique @map("account_code") @db.VarChar(32)
   email                     String           @unique @db.VarChar(254)
@@ -334,6 +335,7 @@ model DocumentVersion {
 }
 
 model Conversation {
+  notificationStates ConversationNotificationState[]
   id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   channelType          ConversationChannel @map("channel_type")
   customerId           String              @map("customer_id") @db.Uuid
@@ -514,6 +516,7 @@ model OutboxEvent {
 }
 
 model Notification {
+  notificationStates ConversationNotificationState[]
   id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   recipientStaffId    String?          @map("recipient_staff_id") @db.Uuid
   recipientCustomerId String?          @map("recipient_customer_id") @db.Uuid
@@ -556,4 +559,22 @@ model RagKnowledgeChunk {
   @@unique([documentId, documentVersion, chunkIndex])
   @@map("rag_knowledge_chunks")
   @@schema("rag")
+}
+
+model ConversationNotificationState {
+  id String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  recipientUserId String @map("recipient_user_id") @db.Uuid
+  conversationId String @map("conversation_id") @db.Uuid
+  kind String @db.VarChar(50)
+  readThroughSequence BigInt @default(0) @map("read_through_sequence")
+  lastProcessedSequence BigInt @default(0) @map("last_processed_sequence")
+  cycleStartSequence BigInt? @map("cycle_start_sequence")
+  activeNotificationId String? @map("active_notification_id") @db.Uuid
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  recipient User @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  activeNotification Notification? @relation(fields: [activeNotificationId], references: [id], onDelete: SetNull)
+  @@unique([recipientUserId, conversationId, kind])
+  @@map("conversation_notification_states")
+  @@schema("business")
 }

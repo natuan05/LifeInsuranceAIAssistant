@@ -1,12 +1,13 @@
 'use client';
 import { connectionEvent } from '@/lib/chat-realtime';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ConversationError, conversationMessages, mergeMessages, type ChatMessage, type MessagePage } from '@/lib/conversation-api';
+import { ConversationError, conversationMessages, conversationReadState, mergeMessages, type ChatMessage, type MessagePage } from '@/lib/conversation-api';
 
 export const inboxButton = 'tw:rounded-lg tw:border tw:border-slate-300 tw:bg-white tw:px-3 tw:py-2 tw:text-sm tw:font-medium tw:text-slate-700 tw:hover:bg-slate-100 tw:disabled:opacity-50 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600';
-export type TranscriptSnapshot = { messages: ChatMessage[]; page: MessagePage['pageInfo'] | null; top: number };
+export type TranscriptSnapshot = { messages: ChatMessage[]; page: MessagePage['pageInfo'] | null; top: number; readThroughSequence?: string };
 export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', incoming, refreshToken = 0 }: { id: string; role?: 'STAFF' | 'CUSTOMER'; incoming?: ChatMessage | null; refreshToken?: number; memory: Map<string, TranscriptSnapshot>; onDenied: (error: ConversationError) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => memory.get(id)?.messages ?? []);
+  const [readThroughSequence, setReadThroughSequence] = useState(() => memory.get(id)?.readThroughSequence ?? '0');
   const [page, setPage] = useState<MessagePage['pageInfo'] | null>(() => memory.get(id)?.page ?? null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -17,9 +18,11 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
   const viewport = useRef<HTMLDivElement>(null);
   const controller = useRef<AbortController | null>(null);
   const lock = useRef(false);
-  const lastDirection = useRef<'initial' | 'before' | 'after'>('initial');
+  const lastDirection = useRef<'initial' | 'before' | 'after' | 'resync'>('initial');
   const anchor = useRef<{ height: number; top: number } | 'bottom' | null>(null);
   const pageRef = useRef(page);
+  const messagesRef = useRef(messages);
+  useLayoutEffect(() => { messagesRef.current = messages; }, [messages]);
   useLayoutEffect(() => { pageRef.current = page; }, [page]);
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -27,7 +30,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
     if (element && saved) element.scrollTop = saved.top;
     return () => { if (element) { const snapshot = memory.get(id); if (snapshot) snapshot.top = element.scrollTop; } };
   }, [id, memory]);
-  useLayoutEffect(() => { memory.set(id, { messages, page, top: viewport.current?.scrollTop ?? 0 }); }, [id, memory, messages, page]);
+  useLayoutEffect(() => { memory.set(id, { messages, page, readThroughSequence, top: viewport.current?.scrollTop ?? 0 }); }, [id, memory, messages, page, readThroughSequence]);
   const load = useCallback(async (direction: 'initial' | 'before' | 'after') => {
     if (lock.current) return;
     const previous = pageRef.current;
@@ -51,29 +54,75 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
       if (abort.signal.aborted) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) { setMessages([]); setPage(null); onDenied(failure); }
       else setError(failure instanceof ConversationError ? failure.message : 'Unable to load messages. Retry to continue.');
-    } finally { if (!abort.signal.aborted) { lock.current = false; setPending(false); if (dirty.current) queueMicrotask(() => sync.current()); } }
+    } finally { if (!abort.signal.aborted) { lock.current = false; setPending(false); if (dirty.current) queueMicrotask(() => { if (!abort.signal.aborted) sync.current(); }); } }
   }, [id, onDenied, role]);
   useLayoutEffect(() => {
     sync.current = async () => {
       if (lock.current) { dirty.current = true; return; }
       dirty.current = false;
       if (pageRef.current) {
+        lock.current = true;
+        setPending(true);
+        lastDirection.current = 'resync';
         const abort = new AbortController();
-        try {
-          const result = await conversationMessages(id, {}, abort.signal, role);
-          setMessages(current => mergeMessages(current, result.items));
+        controller.current = abort;
+        const previous = pageRef.current;
+        const newest = messagesRef.current.at(-1)?.sequence;
+        let batch: MessagePage | null = null;
+        let beforeCursor = previous.beforeCursor;
+        const refreshed: ChatMessage[] = [];
+        const commitProgress = () => {
+          if (!batch) return;
           const element = viewport.current;
           const atBottom = !element || element.scrollHeight - element.clientHeight - element.scrollTop < 80;
           if (atBottom) anchor.current = 'bottom';
-        } catch {
-          // Fallback to load after if latest fetch fails
-          void load('after');
+          else if (newest && refreshed.some(m => BigInt(m.sequence) > BigInt(newest))) setJump(true);
+          setMessages(current => mergeMessages(current, refreshed));
+          const next = { ...batch.pageInfo, beforeCursor, hasMoreBefore: previous.hasMoreBefore };
+          pageRef.current = next; setPage(next);
+        };
+        try {
+          const readState = await conversationReadState(id, abort.signal);
+          if (abort.signal.aborted) return;
+          if (!/^(0|[1-9][0-9]*)$/.test(readState.readThroughSequence)) throw new Error('Invalid read state');
+          setReadThroughSequence(current => BigInt(readState.readThroughSequence) > BigInt(current) ? readState.readThroughSequence : current);
+          let cursor = previous.afterCursor;
+          const seen = new Set<string>([cursor]);
+          // Bound each batch; a recoverable error keeps its successful pages.
+          for (let count = 0; count < 10; count++) {
+            const result = await conversationMessages(id, { after: cursor }, abort.signal, role);
+            if (abort.signal.aborted) return;
+            if (result.pageInfo.hasMoreAfter && (!result.items.length || seen.has(result.pageInfo.afterCursor))) throw new Error('Transcript cursor did not advance');
+            batch = result;
+            refreshed.push(...result.items);
+            beforeCursor ??= result.pageInfo.beforeCursor;
+            if (!result.pageInfo.hasMoreAfter) break;
+            cursor = result.pageInfo.afterCursor;
+            seen.add(cursor);
+          }
+          commitProgress(); setError('');
+          if (batch?.pageInfo.hasMoreAfter) dirty.current = true;
+        } catch (failure) {
+          if (abort.signal.aborted) return;
+          dirty.current = false;
+          if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) {
+            memory.delete(id); setMessages([]); setPage(null); onDenied(failure);
+          } else {
+            commitProgress();
+            setError('Unable to refresh message read status. Retry to continue.');
+          }
+        } finally {
+          if (!abort.signal.aborted) {
+            lock.current = false;
+            setPending(false);
+            if (dirty.current) queueMicrotask(() => { if (!abort.signal.aborted) sync.current(); });
+          }
         }
       } else {
         void load('initial');
       }
     };
-  }, [id, load, role]);
+  }, [id, load, role, memory, onDenied]);
   useEffect(() => {
     if (!refreshToken) return;
     let disposed = false; queueMicrotask(() => { if (!disposed) sync.current(); });
@@ -83,7 +132,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
     const changed = (event: Event) => setConnected(Boolean((event as CustomEvent<{ connected: boolean }>).detail.connected));
     window.addEventListener(connectionEvent, changed); return () => window.removeEventListener(connectionEvent, changed);
   }, []);
-  useEffect(() => { let disposed = false; queueMicrotask(() => { if (!disposed) void load(pageRef.current ? 'after' : 'initial'); }); return () => { disposed = true; controller.current?.abort(); lock.current = false; }; }, [load]);
+  useEffect(() => { let disposed = false; queueMicrotask(() => { if (!disposed) { if (pageRef.current) sync.current(); else void load('initial'); } }); return () => { disposed = true; controller.current?.abort(); lock.current = false; }; }, [load]);
   useEffect(() => {
     if (!incoming) return;
     let disposed = false;
@@ -104,7 +153,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
     }}>
       {page?.hasMoreBefore && <div className="tw:mb-5 tw:text-center"><button disabled={pending} className={inboxButton} onClick={() => void load('before')}>Load earlier messages</button></div>}
       {pending && <p role="status" className="tw:py-2 tw:text-center tw:text-sm tw:text-slate-600">Loading messages…</p>}
-      {error && <div role="alert" className="tw:mb-4 tw:rounded-lg tw:bg-red-50 tw:p-3 tw:text-sm tw:text-red-800">{error} <button className={inboxButton} onClick={() => void load(lastDirection.current)}>Retry messages</button></div>}
+      {error && <div role="alert" className="tw:mb-4 tw:rounded-lg tw:bg-red-50 tw:p-3 tw:text-sm tw:text-red-800">{error} <button className={inboxButton} onClick={() => { if (lastDirection.current === 'resync') sync.current(); else void load(lastDirection.current); }}>Retry messages</button></div>}
       {!pending && !error && !messages.length && <p className="tw:text-center tw:text-sm tw:text-slate-600">No messages yet.</p>}
       <ol className="tw:flex tw:list-none tw:flex-col tw:gap-4 tw:p-0 tw:m-0" aria-label="Messages">
         {messages.map(message => {
@@ -178,7 +227,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
                 )}
                 {isMe && (
                   <div className="tw:mt-1 tw:flex tw:items-center tw:gap-1 tw:text-[10px] tw:text-slate-400">
-                    {message.readAt ? (
+                    {message.readAt || BigInt(message.sequence) <= BigInt(readThroughSequence) ? (
                       <>
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="tw:text-blue-500">
                           <polyline points="20 6 9 17 4 12"/>

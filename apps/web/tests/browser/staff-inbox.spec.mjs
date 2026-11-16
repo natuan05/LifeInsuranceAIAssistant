@@ -23,10 +23,19 @@ async function setup(page, path = '/staff/inbox', options = {}) {
       if (state.conflict) { state.active = false; return json({ code: 'STALE_CONVERSATION' }, 409); }
       return json({ conversation: conversation('one', true), replayed: false });
     }
+    if (url.pathname.endsWith('/read-state')) return state.denied ? json({ code: 'NOT_FOUND' }, 404)
+      : state.receiptFailure ? json({ code: 'UNAVAILABLE' }, state.receiptFailure) : json({ readThroughSequence: state.readThroughSequence ?? '0' });
     if (url.pathname.endsWith('/messages')) {
       if (state.denied) return json({ code: 'NOT_FOUND' }, 404);
+      if (state.historySize) {
+        const before = url.searchParams.get('before'), after = url.searchParams.get('after');
+        const from = after ? Number(after) + 1 : before ? Math.max(1, Number(before) - 50) : Math.max(1, state.historySize - 49);
+        const through = after ? Math.min(state.historySize, from + 49) : before ? Number(before) - 1 : state.historySize;
+        return json({ items: Array.from({ length: Math.max(0, through - from + 1) }, (_, index) => ({ ...message(from + index), senderType: 'STAFF' })),
+          pageInfo: { beforeCursor: String(from), afterCursor: String(Math.max(Number(after ?? 0), through)), hasMoreBefore: from > 1, hasMoreAfter: through < state.historySize } });
+      }
       const before = url.searchParams.has('before'), after = url.searchParams.has('after');
-      return json({ items: after ? [message(101), message(100)] : Array.from({ length: 50 }, (_, index) => message(index + (before ? 1 : 51))), pageInfo: { beforeCursor: before ? null : 'older', afterCursor: after ? 'newer' : 'latest', hasMoreBefore: !before, hasMoreAfter: false } });
+      return json({ items: after ? [message(101), message(100)] : Array.from({ length: 50 }, (_, index) => message(index + (before ? 1 : state.appended ? 52 : 51))), pageInfo: { beforeCursor: before ? null : 'older', afterCursor: after ? 'newer' : 'latest', hasMoreBefore: !before, hasMoreAfter: false } });
     }
     if (/\/staff\/conversations\/[^/]+$/.test(url.pathname) && state.detailFailure === 401) state.expired = true;
     if (/\/staff\/conversations\/[^/]+$/.test(url.pathname)) return state.detailFailure ? json({ code: 'UNAVAILABLE' }, state.detailFailure) : state.denied ? json({ code: 'NOT_FOUND' }, 404) : json({ conversation: conversation(url.pathname.split('/').at(-1), state.active) });
@@ -46,6 +55,48 @@ async function setup(page, path = '/staff/inbox', options = {}) {
 }
 const search = page => page.getByRole('searchbox', { name: 'Search customers', exact: true });
 const messages = page => page.getByRole('region', { name: 'Conversation messages', exact: true });
+
+test('A4 receipt resync stays bounded with 1000 loaded messages and catches up only new pages', async ({ page }) => {
+  test.setTimeout(120000);
+  const state = await setup(page, '/staff/inbox/one', { active: true, historySize: 1000 });
+  const region = messages(page), rows = region.locator('[data-message-id]');
+  await expect(rows).toHaveCount(50);
+  for (let loaded = 100; loaded <= 1000; loaded += 50) {
+    const button = region.getByRole('button', { name: 'Load earlier messages', exact: true });
+    await expect(button).toBeEnabled(); await button.evaluate(b => b.click());
+    await expect(rows).toHaveCount(loaded);
+  }
+  const oldest = region.locator('[data-message-id="message-1"]');
+  await expect(oldest).toContainText('Đã gửi');
+  const draft = page.getByRole('textbox', { name: 'Message', exact: true });
+  await draft.fill('Synthetic retained draft');
+  const count = suffix => state.requests.filter(u => u.pathname.endsWith(suffix)).length;
+  const before = count('/messages'), receiptBefore = count('/read-state');
+  state.readThroughSequence = (9007199254740992n + 1000n).toString();
+  for (let index = 1; index <= 12; index++) {
+    await page.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
+    await expect.poll(() => count('/read-state') - receiptBefore).toBe(index);
+    await expect.poll(() => count('/messages') - before).toBe(index);
+    await expect(region.getByText('Loading messages…', { exact: true })).toHaveCount(0);
+  }
+  await expect(oldest).toContainText('Đã xem'); await expect(rows).toHaveCount(1000);
+  await expect(draft).toHaveValue('Synthetic retained draft');
+  // A real backlog needs new pages, but none of the 20 loaded pages is fetched again.
+  state.historySize = 1120;
+  const appendBefore = count('/messages');
+  await page.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
+  await expect(rows).toHaveCount(1120);
+  expect(count('/messages') - appendBefore).toBe(3);
+  const retryBefore = count('/read-state'); state.receiptFailure = 429;
+  await page.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
+  await expect(region.getByRole('alert')).toContainText('Unable to refresh message read status');
+  state.receiptFailure = false;
+  await region.getByRole('button', { name: 'Retry messages', exact: true }).click();
+  await expect(region.getByRole('alert')).toHaveCount(0);
+  expect(count('/read-state') - retryBefore).toBe(2);
+  await expect(rows).toHaveCount(1120);
+  expect(state.documents).toHaveLength(1);
+});
 
 test('debounced search, Enter, empty search preserve document and focus', async ({ page }) => {
   const state = await setup(page);
@@ -110,7 +161,7 @@ test('conflicting Accept revalidates metadata and never loads pending messages',
   expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
 });
 test('history prepends in bigint order, preserves anchor and deduplicates refresh', async ({ page }) => {
-  await setup(page, '/staff/inbox/one', { active: true });
+  const state = await setup(page, '/staff/inbox/one', { active: true });
   await expect(messages(page).locator('[data-message-id]')).toHaveCount(50);
   const anchor = messages(page).locator('[data-message-id="message-75"]');
   await anchor.scrollIntoViewIfNeeded(); const before = await anchor.boundingBox();
@@ -119,6 +170,7 @@ test('history prepends in bigint order, preserves anchor and deduplicates refres
   const after = await anchor.boundingBox(); expect(Math.abs(after.y - before.y)).toBeLessThan(5);
   const sequences = await messages(page).locator('[data-sequence]').evaluateAll(nodes => nodes.map(node => node.dataset.sequence));
   expect(sequences.every((sequence, index) => !index || BigInt(sequence) > BigInt(sequences[index - 1]))).toBe(true);
+  state.appended = true;
   await page.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
   await expect(messages(page).locator('[data-message-id]')).toHaveCount(101);
   await expect(page.getByRole('button', { name: 'Jump to latest', exact: true })).toBeVisible();

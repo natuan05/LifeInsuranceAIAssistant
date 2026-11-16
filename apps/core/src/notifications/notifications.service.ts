@@ -36,10 +36,10 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
 
   onApplicationBootstrap() {
     this.cleanupExpiredNotifications().catch(() => {});
-    // Periodic hourly cleanup for notifications older than 30 days
+    // Retention applies equally to both roles and read states.
     this.cleanupTimer = setInterval(() => {
       void this.cleanupExpiredNotifications();
-    }, 3600000);
+    }, 86_400_000);
     this.cleanupTimer.unref();
   }
 
@@ -47,7 +47,7 @@ export class NotificationsService implements OnApplicationBootstrap, OnModuleDes
     try {
       const result = await this.database.prisma.$executeRaw`
         DELETE FROM business.notifications
-        WHERE created_at < NOW() - INTERVAL '30 days'
+        WHERE created_at < CURRENT_TIMESTAMP(3) - INTERVAL '30 days'
       `;
       return Number(result);
     } catch {

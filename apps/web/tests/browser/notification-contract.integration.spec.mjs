@@ -25,6 +25,56 @@ async function post(context, actor, path, data, status = 201) {
   return response.json();
 }
 
+for (const role of ['STAFF', 'CUSTOMER']) test(`A4 real ${role} read receipts refresh older loaded pages without reload`, async ({ browser }) => {
+  test.setTimeout(180000);
+  const runId = randomUUID(), contexts = [];
+  try {
+    const data = fixture('setup', runId);
+    const customer = await contextFor(browser, data.customer); contexts.push(customer);
+    const staff = await contextFor(browser, data.staff); contexts.push(staff);
+    const direct = await post(customer, data.customer, 'customers/me/conversations',
+      { kind: 'DIRECT', clientRequestId: randomUUID(), expectedAssignmentVersion: 0, subject: 'Synthetic paged receipts' });
+    const id = direct.conversation.id;
+    const sender = role === 'STAFF' ? staff : customer;
+    const actor = role === 'STAFF' ? data.staff : data.customer;
+    const root = role === 'STAFF' ? 'staff' : 'customers/me';
+    let oldest;
+    for (let index = 0; index < 51; index++) {
+      const sent = await post(sender, actor, `${root}/conversations/${id}/messages`,
+        { clientMessageId: randomUUID(), expectedVersion: 0, content: `Synthetic paged receipt ${index}` });
+      if (!index) oldest = sent.message.id;
+    }
+    const page = await sender.newPage(), documents = [], errors = [];
+    page.on('request', r => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) documents.push(r.url()); });
+    page.on('pageerror', e => errors.push(e.message));
+    await page.goto(role === 'STAFF' ? '/staff/inbox/' + id : '/customer?conversationId=' + id);
+    const region = page.getByRole('region', { name: 'Conversation messages', exact: true });
+    await expect(region.locator('[data-message-id]')).toHaveCount(50);
+    const earlier = region.getByRole('button', { name: 'Load earlier messages', exact: true });
+    const first = region.locator(`[data-message-id="${oldest}"]`);
+    // Queued real outbox invalidations may briefly disable pagination. Finish
+    // loading the older page before exercising the read-receipt invalidation.
+    await expect(async () => {
+      if (await first.count()) return;
+      await expect(earlier).toBeEnabled();
+      await earlier.evaluate(button => button.click());
+      await expect(first).toHaveCount(1, { timeout: 1000 });
+    }).toPass({ timeout: 15000 });
+    await expect(first).toContainText('Đã gửi');
+    await expect(region.locator('[data-message-id]')).toHaveCount(51);
+    const top = await region.evaluate(el => el.scrollTop);
+    await post(role === 'STAFF' ? customer : staff, role === 'STAFF' ? data.customer : data.staff,
+      `conversations/${id}/read`, {}, 200);
+    await expect(first).toContainText('Đã xem', { timeout: 15000 });
+    await expect(region.locator('[data-message-id]')).toHaveCount(51);
+    expect(Math.abs(await region.evaluate(el => el.scrollTop) - top)).toBeLessThan(100);
+    expect(documents).toHaveLength(1); expect(errors).toEqual([]);
+  } finally {
+    try { await Promise.all(contexts.map(context => context.close())); }
+    finally { expect(fixture('cleanup', runId)).toEqual({ users: 0, tickets: 0 }); }
+  }
+});
+
 test('A3 real Customer bell targets exact Tickets, including repeated clicks, with read/read-all contracts', async ({ browser }) => {
   test.setTimeout(120000);
   const runId = randomUUID(); let context;

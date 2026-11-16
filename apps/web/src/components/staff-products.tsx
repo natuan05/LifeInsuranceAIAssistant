@@ -7,6 +7,7 @@ import { listProducts, readProduct, readProductDocuments, productDocumentAccess,
 import { realtimeEvent } from '@/lib/realtime';
 import { SignedPdfPreview } from './signed-pdf-preview';
 import { useAuthorizedRead } from './use-authorized-read';
+import { useSearchInput } from './use-search-input';
 
 const button = 'tw:inline-flex tw:cursor-pointer tw:items-center tw:justify-center tw:gap-2 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-1.5 tw:text-xs tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:focus-visible:outline-2 tw:focus-visible:outline-blue-600 tw:disabled:cursor-not-allowed tw:disabled:opacity-40 tw:transition-colors';
 const options = { 
@@ -199,9 +200,8 @@ export function StaffProducts({ csrfToken, blocked = false }: { csrfToken: strin
   const search = useSearchParams(), params = useParams<{ productId?: string }>();
   const selected = params.productId, term = (search.get('search') ?? '').trim(), rawPage = search.get('page') ?? '1';
   const page = /^\d+$/.test(rawPage) && Number(rawPage) >= 1 && Number(rawPage) <= 100000 ? Number(rawPage) : 1;
-  const [collapsed, setCollapsed] = useState(false); const input = useRef<HTMLInputElement>(null);
+  const [collapsed, setCollapsed] = useState(false); const searchInput = useSearchInput(term), { input } = searchInput;
   const state = useAuthorizedRead(JSON.stringify([term, page]), signal => listProducts(term, page, signal), true, options);
-  useEffect(() => { if (input.current) input.current.value = term; }, [term]);
 
   function url(id = selected, nextPage = page, nextTerm = term) {
     const query = new URLSearchParams(); if (nextTerm) query.set('search', nextTerm); if (nextPage > 1) query.set('page', String(nextPage));
@@ -255,7 +255,7 @@ export function StaffProducts({ csrfToken, blocked = false }: { csrfToken: strin
             role="search" 
             aria-label="Search products" 
             className="tw:shrink-0 tw:p-5 tw:border-b tw:border-slate-100" 
-            onSubmit={event => { event.preventDefault(); if (state.retryDisabled) return; filter(1, String(new FormData(event.currentTarget).get('search') ?? '').trim()); }}>
+            onSubmit={event => { event.preventDefault(); if (state.retryDisabled) return; searchInput.onSubmit(); filter(1, String(new FormData(event.currentTarget).get('search') ?? '').trim()); }}>
             <div className="tw:mb-3 tw:flex tw:items-center tw:justify-between tw:h-7">
               <label htmlFor="product-search" className="tw:text-xs tw:font-bold tw:text-slate-700 tw:leading-none tw:m-0">Search products</label>
               <button 
@@ -279,6 +279,7 @@ export function StaffProducts({ csrfToken, blocked = false }: { csrfToken: strin
                 name="search" 
                 type="search" 
                 defaultValue={term} 
+                onInput={searchInput.onInput}
                 maxLength={100} 
                 placeholder="Product name or code" 
                 className="tw:w-full tw:pl-9 tw:pr-3 tw:py-2 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-slate-50/50 tw:text-xs tw:text-slate-900 tw:placeholder:text-slate-400 tw:focus:bg-white tw:focus:outline-hidden tw:focus:border-blue-500 tw:focus:ring-2 tw:focus:ring-blue-100 tw:transition-all" 

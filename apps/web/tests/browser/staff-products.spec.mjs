@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { typeAtSearchMount } from './support/search-input.mjs';
 
 const actor = { id: 'p03-staff', role: 'STAFF', fullName: 'Synthetic Product Staff', accountCode: 'STF-P03', email: 'p03@synthetic.invalid', passwordChangeRecommended: false };
 const products = Array.from({ length: 12 }, (_, i) => ({ id: `product-${i + 1}`, name: `Synthetic Product ${String(i + 1).padStart(2, '0')}`,
@@ -91,6 +92,43 @@ test('pagination, selected route and browser Back preserve search/page without F
   await page.getByRole('button', { name: 'Next', exact: true }).click(); await expect(page).toHaveURL(/page=2/);
   await page.getByRole('link', { name: /Synthetic Product 11/ }).click(); await expect(detail(page).getByRole('heading', { name: 'Synthetic Product 11', exact: true })).toBeVisible();
   await page.goBack(); await expect(page).toHaveURL(/page=2/); await expect(page.getByRole('link', { name: /Synthetic Product 11/ })).toBeVisible();
+  expect(state.navigations).toHaveLength(1);
+});
+
+test('typing at mount survives URL synchronization before Enter', async ({ page }) => {
+  await typeAtSearchMount(page, 'product-search', 'PROD-02');
+  await setup(page, '/staff/customers');
+  await page.getByRole('link', { name: 'Products', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Synthetic Product 01/ })).toBeVisible();
+  const input = page.getByRole('searchbox', { name: 'Search products', exact: true });
+  await expect(input).toHaveValue('PROD-02');
+  await input.press('Enter');
+  await expect(page).toHaveURL(/search=PROD-02/);
+});
+
+test('a pending search URL update preserves typing made after submit', async ({ page }) => {
+  const state = await setup(page, '/staff/products');
+  const input = page.getByRole('searchbox', { name: 'Search products', exact: true });
+  await input.fill('PROD-02');
+  await page.evaluate(() => {
+    const push = window.history.pushState;
+    window.history.pushState = function (...args) {
+      const result = push.apply(this, args);
+      window.history.pushState = push;
+      const input = document.querySelector('#product-search');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Next search');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return result;
+    };
+  });
+  await input.press('Enter');
+  await expect(page).toHaveURL(/search=PROD-02/);
+  await expect(page.getByRole('link', { name: /Synthetic Product 02/ })).toBeVisible();
+  await expect(input).toHaveValue('Next search');
+  await input.press('Enter');
+  await expect(page).toHaveURL(/search=Next\+search/);
+  await page.goBack();
+  await expect(input).toHaveValue('PROD-02');
   expect(state.navigations).toHaveLength(1);
 });
 test('summary null, empty documents and no-results have distinct useful states', async ({ page }) => {

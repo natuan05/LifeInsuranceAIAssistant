@@ -27,7 +27,7 @@ Thông tin liên hệ theo [Ma trận dữ liệu chung](../../../../configurati
 
 ## 1. Phạm vi và model
 
-Retention đã duyệt 13/11/2026: notification Staff và Customer cùng 30 ngày theo created_at, bất kể is_read. Cleanup bảng chung không xóa Ticket/Message hoặc audit nguồn. Source tại NotificationsService; cutoff/lỗi DB và read/unread cho cả hai role được kiểm theo [N01/N02](../../../customer/plans/09-notifications-contract.md). Phương án B đã duyệt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source vẫn lặp mỗi giờ, cần đổi interval và kiểm timer theo N02-T09.
+Retention đã duyệt 13/11/2026: notification Staff và Customer cùng 30 ngày theo created_at, bất kể is_read. Cleanup bảng chung không xóa Ticket/Message hoặc audit nguồn. Source tại NotificationsService; cutoff/lỗi DB và read/unread cho cả hai role được kiểm theo [N01/N02](../../../customer/plans/09-notifications-contract.md). Phương án B đã duyệt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source đã triển khai lịch này; timer được kiểm theo N02-T09.
 
 FR-013/NFR-001/005/006, Notification.recipientStaffId và conversationId/ticketId nullable. Source đã có recipientCustomerId; API Customer và message read status thuộc N01/N02, Staff vẫn dùng scope riêng.
 

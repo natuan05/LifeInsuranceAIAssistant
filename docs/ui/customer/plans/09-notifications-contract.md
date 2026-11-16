@@ -31,7 +31,7 @@ Source có recipientCustomerId, messages.readAt và hai migration 202611080001/2
 
 ## 4. Retention và bảo vệ dữ liệu
 
-Notification của cả Customer và Staff có created_at cũ hơn 30 ngày thuộc diện dọn dẹp, dù đã đọc hay chưa; không xóa Ticket/Message nguồn. Phương án B đã duyệt ngày 13/11/2026: NotificationsService dọn khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source hiện vẫn lặp mỗi giờ; cần đổi interval và kiểm thử theo N02, chưa coi cleanup hằng ngày đã triển khai. Scheduled Task Execution cloud đã loại theo [Cloud Architecture](../../../specifications/Cloud_Architecture.md#scheduled-task-removal).
+Notification của cả Customer và Staff có created_at cũ hơn 30 ngày thuộc diện dọn dẹp, dù đã đọc hay chưa; không xóa Ticket/Message nguồn. Phương án B đã duyệt ngày 13/11/2026: NotificationsService dọn khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source đã chạy cleanup khi khởi động và mỗi 24 giờ theo N02. Scheduled Task Execution cloud đã loại theo [Cloud Architecture](../../../specifications/Cloud_Architecture.md#scheduled-task-removal).
 
 Payload generic và projection theo role được kiểm theo [ma trận dữ liệu](../../../configuration-and-data.md#customer-sensitive-data). Phần masking bổ sung còn P.
 

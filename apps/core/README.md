@@ -1,6 +1,6 @@
 # Core
 
-NestJS modular monolith sở hữu danh tính, phân quyền và nghiệp vụ. Chạy bằng Docker Compose qua gateway; xem [Getting Started](../../docs/getting-started.md). [Tiến độ Application](../../docs/ui/implementation-status.md) và [spec Phase 0–5](../../docs/application-code-alignment-spec.md) quản lý phần đã có/còn thiếu.
+NestJS modular monolith sở hữu danh tính, phân quyền và nghiệp vụ. Chạy bằng Docker Compose qua gateway; xem [Getting Started](../../docs/getting-started.md). Phần đã có/còn thiếu theo [tiến độ Application](../../docs/ui/implementation-status.md).
 
 ## Tổ chức source
 
@@ -24,4 +24,4 @@ Policy dùng exact applied version; Product dùng current published version. Cor
 
 WebSocket `/api/v1/realtime` gửi invalidation; client đọc lại dữ liệu qua REST theo quyền. Worker outbox local xử lý retry/dedup trong một Core process.
 
-Lệnh Core/DB/browser và quy ước fixture nằm tại [kiểm thử Application](../../docs/application-code-alignment-spec.md#application-tests). API và phase theo [Staff](../../docs/ui/staff/plans/README.md), [Customer](../../docs/ui/customer/plans/README.md).
+Lệnh Core/DB/browser và quy ước fixture nằm tại [tài liệu chức năng Application](../../docs/ui/README.md). API và phase theo [Staff](../../docs/ui/staff/plans/README.md), [Customer](../../docs/ui/customer/plans/README.md).

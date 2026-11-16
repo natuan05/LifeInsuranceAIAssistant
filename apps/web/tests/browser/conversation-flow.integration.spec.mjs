@@ -7,6 +7,7 @@ function fixture(action, runId) {
 }
 async function context(browser, actor) {
   const ctx = await browser.newContext();
+  ctx.setDefaultTimeout(15000);
   await ctx.addCookies([{ name: 'li_session', value: actor.token, domain: 'localhost', path: '/api/v1', httpOnly: true, sameSite: 'Lax' }, { name: 'li_csrf', value: actor.csrf, domain: 'localhost', path: '/api/v1', sameSite: 'Lax' }]);
   return ctx;
 }
@@ -20,6 +21,7 @@ test('real Docker: Customer Direct, two-way send, AI consent, pending privacy an
     const documents = []; customer.on('request', request => { if (request.isNavigationRequest() && request.frame() === customer.mainFrame()) documents.push(request.url()); });
     await customer.goto('/customer');
     await customer.getByRole('button', { name: 'Message Staff', exact: true }).click();
+    await customer.getByRole('region', { name: 'Customer conversations', exact: true }).getByRole('button', { name: 'Message Staff', exact: true }).click();
     await customer.getByRole('textbox', { name: 'Subject', exact: true }).fill('Synthetic Direct browser flow');
     await customer.getByRole('button', { name: 'Create conversation', exact: true }).click();
     await expect(customer.getByRole('form', { name: 'Message composer' })).toBeVisible();
@@ -45,7 +47,7 @@ test('real Docker: Customer Direct, two-way send, AI consent, pending privacy an
     await expect(customer.getByRole('button', { name: 'Request Staff support', exact: true })).toBeFocused();
     await customer.getByRole('button', { name: 'Request Staff support', exact: true }).click();
     await customer.getByRole('button', { name: 'Agree and request Staff support', exact: true }).click();
-    await expect(customer.getByText('Awaiting Staff acceptance. You can continue writing here.', { exact: true })).toBeVisible();
+    await expect(customer.getByText('Pending Staff', { exact: true })).toBeVisible();
     const reads = []; staff.on('request', request => { if (new URL(request.url()).pathname.endsWith('/messages')) reads.push(request.method()); });
     await staff.goto(`/staff/inbox/${data.privateId}?filter=requests`);
     await expect(staff.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
@@ -58,5 +60,8 @@ test('real Docker: Customer Direct, two-way send, AI consent, pending privacy an
     await customer.getByRole('button', { name: 'Refresh conversations', exact: true }).click();
     await customer.evaluate(() => window.dispatchEvent(new Event('core:chat-changed')));
     await expect(customer.getByRole('region', { name: 'Conversation messages', exact: true }).getByText('Synthetic accepted Staff reply', { exact: true })).toBeVisible();
-  } finally { await customerContext?.close(); await staffContext?.close(); fixture('cleanup', runId); }
+  } finally {
+    try { await Promise.allSettled([customerContext?.close(), staffContext?.close()]); }
+    finally { fixture('cleanup', runId); }
+  }
 });

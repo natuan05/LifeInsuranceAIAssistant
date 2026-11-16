@@ -105,6 +105,12 @@ entryType phía Customer nhận AI/REQUEST/DIRECT/TRANSFERRED/LEGACY_REVIEW. Ưu
 
 `GET /api/v1/customers/me/conversations/:conversationId`: `{conversation:{id,subject,status,controlVersion,entryType,availability,staff,request,allowedActions}}`. allowedActions `{readMessages,send,requestStaff}` do Core tính. request chỉ của chính Customer, có state/requestedAt/acceptedAt khi phù hợp; staff tên người nhận hiện hành hoặc null, không data assignment lịch sử không cần thiết. availability AVAILABLE/REVIEW_REQUIRED là DTO, không status chat mới. Legacy chưa phân loại trả REVIEW_REQUIRED, các actions false, không giả cho gửi hoặc tự cấp quyền; không export aiSummary/tool metadata làm lý do chi tiết.
 
+### AI summary cho reason — tích hợp P
+
+Agent chỉ chuẩn bị tóm tắt nội dung Customer-facing đến mốc Core cấp: yêu cầu, phần đã trao đổi và việc cần Staff hỗ trợ. Core bind proposal với owner/cuộc/controlVersion/mốc nguồn, Web cho Customer review/sửa. Chuẩn bị không tạo consent, request pending, notification hoặc Ticket. Sau xác nhận, `conversation_handoffs.shared_reason` lưu đúng bản đã duyệt; pending DTO được trả bản này, không trả các summary Private khác. Không cần đổi ý nghĩa cột shared_reason thành toàn bộ payload summary Ticket.
+
+Nguồn dữ liệu summary và operation chuẩn bị theo CH02, UI theo CH03. Handoff commit vẫn giữ transaction/lock/fence hiện hành; stale proposal/routing phải review lại, replay không lấy summary mới ghi đè bản đã commit. Các trường liên kết proposal/revision và wire bổ sung còn P, phải có schema/fixtures trước code.
+
 ### 3.4. Customer xác nhận chuyển giao
 
 `POST /api/v1/customers/me/conversations/:conversationId/handoff-requests`
@@ -122,7 +128,7 @@ entryType phía Customer nhận AI/REQUEST/DIRECT/TRANSFERRED/LEGACY_REVIEW. Ưu
 }
 ```
 
-sharedSubject 1–180/sharedReason 0–1000 ký tự, trim/text an toàn; bản đầu yêu cầu Customer tự nhập hoặc xác nhận rõ, không tự copy AI title/summary thành shared metadata. consent false/thiếu/scope khác/bản không còn hợp lệ → 400 INVALID_INPUT. Đây là xác nhận do người dùng qua phiên, không lời đồng ý do LLM tự suy.
+sharedSubject 1–180/sharedReason 0–1000 ký tự, trim/text an toàn. Source hiện tại cho Customer nhập tay. Đích nối Agent: PROPOSE_HANDOFF cung cấp subject/reason AI; nút Request Staff support chủ động cũng chuẩn bị AI summary theo [CH02](../../../customer/plans/chat/02-agent-boundary.md). Customer xem/sửa và xác nhận rõ trước khi Core lưu shared metadata; không tự copy summary Private hoặc submit ngay từ callback. Reason do AI chuẩn bị phải có nội dung; trường reason rỗng chỉ thuộc lựa chọn thủ công hiện có. consent false/thiếu/scope khác/bản không còn hợp lệ → 400 INVALID_INPUT. Đây là xác nhận do người dùng qua phiên, không lời đồng ý do LLM tự suy.
 
 201/200 replay: `{request:{id,state:"PENDING",requestedAt},conversation:{id,status:"PENDING_HANDOFF",controlVersion},replayed}`. State/status khác miền. Request mới khi đang pending khác key → 409 HANDOFF_ALREADY_PENDING; khi đang active có grant không tạo thêm. Không tạo SupportTicket.
 
