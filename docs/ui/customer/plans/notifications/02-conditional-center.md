@@ -28,7 +28,7 @@ Prefix `/api/v1`. Bảng theo response Core hiện tại để đồng bộ clie
 | POST /conversations/:conversationId/read | `{success:true,readAt:string}` |
 | GET /conversations/:conversationId/read-state | `{readThroughSequence:string}` |
 
-GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes hiện có ở Customer/Staff controller và cùng gọi markAsRead, nên không kết luận thiếu endpoint. Web hai role dùng common route theo [spec Application](../../../../application-code-alignment-spec.md#7-phase-3--contract-notification-và-ticket-event), giữ auth/CSRF và transcript/owner gate.
+GET dùng keyset createdAt DESC/id DESC, limit 1–50 và cursor theo actor. Customer chỉ list/read notification của chính mình. Mutation theo session/CSRF/Origin, body notification read/read-all là object rỗng. Role-specific conversation read routes hiện có ở Customer/Staff controller và cùng gọi markAsRead, nên không kết luận thiếu endpoint. Web hai role dùng common route theo [tài liệu chức năng Application](../../../README.md), giữ auth/CSRF và transcript/owner gate.
 
 `target` dùng cho navigation; single-read trả object phẳng, read-all dùng `count`. Web mở đúng Ticket/chat và refetch tài nguyên theo quyền hiện hành.
 

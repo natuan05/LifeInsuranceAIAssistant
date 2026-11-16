@@ -357,7 +357,7 @@ Dữ liệu đã có được giữ nguyên khi chạy lại bootstrap. Số lư
 
 Chỉ dùng khi chủ môi trường chủ động muốn bỏ **toàn bộ** dữ liệu ứng dụng: tài khoản, hồ sơ/mật khẩu đã đổi, phân công, hợp đồng/tài liệu, chat/tin nhắn, Ticket, notification, session, rate limit, audit cũ và chunks RAG. Không phải bước cho thành viên mới hoặc cách xử lý lỗi đăng nhập. Bootstrap bình thường không gọi thao tác này; bộ cũ có email khác sẽ báo xung đột, không tự đổi tài khoản đang dùng.
 
-Schema, migration metadata, DB roles, `.env`, credential DB/MinIO và Docker volumes được giữ. Lệnh riêng cần quyền DB owner và xóa object; các credential này chỉ mount vào service `dev-data-reset` thuộc profile `maintenance`, không thêm quyền cho Core hoặc seed thường.
+Schema, migration metadata, DB roles, `.env`, credential DB/MinIO và Docker volumes được giữ. Lệnh riêng cần quyền DB owner và xóa object; credential DB owner được mount vào maintenance reset và harness test cô lập; quyền xóa object chỉ có trong maintenance/harness storage riêng, không cấp thêm cho Core hoặc seed thường.
 
 ```powershell
 docker compose build seed-dev
@@ -436,7 +436,7 @@ sequenceDiagram
 <a id="database"></a>
 ## 8. Dữ liệu và migration
 
-DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Schema source hiện có 20 bảng ứng dụng trong business/rag, gồm ticket_drafts từ migration 202611130001_customer_ticket_drafts_and_confirmed_content; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
+DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.1:5050). Schema source hiện có 21 bảng ứng dụng trong business/rag, gồm ticket_drafts và conversation_notification_states; `_prisma_migrations` là metadata, viewer không đọc/sửa. Nhiều bảng nghiệp vụ chưa có seed; trống là bình thường. Không mở cổng PostgreSQL 5432 bằng browser; quản trị tài khoản dùng tool.
 
 | Nơi lưu | Nội dung |
 | --- | --- |
@@ -450,7 +450,7 @@ DbGate tự kết nối role chỉ đọc tại [127.0.0.1:5050](http://127.0.0.
 
 Down/up và thay container giữ volumes. Mất credential volume khi DB/storage đã có dữ liệu thì cần khôi phục bản gốc; prepare từ chối tự sinh bộ mới. Không coi volumes hoặc `.local` cũ là cache để xóa.
 
-**Đồng bộ source 14/11.** Dev reset hiện liệt kê 19 bảng và thiếu ticket_drafts. verify-models.mjs còn kiểm cố định 17 bảng. Hai script cần cập nhật/kiểm với schema 20 model và 14 migrations trước nghiệm thu quy trình maintenance. [Theo dõi source](source-review.md).
+**Đồng bộ source 16/11.** Verify đối chiếu toàn bộ bảng thực tế qua pg_catalog với Prisma schema, kiểm quyền bảng/cột của Core và viewer. Fixture verify dùng namespace riêng theo lượt và rollback toàn bộ dữ liệu test. Reset liệt kê đủ 21 bảng, gồm ticket_drafts và conversation_notification_states; không dùng CASCADE hoặc xóa migration metadata. Kiểm seed/reset bằng `docker compose --profile tests run --rm -T --no-deps dev-seed-tests`: harness tạo database riêng, nạp dữ liệu synthetic trên baseline đã có draft, kiểm upgrade/rerun, quyền/reset/rollback rồi tự dọn database đó. Không chạy maintenance reset trên dữ liệu đang dùng để kiểm thử.
 
 Source model tại [schema.prisma](../apps/core/prisma/schema.prisma), migration tại [prisma/migrations](../apps/core/prisma/migrations). `InsurancePolicy`/`PolicyStatus`/`insurance_policies` được rename bằng migration `202610300001_rename_insurance_policies`, giữ dữ liệu và ba migration trước. Staff policy APIs và Customer owner list/detail/catalog/view/download APIs đã có; UI hai role dùng API đúng scope riêng. Bảng tồn tại không đồng nghĩa có đầy đủ API, nhất là SupportTicket. ConversationStatus hiện AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; TicketStatus giữ CLOSED riêng. Migration Inbox/handoff/outbox áp bằng Compose như các migration khác, không reset DB.
 
@@ -469,7 +469,7 @@ npm run storage:check
 
 Các helper trên cần Node/npm; có thể kiểm trạng thái trực tiếp bằng `docker compose ps --all`. `check:connection` lấy cổng gateway từ Compose; CHECK_WEB_ORIGIN/CHECK_CORE_URL dùng khi chủ động kiểm endpoint khác.
 
-Lệnh và tiêu chí kiểm thử dành cho người phát triển nằm tại [spec Application](application-code-alignment-spec.md#application-tests).
+Lệnh và tiêu chí kiểm thử dành cho người phát triển nằm tại [tài liệu chức năng Application](ui/README.md).
 
 ### 9.1. Dừng và xem trạng thái
 

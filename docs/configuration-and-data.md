@@ -108,7 +108,7 @@ Thứ tự kỹ thuật: đặc tả nguồn xác minh → Core projection/searc
 - [x] CU01-T05/T06/T07 và CU02-T06: projection, nguồn xác minh, Unicode/null/chuỗi ngắn, search/count/scope, reveal/audit/no-store, lỗi và response muộn.
 - [ ] PL01-T05 cùng caller Policy/Inbox/Ticket: số hợp đồng đầy đủ đúng scope, contact mặc định che.
 - [x] Browser/API: raw không có trong DTO/DOM/tooltip/copy trước reveal; hide/revoke/logout/đổi Customer xóa state.
-- [x] Phase 0–2 hồi quy gateway/Core/browser Customers, policy PDF và Ticket bằng fixture synthetic cô lập theo [spec Application](application-code-alignment-spec.md#phase-0-tests).
+- [x] Phase 0–2 hồi quy gateway/Core/browser Customers, policy PDF và Ticket bằng fixture synthetic cô lập theo [tài liệu chức năng Application](ui/README.md).
 - [ ] Nghiệm thu Agent tích hợp về sáu quy tắc prompt/quyền/contract; ngoài Phase 0–2. Không coi test DTO hoặc prompt là nghiệm thu che PDF hay bộ lọc model.
 
 ## Đồng bộ UI và dữ liệu local — 04/11/2026

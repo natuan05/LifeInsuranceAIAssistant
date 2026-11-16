@@ -8,8 +8,8 @@ const { PrismaClient } = require('../dist/generated/prisma/client');
 const { AccountProvisioningService } = require('../dist/accounts/services/account-provisioning.service');
 const { devAccounts, newDevManifest, bootstrapInTransaction, sharedDevPassword, upgradeLegacyDevPasswords } = require('../dist/cli/dev-accounts');
 const { hashPassword, verifyPassword } = require('../dist/accounts/utils/password');
-const input = JSON.parse(readFileSync(0, 'utf8'));
-const client = new PrismaClient({ adapter: new PrismaPg({ host: '127.0.0.1', port: input.port,
+const input = process.env.PGHOST ? { port: 5432, password: readFileSync('/credentials/admin/password', 'utf8').trim(), corePassword: readFileSync('/credentials/core/password', 'utf8').trim() } : JSON.parse(readFileSync(0, 'utf8'));
+const client = new PrismaClient({ adapter: new PrismaPg({ host: process.env.PGHOST || '127.0.0.1', port: input.port,
   database: 'life_insurance', user: 'admin_runtime', password: input.password, max: 3 }) });
 after(async () => client.$disconnect());
 const suffix = `${Date.now()}${Math.floor(Math.random() * 10000)}`;

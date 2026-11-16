@@ -5,6 +5,7 @@ import { StaffCustomerPolicies } from './staff-policies';
 import { AuthError } from '@/lib/auth-api';
 import { revealCustomerContact } from '@/lib/customer-api';
 import type { StaffCustomer, CustomerList } from '@/lib/customer-api';
+import { useSearchInput } from './use-search-input';
 
 export function StaffCustomerDirectory({ actorId, csrfToken, blocked, contactRevision, onDenied,
   list, 
@@ -38,10 +39,7 @@ export function StaffCustomerDirectory({ actorId, csrfToken, blocked, contactRev
   onBack: () => void;
   onPage: (page: number) => void;
 }) {
-  const searchInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { 
-    if (searchInput.current) searchInput.current.value = searchTerm; 
-  }, [searchTerm]);
+  const searchField = useSearchInput(searchTerm), { input: searchInput } = searchField;
 
   return (
     <section 
@@ -107,6 +105,7 @@ export function StaffCustomerDirectory({ actorId, csrfToken, blocked, contactRev
             aria-label="Search assigned customers" 
             onSubmit={event => { 
               event.preventDefault(); 
+              searchField.onSubmit();
               onSearch(String(new FormData(event.currentTarget).get('search') ?? '')); 
             }}
             className="tw:mb-6">
@@ -125,6 +124,7 @@ export function StaffCustomerDirectory({ actorId, csrfToken, blocked, contactRev
                   type="search" 
                   autoComplete="off" 
                   defaultValue={searchTerm} 
+                  onInput={searchField.onInput}
                   maxLength={100} 
                   placeholder="Name or customer code"
                   className="tw:w-full tw:pl-10 tw:pr-4 tw:py-2.5 tw:rounded-xl tw:border tw:border-slate-300 tw:bg-white tw:text-xs tw:text-slate-900 tw:placeholder:text-slate-400 tw:focus:outline-hidden tw:focus:border-blue-500 tw:focus:ring-2 tw:focus:ring-blue-100 tw:transition-all" 

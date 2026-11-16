@@ -14,9 +14,9 @@ const { PolicyService } = require('../dist/policies/services/policy.service');
 const { PolicyStorageService } = require('../dist/policies/services/policy-storage.service');
 const { StaffPolicyController } = require('../dist/policies/controllers/staff-policy.controller');
 const { configureHttp } = require('../dist/http/http-foundation');
-const input = JSON.parse(readFileSync(0, 'utf8'));
+const input = process.env.PGHOST ? { port: 5432, password: readFileSync('/credentials/admin/password', 'utf8').trim(), corePassword: readFileSync('/credentials/core/password', 'utf8').trim() } : JSON.parse(readFileSync(0, 'utf8'));
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = 'http://localhost:8080';
-const adapter = (user, password) => new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 4 });
+const adapter = (user, password) => new PrismaPg({ host: process.env.PGHOST || '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 4 });
 const admin = new PrismaClient({ adapter: adapter('admin_runtime', input.password) });
 const core = new PrismaClient({ adapter: adapter('core_runtime', input.corePassword) });
 class TestModule {}

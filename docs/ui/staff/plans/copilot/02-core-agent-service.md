@@ -46,7 +46,7 @@ Public Copilot trong module conversations, module agent cho run/attempt/event/HM
 
 Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
 
-Request/response đúng CP01 đã chốt; history cursor bound Staff+source+scope, UUID intent chống trùng, watermark/expectedVersion cho context. Tool calls qua Core tự xác minh identity/quyền, không nhận quyền suy ra từ LLM. A12 gửi Customer không thuộc API Copilot.
+Request/response theo CP01, schema/ACK/discovery bổ sung còn cần review trước code; history cursor bound Staff+source+scope, UUID intent chống trùng, watermark/expectedVersion cho context. Tool calls qua Core tự xác minh identity/quyền, không nhận quyền suy ra từ LLM. A12 gửi Customer không thuộc API Copilot.
 
 ## 4. Luồng thực hiện
 

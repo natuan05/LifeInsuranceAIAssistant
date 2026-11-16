@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { lookupPolicies } from '@/lib/policy-api';
 import { PolicyStatus, StaffPolicyDetail, usePolicyRead } from './staff-policies';
+import { useSearchInput } from './use-search-input';
 
 const button = 'tw:inline-flex tw:items-center tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3 tw:py-1.5 tw:text-xs tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:focus-visible:outline-2 tw:focus-visible:outline-blue-600 tw:disabled:opacity-40 tw:disabled:cursor-not-allowed tw:transition-colors tw:cursor-pointer';
 const statuses = ['', 'ACTIVE', 'LAPSED', 'MATURED', 'PENDING'];
@@ -18,20 +19,7 @@ export function StaffPolicyLookup() {
   const rawPage = search.get('page') ?? '1';
   const page = /^\d+$/.test(rawPage) && Number(rawPage) > 0 && Number(rawPage) <= 100000 ? Number(rawPage) : 1;
   const status = statuses.includes(search.get('status') ?? '') ? search.get('status') ?? '' : '';
-  const input = useRef<HTMLInputElement>(null);
-  const inputEditing = useRef(false);
-  useEffect(() => {
-    const currentTerm = (new URLSearchParams(window.location.search).get('search') ?? '').trim();
-    if (input.current && !inputEditing.current && currentTerm === term) input.current.value = term;
-  }, [term]);
-  useEffect(() => {
-    const restoreSearch = () => {
-      inputEditing.current = false;
-      if (input.current) input.current.value = (new URLSearchParams(window.location.search).get('search') ?? '').trim();
-    };
-    window.addEventListener('popstate', restoreSearch);
-    return () => window.removeEventListener('popstate', restoreSearch);
-  }, []);
+  const searchInput = useSearchInput(term), { input } = searchInput;
   const state = usePolicyRead(JSON.stringify([page, term, status]), signal => lookupPolicies(page, term, status, signal));
 
   function currentParams() {
@@ -53,7 +41,7 @@ export function StaffPolicyLookup() {
   }
 
   function filter(nextPage: number, nextTerm?: string, nextStatus?: string) {
-    if (nextTerm !== undefined) inputEditing.current = false;
+    if (nextTerm !== undefined) searchInput.onSubmit();
     const target = url(selected, nextPage, nextTerm, nextStatus);
     if (target === window.location.pathname + window.location.search) state.retry();
     else window.history.pushState(null, '', target);
@@ -137,7 +125,7 @@ export function StaffPolicyLookup() {
                 defaultValue={term} 
                 maxLength={100} 
                 placeholder="Policy, customer or product" 
-                onChange={() => { inputEditing.current = true; }}
+                onInput={searchInput.onInput}
                 onKeyDown={event => {
                   if (event.key === 'Enter') {
                     event.preventDefault();

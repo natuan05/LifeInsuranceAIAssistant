@@ -203,11 +203,12 @@ services:
   dev-seed-tests:
     profiles: [tests]
     extends: { service: core-tests }
-    command: ["node", "--test", "--test-concurrency=1", "test/policy-seed.test.cjs", "test/dev-data-reset.test.cjs"]
+    command: ["node", "scripts/test-seed-isolated.mjs"]
     environment:
       STORAGE_BUCKET: ${MINIO_BUCKET:-life-insurance-documents}
     volumes:
       - credential_bootstrap:/credentials/bootstrap:ro
+      - credential_viewer:/credentials/viewer:ro
 
   dev-policy-reseed:
     profiles: [maintenance]

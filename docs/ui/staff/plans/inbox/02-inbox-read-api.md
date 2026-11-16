@@ -113,7 +113,7 @@ Pending response:
 }
 ```
 
-Không lastSequence/messageCount/summary/aiTitle/createdAt cuộc AI/linked context/citations. Chỉ requestedAt đã chia sẻ, không activity riêng. Active bỏ request nếu không cần, entryType DIRECT/TRANSFERRED; allowedActions do policy tính, không nhúng messages. send có thể true theo nghiệp vụ nhưng UI I04 chưa bật trước I05; không giả capability theo phase FE.
+Không lastSequence/messageCount/summary Private/aiTitle/createdAt cuộc AI/linked context/citations. sharedReason có thể là AI summary đã được Customer review và consent theo I03; không mở các summary khác. Chỉ requestedAt đã chia sẻ, không activity riêng. Active bỏ request nếu không cần, entryType DIRECT/TRANSFERRED; allowedActions do policy tính, không nhúng messages. send có thể true theo nghiệp vụ nhưng UI I04 chưa bật trước I05; không giả capability theo phase FE.
 
 No grant/AI riêng/Copilot/not found cùng 404. UUID sai 400. Biết id hoặc truyền query khác không đổi quyền.
 

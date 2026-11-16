@@ -13,10 +13,10 @@ const { AuthController } = require('../dist/auth/controllers/auth.controller');
 const { StaffProfileController } = require('../dist/auth/controllers/staff-profile.controller');
 const { configureHttp } = require('../dist/http/http-foundation');
 const { AccountProvisioningService } = require('../dist/accounts/services/account-provisioning.service');
-const input = JSON.parse(readFileSync(0, 'utf8'));
+const input = process.env.PGHOST ? { port: 5432, password: readFileSync('/credentials/admin/password', 'utf8').trim(), corePassword: readFileSync('/credentials/core/password', 'utf8').trim() } : JSON.parse(readFileSync(0, 'utf8'));
 const origin = 'http://localhost:3000';
 process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = origin;
-const adapter = (user, password) => new PrismaPg({ host: '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 3 });
+const adapter = (user, password) => new PrismaPg({ host: process.env.PGHOST || '127.0.0.1', port: input.port, database: 'life_insurance', user, password, max: 3 });
 const admin = new PrismaClient({ adapter: adapter('admin_runtime', input.password) });
 const core = new PrismaClient({ adapter: adapter('core_runtime', input.corePassword) });
 class TestModule {}

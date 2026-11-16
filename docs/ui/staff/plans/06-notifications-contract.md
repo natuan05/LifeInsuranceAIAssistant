@@ -13,7 +13,7 @@ Cập nhật **13/11/2026**: I06 handoff và TK05 Ticket notification đã có, 
 
 ## Runtime
 
-**Retention đã chốt 13/11/2026:** notification Staff và Customer cùng lưu 30 ngày theo created_at; cleanup xóa cả read/unread cũ hơn cutoff, không xóa Ticket/Message hoặc audit nguồn. Phương án B đã chốt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source vẫn lặp mỗi giờ, cần đồng bộ và kiểm thử retention theo [N01/N02](../../customer/plans/09-notifications-contract.md).
+**Retention đã chốt 13/11/2026:** notification Staff và Customer cùng lưu 30 ngày theo created_at; cleanup xóa cả read/unread cũ hơn cutoff, không xóa Ticket/Message hoặc audit nguồn. Phương án B đã chốt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ. Source đã triển khai lịch này và kiểm retention theo [N01/N02](../../customer/plans/09-notifications-contract.md).
 
 - Customer xác nhận yêu cầu Staff: handoff/consent + outbox commit trước. Worker chỉ tạo một Notification HANDOFF_REQUESTED cho recipient hiện hành khi request vẫn pending; title generic, body null, không preview chat AI.
 - Staff Accept: transaction ghi acceptance/grant/controller và một SYSTEM trong chính transcript Customer–Staff, thông báo đã tiếp nhận/sẽ phản hồi sớm nhất. Cùng sự kiện có notification STAFF_ACCEPTED_HANDOFF cho Customer theo N01/N02; Ticket vẫn có luồng riêng.

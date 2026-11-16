@@ -117,6 +117,8 @@ for (const selected of ['main', 'endorsement']) {
   test(`realtime retains ${selected} iframe, disclosure, focus and scroll without issuing a new view grant`, async ({ page }) => {
     const state = await setup(page);
     if (selected === 'endorsement') await page.getByRole('button', { name: 'View Synthetic Endorsement', exact: true }).click();
+    await expect(viewer(page)).toHaveAttribute('aria-busy', 'false');
+    await expect(frame(page)).toBeVisible();
     const summary = page.locator('summary').filter({ hasText: 'Policy information' });
     await summary.click();
     await expect(summary.locator('..')).toHaveJSProperty('open', true);

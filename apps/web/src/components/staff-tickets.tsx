@@ -6,6 +6,7 @@ import { ticketEvent } from '@/lib/realtime';
 import { AuthError } from '@/lib/auth-api';
 import { updateTicketStatus, listTickets, readTicket, ticketStatuses, type Ticket, type TicketList, type TicketStatus } from '@/lib/ticket-api';
 import { useAuthorizedRead, useCooldown } from './use-authorized-read';
+import { useSearchInput } from './use-search-input';
 
 const button = 'tw:inline-flex tw:items-center tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3.5 tw:py-2 tw:text-xs tw:font-semibold tw:text-slate-700 tw:shadow-2xs tw:hover:bg-slate-50 tw:focus-visible:outline-2 tw:focus-visible:outline-blue-600 tw:disabled:opacity-40 tw:disabled:cursor-not-allowed tw:transition-colors tw:cursor-pointer';
 const input = 'tw:w-full tw:min-w-0 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:px-3.5 tw:py-2 tw:text-xs tw:text-slate-900 tw:focus:outline-hidden tw:focus:border-blue-500 tw:focus:ring-2 tw:focus:ring-blue-100 tw:transition-all';
@@ -235,8 +236,7 @@ export function StaffTickets({ csrfToken, blocked }: { csrfToken: string; blocke
   const term = search.get('search') ?? '', status = search.get('status') ?? '', customerId = search.get('customerId') ?? '';
   const filters = new URLSearchParams(); if (term) filters.set('search', term); if (status) filters.set('status', status); if (customerId) filters.set('customerId', customerId);
   const key = filters.toString(), suffix = key ? `?${key}` : '', back = `/staff/tickets${suffix}`;
-  const searchInput = useRef<HTMLInputElement>(null);
-  useEffect(() => { if (searchInput.current) searchInput.current.value = term; }, [term]);
+  const searchField = useSearchInput(term), { input: searchInput } = searchField;
   const snapshot = useRef<{ key: string; value: TicketList; pages: number } | null>(null), more = useRef(false);
   const state = useAuthorizedRead(key, async signal => {
     const previous = snapshot.current?.key === key ? snapshot.current : null, append = more.current; more.current = false;
@@ -270,6 +270,7 @@ export function StaffTickets({ csrfToken, blocked }: { csrfToken: string; blocke
           <form 
             onSubmit={event => { 
               event.preventDefault(); 
+              searchField.onSubmit();
               filter(String(new FormData(event.currentTarget).get('search') ?? ''), status); 
             }} 
             className="tw:mb-6 tw:flex tw:flex-wrap tw:items-end tw:gap-4">
@@ -288,6 +289,7 @@ export function StaffTickets({ csrfToken, blocked }: { csrfToken: string; blocke
                   type="search" 
                   maxLength={100} 
                   defaultValue={term} 
+                  onInput={searchField.onInput}
                   placeholder="Customer name, code or ticket code" 
                   className={input + " tw:pl-9"} 
                 />

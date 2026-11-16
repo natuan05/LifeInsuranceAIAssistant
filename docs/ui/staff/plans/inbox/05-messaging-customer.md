@@ -138,7 +138,7 @@ Không hiện “delivered/read” từ HTTP201. Lỗi quyền clear transcript/
 
 Danh sách nhiều cuộc tương tự ChatGPT: tiêu đề/thời gian, cuộc mới AI hoặc nhắn Staff. Gọi availability trước Direct/request; server vẫn recheck version khi POST. AI không khả dụng phải nói rõ, không tạo cảm giác Agent đang chạy.
 
-Nút nhờ Staff mở dialog: hiển thị Staff hiện hành, sharedSubject/reason do Customer nhập/xác nhận và **toàn bộ lịch sử cuộc này sẽ được chia sẻ sau Staff tiếp nhận**. Nút xác nhận hành động rõ, không checkbox checked sẵn thay sự đồng ý. Escape/hủy không mutation. Focus trap/restore khi đóng, action pending không double click.
+Nút nhờ Staff mở dialog: hiển thị Staff hiện hành, sharedSubject/reason do Agent chuẩn bị rồi Customer review/sửa/xác nhận khi tích hợp CH02/CH03; source hiện tại vẫn nhập tay và **toàn bộ lịch sử cuộc này sẽ được chia sẻ sau Staff tiếp nhận**. Nút xác nhận hành động rõ, không checkbox checked sẵn thay sự đồng ý. Escape/hủy không gửi handoff command hoặc tạo Ticket; chuẩn bị proposal không phải consent. Focus trap/restore khi đóng, action pending không double click.
 
 Customer tự chủ động nhờ Staff hoặc Agent gợi ý đều về cùng dialog/Core confirmation. Agent không tự POST consent, thông điệp AI “đã gửi” không là bằng chứng thành công. Nếu routing đổi, giữ draft và cho Customer xác nhận lại Staff mới.
 

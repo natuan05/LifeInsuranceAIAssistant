@@ -40,6 +40,16 @@ Schema draft/snapshot và migration 202611140001_ticket_request_fingerprint đã
 
 Mức ảnh hưởng cao ở Customer confirmation/manual form, Staff detail/status, notification và bảo toàn nguồn. Core sở hữu nghiệp vụ; Agent dùng Business API.
 
+### Nối PROPOSE_TICKET vào draft — P
+
+1. CH02 nhận RESULT qua HMAC, kiểm current attempt/owner/channel/schema/nguồn và lưu event/kết quả idempotent. Chỉ CUSTOMER_SUPPORT được đưa đề xuất này vào luồng Customer; Copilot không tạo thay Customer.
+2. Core map từng PROPOSE_TICKET thành một draft, dedup theo run/attempt/event/actionIndex (vị trí action trong RESULT đã lưu). Ghi bản đề xuất và liên kết draft trong transaction applyEvent, hoặc lưu intent bền để worker hoàn tất trước khi công bố action ready; ACK event không được làm mất việc tạo draft khi crash.
+3. Wire hiện chỉ có summary, không có title/description/policyId. Core dựng title/description từ request/context theo quy tắc projection có giới hạn; policy chỉ từ context Core đã xác minh, không suy UUID từ text. Cần chốt projection và fixture trước code, không tự thêm field vào schema đang chạy.
+4. Summary sáu nhóm và metadata nguồn theo mục dưới; mở rộng wire version/registry phải hoàn tất trước khi nối nguồn Agent thật. Browser chỉ nhận draftId/conversationId và projection được phép để mở T02; không gửi raw action trở lại để tự khai nguồn Agent.
+5. Customer xem/sửa, review revision rồi xác nhận bằng command Ticket hiện có. Core kiểm version/hash/TTL/quyền, consume draft và tạo Ticket OPEN + snapshot/audit/outbox atomic. Retry dùng key cũ; draft không được consume hai lần.
+
+PROPOSE_HANDOFF.reason là bản tóm tắt ngắn để nhờ Staff chat, không phải TicketHandoffSummary. Tên handoffPayload trong Ticket là payload bàn giao của Ticket, không phải ConversationHandoff hay consent chia sẻ transcript. Hai action có thể cùng được đề xuất nhưng phải có hai bước xác nhận độc lập.
+
 ### Nội dung từ Agent
 
 Agent đề xuất qua interface được Core xác thực. Body browser tự khai `source=AGENT` không chứng minh nguồn trusted. Contract `PROPOSE_TICKET.summary` hiện yêu cầu sáu nhóm `request`, `context`, `customer_statements`, `verified_findings`, `attempted_steps`, `pending_issues` và source refs theo Agent Design.

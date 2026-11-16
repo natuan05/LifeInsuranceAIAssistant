@@ -67,7 +67,7 @@ Lưu bền vững yêu cầu/chứng cứ chia sẻ/Accept, nhiều lần theo t
 | id, conversationId, customerId | UUID; composite FK bảo đảm cùng Customer/conversation |
 | assignmentId, recipientStaffId | FK assignment; customer/staff khớp assignment đó |
 | state | PENDING / ACCEPTED / REVOKED; state request, **không** thêm status chat |
-| sharedSubject, sharedReason | 1–180 / 0–1000 ký tự; Customer nhập hoặc xác nhận rõ để chia sẻ |
+| sharedSubject, sharedReason | 1–180 / 0–1000 ký tự; Customer review/xác nhận; đích Agent tóm tắt reason theo CH02, hiện tại nhập tay |
 | consentScope | ENTIRE_CUSTOMER_VISIBLE_CONVERSATION, giá trị cố định |
 | consentTextVersion, confirmedByCustomerId, confirmedAt | Core chọn bản thông báo, actor ownership, thời gian server |
 | acceptedByStaffId, acceptedAt | Cùng null trước Accept; sau Accept đúng recipientStaffId |

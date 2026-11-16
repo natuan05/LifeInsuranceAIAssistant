@@ -46,7 +46,11 @@ AI thinking/queued/error gắn đúng trigger/run. **A đã chốt 14/11/2026:**
 
 Citation có title/version/page rõ từ DTO authorized, bấm mở D01/D02 exact version và page hợp lệ; không URL ký trong Message. Quyền mất/tài liệu thiếu hiển thị unavailable, không mở bản newest. Không có nguồn hoặc câu trả lời chưa chắc nói rõ hạn chế, không hứa claim/chi trả.
 
-Gợi ý Staff chỉ mở consent dialog I03, Customer Cancel không tạo request; consent vẫn toàn bộ lịch sử và Staff Accept. Gợi ý Ticket chỉ mở T02 review khi I07 thật, không bấm một nút lập tức ghi Ticket hoặc coi consent handoff thay xác nhận Ticket. Chưa có tool thì không hiện action chết. Không đưa tool trace/raw LLM JSON vào giao diện Customer.
+Hai CTA tách biệt: **Request Staff support** mở review subject/reason do Agent tóm tắt và consent I03; **Create support ticket** mở T02 review draft I07. Cả hai lấy proposal đã commit qua Core, không đọc action JSON trực tiếp từ model. Cancel không gửi business command; xác nhận một CTA không xác nhận CTA kia.
+
+Nút Request Staff support do Customer tự bấm cũng chạy bước chuẩn bị AI summary theo CH02 trước khi điền reason. Hiện trạng dialog nhập tay vẫn hoạt động; phần tự điền AI còn P. UI có preparing/error/retry, đối soát proposal sau reconnect, giữ phần Customer đang sửa và loại callback khác actor/cuộc/revision. Chỉ nút xác nhận cuối mới gửi handoff với consent; không tự gửi lúc summary vừa về. Bản summary tạo lại vì có tin mới cũng phải được Customer review và xác nhận lại; không giữ consent cho revision cũ. Nếu Agent chưa khả dụng, nói rõ và chỉ cho tự nhập khi Customer chủ động chọn.
+
+Reason đã được Customer duyệt được lưu thành sharedReason, Staff thấy khi pending; đó không phải quyền xem summary Private/transcript chưa Accept. Ticket giữ summary sáu nhóm/nguồn và xác nhận revision riêng theo I07, không lấy reason handoff thay thế. Không đưa tool trace/raw LLM JSON vào giao diện Customer hoặc hiện action chưa có đường thực thi.
 
 ```mermaid
 flowchart TD
@@ -139,6 +143,14 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 **P — chưa chạy.** Qua gateway, gửi câu hỏi rồi logout hoặc làm phiên hết hạn khi run đang chạy/queued. Cho Core nhận callback, login lại cùng actor rồi đổi sang actor khác, thử reload/reconnect và response cũ.
 
 **Kết quả mong đợi.** UI phiên cũ xóa nội dung riêng, không nhận kết quả qua Web/API/WS. Core tiếp tục công việc đã nhận theo quyền hiện hành. Login lại cùng actor xem đúng kết quả/current run theo quyền, không tự gửi thêm câu hỏi. Actor khác và response trễ không làm lộ dữ liệu cũ. Kiểm CH02-T08 và AU03-T05.
+
+### CH03-T08 — AI summary trong Request Staff support
+
+**P — browser + Core/Agent thật.** Bấm nút khi chưa có suggestion, kiểm preparing → subject/reason AI → Customer sửa → consent → pending. Thử summary lỗi, reason null/quá dài, callback lặp/muộn, đổi actor/cuộc, tin mới và assignment đổi trong lúc chờ. Không tự submit, không mất phần đang sửa; Staff chỉ thấy bản đã duyệt. Tạo lại summary theo yêu cầu mới không thay bản handoff đã commit.
+
+### CH03-T09 — Hai CTA độc lập
+
+**P — gateway E2E.** Cho một RESULT có PROPOSE_HANDOFF và PROPOSE_TICKET. Confirm từng CTA riêng, Cancel CTA còn lại rồi reload/reconnect. Handoff không tạo Ticket; Ticket không mở chat grant; mỗi intent chỉ commit một lần. Khi cả hai được xác nhận, hai giao dịch và kết quả vẫn độc lập.
 
 ## Sequence diagram
 

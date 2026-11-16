@@ -1,5 +1,7 @@
 # Customer — thứ tự triển khai theo chức năng và phase
 
+
+**Bàn giao nối Agent:** bắt đầu tại [CH02](chat/02-agent-boundary.md#bàn-giao-triển-khai-coreagent), tiếp CH03 và I03 cho Request Staff support/AI reason, I07/T01/T02 cho đề xuất Ticket. Code Agent đã có; Core integration và UI proposal còn P. Hai luồng hỗ trợ có xác nhận độc lập.
 05/11/2026 · **Customer Portal đã triển khai hoàn tất UI tích hợp (H01, H02, PR01, PR02, PO01, PO02, D01, D02, CH01)** · [Chỉ mục Customer](../README.md) · [Contract chung](00-customer-contract.md).
 
 ## Cách đọc tác động dữ liệu và code

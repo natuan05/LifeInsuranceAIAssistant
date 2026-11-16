@@ -2,7 +2,7 @@
 
 Ứng dụng hỗ trợ bảo hiểm nhân thọ, gồm Next.js frontend, NestJS Core, PostgreSQL/pgvector, Nginx gateway, DbGate và tool quản trị tài khoản local.
 
-Customer và Staff có tài khoản, tra cứu sản phẩm/hợp đồng/PDF, chat hai đầu và Ticket. Chức năng đã triển khai và phần còn làm được quản lý tại [tiến độ Application](docs/ui/implementation-status.md); [spec Phase 0–5](docs/application-code-alignment-spec.md) mô tả các sửa đổi Application hiện có.
+Customer và Staff có tài khoản, tra cứu sản phẩm/hợp đồng/PDF, chat hai đầu và Ticket. Chức năng đã triển khai và phần còn làm được quản lý tại [tiến độ Application](docs/ui/implementation-status.md).
 
 Gemini API đã được chọn ngày 13/11/2026 cho model sinh và embedding của MVP. Cặp model MVP đã chốt ngày 13/11/2026 gồm Gemini 3.8 Flash (`gemini-3.8-flash`) cho model sinh và Gemini Embedding 2 (`gemini-embedding-2`), 1536 chiều. Cấu hình vận hành và nghiệm thu tiếp tục theo G4 trong [Agent Design](docs/specifications/Agent_Design.md#managed-model-api).
 

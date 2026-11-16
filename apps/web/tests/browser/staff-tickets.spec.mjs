@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { typeAtSearchMount } from './support/search-input.mjs';
 const actor={id:'synthetic-tk04',role:'STAFF',fullName:'Synthetic Ticket Staff',accountCode:'STF-TK04',email:'tk04@synthetic.invalid',passwordChangeRecommended:false};
 const rows=Array.from({length:23},(_,i)=>({id:`ticket-${i}`,ticketCode:`TK-${i}`,title:`Synthetic request ${i}`,status:'ASSIGNED',createdAt:'2026-01-01T00:00:00.000Z',customer:{id:'customer-1',fullName:'Synthetic Customer',accountCode:'CUS-TK04'},version:0,policy:null,confirmedAt:'2026-01-01T00:00:00.000Z',confirmationSource:'LEGACY_UNVERIFIED',confirmedContent:null,aiSummary:'Synthetic AI summary',allowedActions:{accept:true,transitions:['OPEN','IN_PROGRESS','RESOLVED','CLOSED']},chatLink:null}));
 async function setup(page,path='/staff/tickets'){
@@ -37,6 +38,16 @@ async function setup(page,path='/staff/tickets'){
 }
 const detail=page=>page.getByRole('article',{name:'Ticket details'});
 const status=page=>detail(page).getByRole('combobox',{name:'Update ticket status'});
+
+test('typing at mount survives URL synchronization before Enter', async ({ page }) => {
+ await typeAtSearchMount(page,'ticket-search','TK-1');
+ await setup(page);
+ await expect(page.getByRole('link').filter({hasText:'Synthetic request 0'})).toBeVisible();
+ const input=page.getByRole('searchbox',{name:'Search tickets',exact:true});
+ await expect(input).toHaveValue('TK-1');
+ await input.press('Enter');
+ await expect(page).toHaveURL(/search=TK-1/);
+});
 test('full-width list, Enter filters, detail and Back retain loaded results without F5',async({page})=>{
  const s=await setup(page);const input=page.getByRole('searchbox',{name:'Search tickets'});await page.getByRole('button',{name:'Load more tickets'}).click();await expect(page.getByRole('link',{name:/TK-22 /})).toBeVisible();
  await input.fill('TK-2');await input.press('Enter');await expect(input).toBeFocused();await page.getByRole('link',{name:/TK-22 /}).click();await expect(detail(page)).toContainText('Synthetic request 22');await expect(page.getByRole('region',{name:'Ticket results'})).toHaveCount(0);

@@ -56,7 +56,7 @@ Customer chat riêng với AI, nhắn trực tiếp Staff hoặc đồng ý chuy
 
 Agent có thể gợi ý **tạo Ticket**, Customer xem/sửa nội dung và xác nhận; Core kiểm ownership/confirmation/chống trùng, ghi Ticket + outbox atomic rồi mới trả mã Ticket. Gợi ý hoặc bản nháp chưa phải Ticket đã lưu. Xem [Tickets](07-tickets-contract.md).
 
-Yêu cầu Staff/Direct/Accept chat không tự tạo Ticket; Customer xác nhận Ticket không tự cho phép Staff đọc toàn bộ chat AI. Ticket có thể liên kết conversation nhưng link/assignee không mở chat gate. Form Ticket thủ công thuộc backlog cũ, không phải phần triển khai Inbox hiện tại.
+Yêu cầu Staff/Direct/Accept chat không tự tạo Ticket; Customer xác nhận Ticket không tự cho phép Staff đọc toàn bộ chat AI. Ticket có thể liên kết conversation nhưng link/assignee không mở chat gate. Form Ticket thủ công đã có trong Application, độc lập với tích hợp đề xuất Agent còn P.
 
 ## 4. Trạng thái chat và riêng tư
 
@@ -77,7 +77,7 @@ Danh sách tiêu đề/thời gian, transcript cuộn, nhãn AI/Staff, composer 
 <a id="6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026"></a>
 ## 6. Chuyển từ Agent sang Staff — cập nhật 03/11/2026
 
-1. Customer chủ động yêu cầu hoặc đồng ý với gợi ý chuyển từ Agent. UI nói rõ Staff sau khi nhận được xem **toàn bộ lịch sử Customer-facing của chính cuộc này**, gồm phần đã trao đổi với AI; Customer xác nhận chia sẻ. Không coi LLM suy đoán đồng ý là consent.
+1. Customer chủ động bấm Request Staff support hoặc chọn PROPOSE_HANDOFF của Agent. Đích tích hợp: Agent tóm tắt nội dung vào reason; Core chuẩn bị và trả subject/reason cho Customer xem, có thể sửa trước khi gửi. Cơ chế chuẩn bị, mốc nguồn và lỗi theo [CH02](chat/02-agent-boundary.md), UI theo [CH03](chat/03-agent-answers-ui.md); hiện tại dialog vẫn nhập tay, phần AI summary còn P. UI nói rõ Staff sau khi nhận được xem **toàn bộ lịch sử Customer-facing của chính cuộc này**, gồm phần đã trao đổi với AI; Customer xác nhận chia sẻ. Không coi LLM suy đoán đồng ý là consent.
 2. Core kiểm phiên/ownership/nội dung/consent/version/idempotency, ghi handoff request/PENDING_HANDOFF và sự kiện thông báo bền vững. **Không tạo SupportTicket hoặc mã Ticket** ở luồng này.
 3. Sau commit hiển thị đang chờ Staff. Trước Accept, Staff chỉ thấy tên/mã khách, yêu cầu Customer đã đồng ý chia sẻ và thời gian; không transcript/preview AI, summary riêng hoặc số tin.
 4. Staff Accept; Core recheck assignment/request/consent/version, ghi acceptance/controller/STAFF_ACTIVE/grant + sự kiện atomic. Chỉ sau commit mới cho Staff gọi API tin nhắn.

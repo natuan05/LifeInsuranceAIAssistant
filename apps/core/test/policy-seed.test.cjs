@@ -12,7 +12,7 @@ const { renderFixturePdf } = require('../dist/cli/dev-policy-pdf');
 
 const docker = process.env.PGHOST === 'postgres';
 const input = docker ? { password: readFileSync('/credentials/admin/password', 'utf8').trim(), port: 5432 } : JSON.parse(readFileSync(0, 'utf8'));
-const client = new PrismaClient({ adapter: new PrismaPg({ host: docker ? 'postgres' : '127.0.0.1', port: input.port, database: 'life_insurance', user: 'admin_runtime', password: input.password, max: 2 }) });
+const client = new PrismaClient({ adapter: new PrismaPg({ host: docker ? 'postgres' : '127.0.0.1', port: input.port, database: process.env.TEST_RESET_DATABASE || 'life_insurance', user: 'admin_runtime', password: input.password, max: 2 }) });
 if (!docker) process.env.DEV_PDF_FONT_DIR = resolve(__dirname, '../../web/public/fonts');
 after(() => client.$disconnect());
 const rollback = new Error('SYNTHETIC_SEED_TEST_ROLLBACK');

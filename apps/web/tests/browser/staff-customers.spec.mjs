@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { typeAtSearchMount } from './support/search-input.mjs';
 
 // Synthetic, in-memory fixtures: independent of personal seeds and database contents.
 // The Docker UI, browser navigation and WebSocket handler run for real; Core is mocked.
@@ -74,6 +75,15 @@ async function setup(page, path = '/staff/customers', options = {}) {
 async function search(page, term) {
   await input(page).fill(term); await input(page).press('Enter');
 }
+
+test('typing at mount survives URL synchronization before Enter', async ({ page }) => {
+  await typeAtSearchMount(page, 'customer-search', 'Beta');
+  await setup(page);
+  await expect(rows(page)).toHaveCount(10);
+  await expect(input(page)).toHaveValue('Beta');
+  await input(page).press('Enter');
+  await expect(page).toHaveURL(/search=Beta/);
+});
 
 test('pagination, deep link, breadcrumb and Back/Forward preserve search/page without reload', async ({ page }) => {
   const state = await setup(page, '/staff/customers?search=Alpha&page=2');

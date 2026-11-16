@@ -60,7 +60,7 @@ NotificationsService cleanup khi Core khởi động và mỗi 24 giờ trong pr
 | N01-T05 | Customer/Staff, read/unread; created_at trước/đúng/sau cutoff 30 ngày và grouped notification | Cả hai role dùng cùng cutoff; chỉ xóa dòng cũ hơn cutoff, không xóa Ticket/Message hoặc audit |
 
 - [x] Phạm vi, recipient, nội dung generic và retention 30 ngày chung cho Customer/Staff đã duyệt.
-- [x] Cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ đã duyệt; code còn cần đồng bộ theo N02.
+- [x] Cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ đã triển khai theo N02.
 - [x] Có schema/source cho Customer và Staff notifications.
 - [x] Gộp theo chu kỳ chưa đọc chat, giữ id và bật lại unread khi có tin mới đã duyệt.
 - [x] Chu kỳ/watermark và cleanup hằng ngày đã triển khai, kiểm theo N02.

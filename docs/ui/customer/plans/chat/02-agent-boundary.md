@@ -1,6 +1,51 @@
 # CH02 — Contract Core–Agent, durable runs và tool scope
 
-06/11/2026 · **Đề xuất, chưa triển khai API Agent thật** · [C06](../06-chat-contract.md). Theo [Agent Design](../../../../specifications/Agent_Design.md) và [plan](../../../../superpowers/plans/2026-10-31-agent-rag-implementation.md): HTTP + callback JSON, Starlette + uvicorn và LI-HMAC-SHA256-v1 đã chốt. Model MVP dùng gemini-3.8-flash/gemini-embedding-2, 1536 chiều. Tích hợp Core, DDL và các tiêu chí G1–G4 còn lại tiếp tục được review.
+06/11/2026 · **Agent đã có code; tích hợp Core–Agent còn P** · [C06](../06-chat-contract.md). Theo [Agent Design](../../../../specifications/Agent_Design.md) và [plan](../../../../superpowers/plans/2026-10-31-agent-rag-implementation.md): HTTP + callback JSON, Starlette + uvicorn và LI-HMAC-SHA256-v1 đã chốt. Model MVP dùng gemini-3.8-flash/gemini-embedding-2, 1536 chiều. Tích hợp Core, DDL và các tiêu chí G1–G4 còn lại tiếp tục được review.
+
+## Bàn giao triển khai Core–Agent
+
+**Hiện có:** Agent có graph, retrieval, durable store và HTTP/HMAC trong `apps/agent/src/life_agent/`; Core có chat, handoff, Ticket, outbox và kiểm quyền. `apps/core/src/agent/` và các bảng run/attempt/event/nonce chưa có. Test Agent với Core double không chứng minh tích hợp thật.
+
+Đọc [bàn giao Core/Web](../../../../superpowers/plans/2026-11-07-agent-core-handoff.md) để lấy endpoint/ACK hiện Agent đang dùng; [contract và schema chung](../../../../../contracts/agent-v1.md) là chuẩn wire. CH02 sở hữu nền Core; CH03 sở hữu UI Customer; I03 sở hữu handoff; I07/T01/T02 sở hữu Ticket. Copilot CP01–CP04 dùng nền chung và triển khai trong cùng đợt với Customer. Đóng từng luồng bằng test riêng; chỉ hoàn tất đợt nối khi cả Customer và Copilot đạt tiêu chí.
+
+| Bước | Việc bàn giao | Vị trí code / điều kiện hoàn tất |
+| --- | --- | --- |
+| 1. Khóa contract | Đối chiếu schema/fixtures, API nội bộ, ACK và version. Chốt bổ sung nguồn Ticket và operation chuẩn bị handoff summary trước khi viết adapter | `contracts/agent-v1.md`, schema/fixtures; không tự gửi field mới vào agent-v1 |
+| 2. Lưu bền Core | Migration additive run/attempt/event/nonce, FIFO, lease, dedup và dispatch intent cùng transaction Message | `apps/core/prisma/`, module P `apps/core/src/agent/`; hồi quy verify/reset và upgrade có dữ liệu cũ |
+| 3. Giao tiếp và quyền | HMAC hai chiều, nonce, history/scope/contracts, callback RESULT/PROGRESS, ACK sau commit và retry/revoke | Module Agent mới phối hợp `conversations`; kiểm quyền mỗi call, không business DB cho Agent |
+| 4. Hai đề xuất riêng | Map PROPOSE_HANDOFF sang bản chuẩn bị subject/reason; PROPOSE_TICKET sang draft có sáu nhóm/nguồn | I03 và I07; đề xuất/callback không tự commit handoff hoặc Ticket |
+| 5. UI | Customer: run/progress/kết quả committed, citations, hai CTA/review riêng và Request Staff support có AI summary; Staff: CP01–CP04 context/history/citations nội bộ | `customer-conversations.tsx`, `customer-handoff-dialog.tsx`, `customer-ticket-confirmation.tsx`, API clients; reload không tạo run/action mới |
+| 6. Nghiệm thu | Contract → Core/DB → Agent/Core thật → browser gateway; HMAC, crash/restart, mất ACK, duplicate/out-of-order, revoke, history lớn và quyền | CH02/CH03 + I03/I07; kiểm hai chiều callback/handoff race và hồi quy chat/Ticket/manual hiện có |
+
+Các mục **P** là việc người nhận cần triển khai, không phải code đã có. Những mở rộng wire ở bước 1 phải có schema/fixture và test tương thích hai bên trước khi merge; không tự đóng gate bằng test mock.
+
+### Quyết định triển khai đã chốt
+
+- **Customer duyệt nội dung:** mọi bản summary ban đầu hoặc tạo lại đều phải được Customer xem/sửa và bấm xác nhận trước khi gửi Staff. Ticket có xác nhận revision riêng. Summary sinh xong không tự submit và không dùng consent cũ cho nội dung mới.
+- **AI summary lỗi:** báo lỗi, cho thử lại hoặc Customer chủ động tự nhập để tiếp tục nhờ Staff; bản tự nhập vẫn phải được Customer duyệt/gửi và không gắn nhãn AI summary.
+- **Có tin mới:** cập nhật summary đến mốc mới và yêu cầu Customer review lại. Giữ riêng phần đang sửa, không tự ghi đè. Mọi cập nhật nội dung làm mất hiệu lực xác nhận cũ; bản đã commit không bị sửa lại.
+- **Phạm vi cùng đợt:** Customer chat/citations, hai đề xuất hỗ trợ và Staff Copilot CP01–CP04. Copilot vẫn nội bộ, không tự gửi cho Customer hoặc xác nhận thay Customer.
+- **Giới hạn local:** giữ nguyên bộ giới hạn hiện có trong `apps/agent/evaluation/trial-config.json`: 3 retrieval, 4 Core reads, timeout Core 3000 ms và 1 retry/call; 6 model calls, 30 graph steps, 120000 token/lượt gồm 12000 token dự phòng kết thúc, deadline 120 giây. Dùng khi nối/test local, không đổi code/config để tự tăng giảm; không coi đây là nghiệm thu production, giá API hoặc duyệt corpus.
+
+### Hai hành động hỗ trợ Customer
+
+| Hành động | Agent chuẩn bị | Customer xác nhận | Core ghi |
+| --- | --- | --- | --- |
+| Nhờ Staff hỗ trợ chat | PROPOSE_HANDOFF.subject/reason; reason là bản tóm tắt yêu cầu, phần đã trao đổi và vấn đề cần Staff xử lý | Review/sửa nội dung chia sẻ và consent toàn bộ lịch sử Customer-facing của cuộc này | ConversationHandoff/PENDING_HANDOFF; chỉ sau Staff Accept mới mở transcript; không Ticket |
+| Nhờ hỗ trợ tạo Ticket | PROPOSE_TICKET.summary sáu nhóm và metadata nguồn hợp lệ | Review/sửa draft và xác nhận revision Ticket | SupportTicket OPEN + snapshot/audit/outbox; không tạo chat grant hoặc tự chuyển Staff |
+
+Một RESULT có thể đề xuất cả hai, nhưng mỗi action có ID/intent và bước xác nhận riêng. Không suy consent hành động còn lại từ một lần bấm hoặc lời đồng ý trong chat. Copilot không được dùng các action Customer này.
+
+### Chuẩn bị AI summary khi Customer tự bấm Request Staff support — P
+
+1. Core kiểm owner/phiên/assignment/controlVersion rồi chốt mốc transcript Customer-facing của chính cuộc. Chưa chuyển PENDING_HANDOFF, chưa chia sẻ summary cho Staff và chưa hủy run AI chỉ vì mở dialog.
+2. Nếu có PROPOSE_HANDOFF đã commit còn đúng cuộc/version/mốc nguồn, dùng đề xuất đó. Nếu chưa có hoặc stale, Core yêu cầu Agent tóm tắt theo operation chuẩn bị handoff; không chèn tin Customer giả, không gọi model từ Web và không sửa transcript cũ.
+3. Core lưu proposal có ID, actor/conversation, run/attempt/event nếu có, controlVersion, sourceThroughSequence, subject/reason và trạng thái chuẩn bị. Đây là persistence **P**: chốt model/FK/unique/expiry và migration ở bước 1–2; không dùng ConversationHandoff PENDING làm nơi giữ bản chưa consent.
+4. API chuẩn bị/đọc proposal là **P**, cần chốt path/DTO cùng run-purpose trước code. Request chỉ mang intent/version; Core suy identity và nguồn. Trả trạng thái pending/ready/failed để Web đối soát theo ID sau timeout/reload. Retry cùng intent không sinh thêm summary job; GET không chạy model. Agent-v1 chưa có operation chuyên biệt này: phải chốt extension có version/fixtures, không nhét vào trường message như câu người dùng.
+5. Web điền subject/reason cho Customer xem/sửa. Reason AI phải có nội dung, tối đa 1000 ký tự; không cắt âm thầm hoặc tự thay thành reason rỗng. Lỗi/thiếu căn cứ hiển thị rõ và cho thử lại; Customer có thể chủ động chọn tự nhập theo luồng thủ công hiện có, không gắn nhãn AI summary cho nội dung tự nhập.
+6. Handoff command cuối bind proposal/revision hoặc payload đã được Customer sửa, giữ consent/version/idempotency I03. Nếu có tin mới/routing đổi khiến bản tóm tắt không còn đúng mốc, yêu cầu cập nhật và review lại; response muộn không ghi đè phần Customer đang sửa. Chỉ transaction xác nhận handoff mới lưu shared_reason, chuyển pending, fence run và phát notification.
+
+Không thêm dữ liệu Copilot, tool trace, checkpoint hoặc cuộc khác vào reason. Nội dung AI là bản tóm tắt để chuyển tiếp, không phải kết luận nghiệp vụ đã xác minh. Staff pending chỉ đọc bản subject/reason Customer đã duyệt chia sẻ; các summary Private khác vẫn bị chặn.
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
@@ -19,6 +64,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
 | insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
 | documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
+| Handoff proposal — P, model/schema cần chốt | Owner/cuộc, intent, sourceThroughSequence/controlVersion, subject/reason, trạng thái, revision/expiry | Chuẩn bị/lưu/đọc summary trước consent | Unique intent/action nguồn, FK theo owner/cuộc; chưa tạo ConversationHandoff hoặc grant | Cao — callback, dialog, retry và xác nhận I03 |
 | Durable turn — P, chưa có bảng app | Dự kiến conversationId/triggerMessageId/expectedControlVersion/state/attempt/lease/resultMessageId | DDL và ghi dự kiến, chưa triển khai | Unique conversation+trigger, stale attempt fence; Agent checkpoint tách transaction Message/Ticket | Cao — không ghi task state vào ConversationStatus và không thêm quyền DB cho Agent |
 
 **Schema/migration:** P — phải chốt tên bảng/cột/index/retention trước migration mới. Không tạo AI turn/reply cho lịch sử cũ hoặc sửa model business chỉ để khớp Agent.
@@ -54,7 +100,7 @@ Interfaces **P**, ánh xạ tên/DTO với contract G1 trước code; không tha
 | readContext | Service identity + run/attempt + HistoryView/cursor Core cấp | Lịch sử xử lý gồm kết quả/lỗi lượt trước được chấp nhận trước khi xử lý tin hiện tại, kể cả commit sau khi tin đó vào queue; không lấy tin queue phía sau |
 | readPolicy/retrieveSources | Trusted execution context + resource query | Hai Business Tools và hai retrieval tools đúng Agent Design; scope xin bằng code, chỉ document/version được phép |
 | receiveEvent/appendAnswer | AgentEvent gắn run/attempt/event/sequence; RESULT có AgentResult | Core kiểm attempt/fence/quyền và lưu idempotent; không browser gọi, không ACK trước lưu |
-| proposeHandoff/proposeTicketDraft | AgentResult.actions với PROPOSE_HANDOFF/PROPOSE_TICKET | Chỉ đề xuất; Customer xác nhận riêng ở Core, không tự tạo consent/confirmedAt/Ticket |
+| proposeHandoff/proposeTicketDraft | AgentResult.actions với PROPOSE_HANDOFF/PROPOSE_TICKET | Core lưu đề xuất idempotent theo run/attempt/event/actionIndex (vị trí action trong RESULT đã lưu); bind revision/nguồn. Customer review và xác nhận riêng từng hành động; không tự tạo consent/confirmedAt/Ticket |
 
 Đọc trạng thái theo RunSummary trên API conversations hiện có theo [ánh xạ đã chọn](../../../../../contracts/agent-v1.md#application-conversation-api-mapping); giữ create `clientRequestId`, send `clientMessageId`, expectedVersion/controlVersion. Không bắt Web chuyển sang `/agent-runs/:id`; DTO bổ sung còn phải review/kiểm trước code. Create/list/read/history có currentRun để reopen không phụ thuộc browser nhớ ID; GET không tạo run. Core kiểm owner/channel/quyền, no-store và không trả prompt/checkpoint/raw exception. Bounded discovery/transport Web–Core còn cần review trước CH03; không tự thêm API `assistant-turns` song song hoặc coi trạng thái run là trạng thái chat.
 
@@ -86,6 +132,14 @@ sequenceDiagram
   C->>C: Recheck AI_ACTIVE/controlVersion, append + outbox
   C-->>W: Invalidation, REST lấy message committed
 ```
+
+### Nghiệm thu bổ sung cho hai đề xuất — P
+
+- Handoff do Agent gợi ý và do Customer tự bấm đều có reason tóm tắt từ đúng mốc; proposal còn mới được tái dùng, stale phải chuẩn bị/review lại.
+- Chuẩn bị lỗi/timeout/restart hoặc callback lặp không tự pending, không tự tạo Ticket và không làm mất intent; đọc proposal không gọi model.
+- Pending chỉ lộ bản summary đã consent; nguồn ngoài owner/cuộc, Copilot và attempt cũ bị từ chối.
+- Một RESULT có cả hai action: chỉ confirm Ticket thì chat giữ quyền cũ; chỉ confirm handoff thì không có Ticket; Cancel cả hai không có mutation nghiệp vụ.
+- Confirm rồi mất ACK/restart dùng cùng intent và snapshot; race tin mới/đổi assignment/Customer sửa dialog không dùng reason cũ hoặc response muộn.
 
 ## 5. Test cases
 

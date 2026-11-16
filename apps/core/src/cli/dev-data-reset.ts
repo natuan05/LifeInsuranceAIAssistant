@@ -27,7 +27,7 @@ export async function resetDevDataInTransaction(tx: Prisma.TransactionClient, cl
     assertSeedObject(object, storage.bucket);
     if (!inventory.some(item => item.key === object.key)) inventory.push(object);
   }
-  // Enumerate all 19 app tables explicitly. No CASCADE/DROP DATABASE, schema,
+  // Enumerate all application tables explicitly. No CASCADE/DROP DATABASE, schema,
   // migration metadata, DB role or infrastructure credential is touched.
   await tx.$executeRawUnsafe(`TRUNCATE TABLE
     business.users, business.customer_profiles, business.staff_profiles,
@@ -35,7 +35,8 @@ export async function resetDevDataInTransaction(tx: Prisma.TransactionClient, cl
     business.audit_logs, business.insurance_products, business.insurance_policies,
     business.documents, business.document_versions, business.conversations,
     business.messages, business.conversation_handoffs, business.conversation_command_receipts,
-    business.support_tickets, business.outbox_events, business.notifications,
+    business.support_tickets, business.ticket_drafts, business.outbox_events, business.notifications,
+    business.conversation_notification_states,
     rag.rag_knowledge_chunks RESTART IDENTITY`);
   const accounts = await bootstrapInTransaction(tx, client, newDevManifest());
   const policies = await seedPoliciesInTransaction(tx, storage);

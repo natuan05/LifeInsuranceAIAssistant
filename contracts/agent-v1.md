@@ -138,6 +138,8 @@ Copilot chọn hợp đồng theo [câu hỏi/lịch sử Staff](../docs/specifi
 
 Dữ liệu gửi model theo [phạm vi MVP](../docs/specifications/Agent_Design.md#mvp-model-data-policy): prompt/synthetic cùng quyền/scope/validation hiện có, không bổ sung bộ lọc định danh bằng code. Không suy kiểm schema/source refs thành đã che PII hoặc nghiệm thu dữ liệu thật.
 
+**Handoff reason khi nối UI:** PROPOSE_HANDOFF.reason là bản tóm tắt ngắn để Customer xem/sửa rồi cho phép chia sẻ; Core chỉ lưu shared_reason lúc Customer xác nhận handoff. Nút Request Staff support chủ động cũng cần bước chuẩn bị AI summary theo [CH02](../docs/ui/customer/plans/chat/02-agent-boundary.md), hiện chưa có operation riêng trong wire. Schema hiện cho reason=null; không coi null là AI summary hoàn tất. Mở rộng operation/version phải có schema/fixtures trước code. PROPOSE_TICKET.summary vẫn là sáu nhóm riêng; confirm Ticket không thay consent handoff và ngược lại.
+
 <a id="ticket-source-metadata-callback"></a>
 ### 6.1 Metadata nguồn summary Ticket qua callback — hướng đã chọn, triển khai P
 

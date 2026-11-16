@@ -14,7 +14,7 @@ I07 sở hữu schema/transaction/quyền Ticket chung. T01 triển khai các AP
 | [schema.prisma](../../../../../apps/core/prisma/schema.prisma) | TicketDraft/SupportTicket và ràng buộc |
 | [ticket-api.ts](../../../../../apps/web/src/lib/ticket-api.ts) | Customer client đúng API/owner |
 
-Các file và migration `202611130001_customer_ticket_drafts_and_confirmed_content` đã có trong source. Phase 0 đã hoàn thiện auth/role trong transaction cho các route draft và bốn mã lỗi 409, có test Core/DB/gateway. Phase 2 của [spec Application](../../../../application-code-alignment-spec.md) đã bổ sung validation, khóa/CAS, fingerprint/snapshot và read/quota. Migration `202611140001_ticket_request_fingerprint` thêm cột nullable/CHECK, không backfill legacy.
+Các file và migration `202611130001_customer_ticket_drafts_and_confirmed_content` đã có trong source. Phase 0 đã hoàn thiện auth/role trong transaction cho các route draft và bốn mã lỗi 409, có test Core/DB/gateway. Phase 2 của [tài liệu chức năng Application](../../../README.md) đã bổ sung validation, khóa/CAS, fingerprint/snapshot và read/quota. Migration `202611140001_ticket_request_fingerprint` thêm cột nullable/CHECK, không backfill legacy.
 
 ## 2. API, model và transaction
 

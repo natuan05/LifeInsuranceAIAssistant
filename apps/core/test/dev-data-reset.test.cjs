@@ -13,7 +13,8 @@ const { policySeedOperator } = require('../dist/cli/dev-policies');
 const { renderFixturePdf } = require('../dist/cli/dev-policy-pdf');
 const { devAccounts, sharedDevPassword, bootstrapInTransaction, newDevManifest } = require('../dist/cli/dev-accounts');
 const { verifyPassword } = require('../dist/accounts/utils/password');
-const client = new PrismaClient({ adapter: new PrismaPg({ host: 'postgres', port: 5432, database: 'life_insurance',
+assert.match(process.env.TEST_RESET_DATABASE || '', /^seed_test_[a-f0-9]{32}$/, 'Reset tests require the isolated seed-test runner');
+const client = new PrismaClient({ adapter: new PrismaPg({ host: 'postgres', port: 5432, database: process.env.TEST_RESET_DATABASE || 'life_insurance',
   user: 'local_owner', password: readFileSync('/credentials/bootstrap/password', 'utf8').trim(), max: 2 }) });
 after(() => client.$disconnect());
 const rollback = new Error('RESET_TEST_ROLLBACK');
@@ -103,7 +104,14 @@ test('explicit full reset creates canonical accounts/profiles/policies, clears a
   const before = { users: await client.user.count(), policies: await client.insurancePolicy.count(), tickets: await client.supportTicket.count() };
   const migrations = await client.$queryRawUnsafe('SELECT count(*) AS count FROM business._prisma_migrations');
   await assert.rejects(client.$transaction(async tx => {
+    const user = await tx.user.create({ data: { accountCode: 'CUS-998877', email: 'phase5.reset@synthetic.invalid', passwordHash: 'synthetic-no-login', role: 'CUSTOMER', customerProfile: { create: { fullName: 'Synthetic reset fixture' } } } });
+    const conversation = await tx.conversation.create({ data: { customerId: user.id, createdByCustomerId: user.id, channelType: 'CUSTOMER_SUPPORT', supportOrigin: 'AI', status: 'AI_ACTIVE' } });
+    await tx.ticketDraft.create({ data: { customerId: user.id, conversationId: conversation.id, title: 'Synthetic reset draft', description: 'Synthetic reset', expiresAt: new Date(Date.now() + 60000) } });
+    const notice = await tx.notification.create({ data: { recipientCustomerId: user.id, conversationId: conversation.id, kind: 'STAFF_MESSAGE_UNREAD', title: 'Synthetic reset', dedupKey: randomUUID() } });
+    await tx.conversationNotificationState.create({ data: { recipientUserId: user.id, conversationId: conversation.id, kind: 'STAFF_MESSAGE_UNREAD', activeNotificationId: notice.id } });
     const result = await resetDevDataInTransaction(tx, client, storage(), []);
+    assert.equal(await tx.ticketDraft.count(), 0);
+    assert.equal(await tx.conversationNotificationState.count(), 0);
     assert.equal(result.accountsCreated, 5); assert.equal(result.policies.policiesCreated, 4);
     assert.equal(await tx.user.count(), 5); assert.equal(await tx.insuranceProduct.count(), 7);
     assert.equal(await tx.documentVersion.count(), 17);
