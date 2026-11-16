@@ -14,8 +14,11 @@ process.env.NODE_ENV = 'test'; process.env.CORS_ORIGINS = 'http://localhost:8080
 const runId = `i06-${randomUUID()}`, userIds = [], products = [];
 const hash = value => createHash('sha256').update(value).digest('hex');
 function client(role, path) { return new PrismaClient({ adapter: new PrismaPg({ host: process.env.PGHOST,
-  database: process.env.I01_TEST_DATABASE, user: role, password: readFileSync(path, 'utf8').trim(), max: 8 }) }); }
+  database: process.env.I01_TEST_DATABASE, user: role, password: readFileSync(path, 'utf8').trim(), max: 8 }),
+  log: role === 'core_runtime' ? [{ emit: 'event', level: 'query' }] : [] }); }
 const admin = client('admin_runtime', '/credentials/admin/password'), core = client('core_runtime', '/credentials/core/password');
+let measuredQueries = null;
+core.$on('query', () => { if (measuredQueries !== null) measuredQueries++; });
 let app, base;
 const owned = '/api/v1/customers/me/conversations', staff = '/api/v1/staff/conversations';
 const consent = { confirmed: true, textVersion: 'handoff-v1', scope: 'ENTIRE_CUSTOMER_VISIBLE_CONVERSATION' };
@@ -99,6 +102,94 @@ const { RealtimeService } = require('../dist/realtime/realtime.service');
 const { OutboxDispatcherService } = require('../dist/outbox/services/outbox-dispatcher.service');
 const events = () => app.get(ConversationEventService);
 const eventFor = (id, eventType) => admin.outboxEvent.findFirstOrThrow({ where: { aggregateId: id, eventType }, orderBy: { createdAt: 'desc' } });
+
+for (const role of ['CUSTOMER', 'STAFF']) test(`A4 ${role} legacy reconciliation stays bounded across 50000 messages and durable cycle transitions`, async () => {
+  const g = await group(), id = (await create(g, 'DIRECT')).conversation.id;
+  try {
+  const sender = role === 'CUSTOMER' ? g.a : g.c, recipient = role === 'CUSTOMER' ? g.c : g.a;
+  const kind = role === 'CUSTOMER' ? 'STAFF_MESSAGE_UNREAD' : 'CUSTOMER_MESSAGE_UNREAD';
+  const base = 9007199254740992n, first = base + 49999n, last = base + 50000n;
+  const stateKey = { recipientUserId_conversationId_kind: { recipientUserId: recipient.id, conversationId: id, kind } };
+  await admin.$executeRaw`INSERT INTO business.messages
+    (id,conversation_id,sender_type,sender_id,sequence,audience,content,read_at)
+    SELECT gen_random_uuid(),${id}::uuid,${sender.role}::business."SenderType",${sender.id}::uuid,
+      ${base}::bigint+n,'CUSTOMER_VISIBLE','Synthetic large legacy history',now()
+    FROM generate_series(1,50000) n`;
+  await admin.message.createMany({ data: [
+    { conversationId: id, sequence: base + 50001n, senderType: sender.role, senderId: sender.id, audience: 'INTERNAL', content: 'Synthetic internal exclusion' },
+    { conversationId: id, sequence: base + 50002n, senderType: recipient.role, senderId: recipient.id, audience: 'CUSTOMER_VISIBLE', content: 'Synthetic opposite direction' },
+  ] });
+  const event = await admin.outboxEvent.create({ data: { aggregateId: id, aggregateType: 'CONVERSATION',
+    eventType: 'MESSAGE_COMMITTED', payload: { schemaVersion: 1 }, status: 'PROCESSING',
+    leaseOwner: 'synthetic-large-legacy-held', leaseExpiresAt: new Date(Date.now() + 3600000) } });
+  const route = async () => {
+    measuredQueries = 0;
+    const start = Date.now();
+    try {
+      const recipients = await events().route(event);
+      assert.ok(measuredQueries <= 80, `Legacy routing used ${measuredQueries} database queries`);
+      return { recipients, queries: measuredQueries, elapsedMs: Date.now() - start };
+    } finally { measuredQueries = null; }
+  };
+  for (const mode of ['fresh', 'processed', 'read-ahead', 'all-read']) {
+    await admin.notification.deleteMany({ where: { conversationId: id } });
+    await admin.conversationNotificationState.deleteMany({ where: { conversationId: id } });
+    await admin.message.updateMany({ where: { conversationId: id, senderType: sender.role, audience: 'CUSTOMER_VISIBLE' }, data: { readAt: new Date() } });
+    if (mode !== 'all-read') await admin.message.update({ where: { conversationId_sequence: { conversationId: id, sequence: first } }, data: { readAt: null } });
+    const through = mode === 'read-ahead' ? first : mode === 'processed' ? base + 49997n : 0n;
+    if (mode === 'processed' || mode === 'read-ahead') await admin.conversationNotificationState.create({ data: {
+      recipientUserId: recipient.id, conversationId: id, kind, readThroughSequence: through, lastProcessedSequence: base + 49998n,
+    } });
+    const result = await route();
+    console.log(JSON.stringify({ legacyReconciliation: role, mode, ...result, recipients: undefined }));
+    const state = await admin.conversationNotificationState.findUniqueOrThrow({ where: stateKey });
+    assert.equal(state.lastProcessedSequence, last);
+    assert.equal(state.readThroughSequence, through);
+    const notices = await admin.notification.findMany({ where: { conversationId: id, kind } });
+    if (mode === 'read-ahead' || mode === 'all-read') {
+      assert.equal(notices.length, 0); assert.equal(state.activeNotificationId, null); continue;
+    }
+    assert.equal(notices.length, 1); assert.equal(state.cycleStartSequence, first);
+    assert.equal(state.activeNotificationId, notices[0].id);
+    assert.equal(notices[0].dedupKey, `cycle:${recipient.id}:${id}:${kind}:${first}`);
+    assert.equal(notices[0].isRead, false);
+    await admin.notification.update({ where: { id: notices[0].id }, data: { isRead: true } });
+    await route();
+    const replayed = await admin.notification.findUniqueOrThrow({ where: { id: notices[0].id } });
+    assert.equal(replayed.isRead, true); assert.equal(+replayed.createdAt, +notices[0].createdAt);
+    await admin.notification.delete({ where: { id: replayed.id } });
+    await route(); assert.equal(await admin.notification.count({ where: { conversationId: id, kind } }), 0);
+  }
+  // A large entirely unread backlog also folds to one cycle, retaining its first sequence.
+  await admin.conversationNotificationState.deleteMany({ where: { conversationId: id } });
+  await admin.notification.deleteMany({ where: { conversationId: id } });
+  await admin.message.updateMany({ where: { conversationId: id, senderType: sender.role, audience: 'CUSTOMER_VISIBLE' }, data: { readAt: null } });
+  await route();
+  const backlog = await admin.conversationNotificationState.findUniqueOrThrow({ where: stateKey });
+  assert.equal(backlog.cycleStartSequence, base + 1n); assert.equal(backlog.lastProcessedSequence, last);
+  await app.get(ConversationCommandService).transaction(async tx => {
+    await app.get(ConversationCommandService).lock(tx, recipient.id, id);
+    await app.get(ConversationMessageService).markAsRead(tx, recipient, id);
+  });
+  await route();
+  assert.equal(await admin.notification.count({ where: { conversationId: id, kind, isRead: false } }), 0);
+  assert.equal((await admin.message.findUniqueOrThrow({ where: { conversationId_sequence: { conversationId: id, sequence: base + 50001n } } })).readAt, null);
+  const next = base + 50003n;
+  await admin.message.create({ data: { conversationId: id, sequence: next, senderType: sender.role, senderId: sender.id, audience: 'CUSTOMER_VISIBLE', content: 'Synthetic new cycle after legacy backlog' } });
+  await route();
+  const newCycle = await admin.conversationNotificationState.findUniqueOrThrow({ where: stateKey });
+  assert.equal(newCycle.cycleStartSequence, next); assert.equal(newCycle.lastProcessedSequence, next);
+  assert.notEqual(newCycle.activeNotificationId, backlog.activeNotificationId);
+  assert.equal(await admin.notification.count({ where: { conversationId: id, kind } }), 2);
+  if (role === 'STAFF') {
+    await assign(g, g.b, 0);
+    await admin.message.create({ data: { conversationId: id, sequence: next + 1n, senderType: sender.role, senderId: sender.id, audience: 'CUSTOMER_VISIBLE', content: 'Synthetic revoked legacy recipient' } });
+    const { recipients } = await route();
+    assert.ok(!recipients.some(r => r.actorId === g.a.id || r.actorId === g.b.id));
+    assert.equal((await admin.conversationNotificationState.findUniqueOrThrow({ where: stateKey })).lastProcessedSequence, next);
+  }
+  } finally { await admin.message.deleteMany({ where: { conversationId: id } }); }
+});
 async function eventually(check) { for (let i = 0; i < 150; i++) { if (await check()) return; await new Promise(resolve => setTimeout(resolve, 10)); } assert.fail('Timed out waiting for synthetic realtime assertion'); }
 async function socket(who) {
   const frames = [], ws = new WebSocket(base.replace('http:', 'ws:') + '/api/v1/realtime', { headers: { Cookie: who.cookie, Origin: 'http://localhost:8080' } });
@@ -107,6 +198,36 @@ async function socket(who) {
   await eventually(() => frames.some(frame => frame.type === 'ready'));
   return { ws, frames };
 }
+
+for(const role of ['CUSTOMER','STAFF']) test(`A4 ${role} read-state is bounded, read-only, bigint-safe and permission gated`,async()=>{
+ const g=await group(),id=(await create(g,'DIRECT')).conversation.id;
+ const who=role==='CUSTOMER'?g.c:g.a,recipient=role==='CUSTOMER'?g.a:g.c;
+ const route=`/api/v1/conversations/${id}/read-state`;
+ await api(null,'GET',route,undefined,401);
+ await api(g.b,'GET',route,undefined,404);
+ const foreign=await actor('CUSTOMER');await api(foreign,'GET',route,undefined,404);
+ await api(who,'GET',route+'?role=STAFF',undefined,400);
+ assert.deepEqual(await api(who,'GET',route),{readThroughSequence:'0'});
+ const base=9007199254740992n;
+ const make=(offset,senderType,audience,readAt)=>({conversationId:id,sequence:base+BigInt(offset),senderType,
+  senderId:senderType===role?who.id:recipient.id,audience,readAt,content:'Synthetic bounded receipt projection'});
+ await admin.message.createMany({data:[make(1,role,'CUSTOMER_VISIBLE',new Date()),make(2,role,'INTERNAL',null),
+  make(3,role,'CUSTOMER_VISIBLE',null),make(4,role,'CUSTOMER_VISIBLE',new Date()),
+  make(5,recipient.role,'CUSTOMER_VISIBLE',null)]});
+ const before=await admin.outboxEvent.count({where:{aggregateId:id}});
+ assert.deepEqual(await api(who,'GET',route),{readThroughSequence:(base+2n).toString()});
+ assert.equal(await admin.message.count({where:{conversationId:id,readAt:null}}),3);
+ assert.equal(await admin.outboxEvent.count({where:{aggregateId:id}}),before);
+ await api(recipient,'POST',`/api/v1/conversations/${id}/read`,{},200);
+ assert.deepEqual(await api(who,'GET',route),{readThroughSequence:(base+4n).toString()});
+ assert.equal(await admin.message.count({where:{conversationId:id,audience:'INTERNAL',readAt:null}}),1);
+ const ai=(await create(g)).conversation.id;
+ await api(g.a,'GET',`/api/v1/conversations/${ai}/read-state`,undefined,404);
+ await assign(g,g.b,0);
+ await api(g.a,'GET',route,undefined,404);
+ await api(g.b,'GET',route,undefined,404);
+ await api(g.c,'GET',route);
+});
 
 test('Accept appends one durable SYSTEM with Staff name, ordered with history, retry never duplicates', async () => {
   const g = await group(), id = (await create(g)).conversation.id;
@@ -143,6 +264,7 @@ test('Direct has no accepted SYSTEM; a new consent/Accept after revoke gets a di
 test('events target owner only for AI/private and pending messages; accepted history targets current Staff', async () => {
   const g = await group(), id = (await create(g)).conversation.id;
   const event = { id: randomUUID(), aggregateId: id, eventType: 'MESSAGE_COMMITTED' };
+  await admin.outboxEvent.create({data:{...{id:event.id,aggregateId:id,eventType:event.eventType},aggregateType:'CONVERSATION',payload:{schemaVersion:2,reason:'MESSAGES_READ',readThroughSequence:'0'},status:'PUBLISHED'}});
   assert.deepEqual((await events().route(event)).map(row => row.actorId), [g.c.id]);
   await request(g, id); assert.deepEqual((await events().route(event)).map(row => row.actorId), [g.c.id]);
   await accept(g, id); const active = await events().route(event);
@@ -211,6 +333,45 @@ test('worker crash after notification commit retries to one notification; failed
   assert.equal((await admin.outboxEvent.findUnique({ where: { id: event.id } })).status, 'PUBLISHED');
   assert.equal(await admin.notification.count({ where: { conversationId: id } }), 1);
 });
+
+for(const role of ['CUSTOMER','STAFF']) test(`A4 ${role} message publish retry invalidates the bell without changing read state`,async()=>{
+ const g=await group(),id=(await create(g,'DIRECT')).conversation.id;
+ const sender=role==='CUSTOMER'?g.a:g.c,recipient=role==='CUSTOMER'?g.c:g.a;
+ const message=await admin.message.create({data:{conversationId:id,sequence:1n,senderType:sender.role,senderId:sender.id,
+  content:'Synthetic message delivery retry',audience:'CUSTOMER_VISIBLE'}});
+ const event=await admin.outboxEvent.create({data:{aggregateType:'CONVERSATION',aggregateId:id,eventType:'MESSAGE_COMMITTED',
+  payload:{schemaVersion:2,reason:'MESSAGE_APPENDED',messageId:message.id,sequence:'1',controlVersion:0},
+  status:'PROCESSING',leaseOwner:'synthetic-held',leaseExpiresAt:new Date(Date.now()+3600000)}});
+ const flags=[],connection=await socket(recipient);
+ try{
+  const worker=new OutboxDispatcherService({prisma:core},events(),{publishChat:async(e,recipients)=>{
+   flags.push(recipients.find(r=>r.actorId===recipient.id)?.notification);
+   if(flags.length===1)throw Error('Synthetic first publish failure');
+   await app.get(RealtimeService).publishChat(e,recipients);
+  }},{});
+  await admin.outboxEvent.update({where:{id:event.id},data:{leaseOwner:worker.owner}});
+  await worker.process({...event,retryCount:1});
+  assert.equal((await admin.outboxEvent.findUniqueOrThrow({where:{id:event.id}})).status,'PENDING');
+  const notice=await admin.notification.findFirstOrThrow({where:{conversationId:id,kind:role==='CUSTOMER'?'STAFF_MESSAGE_UNREAD':'CUSTOMER_MESSAGE_UNREAD'}});
+  // A user can read the bell while a delivery retry is pending.
+  await admin.notification.update({where:{id:notice.id},data:{isRead:true}});
+  await admin.outboxEvent.update({where:{id:event.id},data:{status:'PROCESSING',leaseOwner:worker.owner}});
+  await worker.process({...event,retryCount:2});
+  assert.deepEqual(flags,[true,true]);
+  await eventually(()=>connection.frames.some(f=>f.type==='notifications-invalidated'&&f.eventId===event.id));
+  assert.equal((await admin.notification.findUniqueOrThrow({where:{id:notice.id}})).isRead,true);
+  assert.equal(await admin.notification.count({where:{conversationId:id,kind:notice.kind}}),1);
+  assert.equal((await admin.outboxEvent.findUniqueOrThrow({where:{id:event.id}})).status,'PUBLISHED');
+  const commands=app.get(ConversationCommandService);
+  await commands.transaction(async tx=>{await commands.lock(tx,recipient.id,id);await app.get(ConversationMessageService).markAsRead(tx,recipient,id);});
+  const readEvent=await admin.outboxEvent.findFirstOrThrow({where:{aggregateId:id,payload:{path:['reason'],equals:'MESSAGES_READ'}}});
+  const readRecipients=await events().route(readEvent);
+  assert.equal(readRecipients.find(r=>r.actorId===recipient.id)?.notification,true);
+  await app.get(RealtimeService).publishChat(readEvent,readRecipients);
+  await eventually(()=>connection.frames.some(f=>f.type==='notifications-invalidated'&&f.eventId===readEvent.id));
+  assert.equal(await admin.notification.count({where:{conversationId:id,kind:notice.kind}}),1);
+ }finally{connection.ws.terminate();}
+});
 test('two claimers never hold the same valid lease; expired claims recover and another owner cannot mark', async () => {
   const g = await group(), id = (await create(g)).conversation.id, event = await eventFor(id, 'CONVERSATION_CREATED');
   const one = new OutboxDispatcherService({ prisma: core }, events(), { publishChat: async () => {} });
@@ -226,6 +387,7 @@ test('socket projection has no content/sequence; session revoke and receive-only
   const connection = await socket(g.a);
   try {
     const event = { id: randomUUID(), aggregateId: id, eventType: 'MESSAGE_COMMITTED' };
+    await admin.outboxEvent.create({data:{id:event.id,aggregateId:id,aggregateType:'CONVERSATION',eventType:'MESSAGE_COMMITTED',payload:{schemaVersion:2,reason:'MESSAGES_READ',readThroughSequence:'0'},status:'PUBLISHED'}});
     await app.get(RealtimeService).publishChat(event, await events().route(event));
     await eventually(() => connection.frames.some(row => row.eventId === event.id));
     const frame = connection.frames.find(row => row.eventId === event.id);
@@ -242,7 +404,77 @@ test('socket projection has no content/sequence; session revoke and receive-only
 });
 test('socket rechecks grant immediately before send, even if a recipient was resolved before reassignment', async () => {
   const g = await group(), id = (await create(g, 'DIRECT')).conversation.id, event = { id: randomUUID(), aggregateId: null, eventType: 'MESSAGE_COMMITTED' }; event.aggregateId = id;
+  await admin.outboxEvent.upsert({where:{id:event.id},create:{id:event.id,aggregateId:id,aggregateType:'CONVERSATION',eventType:'MESSAGE_COMMITTED',payload:{schemaVersion:2,reason:'MESSAGES_READ',readThroughSequence:'0'},status:'PUBLISHED'},update:{}});
   const recipients = await events().route(event), connection = await socket(g.a);
   try { await assign(g, g.b, 0); await app.get(RealtimeService).publishChat(event, recipients); assert.equal(connection.frames.filter(row => row.type === 'chat-invalidated').length, 0); }
   finally { connection.ws.terminate(); }
+});
+
+
+test('A4 durable cycles survive bell reads, retries, cleanup and consumer restart for both roles', async () => {
+ const g=await group(),id=(await create(g,'DIRECT')).conversation.id;
+ for(const [sender,recipient,root,kind] of [[g.a,g.c,staff,'STAFF_MESSAGE_UNREAD'],[g.c,g.a,owned,'CUSTOMER_MESSAGE_UNREAD']]) {
+  const send=async()=>{
+   const result=await api(sender,'POST',`${root}/${id}/messages`,{clientMessageId:randomUUID(),expectedVersion:0,content:'Synthetic A4 message'},201);
+   const event=await admin.outboxEvent.findFirstOrThrow({where:{aggregateId:id,eventType:'MESSAGE_COMMITTED',payload:{path:['messageId'],equals:result.message.id}}});
+   await admin.outboxEvent.update({where:{id:event.id},data:{status:'PROCESSING',leaseOwner:'synthetic-held',leaseExpiresAt:new Date(Date.now()+3600000)}});
+   return event;
+  };
+  const first=await send();await Promise.all([events().route(first),events().route(first)]);
+  let rows=await admin.notification.findMany({where:{conversationId:id,kind}});assert.equal(rows.length,1);
+  const original=rows[0];await admin.notification.update({where:{id:original.id},data:{isRead:true}});
+  await events().route(first);assert.equal((await admin.notification.findUniqueOrThrow({where:{id:original.id}})).isRead,true);
+  const next=await send();await events().route(next);
+  const updated=await admin.notification.findUniqueOrThrow({where:{id:original.id}});assert.equal(updated.isRead,false);assert.equal(+updated.createdAt,+original.createdAt);
+  await admin.notification.delete({where:{id:original.id}});await events().route(next);assert.equal(await admin.notification.count({where:{conversationId:id,kind}}),0);
+  const fresh=await send();await new ConversationEventService({prisma:core},app.get(require('../dist/conversations/services/conversation-access.service').ConversationAccessService),app.get(ConversationCommandService)).route(fresh);
+  assert.equal(await admin.notification.count({where:{conversationId:id,kind}}),1);
+  await app.get(ConversationCommandService).transaction(async tx=>{
+   await app.get(ConversationCommandService).lock(tx,recipient.id,id);
+   await app.get(ConversationMessageService).markAsRead(tx,{id:recipient.id,role:recipient.role},id);
+  });
+  const readEvent=await admin.outboxEvent.findFirstOrThrow({where:{aggregateId:id,payload:{path:['reason'],equals:'MESSAGES_READ'}},orderBy:{createdAt:'desc'}});
+  await events().route(readEvent);await events().route(first);
+  assert.equal(await admin.notification.count({where:{conversationId:id,kind,isRead:false}}),0);
+  const afterRead=await send();await events().route(afterRead);
+  assert.equal(await admin.notification.count({where:{conversationId:id,kind}}),2);
+ }
+});
+
+
+test('A4 retention strict cutoff applies to both roles/read states, preserving state and source',async()=>{
+ const g=await group(),id=(await create(g,'DIRECT')).conversation.id;
+ const {NotificationsService}=require('../dist/notifications/notifications.service');
+ await admin.$transaction(async tx=>{
+  const ids=[];
+  for(const role of ['CUSTOMER','STAFF'])for(const isRead of [true,false])for(const delta of [-1,0,1]) {
+   const n=await tx.notification.create({data:{conversationId:id,kind:role==='CUSTOMER'?'STAFF_MESSAGE_UNREAD':'CUSTOMER_MESSAGE_UNREAD',title:'Synthetic retention',dedupKey:randomUUID(),isRead,...(role==='CUSTOMER'?{recipientCustomerId:g.c.id}:{recipientStaffId:g.a.id})}});
+   ids.push({id:n.id,delta});
+   await tx.$executeRaw`UPDATE business.notifications SET created_at=NOW()-INTERVAL '30 days'+${delta}*INTERVAL '1 millisecond' WHERE id=${n.id}::uuid`;
+  }
+  await new NotificationsService({prisma:tx}).cleanupExpiredNotifications();
+  for(const row of ids)assert.equal(Boolean(await tx.notification.findUnique({where:{id:row.id}})),row.delta>=0);
+  assert(await tx.conversation.findUnique({where:{id}}));
+ });
+});
+
+
+test('A4 out-of-order delivery and read/send race respect durable boundary and revoked grants',async()=>{
+ const g=await group(),id=(await create(g,'DIRECT')).conversation.id;
+ const sending=async()=>api(g.c,'POST',`${owned}/${id}/messages`,{clientMessageId:randomUUID(),expectedVersion:0,content:'Synthetic race'},201);
+ const a=await sending(),b=await sending();
+ const source=async message=>admin.outboxEvent.findFirstOrThrow({where:{aggregateId:id,payload:{path:['messageId'],equals:message.id}}});
+ const early=await source(a.message),late=await source(b.message);
+ await events().route(late);await events().route(early);
+ assert.equal(await admin.notification.count({where:{conversationId:id,recipientStaffId:g.a.id,kind:'CUSTOMER_MESSAGE_UNREAD'}}),1);
+ const commands=app.get(ConversationCommandService);
+ const read=()=>commands.transaction(async tx=>{await commands.lock(tx,g.a.id,id);return app.get(ConversationMessageService).markAsRead(tx,{id:g.a.id,role:'STAFF'},id);});
+ const [,c]=await Promise.all([read(),sending()]);
+ const state=await admin.conversationNotificationState.findUniqueOrThrow({where:{recipientUserId_conversationId_kind:{recipientUserId:g.a.id,conversationId:id,kind:'CUSTOMER_MESSAGE_UNREAD'}}});
+ const message=await admin.message.findUniqueOrThrow({where:{id:c.message.id}});
+ assert.equal(Boolean(message.readAt),message.sequence<=state.readThroughSequence);
+ await events().route(await source(c.message));
+ assert.equal(await admin.notification.count({where:{conversationId:id,recipientStaffId:g.a.id,isRead:false}}),message.sequence>state.readThroughSequence?1:0);
+ await assign(g,g.b,0);
+ assert(!(await events().route(late)).some(r=>r.actorId===g.a.id||r.actorId===g.b.id));
 });

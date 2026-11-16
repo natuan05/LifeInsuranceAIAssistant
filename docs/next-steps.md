@@ -4,7 +4,7 @@
 
 ## Trình tự rà soát đã thống nhất
 
-Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–3 hoàn tất trong phạm vi Application hiện có. Phase 4–5 còn kế hoạch. Spec không bao gồm nối Core–Agent hoặc code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
+Phần Application đã có source được đối chiếu và đặc tả tại [Spec sửa code Application](application-code-alignment-spec.md): hiện trạng, chênh lệch, thay đổi đích và test theo 6 phase. Phase 0–4 hoàn tất trong phạm vi Application hiện có. Phase 5 còn kế hoạch. Spec không bao gồm nối Core–Agent hoặc code Agent/Copilot. Trình tự giữ nguyên: chốt tài liệu → rà soát code → thống nhất kế hoạch → sửa và kiểm thử. Các task/gate Agent bên dưới tiếp tục theo phạm vi riêng.
 
 ## Đã có
 
@@ -18,8 +18,7 @@ Phần Application đã có source được đối chiếu và đặc tả tại
 
 ### Application hiện có
 
-1. Phase 4: event đúng message, unread/read cycle bền vững, chống phát lại và retention cleanup mỗi 24 giờ.
-2. Phase 5: verify/reset theo schema và quyền, kiểm migration/hồi quy Application.
+1. Phase 5: verify/reset theo schema và quyền, kiểm migration/hồi quy Application.
 
 Chi tiết code/API và tiêu chí A2–A5 nằm tại [spec Application](application-code-alignment-spec.md). Không dùng các task nối Core–Agent dưới đây làm điều kiện đóng checklist này.
 

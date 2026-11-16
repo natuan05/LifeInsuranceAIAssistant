@@ -1,10 +1,11 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type RefObject } from 'react';
 import { chatSupport, customerConversation, ConversationError, createConversation, requestHandoff, type ChatSupport, type CreateIntent, type HandoffIntent } from '@/lib/conversation-api';
 import { inboxButton } from './conversation-transcript';
-export function CustomerHandoffDialog({ mode, conversationId, version, subject, csrfToken, onClose, onComplete, onDenied }: {
+export function CustomerHandoffDialog({ mode, conversationId, version, subject, csrfToken, onClose, onComplete, onDenied, returnFocusRef }: {
   mode: 'AI' | 'DIRECT' | 'HANDOFF'; conversationId?: string; version?: number; subject?: string; csrfToken: string;
   onClose: () => void; onComplete: (id: string) => void; onDenied: (error: ConversationError) => void;
+  returnFocusRef: RefObject<HTMLElement | null>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [controlVersion, setControlVersion] = useState(version);
@@ -19,10 +20,10 @@ export function CustomerHandoffDialog({ mode, conversationId, version, subject, 
   const lock = useRef(false);
   const controller = useRef<AbortController | null>(null);
   useEffect(() => {
-    const element = dialog.current; const previous = document.activeElement;
+    const element = dialog.current; const previous = returnFocusRef.current;
     element?.showModal();
     return () => { controller.current?.abort(); element?.close(); if (previous instanceof HTMLElement && previous.isConnected) previous.focus(); };
-  }, []);
+  }, [returnFocusRef]);
   useEffect(() => {
     const abort = new AbortController();
     chatSupport(abort.signal).then(result => { if (!abort.signal.aborted) setSupport(result); }).catch(failure => { if (!abort.signal.aborted) { if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure); else setError(failure instanceof ConversationError ? failure.message : 'Unable to check staff availability. Retry.'); } });

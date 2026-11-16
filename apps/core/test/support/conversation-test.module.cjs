@@ -14,6 +14,7 @@ const types = [
   ['ConversationTranscriptService', 'conversation-transcript'], ['ConversationSendingService', 'conversation-sending'], ['ConversationEventService', 'conversation-event'],
 ].map(([name, file]) => require(folder + 'services/' + file + '.service')[name]);
 const controllers = [
+  require(folder + 'controllers/common-conversation.controller').CommonConversationController,
   require('../../dist/notifications/notifications.controller').NotificationsController,
   require(folder + 'controllers/staff-inbox.controller').StaffInboxController,
   require(folder + 'controllers/staff-conversation.controller').StaffConversationController,

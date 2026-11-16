@@ -34,6 +34,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
   const [loading, setLoading] = useState(true);
   const [denied, setDenied] = useState(false);
   const [dialog, setDialog] = useState<'AI' | 'DIRECT' | 'HANDOFF' | null>(null);
+  const dialogTrigger = useRef<HTMLElement | null>(null);
   const [liveRevision, setLiveRevision] = useState(0);
   const [incoming, setIncoming] = useState<ChatMessage | null>(null);
   const [transcriptMemory] = useState(() => new Map<string, TranscriptSnapshot>());
@@ -113,7 +114,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
         if (!abort.signal.aborted && epoch === privacyEpoch.current) {
           setDetail(data.conversation);
           setDenied(false);
-          void markConversationRead('CUSTOMER', selected, csrfToken, abort.signal).catch(() => {});
+          void markConversationRead('CUSTOMER', selected, csrfToken, abort.signal).catch(() => { if (!abort.signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
         }
       })
       .catch(failure => {
@@ -126,7 +127,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
         }
       });
     return () => abort.abort();
-  }, [selected, revision, blocked, onDenied]);
+  }, [selected, revision, blocked, onDenied, csrfToken]);
 
   useEffect(() => {
     const refresh = (event: Event) => {
@@ -169,7 +170,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
             setDenied(false);
             setLiveRevision(value => value + 1);
             if (current.conversation.allowedActions.readMessages) {
-              void markConversationRead('CUSTOMER', selected, csrfToken, signal).catch(() => {});
+              void markConversationRead('CUSTOMER', selected, csrfToken, signal).catch(() => { if (!signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
             }
           }
         }
@@ -194,7 +195,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
         else setError('Live updates could not be loaded. Use Refresh to retry.');
       }
     },
-    [selected, onDenied]
+    [selected, onDenied, csrfToken]
   );
 
   useChatRefresh(refreshLive, clearLiveScope, !blocked);
@@ -244,7 +245,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
             <button
               type="button"
               className="tw:flex tw:items-center tw:justify-center tw:gap-1.5 tw:px-2.5 tw:py-2 tw:rounded-xl tw:bg-purple-50 tw:border tw:border-purple-200/70 tw:text-purple-700 tw:hover:bg-purple-100/70 tw:text-xs tw:font-bold tw:transition-all tw:cursor-pointer tw:disabled:opacity-50"
-              onClick={() => setDialog('AI')}
+              onClick={event => { dialogTrigger.current = event.currentTarget; setDialog('AI'); }}
               disabled={blocked || denied}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -255,7 +256,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
             <button
               type="button"
               className="tw:flex tw:items-center tw:justify-center tw:gap-1.5 tw:px-2.5 tw:py-2 tw:rounded-xl tw:bg-emerald-50 tw:border tw:border-emerald-200/70 tw:text-emerald-700 tw:hover:bg-emerald-100/70 tw:text-xs tw:font-bold tw:transition-all tw:cursor-pointer tw:disabled:opacity-50"
-              onClick={() => setDialog('DIRECT')}
+              onClick={event => { dialogTrigger.current = event.currentTarget; setDialog('DIRECT'); }}
               disabled={blocked || denied}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -421,7 +422,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
                     inboxButton +
                     ' tw:text-xs! tw:font-bold tw:py-2! tw:px-3.5! tw:rounded-xl! tw:bg-emerald-600! tw:text-white! tw:border-emerald-600! tw:hover:bg-emerald-700! tw:shadow-xs'
                   }
-                  onClick={() => setDialog('HANDOFF')}
+                  onClick={event => { dialogTrigger.current = event.currentTarget; setDialog('HANDOFF'); }}
                 >
                   Request Staff support
                 </button>
@@ -481,6 +482,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
 
       {dialog && !blocked && !denied && (
         <CustomerHandoffDialog
+          returnFocusRef={dialogTrigger}
           mode={dialog}
           conversationId={selected ?? undefined}
           version={visible?.controlVersion}

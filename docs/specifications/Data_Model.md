@@ -551,7 +551,8 @@ erDiagram
 
 ### Bảng 15: `NOTIFICATIONS`
 
-**Cập nhật N01/N02:** source đã có recipient Customer và messages.read_at qua migrations 202611080001/202611090001. Retention thông báo 30 ngày cho cả Customer/Staff đã duyệt ngày 13/11/2026, áp dụng read/unread theo created_at; không xóa Ticket/Message hoặc audit nguồn. Phương án B đã duyệt: cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ; source vẫn lặp mỗi giờ, cần đồng bộ và kiểm thử theo N02. Message.readAt cập nhật qua API đọc hội thoại, độc lập với Notification.isRead. Phương án A gộp notification tin nhắn đến khi người nhận đọc chat: tin mới cùng chu kỳ giữ id và bật lại unread. Source còn dùng isRead=false để tìm mục gộp; cần thiết kế nhận diện chu kỳ bền vững theo N01/N02, DDL cụ thể chưa chốt.
+**N01/N02:** Notification retention 30 ngày cho cả hai role/read-unread; cleanup khi khởi động và mỗi 24 giờ. Message.readAt độc lập Notification.isRead. Chu kỳ unread và watermark lưu trong conversation_notification_states; event MESSAGE_COMMITTED v2 xác định message/sequence hoặc mốc đọc. Đọc chuông không kết thúc chu kỳ; retry không tái bật unread và không đổi created_at.
+
 > **Mục đích:** Lưu thông báo in-app hiển thị trên icon quả chuông (🔔) cho nhân viên CSKH (FR-013, NFR-006, ADR-CLOUD-003).
 
 | Tên cột | Kiểu dữ liệu | Ràng buộc | Ý nghĩa & Nghiệp vụ chi tiết |
@@ -759,3 +760,25 @@ Các bảng thuộc `business` trừ hàng RAG. Tên file trong cột writer tí
 | Agent turns/Copilot tasks | Core task/turn record và checkpoint protocol | Phối hợp owner Agent chốt service identity/fence/task schema; chưa triển khai trong đợt này | Business commit khác checkpoint; không nới ConversationStatus hoặc cấp DB business cho Agent |
 
 Không chỉnh migration đã apply, tự backfill consent/confirmed snapshot từ AI text, cascade xóa lịch sử hoặc reset volumes để làm một phase chạy được. UI-only không tự kéo theo DDL. Dictionary phải ghi hiện trạng từ Prisma/SQL; kế hoạch P vẫn giữ P cho đến khi có code và migration tương ứng.
+
+### Conversation notification state — Application Phase 4
+
+Bảng `business.conversation_notification_states`, migration `202611160001_notification_cycles`. Khóa duy nhất `(recipient_user_id, conversation_id, kind)`; state giữ theo vòng đời conversation, độc lập retention Notification.
+
+| Cột | Kiểu | Ràng buộc / ý nghĩa |
+| --- | --- | --- |
+| id | UUID | PK, gen_random_uuid() |
+| recipient_user_id | UUID | NOT NULL, FK users; CASCADE khi xóa user |
+| conversation_id | UUID | NOT NULL, FK conversations; CASCADE khi xóa conversation |
+| kind | VARCHAR(50) | STAFF_MESSAGE_UNREAD hoặc CUSTOMER_MESSAGE_UNREAD |
+| read_through_sequence | BIGINT | NOT NULL DEFAULT 0, CHECK >=0; mốc đã đọc chat |
+| last_processed_sequence | BIGINT | NOT NULL DEFAULT 0, CHECK >=0; chống phát lại |
+| cycle_start_sequence | BIGINT | NULL hoặc CHECK >0; đầu chu kỳ |
+| active_notification_id | UUID | Nullable FK notifications, ON DELETE SET NULL |
+| updated_at | TIMESTAMPTZ(3) | NOT NULL; thời điểm cập nhật |
+
+Core khóa routing/conversation và kiểm grant trước khi cập nhật state. Backfill giữ notification hiện có, không bỏ qua tin chưa đọc có event legacy đang chờ. Migration `202611160002_repair_notification_baselines` sửa baseline chưa được runtime cập nhật, tách chu kỳ đã đọc và giữ watermark đã tiến lên.
+
+Migration `202611160003_reconcile_published_notification_gaps` tạo event reconciliation v2 cho gap PUBLISHED có bằng chứng trong retention; giữ nguyên event nguồn và không lùi state runtime đã tiến lên.
+
+Migration `202611160004_reconcile_closed_notification_cycles` giữ notification cũ đã đọc, phục hồi chu kỳ mới theo bằng chứng readAt/sequence và không lùi watermark runtime.

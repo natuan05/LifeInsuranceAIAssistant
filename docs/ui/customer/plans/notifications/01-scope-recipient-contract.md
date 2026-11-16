@@ -31,13 +31,13 @@ Mức ảnh hưởng cao ở FK/constraints, producer/consumer, privacy và scop
 
 Tin mới đã commit trong cùng chu kỳ cập nhật notification cũ, giữ nguyên id và bật lại isRead=false, kể cả mục đó đã được đánh dấu đọc trên chuông. Khi người nhận đọc hội thoại qua API hợp lệ, chu kỳ kết thúc tại mốc tin đã đọc; tin mới sau mốc này mở chu kỳ mới. Retry cùng event không được tự bật unread hoặc làm mới thời gian hoạt động nếu không có tin mới.
 
-Source hiện tìm notification bằng isRead=false nên có thể tạo dòng mới sau thao tác đọc chuông; chưa khớp phương án A. Cần nhận diện chu kỳ/mốc đã đọc bền vững và xử lý đồng thời theo N02; không tự coi isRead là khóa chu kỳ hoặc coi schema hiện có đã đủ. Nếu notification cũ đã bị cleanup, chỉ tin mới hợp lệ mới có thể tạo lại mục, không tái tạo từ event cũ.
+Source lưu chu kỳ/watermark trong conversation_notification_states theo N02. Nếu notification đã bị cleanup, chỉ tin mới hợp lệ mới tạo mục mới; event cũ không tái tạo notification.
 
 ## 4. Retention
 
 Quyết định 13/11/2026: notification của cả Customer và Staff có created_at cũ hơn 30 ngày thuộc diện xóa, không phân biệt đã đọc/chưa đọc. Không cần policy retention riêng theo role. Ticket/Message nguồn và audit nghiệp vụ giữ lifecycle riêng. Retention hiện tính theo created_at; việc gộp unread đang cập nhật created_at trong source nên cần kiểm mốc tuổi dữ liệu theo hành vi này.
 
-Phương án B đã duyệt ngày 13/11/2026: NotificationsService cleanup khi Core khởi động và lặp mỗi 24 giờ trong process Core. Source hiện vẫn dùng timer mỗi giờ; N02 theo dõi đổi interval và kiểm thử trước nghiệm thu. Không bổ sung scheduler cloud gọi Core theo lịch.
+NotificationsService cleanup khi Core khởi động và mỗi 24 giờ trong process Core theo N02. Không bổ sung scheduler cloud.
 
 ## 5. Vị trí code
 
@@ -63,6 +63,6 @@ Phương án B đã duyệt ngày 13/11/2026: NotificationsService cleanup khi C
 - [x] Cleanup khi Core khởi động và mỗi 24 giờ bằng timer nội bộ đã duyệt; code còn cần đồng bộ theo N02.
 - [x] Có schema/source cho Customer và Staff notifications.
 - [x] Gộp theo chu kỳ chưa đọc chat, giữ id và bật lại unread khi có tin mới đã duyệt.
-- [ ] Đồng bộ nhận diện chu kỳ trong source và kiểm chứng các ca trên theo N02.
+- [x] Chu kỳ/watermark và cleanup hằng ngày đã triển khai, kiểm theo N02.
 
 Bảo vệ PII bổ sung còn P theo [ma trận dữ liệu chung](../../../../configuration-and-data.md#customer-sensitive-data). Kiểm JSON/WS/log bằng canary synthetic, không dùng fixture popover làm bằng chứng nghiệm thu.

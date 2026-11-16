@@ -25,6 +25,7 @@ async function setup(page, options = {}) {
       if (!existing && !state.messages.includes(message)) state.messages.push(message);
       return json({ message, controlVersion: 0, replayed: Boolean(existing) }, existing ? 200 : 201);
     }
+    if (url.pathname.endsWith('/read-state')) return json({ readThroughSequence: '0' });
     if (url.pathname.endsWith('/messages')) return json({ items: state.messages, pageInfo: { beforeCursor: null, afterCursor: 'latest', hasMoreBefore: false, hasMoreAfter: false } });
     if (state.denied && /\/staff\/conversations\/[^/]+$/.test(url.pathname)) return json({ code: 'NOT_FOUND' }, 404);
     if (/\/staff\/conversations\/[^/]+$/.test(url.pathname)) return json({ conversation: { ...row, id: url.pathname.split('/').at(-1) } });

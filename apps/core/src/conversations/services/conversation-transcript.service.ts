@@ -16,6 +16,18 @@ const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export class ConversationTranscriptService {
   constructor(private readonly session: ConversationSessionService, private readonly access: ConversationAccessService,
     private readonly policies: PolicyService) {}
+  readState(request: ConversationRequest, role: ConversationRole, id: string) {
+    return this.session.read(request, role, async (tx, actorId) => {
+      if (role === 'STAFF') await this.access.requireTranscript(tx, actorId, id);
+      else await this.access.requireCustomer(tx, actorId, id);
+      const where = { conversationId: id, audience: 'CUSTOMER_VISIBLE' as const, senderType: role };
+      const unread = await tx.message.aggregate({ where: { ...where, readAt: null }, _min: { sequence: true } });
+      // Never infer read receipts beyond an unread hole in legacy history.
+      const through = unread._min.sequence !== null ? unread._min.sequence - 1n
+        : (await tx.message.aggregate({ where, _max: { sequence: true } }))._max.sequence ?? 0n;
+      return { readThroughSequence: through.toString() };
+    });
+  }
   messages(request: ConversationRequest, role: ConversationRole, id: string, query: MessageQueryDto) {
     return this.session.read(request, role, async (tx, actorId) => {
       if (role === 'STAFF') await this.access.requireTranscript(tx, actorId, id);

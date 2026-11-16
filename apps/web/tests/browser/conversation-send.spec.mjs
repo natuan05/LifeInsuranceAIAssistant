@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 const row = { id: 'one', subject: 'Synthetic send', status: 'STAFF_ACTIVE', entryType: 'DIRECT', customer: { id: 'customer', fullName: 'Synthetic Customer', accountCode: 'CUS-SEND' }, controlVersion: 0, allowedActions: { readMessages: true, send: true, accept: false } };
 const chat = (body, sequence = '1') => ({ id: `message-${sequence}`, sequence, clientMessageId: body.clientMessageId, senderType: 'STAFF', sender: { displayName: 'Synthetic Staff' }, content: body.content, createdAt: '2026-11-04T00:00:00Z', citations: [] });
 async function setup(page, options = {}) {
-  const state = { posts: [], messages: [], documents: [], pending: null, ...options };
+  const state = { posts: [], messages: [], documents: [], detailReads: 0, pending: null, ...options };
   await page.routeWebSocket('**/api/v1/realtime', () => {});
   page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) state.documents.push(request.url()); });
   await page.route('**/api/v1/**', async route => {
@@ -23,8 +23,9 @@ async function setup(page, options = {}) {
       if (!existing && !state.messages.includes(message)) state.messages.push(message);
       return json({ message, controlVersion: 0, replayed: Boolean(existing) }, existing ? 200 : 201);
     }
+    if (url.pathname.endsWith('/read-state')) return json({ readThroughSequence: '0' });
     if (url.pathname.endsWith('/messages')) return json({ items: state.messages, pageInfo: { beforeCursor: null, afterCursor: 'latest', hasMoreBefore: false, hasMoreAfter: false } });
-    if (/\/staff\/conversations\/[^/]+$/.test(url.pathname)) return json({ conversation: { ...row, id: url.pathname.split('/').at(-1) } });
+    if (/\/staff\/conversations\/[^/]+$/.test(url.pathname)) { state.detailReads++; return json({ conversation: { ...row, id: url.pathname.split('/').at(-1) } }); }
     if (url.pathname.endsWith('/inbox/customers')) return json({ items: [{ customer: row.customer }], pageInfo: { hasMore: false, nextCursor: null } });
     if (url.pathname.endsWith('/conversations')) return json({ items: [row, { ...row, id: 'two', subject: 'Synthetic second' }], pageInfo: { hasMore: false, nextCursor: null } });
     return json({ items: [], total: 0 });
@@ -46,7 +47,7 @@ test('Enter sends, Shift Enter preserves newline, blank/oversize do not send and
 });
 test('IME does not submit before composition ends', async ({ page }) => {
   const state = await setup(page);
-  await input(page).dispatchEvent('compositionstart'); await input(page).fill('Synthetic composed'); await input(page).press('Enter');
+  await input(page).fill('Synthetic composed'); await input(page).dispatchEvent('compositionstart'); await input(page).press('Enter');
   expect(state.posts).toHaveLength(0); await input(page).dispatchEvent('compositionend'); await input(page).press('Enter');
   await expect.poll(() => state.posts.length).toBe(1);
 });
@@ -72,6 +73,8 @@ test('403 removes private composer and transcript', async ({ page }) => {
 });
 test('409 revalidates metadata and keeps the draft for explicit retry', async ({ page }) => {
   const state = await setup(page, { failure: 409 }); await input(page).fill('Synthetic stale'); await input(page).press('Enter');
+  await expect.poll(() => state.detailReads).toBe(2);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled();
   await expect(input(page)).toHaveValue('Synthetic stale'); state.failure = null;
   await input(page).press('Enter'); await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeEnabled(); await expect(page.getByText('Message saved.', { exact: true })).toHaveCount(0);
   expect(state.posts).toHaveLength(2); expect(state.posts[0].clientMessageId).not.toBe(state.posts[1].clientMessageId);

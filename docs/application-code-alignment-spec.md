@@ -1,6 +1,6 @@
 # Spec sửa code Application theo tài liệu đã chốt
 
-**Đối chiếu source:** 15/11/2026 · **Trạng thái:** Phase 0–3 hoàn tất trong phạm vi Application hiện có. Phase 4–5 chưa triển khai theo spec. Checklist này chỉ bao gồm Application hiện có, không bao gồm nối Core–Agent.
+**Đối chiếu source:** 16/11/2026 · **Trạng thái:** Phase 0–4 hoàn tất trong phạm vi Application hiện có. Phase 5 còn kế hoạch. Checklist này chỉ bao gồm Application hiện có, không bao gồm nối Core–Agent.
 
 ## 1. Phạm vi và căn cứ
 
@@ -10,7 +10,7 @@ Căn cứ nghiệp vụ: [quyền và dữ liệu](configuration-and-data.md#cus
 
 **Ngoài phạm vi:** code Agent, graph/model/RAG/checkpointer/HTTP-HMAC, Copilot chưa triển khai, nguồn tạo draft từ Agent thật, mở rộng handoffPayload/sáu nhóm summary/source registry. Chỉ kiểm và sửa GET/PUT/confirm draft Core hiện có bằng fixture synthetic. Không coi các phần ngoài phạm vi này là điều kiện hoàn tất spec.
 
-Phase 0–2 hoàn tất projection/reveal và Ticket validation/replay/CAS/snapshot, gồm đổi actor khi request pending. Phase 3 đã đồng bộ Notification/Ticket event; Phase 4–5 theo checklist dưới đây. [Lệnh kiểm thử](#application-tests) dùng harness Docker/gateway.
+Phase 0–2 hoàn tất projection/reveal và Ticket validation/replay/CAS/snapshot, gồm đổi actor khi request pending. Phase 3 đã đồng bộ Notification/Ticket event; Phase 4 đã có chu kỳ unread bền vững và cleanup hằng ngày; Phase 5 theo checklist dưới đây. [Lệnh kiểm thử](#application-tests) dùng harness Docker/gateway.
 
 ### Những nền hiện có cần bảo toàn
 
@@ -38,9 +38,9 @@ Phase 0–2 hoàn tất projection/reveal và Ticket validation/replay/CAS/snaps
 | APP-09 | Draft dialog sửa/bỏ policy, review revision và giữ confirmation text/version server; UI English, success tại chỗ rồi mở detail persisted. | Không nối nguồn draft Agent thật hoặc summary/refs trong Phase 2. | 2 |
 | APP-10 | Web dùng target/flat/count; hai role gọi common conversation read với session/CSRF và gate hiện hành. | Chuông mở đúng tài nguyên và refetch theo quyền. | 3 |
 | APP-11 | TICKET_CREATED dùng schemaVersion=1/version=0; Customer recipient độc lập Staff, có repair/replay theo audit/snapshot. | Customer nhận đúng Ticket; retry không nhân đôi nghiệp vụ/notification. | 3 |
-| APP-12 | [ConversationEventService](../apps/core/src/conversations/services/conversation-event.service.ts) chọn message mới nhất khi xử lý bất kỳ MESSAGE_COMMITTED; [markAsRead](../apps/core/src/conversations/services/conversation-message.service.ts) cũng phát event cùng loại, không chỉ rõ message. | Xử lý đúng message/sender/mốc của event; đọc chat không bị hiểu thành có tin mới. | 4 |
-| APP-13 | Consumer gộp bằng isRead=false, cập nhật createdAt; dedupKey nằm trên notification có thể bị cleanup. | Chu kỳ theo mốc đọc chat; tin mới giữ id khi mục còn tồn tại và bật unread; retry không tái báo hoặc kéo dài retention. | 4 |
-| APP-14 | [NotificationsService](../apps/core/src/notifications/notifications.service.ts) cleanup khi bootstrap và mỗi giờ. | Bootstrap + mỗi 24 giờ; retention 30 ngày cho cả hai role/read-unread. | 4 |
+| APP-12 | MESSAGE_COMMITTED v2 phân biệt MESSAGE_APPENDED/messageId/sequence và MESSAGES_READ/readThroughSequence. | Xử lý đúng message và mốc đọc; read event không tạo tin mới. | 4 |
+| APP-13 | Chu kỳ/watermark lưu trong conversation_notification_states; createdAt giữ nguyên khi gộp/retry. | Tin mới giữ id và bật unread; event cũ sau đọc hoặc cleanup không tái báo. | 4 |
+| APP-14 | NotificationsService cleanup khi bootstrap và mỗi 24 giờ. | Retention 30 ngày theo createdAt cho cả hai role/read-unread; giữ watermark. | 4 |
 | APP-15 | [verify-models](../apps/core/scripts/verify-models.mjs) cố định 17 bảng; [dev-data-reset](../apps/core/src/cli/dev-data-reset.ts) liệt kê 19, thiếu ticket_drafts đang có FK tới bảng khác. | Verify/reset bao phủ schema Application thực tế, gồm bảng mới của đợt sửa. | 5 |
 
 ## 3. Thứ tự và phụ thuộc
@@ -188,17 +188,17 @@ Role-specific read routes đã có ở Customer/Staff controller, cùng gọi Co
 
 ## 8. Phase 4 — Unread cycle, read status và retention
 
-**Phạm vi:** APP-12–14. **Còn làm:** nhận diện đúng event/message và read event, state chu kỳ đọc bền vững, chống phát lại sau cleanup và đổi timer mỗi giờ sang mỗi 24 giờ. State/migration và A4 chưa triển khai theo spec. Không thêm broker/scheduler cloud.
+**Phạm vi:** APP-12–14. **Trạng thái:** Đã triển khai event v2, watermark/chu kỳ đọc bền vững, chống phát lại sau cleanup và timer 24 giờ. Kiểm tại `conversation-realtime.test.cjs` và `notification-cleanup.test.cjs`.
 
 ### 8.1. Nhận diện event và trạng thái bền vững
 
 - MESSAGE_COMMITTED mới dùng payload version 2, phân biệt reason MESSAGE_APPENDED với MESSAGES_READ. APPENDED có messageId và sequence; READ có mốc đã đọc do Core xác định. Không mang content. Consumer đọc đúng message của event, kiểm conversation/audience/sender; không query message cuối để đoán event.
 - Cùng event type vẫn có thể invalidate transcript khi read; **chỉ APPENDED của bên đối diện mới xét thông báo tin mới**. Consumer/dispatcher và fixture phải hiểu version mới.
-- Đề xuất migration Application: bảng **conversation_notification_states**, unique (recipient_user_id,conversation_id,kind), FK tới users/conversations; kind chỉ hai loại STAFF_MESSAGE_UNREAD/CUSTOMER_MESSAGE_UNREAD. Lưu read_through_sequence, last_processed_sequence, cycle_start_sequence và active_notification_id nullable; FK notification dùng ON DELETE SET NULL.
+- Migration `202611160001_notification_cycles`: bảng **conversation_notification_states**, unique (recipient_user_id,conversation_id,kind), FK tới users/conversations; kind chỉ hai loại STAFF_MESSAGE_UNREAD/CUSTOMER_MESSAGE_UNREAD. Lưu read_through_sequence, last_processed_sequence, cycle_start_sequence và active_notification_id nullable; FK notification dùng ON DELETE SET NULL.
 - Hai watermark dùng bigint NOT NULL default 0, CHECK >= 0; cycle_start_sequence bigint nullable, CHECK null hoặc > 0. active_notification_id là UUID nullable; state có updated_at. Recipient/kind và notification đang gắn phải đúng conversation/role/scope do Core kiểm, không nhận các giá trị điều phối này từ browser.
-- Đây là trạng thái đề xuất của spec, chưa có trong schema. Nó bảo vệ chu kỳ/dedup sau khi notification bị đánh dấu đọc hoặc cleanup. Không dùng isRead làm khóa chu kỳ, không dùng cache/memory thay storage.
+- State đã có trong schema và giữ theo vòng đời Conversation. Nó bảo vệ chu kỳ/dedup sau khi notification bị đánh dấu đọc hoặc cleanup. Không dùng isRead làm khóa chu kỳ, không dùng cache/memory thay storage.
 - Khóa trạng thái cùng thứ tự routing/conversation đang dùng; khóa conversation trước khi upsert state để tránh hai consumer tạo hai mục cùng chu kỳ. Recheck grant/assignment tại điểm xử lý.
-- Với nguồn outbox v1 không xác định được message: reconciliation theo scope, message sequence/readAt và watermark, không suy thành “message mới nhất của event”. Migration phải có backfill/đường catch-up kiểm chứng, không tự coi mọi tin lịch sử là chưa báo.
+- Với nguồn outbox v1 không xác định được message: reconciliation theo scope, message sequence/readAt và watermark, không suy thành “message mới nhất của event”. Core chỉ lấy tin chưa đọc đầu tiên và mốc cuối vượt watermark để cập nhật chu kỳ, không duyệt từng tin cũ. Backfill giữ notification hiện có; tin chưa đọc có event v1 đang chờ được reconciliation theo watermark. Chu kỳ chat đã đọc được tách khỏi notification cũ; state đã chạy tiếp không bị lùi. Migration sửa tiếp: `202611160002_repair_notification_baselines`. `202611160003_reconcile_published_notification_gaps` phục hồi gap PUBLISHED có bằng chứng: baseline chưa tiến lên, tin còn unread/trong retention và không có notification tương ứng. `202611160004_reconcile_closed_notification_cycles` tách notification cũ khi có bằng chứng chat đã đọc trước phần unread mới; giữ nguyên watermark runtime đã tiến lên.
 
 ### 8.2. Quy tắc xử lý
 
@@ -207,7 +207,7 @@ Role-specific read routes đã có ở Customer/Staff controller, cùng gọi Co
 3. Read chuông/read-all chỉ đổi isRead. Không đổi read_through_sequence hoặc kết thúc chu kỳ. Retry cùng event sau thao tác này không tái bật unread; tin mới thực sự thì có.
 4. Không sửa createdAt để biểu diễn activity hoặc retry. Thời hạn 30 ngày tính từ created_at của dòng notification. Watermark không bị dọn cùng notification; event cũ sau cleanup không tái tạo mục cũ.
 5. Trạng thái dẫn xuất giữ theo vòng đời Conversation trong MVP, không tự thêm TTL cho chat. Khác Staff/assignment không tái sử dụng active notification của Staff cũ; mọi DTO/WS vẫn qua gate hiện hành.
-6. Read-status phải được quan sát qua resync/history hiện có; UI không báo thành công âm thầm khi route lỗi. Không tạo conversation Close hoặc tự quay về AI.
+6. Read-status của lịch sử đã tải cập nhật bằng GET read-state; body chỉ catch-up tin mới qua after cursor theo batch có giới hạn, giữ vị trí cuộn và tiến độ khi retry. Mất quyền xóa dữ liệu hội thoại; UI hiển thị lỗi khi không thể tiếp tục. Không tạo conversation Close hoặc tự quay về AI.
 
 ### 8.3. Cleanup
 
@@ -216,16 +216,16 @@ NotificationsService chạy một lần khi bootstrap và mỗi **86_400_000 ms*
 **File sửa:** ConversationMessageService/ConversationEventService, NotificationsService, OutboxDispatcherService, realtime mapping nếu cần; schema/migration/state helper trong module hiện có; Web chat/read callers và tests.
 
 **Nghiệm thu A4:**
-- [ ] A4-01: hai role gửi nhiều tin → một mục/chu kỳ; đọc chuông → tin mới giữ id và bật unread; đọc chat → tin sau mốc tạo chu kỳ mới.
-- [ ] A4-02: duplicate/out-of-order event, sender xen kẽ, mark-read event và restart: không báo sai người/sai tin, không tái bật từ retry.
-- [ ] A4-03: read chat song song send/consumer, Accept/reassignment/revoke: watermark và unread đúng thứ tự commit, không mất tin sau mốc hoặc lộ quyền cũ.
-- [ ] A4-04: notification đã cleanup rồi retry event cũ → không tái tạo; tin mới hợp lệ vẫn được báo. createdAt không đổi bởi retry/gộp.
-- [ ] A4-05: fake timer bootstrap/trước/đúng 24 giờ/restart/destroy; cutoff trước/đúng/sau 30 ngày cho hai role/read-unread, DB lỗi rồi hồi phục.
+- [x] A4-01: hai role gửi nhiều tin → một mục/chu kỳ; đọc chuông → tin mới giữ id và bật unread; đọc chat → tin sau mốc tạo chu kỳ mới.
+- [x] A4-02: duplicate/out-of-order event, sender xen kẽ, mark-read event và restart: không báo sai người/sai tin, không tái bật từ retry.
+- [x] A4-03: read chat song song send/consumer, Accept/reassignment/revoke: watermark và unread đúng thứ tự commit, không mất tin sau mốc hoặc lộ quyền cũ.
+- [x] A4-04: notification đã cleanup rồi retry event cũ → không tái tạo; tin mới hợp lệ vẫn được báo. createdAt không đổi bởi retry/gộp.
+- [x] A4-05: fake timer bootstrap/trước/đúng 24 giờ/restart/destroy; cutoff trước/đúng/sau 30 ngày cho hai role/read-unread, DB lỗi rồi hồi phục.
 - Mở rộng N02-T05/T07/T09/T10 và conversation-realtime/integration; DB/concurrency/restart dùng harness thật, timer dùng fake clock.
 
 ## 9. Phase 5 — Tool local và hồi quy Application
 
-**Phạm vi:** APP-15 và nghiệm thu toàn bộ phase. **Còn làm:** verify/reset theo đủ tập bảng/FK/quyền, gồm ticket_drafts và state Phase 4, rồi kiểm migration/hồi quy Application. Hiện schema có 20 model/14 migrations, verify cố định 17 bảng và reset liệt kê 19 bảng. Chưa đóng A5.
+**Phạm vi:** APP-15 và nghiệm thu toàn bộ phase. **Còn làm:** verify/reset theo đủ tập bảng/FK/quyền, gồm ticket_drafts và state Phase 4, rồi kiểm migration/hồi quy Application. Hiện schema có 21 model/18 migrations, verify cố định 17 bảng và reset liệt kê 19 bảng. Chưa đóng A5.
 
 - verify-models đối chiếu **tên bảng/model và quyền** với schema Application thực tế, gồm ticket_drafts và state mới; không chỉ thay số 17 thành một hằng mới.
 - dev-data-reset liệt kê đầy đủ bảng cần reset theo FK, gồm ticket_drafts/state. Giữ cơ chế xác nhận, đúng database/volume fixture và schema; không mở CASCADE hoặc thêm quyền reset cho Core runtime.
@@ -242,7 +242,7 @@ Lệnh kiểm thử và harness ở [mục kiểm thử Application](#applicatio
 
 ## 10. Điều kiện hoàn tất
 
-Checklist này áp dụng cho toàn bộ Phase 0–5, vì vậy chưa đánh dấu hoàn tất chỉ từ kết quả Phase 0–3. A0–A3 đã hoàn tất; A4–A5 còn kế hoạch.
+Checklist này áp dụng cho toàn bộ Phase 0–5, vì vậy chưa đánh dấu hoàn tất chỉ từ kết quả Phase 0–4. A0–A4 đã hoàn tất; A5 còn kế hoạch.
 
 - [ ] APP-01–15 được sửa và có bằng chứng test tương ứng A0–A5; rủi ro R được kiểm bằng test phù hợp.
 - [ ] Main build/typecheck và các suite Application bị ảnh hưởng pass sau generate; không lấy Web typecheck thay kiểm contract JSON/API.

@@ -7,12 +7,14 @@ async function setup(page, options = {}) {
     const req = route.request(), url = new URL(req.url()); const json = (body, status = 200) => route.fulfill({ json: body, status });
     if (url.pathname.endsWith('/auth/me')) return json({ actor: { id: 'synthetic-customer-test', role: 'CUSTOMER', fullName: 'Synthetic Customer', email: 'customer@synthetic.invalid', accountCode: 'CUS-TEST', passwordChangeRecommended: false }, csrfToken: 'synthetic-csrf' });
     if (url.pathname.endsWith('/chat-support')) return json({ availability: state.unavailable ? 'UNAVAILABLE' : 'AVAILABLE', assignmentVersion: state.version, staff: { fullName: state.staffName }, handoffConsent: { textVersion: 'handoff-v1', scope: 'ENTIRE_CUSTOMER_VISIBLE_CONVERSATION', text: 'Synthetic consent text' } });
+    if (url.pathname.endsWith('/read')) return json({ success: true, readAt: '2026-11-16T00:00:00Z' });
     if (req.method() === 'POST') {
       const body = req.postDataJSON(); state.posts.push(body);
       if (state.conflict) { state.conflict = false; state.version = 1; state.staffName = 'Synthetic Staff B'; return json({ code: 'ROUTING_CHANGED' }, 409); }
       if (state.network) { state.network = false; return route.abort('failed'); }
       return json({ conversation: { ...detail, status: 'PENDING_HANDOFF', allowedActions: { ...detail.allowedActions, requestStaff: false } } }, 201);
     }
+    if (url.pathname.endsWith('/read-state')) return json({ readThroughSequence: '0' });
     if (url.pathname.endsWith('/messages')) return json({ items: [], pageInfo: { beforeCursor: null, afterCursor: 'zero', hasMoreBefore: false, hasMoreAfter: false } });
     if (url.pathname.endsWith('/conversations/one')) return json({ conversation: state.legacy ? { ...detail, allowedActions: { readMessages: false, send: false, requestStaff: false } } : detail });
     if (url.pathname.endsWith('/conversations')) return json({ items: [detail], pageInfo: { hasMore: false, nextCursor: null } });
