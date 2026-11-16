@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ConversationAccessService } from '../conversations/services/conversation-access.service';
 import { DatabaseModule } from '../database/database.module';
 import { InternalAgentController } from './controllers/internal-agent.controller';
 import { AgentAccessService } from './services/agent-access.service';
@@ -10,6 +11,7 @@ import { AgentTransportService } from './services/agent-transport.service';
   imports: [DatabaseModule],
   controllers: [InternalAgentController],
   providers: [
+    ConversationAccessService,
     AgentTransportService,
     AgentAccessService,
     AgentRunService,
