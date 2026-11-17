@@ -1,8 +1,9 @@
 import { readCycle } from './notification-cycle';
 import { SafeApiException } from '../../http/safe-api.exception';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
+import { AgentRunService } from '../../agent/services/agent-run.service';
 import { ConversationAccessService } from './conversation-access.service';
 import { ConversationCommandService } from './conversation-command.service';
 
@@ -14,7 +15,11 @@ const publicSelect = { id: true, conversationId: true, sequence: true, senderTyp
 
 @Injectable()
 export class ConversationMessageService {
-  constructor(private readonly access: ConversationAccessService, private readonly commands: ConversationCommandService) {}
+  constructor(
+    private readonly access: ConversationAccessService,
+    private readonly commands: ConversationCommandService,
+    @Optional() private readonly agentRuns?: AgentRunService,
+  ) {}
   private input(key: string, version: number, text: string) {
     if (!uuid.test(key) || !Number.isSafeInteger(version) || version < 0 || typeof text !== 'string') throw new BadRequestException();
     const content = text.replace(/\r\n?/g, '\n');
@@ -30,16 +35,30 @@ export class ConversationMessageService {
     return this.commands.transaction(async tx => {
       await this.commands.lock(tx, actor.id, id);
       let version = -1;
+      let isPrivateAi = false;
       const receipt = await this.commands.execute(tx, actor.id, 'SEND_MESSAGE', key,
         { conversationId: id, expectedVersion, content }, async () => {
           await authorize(tx);
-          const grant = actor.role === 'STAFF' ? await this.access.requireTranscript(tx, actor.id, id)
-            : await this.access.requireCustomer(tx, actor.id, id);
-          if (!grant.canSend) throw new NotFoundException();
-          version = grant.controlVersion;
+          if (actor.role === 'STAFF') {
+            const grant = await this.access.requireTranscript(tx, actor.id, id);
+            if (!grant.canSend) throw new NotFoundException();
+            version = grant.controlVersion;
+          } else {
+            const grant = await this.access.requireCustomer(tx, actor.id, id);
+            if (!grant.canSend) throw new NotFoundException();
+            version = grant.controlVersion;
+            isPrivateAi = grant.supportOrigin === 'AI' && grant.status === 'AI_ACTIVE' && !grant.handoffs.length;
+          }
         }, async () => {
           if (version !== expectedVersion) throw new SafeApiException('STALE_CONVERSATION');
           const message = await this.append(tx, id, actor.role, actor.id, content, key, null);
+          if (isPrivateAi && this.agentRuns) {
+            await this.agentRuns.enqueueInTransaction(tx, {
+              conversationId: id,
+              messageId: message.id,
+              queuePosition: message.sequence,
+            });
+          }
           return { resourceId: message.id, resultVersion: version };
         });
       const message = await tx.message.findFirst({ where: { id: receipt.resourceId, conversationId: id,

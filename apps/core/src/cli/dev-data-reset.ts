@@ -37,6 +37,7 @@ export async function resetDevDataInTransaction(tx: Prisma.TransactionClient, cl
     business.messages, business.conversation_handoffs, business.conversation_command_receipts,
     business.support_tickets, business.ticket_drafts, business.outbox_events, business.notifications,
     business.conversation_notification_states,
+    business.agent_run_events, business.agent_attempts, business.agent_runs, business.agent_request_nonces,
     rag.rag_knowledge_chunks RESTART IDENTITY`);
   const accounts = await bootstrapInTransaction(tx, client, newDevManifest());
   const policies = await seedPoliciesInTransaction(tx, storage);

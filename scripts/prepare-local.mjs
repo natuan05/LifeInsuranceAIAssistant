@@ -29,4 +29,34 @@ for (const role of roles) {
   if (!readFileSync(path, 'utf8').trim()) throw new Error('Empty local credential file.');
   chmodSync(path, 0o444);
 }
+
+const hmacDir = '/credentials/agent_hmac';
+mkdirSync(hmacDir, { recursive: true });
+for (const [prefix, filePrefix, defaultId] of [
+  ['LIFE_AGENT_CORE_TO_AGENT', 'core_to_agent', 'local-core-to-agent'],
+  ['LIFE_AGENT_AGENT_TO_CORE', 'agent_to_core', 'local-agent-to-core'],
+]) {
+  const idPath = `${hmacDir}/${filePrefix}_key_id`;
+  const keysPath = `${hmacDir}/${filePrefix}_keys`;
+  const suppliedId = (process.env[`${prefix}_KEY_ID`] || '').trim();
+  const suppliedKeys = (process.env[`${prefix}_KEYS`] || '').trim();
+  if (Boolean(suppliedId) !== Boolean(suppliedKeys)) {
+    throw new Error(`Both ${prefix}_KEY_ID and ${prefix}_KEYS must be supplied together or both left blank.`);
+  }
+  if (suppliedId && existsSync(idPath) && readFileSync(idPath, 'utf8').trim() !== suppliedId) {
+    throw new Error(`${prefix}_KEY_ID conflicts with existing credential volume.`);
+  }
+  if (suppliedKeys && existsSync(keysPath) && readFileSync(keysPath, 'utf8').trim() !== suppliedKeys) {
+    throw new Error(`${prefix}_KEYS conflicts with existing credential volume.`);
+  }
+  if (!existsSync(idPath) || !existsSync(keysPath)) {
+    const keyId = suppliedId || defaultId;
+    const keys = suppliedKeys || `${keyId}:${randomBytes(32).toString('base64url')}`;
+    if (!existsSync(idPath)) writeFileSync(idPath, keyId, { flag: 'wx', mode: 0o444 });
+    if (!existsSync(keysPath)) writeFileSync(keysPath, keys, { flag: 'wx', mode: 0o444 });
+  }
+  chmodSync(idPath, 0o444);
+  chmodSync(keysPath, 0o444);
+}
+
 console.log('Local credentials ready; values hidden and existing credentials preserved.');

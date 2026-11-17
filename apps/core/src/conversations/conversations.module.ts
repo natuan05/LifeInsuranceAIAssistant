@@ -1,3 +1,4 @@
+import { AgentModule } from '../agent/agent.module';
 import { ConversationEventService } from './services/conversation-event.service';
 import { ConversationSendingService } from './services/conversation-sending.service';
 import { Module } from '@nestjs/common';
@@ -19,7 +20,7 @@ import { ConversationCommandService } from './services/conversation-command.serv
 import { ConversationMessageService } from './services/conversation-message.service';
 
 // Customer/Staff messaging; no Agent impersonation endpoint.
-@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController, CommonConversationController],
+@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule, AgentModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController, CommonConversationController],
   providers: [ConversationEventService, ConversationSendingService, ConversationAccessService, ConversationCommandService, ConversationMessageService, ConversationRateLimitService, StaffInboxService,
     ConversationSessionService, ConversationEntryService, ConversationHandoffService, ConversationTranscriptService],
   exports: [ConversationSessionService, ConversationRateLimitService, ConversationEventService, ConversationAccessService, ConversationCommandService, ConversationMessageService] })

@@ -11,6 +11,9 @@
 **/src/generated
 **/*.log
 **/*.tsbuildinfo
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
 docs
 data
 !data/

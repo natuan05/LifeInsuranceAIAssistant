@@ -81,6 +81,10 @@ services:
       DB_RAG_RETRIEVER_PASSWORD: ${DB_RAG_RETRIEVER_PASSWORD:-}
       DB_AGENT_MIGRATOR_PASSWORD: ${DB_AGENT_MIGRATOR_PASSWORD:-}
       DB_AGENT_RUNTIME_PASSWORD: ${DB_AGENT_RUNTIME_PASSWORD:-}
+      LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-}
+      LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEYS: ${LIFE_AGENT_AGENT_TO_CORE_KEYS:-}
     volumes:
       - ./scripts/prepare-local.mjs:/prepare-local.mjs:ro
       - postgres_data:/existing-db:ro
@@ -93,6 +97,7 @@ services:
       - credential_rag_retriever:/credentials/rag_retriever
       - credential_agent_migrator:/credentials/agent_migrator
       - credential_agent_runtime:/credentials/agent_runtime
+      - credential_agent_hmac:/credentials/agent_hmac
 
   postgres:
     image: pgvector/pgvector:0.8.7-pg16-bookworm@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
@@ -236,9 +241,15 @@ services:
       STORAGE_ACCESS_KEY_FILE: /credentials/storage-reader/access-key
       STORAGE_SECRET_KEY_FILE: /credentials/storage-reader/secret-key
       CORS_ORIGINS: ${CORE_CORS_ORIGINS:-http://localhost:${GATEWAY_PORT:-8080},http://127.0.0.1:${GATEWAY_PORT:-8080},http://localhost:${SWAGGER_PORT:-8081},http://127.0.0.1:${SWAGGER_PORT:-8081}}
+      AGENT_BASE_URL: ${AGENT_BASE_URL:-http://agent:8090}
+      LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-}
+      LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEYS: ${LIFE_AGENT_AGENT_TO_CORE_KEYS:-}
     volumes:
       - credential_core:/credentials/core:ro
       - credential_storage_reader:/credentials/storage-reader:ro
+      - credential_agent_hmac:/credentials/agent_hmac:ro
     depends_on:
       seed-dev: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }
@@ -268,8 +279,8 @@ services:
   gateway:
     image: nginx:1.29-alpine@sha256:5616878291a2eed594aee8db4dade5878cf7edcb475e59193904b198d9b830de
     ports:
-      - "127.0.0.1:${GATEWAY_PORT:-8080}:80"
-      - "127.0.0.1:${SWAGGER_PORT:-8081}:81"
+      - "${BIND_ADDRESS:-127.0.0.1}:${GATEWAY_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-127.0.0.1}:${SWAGGER_PORT:-8081}:81"
     volumes:
       - ./infra/local/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
@@ -280,6 +291,77 @@ services:
       interval: 5s
       timeout: 3s
       retries: 12
+    restart: unless-stopped
+
+  agent-migrate:
+    image: life-insurance-agent:local
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export LIFE_AGENT_STORE_MIGRATOR_DSN="postgresql://agent_migrator:$$(cat /credentials/agent_migrator/password)@postgres:5432/life_insurance"; exec python -m life_agent.store migrate'
+    volumes:
+      - credential_agent_migrator:/credentials/agent_migrator:ro
+    depends_on:
+      bootstrap: { condition: service_completed_successfully }
+    restart: "no"
+
+  rag-index:
+    image: life-insurance-agent:local
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export LIFE_AGENT_RAG_INDEXER_DSN="postgresql://rag_indexer:$$(cat /credentials/rag_indexer/password)@postgres:5432/life_insurance"; exec python -m life_agent.corpus --manifest /app/data/public/manifest-manulife-text.json --trial evaluation/trial-config.json --embed-retries 10 --index'
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?Set GEMINI_API_KEY in .env before starting}
+    volumes:
+      - credential_rag_indexer:/credentials/rag_indexer:ro
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    restart: "no"
+
+  agent:
+    image: life-insurance-agent:local
+    build:
+      context: .
+      dockerfile: apps/agent/Dockerfile
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'export LIFE_AGENT_STORE_DSN="postgresql://agent_runtime:$$(cat /credentials/agent_runtime/password)@postgres:5432/life_insurance"; export LIFE_AGENT_RAG_RETRIEVER_DSN="postgresql://rag_retriever:$$(cat /credentials/rag_retriever/password)@postgres:5432/life_insurance"; export LIFE_AGENT_CORE_TO_AGENT_KEY_ID="$${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-$$(cat /credentials/agent_hmac/core_to_agent_key_id)}"; export LIFE_AGENT_CORE_TO_AGENT_KEYS="$${LIFE_AGENT_CORE_TO_AGENT_KEYS:-$$(cat /credentials/agent_hmac/core_to_agent_keys)}"; export LIFE_AGENT_AGENT_TO_CORE_KEY_ID="$${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-$$(cat /credentials/agent_hmac/agent_to_core_key_id)}"; export LIFE_AGENT_AGENT_TO_CORE_KEYS="$${LIFE_AGENT_AGENT_TO_CORE_KEYS:-$$(cat /credentials/agent_hmac/agent_to_core_keys)}"; exec python -m life_agent.http serve'
+    environment:
+      LIFE_AGENT_HTTP_HOST: "0.0.0.0"
+      LIFE_AGENT_HTTP_PORT: "8090"
+      LIFE_AGENT_RUNTIME_CONFIG: evaluation/trial-config.json
+      LIFE_AGENT_CORE_BASE_URL: http://core:4000
+      LIFE_AGENT_CORE_TO_AGENT_KEY_ID: ${LIFE_AGENT_CORE_TO_AGENT_KEY_ID:-}
+      LIFE_AGENT_CORE_TO_AGENT_KEYS: ${LIFE_AGENT_CORE_TO_AGENT_KEYS:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEY_ID: ${LIFE_AGENT_AGENT_TO_CORE_KEY_ID:-}
+      LIFE_AGENT_AGENT_TO_CORE_KEYS: ${LIFE_AGENT_AGENT_TO_CORE_KEYS:-}
+      LIFE_AGENT_DELIVERY_INITIAL_S: ${LIFE_AGENT_DELIVERY_INITIAL_S:-1}
+      LIFE_AGENT_DELIVERY_MAX_S: ${LIFE_AGENT_DELIVERY_MAX_S:-60}
+      LIFE_AGENT_DELIVERY_JITTER: ${LIFE_AGENT_DELIVERY_JITTER:-0.2}
+      LIFE_AGENT_DELIVERY_MAX_AGE_S: ${LIFE_AGENT_DELIVERY_MAX_AGE_S:-86400}
+      LIFE_AGENT_LEASE_S: ${LIFE_AGENT_LEASE_S:-180}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?Set GEMINI_API_KEY in .env before starting}
+    ports:
+      - "127.0.0.1:${AGENT_HTTP_PORT:-8090}:8090"
+    volumes:
+      - credential_agent_runtime:/credentials/agent_runtime:ro
+      - credential_rag_retriever:/credentials/rag_retriever:ro
+      - credential_agent_hmac:/credentials/agent_hmac:ro
+    depends_on:
+      agent-migrate: { condition: service_completed_successfully }
+      rag-index: { condition: service_completed_successfully }
+      core: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/healthz')"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
     restart: unless-stopped
 
   database-ui:
@@ -327,4 +409,5 @@ volumes:
   credential_rag_retriever: { name: life-insurance-local-credential-rag-retriever }
   credential_agent_migrator: { name: life-insurance-local-credential-agent-migrator }
   credential_agent_runtime: { name: life-insurance-local-credential-agent-runtime }
+  credential_agent_hmac: { name: life-insurance-local-credential-agent-hmac }
   database_ui_data: { name: life-insurance-local-database-ui-data }
