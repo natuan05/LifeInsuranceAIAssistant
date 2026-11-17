@@ -26,6 +26,7 @@ Phương án A: thông báo tin nhắn gộp theo recipient/cuộc/kind đến k
 | --- | --- | --- |
 | [N01](notifications/01-scope-recipient-contract.md) | Event, recipient, schema và retention | `apps/core/prisma/schema.prisma`, notification/conversation/Ticket event services |
 | [N02](notifications/02-conditional-center.md) | API, đọc tin, chuông/realtime, cleanup và tests | `apps/core/src/notifications/`, `apps/web/src/components/customer-workspace.tsx`, `lib/conversation-api.ts` |
+| [N03](notifications/03-email-smtp-ticket-notifications.md) | Dịch vụ gửi Email qua SMTP cho Ticket & kiểm thử MailHog | `apps/core/src/notifications/services/email-notification.service.ts`, `infra/local/mailhog/` |
 
 Source có recipientCustomerId, messages.readAt và hai migration 202611080001/202611090001, cùng API/UI. Các lỗi DTO/event và tiêu chí chưa nghiệm thu được theo dõi tại N02. Mức ảnh hưởng cao ở quyền, dedup, transcript và notification hai role.
 

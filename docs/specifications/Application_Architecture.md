@@ -25,7 +25,7 @@ flowchart TB
             H["Conversation and Human Handoff"]
             T["Ticket Management"]
             D["Document Catalog and Access"]
-            N["In-app Notification and Delivery"]
+            N["In-app & Email Notification Delivery"]
         end
         subgraph AK["AI and Knowledge: logical modules"]
             O["Agent Runtime and Answer Safety"]
@@ -36,6 +36,7 @@ flowchart TB
 
     ID["External Identity Provider"]
     M["External Model API<br/>(Gemini API)"]
+    EMAIL["External Email Service<br/>(SMTP Relay)"]
 
     %% Channels to Core
     P -->|"requests and chat"| A
@@ -59,9 +60,10 @@ flowchart TB
     %% Internal Core Events
     T -.->|"linked conversation; recheck transcript grant"| H
     H -.->|"customer conversation started"| N
-    T -.->|"ticket committed"| N
+    T -.->|"ticket committed: created, failed or accepted"| N
     N -->|"authorized staff updates"| S
     N -->|"authorized customer notifications"| P
+    N -->|"send ticket emails (SMTP)"| EMAIL
 
     %% Styling
     classDef channel fill:#EAF2FF,stroke:#3568A8,color:#15365C
@@ -71,7 +73,7 @@ flowchart TB
     class P,S channel
     class A,C,H,T,D,N core
     class O,R,G ai
-    class ID,M external
+    class ID,M,EMAIL external
 ```
 
 ---
@@ -96,7 +98,7 @@ flowchart TB
 | **Conversation and Human Handoff** | Quản lý lịch sử/lượt và quyền chat. Cuộc AI chỉ chuyển sau Customer consent và Staff Accept; trước Accept chỉ metadata. Direct là luồng riêng; assignment/Ticket không tự cấp quyền transcript. |
 | **Ticket Management** | Quản lý Ticket, trạng thái và liên kết hội thoại. Agent chỉ đề xuất; Core ghi Ticket + outbox sau xác nhận hợp lệ và kiểm quyền/chống trùng. Nhận/đổi trạng thái Ticket không thay quyền đọc chat. |
 | **Document Catalog and Access** | Quản lý danh mục và quyền truy cập tài liệu; xác định phạm vi tài liệu được phép sử dụng hoặc cung cấp cho từng người dùng. |
-| **In-app Notification and Delivery** | Phát notification theo owner/recipient Customer hoặc Staff qua outbox; Customer có center và chat/SYSTEM theo N01/N02, trạng thái đọc riêng cho notification và message, retention notification 30 ngày chung cho cả Customer và Staff, áp dụng read/unread; không xóa Ticket/Message nguồn. |
+| **In-app & Email Notification Delivery** | Phát notification in-app (quản lý retention 30 ngày, quả chuông, SYSTEM chat, realtime WS) và điều phối gửi email thông báo qua SMTP cho các sự kiện Ticket (tạo thành công, thất bại, Staff tiếp nhận); kiểm soát PII, không gửi thông tin y tế/CCCD/chi tiết bồi thường; commit nghiệp vụ trước khi phát thông báo. |
 
 ---
 
@@ -116,6 +118,7 @@ flowchart TB
 | :--- | :--- |
 | **External Identity Provider** | Cung cấp dịch vụ xác thực danh tính người dùng (đăng nhập, xác minh token). Quyền truy cập tài nguyên nghiệp vụ vẫn do Core kiểm soát hoàn toàn. |
 | **External Model API** | Gemini API là provider model sinh và embedding của MVP theo quyết định 13/11/2026. Model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Limits và nghiệm thu tiếp tục theo G4. |
+| **External Email Service (SMTP Relay)** | Tiếp nhận và gửi email thông báo giao dịch (Transactional Email) qua giao thức SMTP (TLS 587/465). Phục vụ gửi email thông báo trạng thái Ticket cho khách hàng; kiểm thử local dùng MailHog làm mock SMTP server. |
 
 ---
 
@@ -131,7 +134,7 @@ flowchart TB
    Khi Agent cần gọi nghiệp vụ, yêu cầu đi qua `Allowlisted Business Tool Adapter` → quay ngược lại `Access Policy and Request API` của Core để kiểm tra quyền và xác thực tham số trước khi thực thi.
 5. **Chuyển giao:**
    Customer xác nhận chia sẻ cuộc AI → Core lưu handoff request và phát thông báo → Staff Accept → mở transcript Customer-facing và chat tiếp. Handoff không tạo Ticket.
-6. **Tạo Ticket:**
-   Agent đề xuất nội dung → Customer xác nhận → Core kiểm quyền/idempotency và commit Ticket + outbox → báo mã và giao thông báo Staff bất đồng bộ. Ticket không tự cấp quyền chat.
+6. **Tạo Ticket & Thông báo:**
+   Agent đề xuất nội dung hoặc Customer mở form thủ công → Customer xác nhận → Core kiểm quyền/idempotency và commit Ticket + outbox. `In-app & Email Notification Delivery` quét sự kiện để phát chuông in-app, đồng thời dispatch email thông báo (thành công / thất bại / Staff tiếp nhận) qua SMTP. Ticket không tự cấp quyền chat.
 7. **Mở chat AI mới sau Staff**
    Customer chọn New AI chat → Core tạo conversation mới qua create/receipt hiện có → Agent dùng thread/context riêng. Cuộc cũ vẫn theo trạng thái và allowedActions hiện hành, dừng trao đổi không tạo Close. UI/create đã có, tích hợp Agent/Core còn P theo [quyết định chuẩn](Agent_Design.md#new-ai-chat-after-staff).
