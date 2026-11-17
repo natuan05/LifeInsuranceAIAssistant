@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { readFileSync } from 'node:fs';
 import type { IncomingMessage } from 'node:http';
 import { DatabaseService } from '../../database/database.service';
 import {
@@ -8,11 +9,6 @@ import {
   validateContract,
   verify,
 } from '../hmac';
-
-const DEFAULT_C2A_ID = 'local-core-to-agent';
-const DEFAULT_C2A_KEYS = 'local-core-to-agent:7WWdWEcjho0hph4XuJ0o3s0EzRYD-lh_osVdT_-Bgs4';
-const DEFAULT_A2C_ID = 'local-agent-to-core';
-const DEFAULT_A2C_KEYS = 'local-agent-to-core:sCDSorQBg6zoR4Is85YXGlO8BhEzAJgviaA5hucJL7w';
 
 export type DurableAckDto = {
   outcome: 'ACCEPTED' | 'DUPLICATE' | 'IGNORED_STALE' | 'CONFLICT' | 'REJECTED';
@@ -38,12 +34,31 @@ export class AgentTransportService implements NonceStore {
     return (process.env.AGENT_BASE_URL || 'http://127.0.0.1:8090').replace(/\/+$/, '');
   }
 
+  private loadFileCredential(path: string): string | undefined {
+    try {
+      const value = readFileSync(path, 'utf8').trim();
+      return value || undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
   get outboundKeyring(): Keyring {
-    return Keyring.fromEnv('LIFE_AGENT_CORE_TO_AGENT', process.env, DEFAULT_C2A_ID, DEFAULT_C2A_KEYS);
+    return Keyring.fromEnv(
+      'LIFE_AGENT_CORE_TO_AGENT',
+      process.env,
+      this.loadFileCredential('/credentials/agent_hmac/core_to_agent_key_id'),
+      this.loadFileCredential('/credentials/agent_hmac/core_to_agent_keys'),
+    );
   }
 
   get inboundKeyring(): Keyring {
-    return Keyring.fromEnv('LIFE_AGENT_AGENT_TO_CORE', process.env, DEFAULT_A2C_ID, DEFAULT_A2C_KEYS);
+    return Keyring.fromEnv(
+      'LIFE_AGENT_AGENT_TO_CORE',
+      process.env,
+      this.loadFileCredential('/credentials/agent_hmac/agent_to_core_key_id'),
+      this.loadFileCredential('/credentials/agent_hmac/agent_to_core_keys'),
+    );
   }
 
   async rememberNonce(keyId: string, nonce: string, windowSeconds: number): Promise<boolean> {

@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Prisma } from '../../generated/prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { sha256Json, validateContract } from '../hmac';
@@ -12,17 +14,45 @@ import { AgentTransportService, type DurableAckDto } from './agent-transport.ser
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-export const TRIAL_LIMITS = {
-  retrieval_calls_max: 3,
-  core_read_requests_max: 4,
-  core_request_timeout_ms: 3000,
-  core_retry_per_call: 1,
-  model_calls_max: 6,
-  graph_steps_max: 30,
-  turn_token_budget: 120000,
-  finish_reserve_tokens: 12000,
-  deadline_s: 120,
-} as const;
+export type TrialLimits = {
+  retrieval_calls_max: number;
+  core_read_requests_max: number;
+  core_request_timeout_ms: number;
+  core_retry_per_call: number;
+  model_calls_max: number | null;
+  graph_steps_max: number | null;
+  turn_token_budget: number | null;
+  finish_reserve_tokens: number | null;
+  deadline_s: number;
+};
+
+let cachedTrialLimits: TrialLimits | null = null;
+
+export function loadTrialLimits(): TrialLimits {
+  if (cachedTrialLimits) return cachedTrialLimits;
+  const rel = process.env.LIFE_AGENT_RUNTIME_CONFIG || 'evaluation/trial-config.json';
+  const candidates = [
+    process.env.LIFE_AGENT_RUNTIME_CONFIG ? resolve(process.env.LIFE_AGENT_RUNTIME_CONFIG) : null,
+    resolve(__dirname, '../../../../../../apps/agent', rel),
+    resolve(__dirname, '../../../../../apps/agent', rel),
+    resolve(process.cwd(), '../agent', rel),
+    resolve(process.cwd(), '../../apps/agent', rel),
+    resolve('/app/apps/agent', rel),
+  ].filter((p): p is string => Boolean(p));
+
+  for (const file of candidates) {
+    try {
+      const parsed = JSON.parse(readFileSync(file, 'utf8')) as { limits?: TrialLimits };
+      if (parsed.limits && typeof parsed.limits.deadline_s === 'number') {
+        cachedTrialLimits = parsed.limits;
+        return cachedTrialLimits;
+      }
+    } catch {
+      continue;
+    }
+  }
+  throw new Error('Unable to load limits from apps/agent/evaluation/trial-config.json');
+}
 
 type AgentResultPayload = {
   response_type: 'ANSWER' | 'CLARIFICATION' | 'REFUSAL';
@@ -108,17 +138,18 @@ export class AgentRunService {
       };
     }
 
-    const deadlineAt = new Date(Date.now() + TRIAL_LIMITS.deadline_s * 1000).toISOString();
+    const trialLimits = loadTrialLimits();
+    const deadlineAt = new Date(Date.now() + trialLimits.deadline_s * 1000).toISOString();
     const limits = {
       deadline_at: deadlineAt,
-      retrieval_calls_max: TRIAL_LIMITS.retrieval_calls_max,
-      core_read_requests_max: TRIAL_LIMITS.core_read_requests_max,
-      core_request_timeout_ms: TRIAL_LIMITS.core_request_timeout_ms,
-      core_retry_per_call: TRIAL_LIMITS.core_retry_per_call,
-      model_calls_max: TRIAL_LIMITS.model_calls_max,
-      graph_steps_max: TRIAL_LIMITS.graph_steps_max,
-      turn_token_budget: TRIAL_LIMITS.turn_token_budget,
-      finish_reserve_tokens: TRIAL_LIMITS.finish_reserve_tokens,
+      retrieval_calls_max: trialLimits.retrieval_calls_max,
+      core_read_requests_max: trialLimits.core_read_requests_max,
+      core_request_timeout_ms: trialLimits.core_request_timeout_ms,
+      core_retry_per_call: trialLimits.core_retry_per_call,
+      model_calls_max: trialLimits.model_calls_max,
+      graph_steps_max: trialLimits.graph_steps_max,
+      turn_token_budget: trialLimits.turn_token_budget,
+      finish_reserve_tokens: trialLimits.finish_reserve_tokens,
     };
 
     return tx.agentRun.create({
@@ -187,19 +218,20 @@ export class AgentRunService {
 
       const attemptId = randomUUID();
       const now = new Date();
-      const deadlineAt = new Date(now.getTime() + TRIAL_LIMITS.deadline_s * 1000).toISOString();
+      const trialLimits = loadTrialLimits();
+      const deadlineAt = new Date(now.getTime() + trialLimits.deadline_s * 1000).toISOString();
       const storedLimits = (nextRun.limits ?? {}) as Record<string, unknown>;
       const limits = {
         deadline_at: deadlineAt,
-        retrieval_calls_max: Number(storedLimits.retrieval_calls_max ?? TRIAL_LIMITS.retrieval_calls_max),
-        core_read_requests_max: Number(storedLimits.core_read_requests_max ?? TRIAL_LIMITS.core_read_requests_max),
-        core_request_timeout_ms: Number(storedLimits.core_request_timeout_ms ?? TRIAL_LIMITS.core_request_timeout_ms),
-        core_retry_per_call: Number(storedLimits.core_retry_per_call ?? TRIAL_LIMITS.core_retry_per_call),
-        model_calls_max: storedLimits.model_calls_max !== undefined ? storedLimits.model_calls_max : TRIAL_LIMITS.model_calls_max,
-        graph_steps_max: storedLimits.graph_steps_max !== undefined ? storedLimits.graph_steps_max : TRIAL_LIMITS.graph_steps_max,
-        turn_token_budget: storedLimits.turn_token_budget !== undefined ? storedLimits.turn_token_budget : TRIAL_LIMITS.turn_token_budget,
+        retrieval_calls_max: Number(storedLimits.retrieval_calls_max ?? trialLimits.retrieval_calls_max),
+        core_read_requests_max: Number(storedLimits.core_read_requests_max ?? trialLimits.core_read_requests_max),
+        core_request_timeout_ms: Number(storedLimits.core_request_timeout_ms ?? trialLimits.core_request_timeout_ms),
+        core_retry_per_call: Number(storedLimits.core_retry_per_call ?? trialLimits.core_retry_per_call),
+        model_calls_max: storedLimits.model_calls_max !== undefined ? storedLimits.model_calls_max : trialLimits.model_calls_max,
+        graph_steps_max: storedLimits.graph_steps_max !== undefined ? storedLimits.graph_steps_max : trialLimits.graph_steps_max,
+        turn_token_budget: storedLimits.turn_token_budget !== undefined ? storedLimits.turn_token_budget : trialLimits.turn_token_budget,
         finish_reserve_tokens:
-          storedLimits.finish_reserve_tokens !== undefined ? storedLimits.finish_reserve_tokens : TRIAL_LIMITS.finish_reserve_tokens,
+          storedLimits.finish_reserve_tokens !== undefined ? storedLimits.finish_reserve_tokens : trialLimits.finish_reserve_tokens,
       };
 
       const runRequest = validateContract<Record<string, unknown>>('RunRequest', {

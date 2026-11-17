@@ -47,10 +47,10 @@ export class InternalAgentController {
 
   private handleError(res: ServerResponse, error: unknown) {
     if (error instanceof ReplayRejected) {
-      return this.sendJson(res, 409, { error: { code: 'REPLAY_DETECTED' } });
+      return this.sendJson(res, 401, { error: { code: error.code } });
     }
     if (error instanceof AuthFailed) {
-      return this.sendJson(res, 401, { error: { code: 'UNAUTHORIZED' } });
+      return this.sendJson(res, 401, { error: { code: error.code } });
     }
     if (error instanceof AgentApiError) {
       return this.sendJson(res, error.status, { error: { code: error.code } });

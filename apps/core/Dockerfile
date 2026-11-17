@@ -16,6 +16,7 @@ CMD ["node", "scripts/migrate.mjs"]
 
 FROM migrator AS test
 COPY contracts /app/contracts
+COPY apps/agent/evaluation/trial-config.json /app/apps/agent/evaluation/trial-config.json
 COPY data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json /app/data/synthetic/manulife-demo-v1/
 COPY data/public/manifest-manulife-text.json /app/data/public/manifest-manulife-text.json
 COPY data/public/manulife/text/ /app/data/public/manulife/text/
@@ -37,6 +38,7 @@ COPY --from=build --chown=node:node /app/apps/core/node_modules ./apps/core/node
 COPY --from=build --chown=node:node /app/apps/core/dist ./apps/core/dist
 COPY --from=build --chown=node:node /app/apps/core/package.json ./apps/core/package.json
 COPY --chown=node:node contracts ./contracts
+COPY --chown=node:node apps/agent/evaluation/trial-config.json ./apps/agent/evaluation/trial-config.json
 COPY --chown=node:node apps/web/public/fonts/lexend-400.ttf apps/web/public/fonts/lexend-700.ttf apps/web/public/fonts/OFL-Lexend.txt ./apps/core/dist/cli/assets/
 COPY --chown=node:node data/synthetic/manulife-demo-v1/policies.json data/synthetic/manulife-demo-v1/manifest.json ./data/synthetic/manulife-demo-v1/
 COPY --chown=node:node data/public/manifest-manulife-text.json ./data/public/manifest-manulife-text.json

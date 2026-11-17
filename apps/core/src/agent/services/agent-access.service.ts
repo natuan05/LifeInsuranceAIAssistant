@@ -210,21 +210,23 @@ export class AgentAccessService {
     };
   }
 
-  private async buildHistoryItems(
+  private async buildHistoryPage(
     tx: Prisma.TransactionClient,
     conversationId: string,
     afterPos: bigint,
     throughPos: bigint,
-  ): Promise<Array<Record<string, unknown>>> {
-    if (throughPos <= 0n || afterPos >= throughPos) return [];
+  ): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }> {
+    if (throughPos <= 0n || afterPos >= throughPos) return { items: [], nextCursor: null };
+    const minMessageSeq = afterPos / 2n + 1n;
     const maxMessageSeq = (throughPos + 1n) / 2n;
     const messages = await tx.message.findMany({
       where: {
         conversationId,
-        sequence: { lte: maxMessageSeq },
+        sequence: { gte: minMessageSeq, lte: maxMessageSeq },
         senderType: { in: ['CUSTOMER', 'STAFF'] },
       },
       orderBy: { sequence: 'asc' },
+      take: 101,
       include: { triggerRun: true },
     });
 
@@ -268,7 +270,11 @@ export class AgentAccessService {
         }
       }
     }
-    return items.slice(0, 100);
+    const pageItems = items.slice(0, 100);
+    const hasMore = items.length > 100 || messages.length > 100;
+    const lastPos = pageItems.at(-1)?.position;
+    const nextCursor = hasMore && typeof lastPos === 'string' ? `p${lastPos}` : null;
+    return { items: pageItems, nextCursor };
   }
 
   async history(runId: string, attemptId: string, cursor?: string | null) {
@@ -276,8 +282,8 @@ export class AgentAccessService {
     return this.database.prisma.$transaction(async tx => {
       const ctx = await this.authorizeInTx(tx, runId, attemptId);
       const throughPos = this.parseCursor(ctx.historyView.through_cursor);
-      const items = await this.buildHistoryItems(tx, ctx.conversationId, afterPos, throughPos);
-      return validateContract('ConversationHistoryPage', { items, nextCursor: null });
+      const page = await this.buildHistoryPage(tx, ctx.conversationId, afterPos, throughPos);
+      return validateContract('ConversationHistoryPage', page);
     });
   }
 
@@ -294,8 +300,8 @@ export class AgentAccessService {
         throw new AgentApiError(403, 'NOT_AUTHORIZED');
       }
       const throughPos = this.parseCursor(ctx.linkedHistoryView.through_cursor);
-      const items = await this.buildHistoryItems(tx, ctx.linkedHistoryView.conversation_id, afterPos, throughPos);
-      return validateContract('ConversationHistoryPage', { items, nextCursor: null });
+      const page = await this.buildHistoryPage(tx, ctx.linkedHistoryView.conversation_id, afterPos, throughPos);
+      return validateContract('ConversationHistoryPage', page);
     });
   }
 
