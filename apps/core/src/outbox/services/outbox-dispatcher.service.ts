@@ -1,9 +1,10 @@
-import { Injectable, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, Optional, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { DatabaseService } from '../../database/database.service';
 import { ConversationEventService, type ChatEvent } from '../../conversations/services/conversation-event.service';
 import { RealtimeService } from '../../realtime/realtime.service';
 import { TicketEventService, ticketEventTypes } from '../../tickets/services/ticket-event.service';
+import { EmailNotificationService } from '../../notifications/services/email-notification.service';
 
 const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
 @Injectable()
@@ -12,8 +13,13 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
   private timer?: NodeJS.Timeout;
   private running: Promise<void> | null = null;
   private stopped = false;
-  constructor(private readonly database: DatabaseService, private readonly events: ConversationEventService, private readonly realtime: RealtimeService,
-    private readonly tickets: TicketEventService) {}
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly events: ConversationEventService,
+    private readonly realtime: RealtimeService,
+    private readonly tickets: TicketEventService,
+    @Optional() private readonly email?: EmailNotificationService,
+  ) {}
   onApplicationBootstrap() {
     this.timer = setInterval(() => { if (!this.running && !this.stopped) { this.running = this.tick().catch(() => { /* DB unavailable: retry on next bounded tick; no payload logs. */ }).finally(() => { this.running = null; }); } }, 500);
     this.timer.unref();
@@ -51,6 +57,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
           const recipients = await this.tickets.route(event);
           if (lost) return;
           await this.realtime.publishTicket(event, recipients);
+          await this.dispatchTicketEmail(event);
         } else {
           const recipients = await this.events.route(event);
           if (lost) return;
@@ -65,6 +72,56 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
           data: { status: exhausted ? 'FAILED_DLQ' : 'PENDING', nextAttemptAt: new Date(Date.now() + delay), lastError: 'DISPATCH_FAILED', leaseOwner: null, leaseExpiresAt: null } });
       } finally { clearInterval(renew); }
   }
+
+  private async dispatchTicketEmail(event: ChatEvent): Promise<void> {
+    if (!this.email) {
+      return;
+    }
+    if (event.eventType !== 'TICKET_CREATED' && event.eventType !== 'TICKET_ACCEPTED') {
+      return;
+    }
+    const ticket = await this.database.prisma.supportTicket.findUnique({
+      where: { id: event.aggregateId },
+      include: {
+        customer: {
+          include: {
+            user: { select: { email: true } },
+          },
+        },
+        staff: {
+          select: { fullName: true },
+        },
+      },
+    });
+
+    if (!ticket || !ticket.customer?.user?.email) {
+      return;
+    }
+
+    const email = ticket.customer.user.email;
+    const customerName = ticket.customer.fullName;
+
+    if (event.eventType === 'TICKET_CREATED') {
+      await this.email.sendTicketCreated({
+        to: email,
+        customerName,
+        ticketCode: ticket.ticketCode,
+        ticketTitle: ticket.title,
+        ticketId: ticket.id,
+        createdAt: ticket.createdAt,
+      });
+    } else if (event.eventType === 'TICKET_ACCEPTED') {
+      await this.email.sendTicketAccepted({
+        to: email,
+        customerName,
+        ticketCode: ticket.ticketCode,
+        ticketTitle: ticket.title,
+        ticketId: ticket.id,
+        staffName: ticket.staff?.fullName,
+      });
+    }
+  }
+
   async onModuleDestroy() {
     this.stopped = true; clearInterval(this.timer);
     if (this.running) await Promise.race([this.running, new Promise(resolve => { const timer = setTimeout(resolve, 5000); timer.unref(); })]);

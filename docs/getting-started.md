@@ -56,6 +56,12 @@ Linux/macOS dùng `cp -n .env.example .env`. `start-local.ps1` và các helper n
 | MINIO_CORS_ORIGINS | Trống | Tự suy ra origin website theo GATEWAY_PORT |
 | MINIO_PUBLIC_ENDPOINT | Trống | Core suy ra `http://localhost:<MINIO_API_PORT>` để ký link browser truy cập được; khác endpoint nội bộ `http://minio:9000` |
 | STORAGE_URL_TTL_SECONDS | 900 | TTL signed PDF URL; Core hiện kiểm khoảng 60–3600 giây |
+| MAILHOG_SMTP_PORT | 1025 | Cổng SMTP mock tiếp nhận email |
+| MAILHOG_WEB_PORT | 8025 | Cổng Web UI xem email gửi thử nghiệm qua MailHog |
+| SMTP_HOST | mailhog | Host dịch vụ SMTP nội bộ (trong compose là `mailhog`) |
+| SMTP_PORT | 1025 | Cổng SMTP nội bộ |
+| SMTP_SECURE | false | Kích hoạt TLS trực tiếp cho SMTP (mặc định false cho local) |
+| EMAIL_FROM | Life Insurance Assistant &lt;no-reply@life-assistant.local&gt; | Header From mặc định của email thông báo |
 
 `.env.example` chứa bộ credential synthetic local cố định được phép chia sẻ cho team; xem [tài khoản DB/MinIO local](#local-infrastructure-accounts). Máy mới copy mẫu sẽ dùng ngay các giá trị này. Trong `.env` riêng vẫn có thể đặt credential khác hoặc để trống để sinh một lần.
 
@@ -141,7 +147,7 @@ Compose ưu tiên biến môi trường terminal hơn giá trị cùng tên tron
 
 Không cần `npm ci` để chạy stack. MinIO được dựng cùng các service khác, không cần chạy thêm `storage:up`. Core chờ cả seed DB và storage-init hoàn tất thành công; `--wait` chờ các service sẵn sàng.
 
-Mở [Customer login](http://localhost:8080/login), [Staff login](http://localhost:8080/staff/login), [Swagger](http://localhost:8081), [DbGate](http://127.0.0.1:5050) hoặc [MinIO Console](http://localhost:9001). Tool admin chạy riêng theo mục 5.
+Mở [Customer login](http://localhost:8080/login), [Staff login](http://localhost:8080/staff/login), [Swagger](http://localhost:8081), [DbGate](http://127.0.0.1:5050), [MinIO Console](http://localhost:9001) hoặc [MailHog Web UI](http://localhost:8025). Tool admin chạy riêng theo mục 5.
 
 ### 3.2. Các bước tự động
 
@@ -157,7 +163,7 @@ Mỗi máy có DB, storage và credential riêng. Khởi động lại giữ d�
 
 | Service | Trạng thái |
 | --- | --- |
-| postgres, core, web, gateway, database-ui, minio | Running, healthy |
+| postgres, core, web, gateway, database-ui, minio, mailhog | Running, healthy |
 | prepare, bootstrap, migrate, seed-dev | Exited (0) sau khi hoàn thành |
 | storage-prepare, storage-init | Exited (0) sau khi hoàn thành |
 
@@ -260,6 +266,7 @@ Tool không xóa user hoặc đổi role. Lỗi 409 cần đọc lại dữ li�
 | PostgreSQL | 127.0.0.1:5432, không phải HTTP |
 | DbGate | http://127.0.0.1:5050 |
 | MinIO S3 API / Console | http://localhost:9000 / http://localhost:9001 |
+| MailHog Web UI / SMTP | http://localhost:8025 / 127.0.0.1:1025 |
 | Tool admin riêng | http://127.0.0.1:4100 khi chạy tool |
 
 Web/Core chỉ mở cổng nội bộ 3000/4000, không publish lên host. Browser → Nginx → Web hoặc Core; `/api/*` chuyển tới Core. Các job khởi tạo không mở cổng.

@@ -29,6 +29,7 @@ flowchart TB
         MODEL["Managed AI Model Service<br/>(Gemini API)"]
         SEC["Workload Identity and Secrets Management"]
         OBS["Observability: Logs, Metrics and Traces"]
+        SMTP["Managed Email Service<br/>(SMTP / AWS SES)"]
     end
 
     U -.->|"name resolution"| DNS
@@ -48,6 +49,8 @@ flowchart TB
     CORE -.->|"publish committed outbox"| BUS
     BUS -.->|"authenticated delivery and retry"| W
     W -->|"inbox and delivery APIs"| CORE
+    W -->|"send email via SMTP (TLS 587/465)"| SMTP
+    SMTP -.->|"deliver ticket emails"| U
 
     CORE -->|"limited read grants"| PDF
     U -->|"authorized PDF download"| PDF
@@ -61,7 +64,7 @@ flowchart TB
     classDef managed fill:#EAF6F1,stroke:#36846B,color:#164535
     classDef control fill:#FFF4DF,stroke:#B88625,color:#62450F
     class CORE,AI,W compute
-    class DB,BUS,PDF,MODEL,ID,WEB managed
+    class DB,BUS,PDF,MODEL,ID,WEB,SMTP managed
     class DNS,EDGE,SEC,OBS control
 ```
 
@@ -78,12 +81,13 @@ Các khối là capability logic, không mặc định là deployment riêng. Co
 | **Managed Identity Service** | Capability đích quản lý danh tính/xác thực, hỗ trợ Core xác minh thông tin đăng nhập/token khi tích hợp cloud. |
 | **Core API: REST, WSS and Outbox Dispatcher** | Xử lý nghiệp vụ/API, WSS, kiểm quyền, giao dịch database; phát sự kiện từ outbox sau commit. |
 | **AI Runtime (Authenticated Service)** | Chạy custom Agent/LangGraph, điều phối RAG, gọi model và Business Tools được cho phép. |
-| **Notification Worker: Authenticated Consumer** | Nhận message từ broker, xử lý gửi thông báo; gọi API Core để cập nhật trạng thái hoặc ghi nhận kết quả. |
+| **Notification Worker: Authenticated Consumer** | Nhận message từ broker, xử lý gửi thông báo in-app và dispatch email thông báo qua SMTP; gọi API Core để cập nhật trạng thái hoặc ghi nhận kết quả. |
 | **Message Broker: Retry and DLQ** | Tiếp nhận/phân phối message bất đồng bộ; hỗ trợ thử lại khi consumer thất bại và đưa message không xử lý được vào DLQ. |
 | **Managed Relational DB and Prepared Vector Index** | Lưu dữ liệu nghiệp vụ bền vững và dữ liệu/index phục vụ RAG; Core truy cập business, Agent dùng role retrieval giới hạn. |
 | **Object Storage: Existing PDFs** | Lưu PDF sản phẩm/hợp đồng hiện có theo phiên bản; cung cấp truy cập giới hạn hoặc download đúng quyền được cấp. |
 | **Managed AI Model Service** | Gemini API là provider MVP đã chốt ngày 13/11/2026 cho sinh câu trả lời, tóm tắt và embeddings. Model MVP đã chốt gemini-3.8-flash và gemini-embedding-2, 1536 chiều ngày 13/11/2026. Limits và nghiệm thu tiếp tục theo G4. |
-| **Workload Identity and Secrets Management** | Quản lý danh tính workload và secrets; cung cấp xác thực cần thiết theo quyền tối thiểu. |
+| **Managed Email Service (SMTP)** | Dịch vụ gửi email thông báo giao dịch (Transactional Email) qua giao thức SMTP (như AWS SES qua SMTP endpoint). Kiểm thử local sử dụng mock server MailHog (SMTP port 1025, Web UI port 8025). |
+| **Workload Identity and Secrets Management** | Quản lý danh tính workload và secrets (gồm credentials SMTP, token, encryption keys); cung cấp xác thực cần thiết theo quyền tối thiểu. |
 | **Observability: Logs, Metrics and Traces** | Theo dõi vận hành/hiệu năng, phát hiện lỗi, hỗ trợ khắc phục; giảm/che dữ liệu nhạy cảm trong telemetry. |
 
 <a id="scheduled-task-removal"></a>
