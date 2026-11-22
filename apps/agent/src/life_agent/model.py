@@ -361,11 +361,15 @@ def render_context(context: Any) -> str:
 class GeminiModel:
     """ModelAdapter over generateContent with JSON output. Counts input/output/thinking tokens per call."""
 
+    _DEFAULT_FALLBACKS = ("gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite")
+
     def __init__(self, config: GenerationConfig, env: Mapping[str, str] | None = None, *,
-                 http: GeminiHttp | None = None, clock: Callable[[], float] = time.monotonic) -> None:
+                 http: GeminiHttp | None = None, clock: Callable[[], float] = time.monotonic,
+                 fallback_models: Sequence[str] | None = None) -> None:
         self.config = config
         self._http = http or GeminiHttp((env or {}).get("GEMINI_API_KEY", ""))
         self._clock = clock
+        self._fallback_models = tuple(fallback_models) if fallback_models is not None else self._DEFAULT_FALLBACKS
         self.latencies_s: list[float] = []
 
     def _generate(self, system: str, user: str, *, schema: Mapping[str, Any] | None) -> tuple[str, TokenUsage]:
@@ -379,8 +383,17 @@ class GeminiModel:
             generation["responseJsonSchema"] = schema
         body = {"systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"role": "user", "parts": [{"text": user}]}], "generationConfig": generation}
+        candidates = [self.config.model_id, *(m for m in self._fallback_models if m != self.config.model_id)]
         started = self._clock()
-        reply = self._http.post(f"models/{self.config.model_id}:generateContent", body, timeout=self.config.timeout_s)
+        reply: dict[str, Any] | None = None
+        for idx, model_id in enumerate(candidates):
+            try:
+                reply = self._http.post(f"models/{model_id}:generateContent", body, timeout=self.config.timeout_s)
+                break
+            except ProviderError as error:
+                if not error.outage or idx == len(candidates) - 1:
+                    raise
+        assert reply is not None
         self.latencies_s.append(self._clock() - started)
         meta = reply.get("usageMetadata") or {}
         usage = TokenUsage(int(meta.get("promptTokenCount", 0)), int(meta.get("candidatesTokenCount", 0)),

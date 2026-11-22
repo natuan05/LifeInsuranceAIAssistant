@@ -44,9 +44,9 @@
   "scope_timeout_s": 2.0
  },
  "generation": {
-  "config_id": "gemini-3.8-flash.low.v1",
+  "config_id": "gemini-3.5-flash.low.v1",
   "provider": "gemini",
-  "model_id": "gemini-3.8-flash",
+  "model_id": "gemini-3.5-flash",
   "thinking_level": "low",
   "max_output_tokens": 4096,
   "temperature": null,

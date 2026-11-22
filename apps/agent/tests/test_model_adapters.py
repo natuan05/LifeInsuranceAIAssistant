@@ -156,3 +156,13 @@ def test_envelope_sanitizes_citations_handoff_and_null_tool_args():
 
     d3, _ = envelope_to_decision({**TOOL, "tool": {"name": "retrieve_private", "query": None, "policy_number": "BH-2026-01002"}})
     assert d3 == {"tool": "get_contract_overview", "arguments": {"policy_number": "BH-2026-01002"}} and contracts.is_valid("AgentDecision", d3)
+
+
+def test_generate_falls_back_on_outage():
+    busy = urllib.error.HTTPError("u", 503, "x", {}, None)
+    opener = Opener(busy, reply(TOOL))
+    model = GeminiModel(gen_config(), http=GeminiHttp(KEY, opener=opener), fallback_models=("gemini-3-flash-preview",))
+    out = model.decide(context())
+    assert contracts.is_valid("AgentDecision", out.output)
+    assert "models/gemini-x-flash:generateContent" in opener.requests[0][0].full_url
+    assert "models/gemini-3-flash-preview:generateContent" in opener.requests[1][0].full_url
