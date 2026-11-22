@@ -136,3 +136,23 @@ def test_offline_document_embedding_waits_out_outages_but_queries_never_retry():
     assert len(adapter.embed_documents(["a"], emb_config())) == 1 and adapter.retries == 1 and waits == [2.0]
     with pytest.raises(ProviderError):
         adapter.embed_query("q", emb_config())  # retrieval falls back to keyword-only instead
+
+
+def test_envelope_sanitizes_citations_handoff_and_null_tool_args():
+    answer = {**TOOL, "kind": "ANSWER", "tool": None, "answer": {
+        "response_type": "ANSWER", "message": "Chi tiết hợp đồng.",
+        "citations": ["[op-1-E1]", "evidence:op-1-E2", "core:op-3", "message:m1", "op-1-E1"],
+        "handoff": {"subject": "Cần Staff hỗ trợ", "reason": "   "}, "ticket": None}}
+    decision, _ = envelope_to_decision(answer)
+    assert contracts.is_valid("AgentDecision", decision)
+    assert decision["citations"] == [{"evidence_id": "op-1-E1"}, {"evidence_id": "op-1-E2"}]
+    assert decision["actions"] == [{"type": "PROPOSE_HANDOFF", "subject": "Cần Staff hỗ trợ", "reason": None}]
+
+    d1, _ = envelope_to_decision({**TOOL, "tool": {"name": "get_contract_overview", "query": None, "policy_number": None}})
+    assert d1 == {"tool": "list_contracts", "arguments": {}} and contracts.is_valid("AgentDecision", d1)
+
+    d2, _ = envelope_to_decision({**TOOL, "tool": {"name": "retrieve_private", "query": "quyền lợi", "policy_number": None}})
+    assert d2 == {"tool": "retrieve_public", "arguments": {"query": "quyền lợi"}} and contracts.is_valid("AgentDecision", d2)
+
+    d3, _ = envelope_to_decision({**TOOL, "tool": {"name": "retrieve_private", "query": None, "policy_number": "BH-2026-01002"}})
+    assert d3 == {"tool": "get_contract_overview", "arguments": {"policy_number": "BH-2026-01002"}} and contracts.is_valid("AgentDecision", d3)

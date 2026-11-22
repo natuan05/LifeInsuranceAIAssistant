@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import socket
 import time
 import urllib.error
@@ -280,6 +281,26 @@ DECISION_SCHEMA: dict[str, Any] = {
 }
 
 
+_EVIDENCE_ID_RE = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
+def _clean_text(value: Any, max_len: int) -> str | None:
+    if not isinstance(value, str):
+        return None
+    cleaned = _CONTROL_CHARS_RE.sub("", value).strip()
+    return cleaned[:max_len] if cleaned else None
+
+
+def _normalize_citation(raw: Any) -> str | None:
+    if not isinstance(raw, str):
+        return None
+    s = raw.strip().strip("[]").strip()
+    if s.startswith("evidence:"):
+        s = s[len("evidence:"):].strip()
+    return s if _EVIDENCE_ID_RE.match(s) else None
+
+
 def envelope_to_decision(envelope: Any) -> tuple[Any, dict[str, Any]]:
     """Provider envelope -> (AgentDecision candidate, notes). Shape errors are left for the graph's contract check."""
     if not isinstance(envelope, dict):
@@ -289,11 +310,23 @@ def envelope_to_decision(envelope: Any) -> tuple[Any, dict[str, Any]]:
     if envelope.get("kind") == "TOOL" and isinstance(envelope.get("tool"), dict):
         tool = envelope["tool"]
         name = tool.get("name")
+        query = _clean_text(tool.get("query"), 500)
+        policy_number = _clean_text(tool.get("policy_number"), 64)
+        if name == "get_contract_overview" and not policy_number:
+            return {"tool": "list_contracts", "arguments": {}}, notes
+        if name == "retrieve_private" and not policy_number:
+            if query:
+                return {"tool": "retrieve_public", "arguments": {"query": query}}, notes
+            return {"tool": "list_contracts", "arguments": {}}, notes
+        if name == "retrieve_private" and not query:
+            return {"tool": "get_contract_overview", "arguments": {"policy_number": policy_number}}, notes
+        if name == "retrieve_public" and not query:
+            return {"tool": "list_contracts", "arguments": {}}, notes
         args: dict[str, Any] = {}
         if name in ("retrieve_public", "retrieve_private"):
-            args["query"] = tool.get("query")
+            args["query"] = query
         if name in ("get_contract_overview", "retrieve_private"):
-            args["policy_number"] = tool.get("policy_number")
+            args["policy_number"] = policy_number
         return {"tool": name, "arguments": args}, notes
     answer = envelope.get("answer")
     if envelope.get("kind") != "ANSWER" or not isinstance(answer, dict):
@@ -302,10 +335,16 @@ def envelope_to_decision(envelope: Any) -> tuple[Any, dict[str, Any]]:
     if isinstance(answer.get("ticket"), dict):
         actions.append({"type": "PROPOSE_TICKET", "summary": answer["ticket"]})
     if isinstance(answer.get("handoff"), dict):
-        actions.append({"type": "PROPOSE_HANDOFF", **answer["handoff"]})
-    citations = list(dict.fromkeys(c for c in answer.get("citations") or [] if isinstance(c, str)))
-    return {"response_type": answer.get("response_type"), "message": answer.get("message"),
-            "citations": [{"evidence_id": c} for c in citations], "actions": actions}, notes
+        subject = _clean_text(answer["handoff"].get("subject"), 180)
+        if subject:
+            reason = _clean_text(answer["handoff"].get("reason"), 1000)
+            actions.append({"type": "PROPOSE_HANDOFF", "subject": subject, "reason": reason})
+    citations = list(dict.fromkeys(
+        cid for cid in (_normalize_citation(c) for c in (answer.get("citations") or [])) if cid
+    ))[:20]
+    message = _clean_text(answer.get("message"), 8000)
+    return {"response_type": answer.get("response_type"), "message": message,
+            "citations": [{"evidence_id": c} for c in citations], "actions": actions[:2]}, notes
 
 
 def render_context(context: Any) -> str:
