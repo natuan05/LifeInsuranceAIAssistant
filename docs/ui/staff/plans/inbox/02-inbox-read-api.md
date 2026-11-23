@@ -1,5 +1,7 @@
 # I02 — Read API nhóm khách, danh sách cuộc và request metadata
 
+DTO và test bên dưới ghi baseline I02. Mở rộng A08–A10 cho AI_ACTIVE và pending theo [kế hoạch 23/11](../03-inbox-contract.md#6-kế-hoạch-mở-rộng-quyền-đọc-và-takeover--p) còn P.
+
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I02** · [Contract chung](../03-inbox-contract.md#9-contract-kỹ-thuật-dùng-chung--đề-xuất) · Trước: [I01](01-model-permissions.md) · Tiếp: [I03](03-handoff-transcript.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026

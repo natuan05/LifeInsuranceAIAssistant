@@ -60,7 +60,7 @@ Hồ sơ và tài khoản
 **Chat AI mới sau Staff — đã chốt 14/11/2026.** Customer chọn New AI chat để bắt đầu cuộc mới với context riêng. Cuộc cũ nằm trong lịch sử, đọc/gửi theo allowedActions Core. Dừng nhắn không tạo Close/nút kết thúc. New AI chat/create đã có, Agent/Core end-to-end còn P trong CH02/CH03. [Quyết định chuẩn](../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
 - **Từ chat:** Agent gợi ý tạo Ticket → Customer xem/sửa revision/xác nhận → mã Ticket sau Core commit; độc lập yêu cầu Staff.
-- **Muốn nói chuyện với Staff:** Yêu cầu Staff → xác nhận chia sẻ toàn bộ lịch sử cuộc AI → request chờ nhận (không Ticket) → Staff Accept → đọc toàn bộ lịch sử Customer-facing và chat tiếp trong cùng cuộc. Trước Accept chỉ metadata yêu cầu.
+- **Muốn nói chuyện với Staff:** Customer xác nhận gửi yêu cầu, Staff Accept và chat tiếp trong cùng cuộc. Theo thiết kế 23/11, Staff đang phụ trách cũng có thể đọc lịch sử trước Accept và chủ động Takeover cuộc AI.
 - **Direct Staff:** Customer gửi trong cuộc trực tiếp đúng Staff; không đổi flag của AI cũ để bypass Accept. Form Ticket thủ công thuộc chức năng Tickets riêng của Customer theo T01/T02.
 - Tạo Ticket chỉ ghi nhận yêu cầu; chỉ hiện Staff đang hỗ trợ sau khi tiếp quản thành công. Chưa có Staff phụ trách hoặc Staff không khả dụng thì thông báo rõ.
 
@@ -74,7 +74,7 @@ Ticket thủ công và draft Agent cùng thuộc phạm vi Customer đã duyệt
 
 Đang dùng: Products, Customers, Policy Lookup, tài khoản và Inbox All/Requests/Active cùng chat/handoff notifications. Tickets còn khung; New legacy đã bỏ/mapping. Không có dashboard metrics riêng.
 
-Thiết kế Inbox mới theo [inbox-plan.md](staff/plans/inbox/00-inbox-spec.md): All/Requests/Active, accordion tên-mã khách và tiêu đề/thời gian cuộc, search tự động/Enter, chat cuộn; không counts/AI/Closed filter. I01–I06 đã triển khai. Pending chỉ metadata; Accept mới toàn bộ lịch sử AI đã được Customer đồng ý chia sẻ.
+Inbox có All/Requests/Active, accordion theo khách, search tự động/Enter và chat cuộn. Theo thiết kế 23/11, All sẽ thêm cuộc AI thuộc phân công Staff. Staff xem toàn bộ transcript Customer-facing và có thể Takeover trước khi Customer gửi yêu cầu. Quyền mới chưa triển khai. [Đặc tả Inbox](staff/plans/inbox/00-inbox-spec.md)
 
 | Mã | Chức năng | Trạng thái |
 | --- | --- | --- |

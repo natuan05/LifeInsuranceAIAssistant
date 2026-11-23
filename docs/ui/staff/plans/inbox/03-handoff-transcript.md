@@ -1,5 +1,7 @@
 # I03 — Customer entry, handoff, Accept và toàn bộ lịch sử
 
+Các gate và test bên dưới ghi baseline I03. Thiết kế 23/11 tách quyền đọc khỏi Accept và bổ sung lệnh Takeover; các mở rộng còn P. [Đặc tả](00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái)
+
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I03** · [Contract chung](../03-inbox-contract.md#9-contract-kỹ-thuật-dùng-chung--đề-xuất) · Trước: [I01](01-model-permissions.md), [I02](02-inbox-read-api.md) · Tiếp: [I04](04-staff-inbox-ui.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026

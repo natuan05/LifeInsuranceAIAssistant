@@ -122,7 +122,7 @@ Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](
 
 **Quy tắc khi bảo trì:** Khi thay đổi code, chạy các suite bị ảnh hưởng theo test case của phase và dọn fixture/artifact do lượt kiểm thử tạo ra. Báo kết quả ngắn trong trao đổi, không ghi nhật ký kiểm thử vào phase. Đây là quy tắc áp dụng mỗi lần sửa, không phải hạng mục chức năng còn thiếu.
 
-Account/Policy/Inbox không hồi quy. Hồ sơ đã có nav **Customer support** với Conversations và Tickets: điều hướng client-side tới `/staff/inbox?customerId=<id>` hoặc `/staff/tickets?customerId=<id>`, không nhúng composer/Ticket detail trong Customers. Inbox tự mở nhóm của khách được lọc; query chỉ thu hẹp tập dữ liệu, không cấp quyền. Pending vẫn chỉ shared metadata; AI riêng không xuất hiện. Back trở về hồ sơ/list giữ query hiện có.
+Hồ sơ có nav **Customer support** với Conversations và Tickets, điều hướng qua `/staff/inbox?customerId=<id>` hoặc `/staff/tickets?customerId=<id>`. Inbox tự mở nhóm được lọc và áp quyền hội thoại hiện hành. Back trở về hồ sơ/list giữ query.
 
 ## CU02-T05 — Từ hồ sơ mở hỗ trợ đúng khách, không mở rộng quyền
 

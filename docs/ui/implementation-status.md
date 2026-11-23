@@ -88,7 +88,7 @@ Application Phase 0–5 đã hoàn tất, gồm tool local và hồi quy. Nối 
 - [x] Gỡ API/UI/tests/routes lồng của bản thử Inbox/Ticket; giữ Account/Customers/Policy độc lập.
 - [x] Ghi [kế hoạch Inbox/chat](staff/plans/inbox/00-inbox-spec.md) có enum, accordion khách, tên/mã search, chat cuộn, API/schema/phase.
 - [x] I01–I06: model/gate/legacy/metadata/consent/Accept/history/send/UI/realtime đã triển khai; pending không đọc A10.
-- [x] Chốt pending chỉ metadata, sau Accept toàn bộ lịch sử Customer-facing; bỏ counts/Closed chat đích, tách handoff và Ticket trong tài liệu.
+- [ ] Triển khai quyết định 23/11: Staff phụ trách xem toàn bộ lịch sử Customer-facing trước Accept/Takeover và có thể takeover khi Agent đang xử lý. [Kế hoạch Inbox](staff/plans/03-inbox-contract.md#6-kế-hoạch-mở-rộng-quyền-đọc-và-takeover--p).
 - [x] Consent/request/Accept/handoff notification/SYSTEM không tự tạo Ticket, fence nền đã có I01–I06.
 - [x] Application Phase 2: manual/draft Core, validation/CAS/fingerprint/snapshot/receipt và retry Web; có kiểm Core/DB/gateway/browser.
 - [x] A2-04: đổi actor khi manual/confirm pending, bỏ phản hồi cũ và tách intent/receipt theo actor.

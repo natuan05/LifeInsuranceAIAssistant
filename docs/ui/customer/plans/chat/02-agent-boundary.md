@@ -31,7 +31,7 @@ Các mục **P** là việc người nhận cần triển khai, không phải co
 
 | Hành động | Agent chuẩn bị | Customer xác nhận | Core ghi |
 | --- | --- | --- | --- |
-| Nhờ Staff hỗ trợ chat | PROPOSE_HANDOFF.subject/reason; reason là bản tóm tắt yêu cầu, phần đã trao đổi và vấn đề cần Staff xử lý | Review/sửa nội dung chia sẻ và consent toàn bộ lịch sử Customer-facing của cuộc này | ConversationHandoff/PENDING_HANDOFF; chỉ sau Staff Accept mới mở transcript; không Ticket |
+| Nhờ Staff hỗ trợ chat | PROPOSE_HANDOFF.subject/reason; reason tóm tắt nội dung cần xử lý | Xem, sửa và xác nhận gửi yêu cầu | Core ghi ConversationHandoff/PENDING_HANDOFF; Staff Accept để nhận quyền trả lời |
 | Nhờ hỗ trợ tạo Ticket | PROPOSE_TICKET.summary sáu nhóm và metadata nguồn hợp lệ | Review/sửa draft và xác nhận revision Ticket | SupportTicket OPEN + snapshot/audit/outbox; không tạo chat grant hoặc tự chuyển Staff |
 
 Một RESULT có thể đề xuất cả hai, nhưng mỗi action có ID/intent và bước xác nhận riêng. Không suy consent hành động còn lại từ một lần bấm hoặc lời đồng ý trong chat. Copilot không được dùng các action Customer này.
@@ -45,7 +45,7 @@ Một RESULT có thể đề xuất cả hai, nhưng mỗi action có ID/intent 
 5. Web điền subject/reason cho Customer xem/sửa. Reason AI phải có nội dung, tối đa 1000 ký tự; không cắt âm thầm hoặc tự thay thành reason rỗng. Lỗi/thiếu căn cứ hiển thị rõ và cho thử lại; Customer có thể chủ động chọn tự nhập theo luồng thủ công hiện có, không gắn nhãn AI summary cho nội dung tự nhập.
 6. Handoff command cuối bind proposal/revision hoặc payload đã được Customer sửa, giữ consent/version/idempotency I03. Nếu có tin mới/routing đổi khiến bản tóm tắt không còn đúng mốc, yêu cầu cập nhật và review lại; response muộn không ghi đè phần Customer đang sửa. Chỉ transaction xác nhận handoff mới lưu shared_reason, chuyển pending, fence run và phát notification.
 
-Không thêm dữ liệu Copilot, tool trace, checkpoint hoặc cuộc khác vào reason. Nội dung AI là bản tóm tắt để chuyển tiếp, không phải kết luận nghiệp vụ đã xác minh. Staff pending chỉ đọc bản subject/reason Customer đã duyệt chia sẻ; các summary Private khác vẫn bị chặn.
+Reason chỉ dùng dữ liệu Customer-facing của chính cuộc và cần Customer duyệt trước khi gửi. Bản tóm tắt là nội dung chuyển tiếp. Quyền đọc transcript của Staff phụ trách được Core tính riêng theo [thiết kế Inbox 23/11](../../../staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
@@ -60,7 +60,7 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | Bảng/model | Cột hoặc dữ liệu liên quan | Thao tác của phase | Quan hệ/ràng buộc cần giữ | Mức ảnh hưởng và nơi bị tác động |
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
-| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Theo thiết kế 23/11, Staff đọc theo phạm vi Inbox và phân công; Accept/Takeover cấp quyền điều khiển | Cao — Inbox filter/deep link/REST/WS dùng cùng quyền đọc |
 | messages | conversation_id/sequence/audience/sender_type/sender_id/content/citations/created_at | Đọc | Unique (conversation_id,sequence); chỉ CUSTOMER_VISIBLE sau transcript gate; sequence bigint ra DTO dạng string | Cao — không lộ INTERNAL/LEGACY_REVIEW/tool_calls_metadata cho Customer/Staff transcript |
 | insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
 | documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
@@ -137,7 +137,7 @@ sequenceDiagram
 
 - Handoff do Agent gợi ý và do Customer tự bấm đều có reason tóm tắt từ đúng mốc; proposal còn mới được tái dùng, stale phải chuẩn bị/review lại.
 - Chuẩn bị lỗi/timeout/restart hoặc callback lặp không tự pending, không tự tạo Ticket và không làm mất intent; đọc proposal không gọi model.
-- Pending chỉ lộ bản summary đã consent; nguồn ngoài owner/cuộc, Copilot và attempt cũ bị từ chối.
+- Pending hiển thị bản summary Customer duyệt. Transcript có quyền đọc riêng. Nguồn ngoài owner/cuộc, Copilot và attempt cũ bị từ chối.
 - Một RESULT có cả hai action: chỉ confirm Ticket thì chat giữ quyền cũ; chỉ confirm handoff thì không có Ticket; Cancel cả hai không có mutation nghiệp vụ.
 - Confirm rồi mất ACK/restart dùng cùng intent và snapshot; race tin mới/đổi assignment/Customer sửa dialog không dùng reason cũ hoặc response muộn.
 
@@ -209,7 +209,7 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 
 **P — kiểm tích hợp Agent/Core chưa chạy.** Từ cuộc Staff đang hỗ trợ, Customer chọn New AI chat qua luồng create hiện có. Kiểm retry tạo cuộc, refresh/reconnect, ID/thread/context, callback cuộc cũ và truy cập Staff.
 
-**Kết quả mong đợi.** Intent mới tạo conversation mới, retry cùng key trả cùng ID. Cuộc mới dùng thread/context riêng, không tự kế thừa summary/checkpoint/lịch sử hoặc grant cuộc cũ. Callback tới đúng conversation/run/attempt. Cuộc cũ theo trạng thái và allowedActions hiện hành. Staff chỉ đọc cuộc AI mới sau consent/Accept hợp lệ, Copilot/internal/raw tool metadata nằm ngoài context Customer.
+**Kết quả mong đợi.** Intent mới tạo conversation mới, retry cùng key trả cùng ID. Cuộc mới dùng thread/context riêng, không kế thừa summary/checkpoint/lịch sử hoặc quyền điều khiển của cuộc cũ. Callback tới đúng conversation/run/attempt. Quyền đọc của Staff theo phân công hiện hành trên cuộc mới. Copilot/internal/raw tool metadata nằm ngoài context Customer.
 
 ### CH02-T07 — FAILED không tự chạy lại lượt
 
