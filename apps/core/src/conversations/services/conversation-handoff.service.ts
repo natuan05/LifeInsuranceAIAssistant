@@ -1,4 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { AgentRunService } from '../../agent/services/agent-run.service';
 import { SafeApiException } from '../../http/safe-api.exception';
 import type { ConversationVersionCommandDto, RequestHandoffDto } from '../dto/conversation-entry.dto';
 import { ConversationAccessService } from './conversation-access.service';
@@ -13,11 +14,11 @@ import { ConversationMessageService } from './conversation-message.service';
 export class ConversationHandoffService {
   constructor(private readonly session: ConversationSessionService, private readonly commands: ConversationCommandService,
     private readonly access: ConversationAccessService, private readonly entry: ConversationEntryService, private readonly inbox: StaffInboxService,
-    private readonly messages: ConversationMessageService) {}
-  request(request: ConversationRequest, id: string, input: RequestHandoffDto) {
+    private readonly messages: ConversationMessageService, @Optional() private readonly agentRuns?: AgentRunService) {}
+  async request(request: ConversationRequest, id: string, input: RequestHandoffDto) {
     if (input.consent?.confirmed !== true || input.consent.scope !== 'ENTIRE_CUSTOMER_VISIBLE_CONVERSATION' ||
       input.consent.textVersion !== 'handoff-v1') throw new BadRequestException();
-    return this.session.write(request, 'CUSTOMER', 'HANDOFF', (tx, actorId) => this.commands.lock(tx, actorId, id), async (tx, actorId) => {
+    const out = await this.session.write(request, 'CUSTOMER', 'HANDOFF', (tx, actorId) => this.commands.lock(tx, actorId, id), async (tx, actorId) => {
       const receipt = await this.commands.execute(tx, actorId, 'REQUEST_HANDOFF', input.clientRequestId,
         { conversationId: id.toLowerCase(), expectedVersion: input.expectedVersion, expectedAssignmentVersion: input.expectedAssignmentVersion,
           sharedSubject: input.sharedSubject, sharedReason: input.sharedReason ?? '', consent: { confirmed: input.consent.confirmed,
@@ -34,6 +35,9 @@ export class ConversationHandoffService {
             consentTextVersion: input.consent.textVersion, confirmedByCustomerId: actorId } });
           const updated = await tx.conversation.update({ where: { id }, data: {
             status: 'PENDING_HANDOFF', assignedStaffId: null, controlVersion: { increment: 1 } } });
+          if (this.agentRuns) {
+            await this.agentRuns.fenceConversationInTx(tx, id, 'STAFF_TAKEOVER', true);
+          }
           await recordConversationCommand(tx, actorId, 'CUSTOMER', id, 'HANDOFF_REQUESTED', updated.controlVersion, request.requestId, evidence.id);
           return { resourceId: evidence.id, resultVersion: updated.controlVersion };
         });
@@ -42,6 +46,10 @@ export class ConversationHandoffService {
       const conversation = await tx.conversation.findUniqueOrThrow({ where: { id }, select: { id: true, status: true, controlVersion: true } });
       return { request: { id: evidence.id, state: evidence.state, requestedAt: evidence.confirmedAt.toISOString() }, conversation, replayed: receipt.replayed };
     });
+    if (this.agentRuns) {
+      void this.agentRuns.reconcileTick().catch(() => {});
+    }
+    return out;
   }
   accept(request: ConversationRequest, id: string, input: ConversationVersionCommandDto) {
     return this.session.write(request, 'STAFF', 'ACCEPT', (tx, actorId) => this.commands.lock(tx, actorId, id), async (tx, actorId) => {

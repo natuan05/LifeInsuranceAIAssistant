@@ -8,7 +8,7 @@ import { STATUS_CODES } from 'node:http';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { SafeApiException } from './safe-api.exception';
 
-type ApiRequest = IncomingMessage & { requestId?: string; route?: { path?: unknown } };
+type ApiRequest = IncomingMessage & { requestId?: string; rawBody?: Buffer; body?: unknown; _body?: boolean; route?: { path?: unknown } };
 
 // Deliberately contains no submitted value, validator target, or exception message.
 class InputValidationException extends HttpException {
@@ -63,6 +63,32 @@ export function configureHttp(app: INestApplication, config: { origins: string[]
         method: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'].includes(request.method ?? '') ? request.method : 'OTHER',
         statusCode: response.statusCode, durationMs: Math.round(performance.now() - started) }));
     });
+    if ((request.url ?? '').startsWith('/api/v1/internal/agent')) {
+      const chunks: Buffer[] = [];
+      let total = 0;
+      request.on('data', (chunk: Buffer | string) => {
+        const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        total += buf.length;
+        if (total <= 262144) chunks.push(buf);
+      });
+      request.on('end', () => {
+        const raw = Buffer.concat(chunks);
+        request.rawBody = raw;
+        request._body = true;
+        if (raw.length > 0) {
+          try {
+            request.body = JSON.parse(raw.toString('utf8'));
+          } catch {
+            request.body = undefined;
+          }
+        } else {
+          request.body = {};
+        }
+        next();
+      });
+      request.on('error', () => next());
+      return;
+    }
     next();
   });
   app.setGlobalPrefix('api/v1');

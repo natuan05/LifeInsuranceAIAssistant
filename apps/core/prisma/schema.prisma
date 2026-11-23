@@ -121,6 +121,26 @@ enum OutboxStatus {
   @@schema("business")
 }
 
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+
+  @@schema("business")
+}
+
+enum AgentAttemptState {
+  DISPATCHING
+  ACCEPTED
+  INVALIDATING
+  INVALIDATED
+  FINISHED
+
+  @@schema("business")
+}
+
 model User {
   notificationStates ConversationNotificationState[]
   id                        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -365,6 +385,7 @@ model Conversation {
   notifications        Notification[]
   directAssignment StaffAssignment? @relation("DirectAssignment", fields: [directAssignmentId, customerId], references: [id, customerId], onDelete: Restrict, onUpdate: NoAction)
   handoffs ConversationHandoff[]
+  agentRuns AgentRun[]
 
   @@unique([id, customerId])
   @@index([customerId, status, lastCustomerFacingActivityAt, id], map: "conversations_customer_id_status_last_customer_facing_activit_i")
@@ -389,6 +410,8 @@ model Message {
   createdAt         DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
   conversation      Conversation @relation(fields: [conversationId], references: [id], onDelete: Restrict)
   sender            User?        @relation(fields: [senderId], references: [id], onDelete: Restrict)
+  triggerRun        AgentRun?    @relation("TriggerMessage")
+  resultRuns        AgentRun[]   @relation("ResultMessage")
 
   @@index([conversationId, createdAt])
   @@index([conversationId, readAt])
@@ -576,5 +599,86 @@ model ConversationNotificationState {
   activeNotification Notification? @relation(fields: [activeNotificationId], references: [id], onDelete: SetNull)
   @@unique([recipientUserId, conversationId, kind])
   @@map("conversation_notification_states")
+  @@schema("business")
+}
+
+model AgentRun {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  conversationId    String         @map("conversation_id") @db.Uuid
+  messageId         String         @unique @map("message_id") @db.Uuid
+  queuePosition     BigInt         @map("queue_position")
+  status            AgentRunStatus @default(QUEUED)
+  currentAttemptId  String?        @map("current_attempt_id") @db.Uuid
+  historyView       Json?          @map("history_view") @db.JsonB
+  linkedHistoryView Json?          @map("linked_history_view") @db.JsonB
+  limits            Json           @db.JsonB
+  progressStage     String?        @map("progress_stage") @db.VarChar(20)
+  progressSequence  Int            @default(0) @map("progress_sequence")
+  result            Json?          @db.JsonB
+  failure           Json?          @db.JsonB
+  resultMessageId   String?        @map("result_message_id") @db.Uuid
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  startedAt         DateTime?      @map("started_at") @db.Timestamptz(3)
+  finishedAt        DateTime?      @map("finished_at") @db.Timestamptz(3)
+  conversation      Conversation   @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  message           Message        @relation("TriggerMessage", fields: [messageId], references: [id], onDelete: Restrict)
+  resultMessage     Message?       @relation("ResultMessage", fields: [resultMessageId], references: [id], onDelete: Restrict)
+  currentAttempt    AgentAttempt?  @relation("CurrentAttempt", fields: [currentAttemptId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  attempts          AgentAttempt[] @relation("RunAttempts")
+  events            AgentRunEvent[]
+
+  @@unique([conversationId, queuePosition])
+  @@map("agent_runs")
+  @@schema("business")
+}
+
+model AgentAttempt {
+  id                    String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  runId                 String            @map("run_id") @db.Uuid
+  attemptNo             Int               @map("attempt_no")
+  state                 AgentAttemptState @default(DISPATCHING)
+  request               Json              @db.JsonB
+  requestSha256         String            @map("request_sha256") @db.Char(64)
+  dispatchCount         Int               @default(0) @map("dispatch_count")
+  nextDispatchAt        DateTime          @default(now()) @map("next_dispatch_at") @db.Timestamptz(3)
+  acceptedAt            DateTime?         @map("accepted_at") @db.Timestamptz(3)
+  revocationReason      String?           @map("revocation_reason") @db.VarChar(30)
+  revocationRequestedAt DateTime?         @map("revocation_requested_at") @db.Timestamptz(3)
+  revokedAt             DateTime?         @map("revoked_at") @db.Timestamptz(3)
+  revokedEpoch          BigInt?           @map("revoked_epoch")
+  createdAt             DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  run                   AgentRun          @relation("RunAttempts", fields: [runId], references: [id], onDelete: Restrict)
+  currentFor            AgentRun[]        @relation("CurrentAttempt")
+  events                AgentRunEvent[]
+
+  @@unique([runId, attemptNo])
+  @@map("agent_attempts")
+  @@schema("business")
+}
+
+model AgentRunEvent {
+  eventId       String       @id @map("event_id") @db.Uuid
+  attemptId     String       @map("attempt_id") @db.Uuid
+  runId         String       @map("run_id") @db.Uuid
+  sequence      Int
+  kind          String       @db.VarChar(10)
+  payloadSha256 String       @map("payload_sha256") @db.Char(64)
+  decision      String       @db.VarChar(20)
+  receivedAt    DateTime     @default(now()) @map("received_at") @db.Timestamptz(3)
+  attempt       AgentAttempt @relation(fields: [attemptId], references: [id], onDelete: Restrict)
+  run           AgentRun     @relation(fields: [runId], references: [id], onDelete: Restrict)
+
+  @@unique([attemptId, sequence])
+  @@map("agent_run_events")
+  @@schema("business")
+}
+
+model AgentRequestNonce {
+  keyId      String   @map("key_id") @db.VarChar(64)
+  nonce      String   @db.VarChar(32)
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz(3)
+
+  @@id([keyId, nonce])
+  @@map("agent_request_nonces")
   @@schema("business")
 }
