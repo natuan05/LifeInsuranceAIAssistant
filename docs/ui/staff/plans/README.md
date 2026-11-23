@@ -23,7 +23,7 @@ Plans đã đủ làm đầu mối triển khai; không cần giữ bộ file m�
 | [05 Policies/PDF](05-policies-contract.md) | E — FR-008/UC-007/NFR-007 | [PL01 read/lookup](policies/01-read-lookup-api.md) → [PL02 access](policies/02-applied-documents-access.md) → [PL03 UI](policies/03-lookup-dossier-ui.md) → [PL04 lifecycle](policies/04-viewer-lifecycle.md) |
 | [06 Notifications](06-notifications-contract.md) | Handoff/Ticket E — FR-013; producer Ticket I07 còn P | [NO01 recipient/API](notifications/01-recipient-read-api.md) → [NO02 UI/realtime](notifications/02-center-realtime-ui.md); Ticket do TK05 |
 | [07 Tickets Staff](07-tickets-contract.md) | TK01–TK05 E — FR-010; read/Accept/status/UI/events | [TK01 scope/model](tickets/01-scope-model-contract.md) → [TK02 read](tickets/02-staff-read-api.md) → [TK03 accept](tickets/03-accept-command.md) → [TK04 UI](tickets/04-list-detail-ui.md) → [TK05 events](tickets/05-notification-events.md); [I07 hai luồng tạo Ticket](tickets/06-agent-confirmation.md): source có, còn review; nguồn Agent cần tích hợp |
-| [08 Copilot](08-copilot-contract.md) | P — FR-007/012, chờ Agent | [CP01 contract](copilot/01-task-context-contract.md) → [CP02 service](copilot/02-core-agent-service.md) → [CP03 panel](copilot/03-panel-citations.md) → [CP04 test code](copilot/04-agent-e2e.md) |
+| [08 Copilot](08-copilot-contract.md) | P — FR-007/012, nối App vào nền Core–Agent | [CP01 contract](copilot/01-task-context-contract.md) → [CP02 service](copilot/02-core-agent-service.md) → [CP03 panel](copilot/03-panel-citations.md) → [CP04 test code](copilot/04-agent-e2e.md) |
 
 ## 2. Baseline và phần tiếp theo
 
