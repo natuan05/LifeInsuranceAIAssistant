@@ -1,6 +1,6 @@
 # Tài liệu Đặc tả Yêu cầu Phần mềm (SRS - BHNT)
 
-> **Đồng bộ nghiệp vụ 06/11/2026:** Inbox All/Requests/Active không counts; assignment không cho Staff duyệt chat AI riêng. Direct hợp lệ hoặc Customer consent + Staff Accept mới cho Staff đọc toàn bộ lịch sử Customer-facing của chính cuộc; pending chỉ metadata. Handoff/Accept không tự tạo Ticket; Ticket không cấp quyền đọc chat. ConversationStatus không có CLOSED, TicketStatus.CLOSED giữ riêng. FR/UC trong bản repo bên dưới đã phản ánh các quyết định này; SRS online giữ nguyên. [Quyết định](../source-review.md#quyết-định-inbox-và-quyền-chat--03112026), [plans](../ui/staff/plans/README.md).
+> **Cập nhật nghiệp vụ 23/11/2026:** FR-006 quy định Staff đang phụ trách được xem toàn bộ lịch sử Customer-facing của cuộc chat và chủ động takeover khi AI đang hỗ trợ. Quyền mới và takeover đang ở mức thiết kế. [Quyết định](../source-review.md#quyết-định-staff-xem-chat-và-takeover--23112026) · [Đặc tả Inbox](../ui/staff/plans/inbox/00-inbox-spec.md).
 
 > **Hiện trạng application theo main 05/11/2026, đối chiếu 06/11:** Login/session/account, Staff profile/Customers/Policies/Products, chat hai đầu/handoff notifications và Customer Home/Products/Policies/PDF đã có. Staff Ticket read/Accept/UI/status/notification đã có TK01–TK05; I07 tạo Ticket từ đề xuất Agent và xác nhận Customer còn kế hoạch. Customer PATCH và Agent/Copilot chưa được nghiệm thu từ baseline này. Xem [checklist](../ui/implementation-status.md); không suy toàn FR/NFR hoàn tất từ bảng/route/mock.
 
@@ -61,7 +61,7 @@ Hệ thống tập trung vào các chức năng chính:
   - Đối với Customer đã đăng nhập: AI Agent đề xuất Ticket, tóm tắt hội thoại và chỉ yêu cầu Core Backend tạo Ticket sau xác nhận hợp lệ. Staff có thể tiếp quản theo quyền nghiệp vụ.
   - Xem lịch sử hội thoại và trạng thái Request/Ticket.
 - **Staff & Vận hành:**
-  - Quản lý, tra cứu khách hàng và Ticket theo quyền; chat với Customer trong cuộc Direct hợp lệ hoặc sau Customer consent + Staff Accept. Quyền Ticket và quyền transcript được kiểm riêng. *(Workflow giải quyết nghiệp vụ → hoàn tất → phản hồi Customer nằm ngoài phạm vi nghiệm thu này.)*
+  - Quản lý, tra cứu khách hàng và Ticket theo quyền. Xem lịch sử chat của Customer mình đang phụ trách và trao đổi trong cuộc Direct hoặc sau khi tiếp nhận quyền điều khiển bằng Accept hay Takeover. Quyền Ticket và quyền transcript được kiểm riêng.
   - Sử dụng AI Agent để tra cứu thông tin, Knowledge và tóm tắt ngữ cảnh khách hàng.
   - Hệ thống gửi thông báo khi có cuộc hội thoại hoặc Request cần Staff tiếp nhận.
 
@@ -90,8 +90,8 @@ Hệ thống tập trung vào các chức năng chính:
 | **FR-001** | Đăng nhập và quản lý phiên | Customer, Staff | Người dùng đăng nhập bằng tài khoản được cấp sẵn, sử dụng phiên và truy cập theo vai trò. Không có Customer tự đăng ký công khai trong MVP. Logout/hết phiên theo B ngày 14/11, phiên cũ bị chặn truy cập dữ liệu riêng, yêu cầu AI Core đã nhận tiếp tục theo quyền hiện hành và người dùng đăng nhập lại xem kết quả. | **Must** |
 | **FR-002** | Quản lý hồ sơ | Customer, Staff | Customer chỉ xem hồ sơ cá nhân theo quyết định 13/11/2026; Staff xem thông tin khách hàng được phụ trách. | **Must** |
 | **FR-003** | Quản lý khách hàng | Staff | Staff xem và tra cứu danh sách khách hàng được phụ trách. | **Must** |
-| **FR-005** | Chat với AI + Staff | Customer | Customer hỏi đáp và tra cứu bằng AI. Khi muốn chuyển cuộc AI sang Staff, Customer xác nhận chia sẻ lịch sử → Core lưu yêu cầu → Staff Accept; trước Accept chỉ chia sẻ metadata. Customer cũng có thể bắt đầu cuộc Direct hợp lệ. Handoff không tự tạo Ticket. Sau hỗ trợ Staff, Customer chủ động tạo chat AI mới với context riêng, cuộc cũ theo quyền/trạng thái hiện hành. | **Must** |
-| **FR-006** | Chat với Customer | Staff | Staff tiếp nhận cuộc Direct hợp lệ hoặc yêu cầu handoff đã có Customer consent và Staff Accept; sau Accept được đọc toàn bộ lịch sử Customer-facing của chính cuộc và chat tiếp. Assignment hoặc Ticket đơn lẻ không cấp quyền transcript; không chủ động giành quyền chat AI riêng. | **Must** |
+| **FR-005** | Chat với AI + Staff | Customer | Customer hỏi đáp và tra cứu bằng AI, bắt đầu cuộc Direct hoặc xác nhận gửi yêu cầu để Staff Accept. Khi Staff Accept hoặc chủ động Takeover, Customer tiếp tục chat với Staff trong cùng cuộc. Muốn hỏi AI tiếp, Customer chủ động tạo cuộc mới với context riêng. Tạo Ticket có xác nhận riêng. | **Must** |
+| **FR-006** | Chat với Customer | Staff | Staff đang được phân công xem toàn bộ lịch sử Customer-facing từ đầu của chính cuộc chat đủ điều kiện, kể cả khi Agent đang xử lý hoặc yêu cầu hỗ trợ đang chờ Accept. Staff chủ động Takeover cuộc AI hoặc Accept yêu cầu Customer gửi. Core chuyển quyền trả lời sang Staff và chặn kết quả AI đến muộn. Direct giữ luồng gửi hợp lệ hiện có. | **Must** |
 | **FR-007** | Chat với AI | Staff | Copilot nội bộ hỗ trợ tra cứu, giải thích và tóm tắt từ cuộc chat Staff có quyền đọc; kết quả tách khỏi chat Customer. MVP không soạn nháp câu trả lời hoặc có Use draft. Theo B ngày 14/11, Staff xem hợp đồng bằng Policy Lookup và nêu/làm rõ hợp đồng trong câu hỏi, Copilot hỏi lại khi mơ hồ. | **Must** |
 | **FR-008** | Tra cứu thông tin bảo hiểm thủ công | Customer, Staff | Hỗ trợ tra cứu sản phẩm, quyền lợi, điều khoản, hợp đồng và các thông tin liên quan (giấy tờ, pdf). | **Must** |
 | **FR-009** | Tạo Ticket hỗ trợ | Customer, AI Agent | Customer tạo thủ công hoặc xem/sửa/xác nhận draft Agent; Core kiểm quyền/chống trùng và tạo SupportTicket OPEN + outbox; Staff tiếp nhận theo quyền. | **Must** |
@@ -179,7 +179,7 @@ flowchart LR
 | **Tiền điều kiện** | Customer đã truy cập hệ thống và có thể sử dụng Customer AI Agent. |
 | **Hậu điều kiện** | Customer nhận được câu trả lời dựa trên thông tin được truy xuất từ nguồn phù hợp; nội dung hội thoại được lưu lại để duy trì ngữ cảnh cho các lượt trao đổi tiếp theo. |
 | **Luồng chính** | 1. Customer gửi câu hỏi hoặc yêu cầu.<br>2. AI Agent phân tích câu hỏi, yêu cầu, ngữ cảnh hội thoại và xác định ý định, mục đích của Customer.<br>3. AI Agent quyết định cách xử lý yêu cầu, xác định câu hỏi có thể được giải đáp từ Enterprise Knowledge hay cần truy xuất dữ liệu nghiệp vụ.<br>4. AI Agent lựa chọn và sử dụng nguồn thông tin hoặc công cụ phù hợp để thu thập dữ liệu cần thiết.<br>5. AI Agent kiểm tra kết quả truy xuất và sử dụng thông tin thu được để xây dựng câu trả lời.<br>6. AI Agent trả lời Customer và duy trì ngữ cảnh để xử lý các câu hỏi tiếp theo. |
-| **Ngoại lệ** | • **Không tìm thấy thông tin đáng tin cậy:** Agent nêu giới hạn, có thể đề xuất Staff hoặc Ticket theo nhu cầu.<br>• **Không có quyền truy cập:** từ chối truy xuất dữ liệu.<br>• **Cần Staff:** Customer xác nhận chia sẻ cuộc chat, Staff Accept theo FR-005/006; nếu cần ghi nhận Ticket thì theo UC-005 riêng.<br>• **Nguồn/công cụ lỗi:** nêu phần không thể xác minh, không đoán hoặc báo nghiệp vụ thành công. |
+| **Ngoại lệ** | • **Không tìm thấy thông tin đáng tin cậy:** Agent nêu giới hạn, có thể đề xuất Staff hoặc Ticket theo nhu cầu.<br>• **Không có quyền truy cập:** từ chối truy xuất dữ liệu.<br>• **Cần Staff:** Customer gửi yêu cầu để Staff Accept, hoặc Staff phụ trách chủ động Takeover theo FR-006. Tạo Ticket theo UC-005 riêng.<br>• **Nguồn/công cụ lỗi:** nêu phần không thể xác minh, không đoán hoặc báo nghiệp vụ thành công. |
 
 ---
 
@@ -208,7 +208,7 @@ flowchart LR
 | **Tên** | Staff chat với Agent |
 | **Actor** | Staff |
 | **Mô tả** | Staff tương tác với AI Agent để tra cứu thông tin dựa trên context đoạn chat với khách hàng, mã hợp đồng cụ thể, tìm kiếm kiến thức nghiệp vụ. |
-| **Tiền điều kiện** | Staff đã đăng nhập, có phân công và quyền transcript hiện hành của cuộc Direct/đã Accept được liên kết; pending hoặc chat AI riêng không đủ quyền. |
+| **Tiền điều kiện** | Staff đã đăng nhập, có phân công và đủ quyền sử dụng cuộc liên kết làm nguồn Copilot theo CP01. Việc mở rộng quyền xem transcript trong FR-006 không tự mở rộng quyền nguồn Copilot. |
 | **Hậu điều kiện** | Staff nhận được thông tin phù hợp với yêu cầu, kèm theo dữ liệu được truy xuất từ các nguồn mà Staff có quyền truy cập. |
 | **Luồng chính** | 1. Staff gửi câu hỏi tra cứu, giải thích hoặc tóm tắt.<br>2. Core kiểm quyền và cố định mốc chat nguồn lúc nhận câu hỏi; retry/resume dùng cùng mốc.<br>3. Agent lấy lịch sử được phép và chọn tool trong giới hạn; Core kiểm quyền mỗi lời gọi.<br>4. Agent tổng hợp bằng chứng đúng tài liệu/phiên bản. Tóm tắt mặc định diễn biến gần, yêu cầu từ đầu thì mở phạm vi trong cùng cuộc được phép.<br>5. Core kiểm và lưu kết quả nội bộ; không đưa vào chat Customer, không soạn nháp hoặc có Use draft. Tin nguồn sau mốc được lấy ở câu hỏi Staff tiếp theo. |
 | **Ngoại lệ** | • **Không tìm thấy dữ liệu cần thiết:** AI Agent thông báo nguồn dữ liệu không đáp ứng yêu cầu thay vì tự suy đoán.<br>• **Một công cụ không khả dụng:** AI Agent thông báo phần thông tin không thể truy xuất và chỉ trả về những thông tin đã xác thực. |

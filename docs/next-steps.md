@@ -52,7 +52,7 @@ Lịch sử chat Core trong MVP đã chốt A ngày 14/11, giữ để xem lại
 
 Quyết định 14/11/2026 dùng New AI chat sau hỗ trợ Staff. Create/receipt và nút Web đã có, còn kiểm tích hợp Agent/Core với context/thread riêng và callback đúng cuộc. Cuộc cũ đọc/gửi theo trạng thái/grant hiện hành. CH01-T05, CH02-T05/T06 và I03-T06 theo dõi hồi quy, dừng nhắn không cần trạng thái Close hoặc command kết thúc. [Nghiệp vụ chuẩn](specifications/Agent_Design.md#new-ai-chat-after-staff).
 
-Bản thử cũ đã được thay bởi [I01–I06](ui/staff/plans/03-inbox-contract.md). Assignment không cho xem chat AI riêng; pending chỉ metadata; Customer consent + Staff Accept mới mở toàn bộ lịch sử Customer-facing của chính cuộc. Handoff/Direct/Ticket là các nghiệp vụ riêng; Ticket không tạo transcript grant. Copilot dùng thread riêng và source view cố định theo từng câu hỏi Staff.
+Bước Inbox tiếp theo là triển khai [quyền đọc theo phân công và Takeover](ui/staff/plans/03-inbox-contract.md#6-kế-hoạch-mở-rộng-quyền-đọc-và-takeover--p). I01–I06 hiện dùng gate Direct hoặc Customer request + Accept. Kiểm luồng Staff xem lịch sử khi AI đang chạy, đua chuyển quyền và callback muộn với Core/Agent thật.
 
 <a id="kế-hoạch-hôm-nay--03112026"></a>
 ## Các mốc nền đã hoàn tất

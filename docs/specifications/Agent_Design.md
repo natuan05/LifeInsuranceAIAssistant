@@ -319,7 +319,7 @@ Customer chủ động chọn New AI chat để tạo conversation mới qua lu�
 
 - Ý định tạo mới dùng clientRequestId mới; retry cùng intent giữ key và đối soát receipt để nhận cùng conversation. GET/list/read/reload không tự tạo cuộc hoặc run.
 - Agent ánh xạ thread từ conversation mới (`conv:<conversation_id>`), context độc lập; không tự sao chép history/summary/checkpoint của cuộc Staff cũ. Run/attempt/message/callback luôn gắn đúng cuộc; callback cuộc cũ không được ghi sang cuộc mới.
-- Cuộc cũ giữ lịch sử theo [chính sách Core](../configuration-and-data.md#mvp-chat-history-retention); đọc/gửi theo allowedActions và owner/grant hiện hành. Staff không kế thừa transcript grant của cuộc cũ sang cuộc AI mới; phải qua consent/Accept hợp lệ của cuộc mới. Copilot/internal/tool trace không trở thành context Customer.
+- Cuộc cũ giữ lịch sử theo [chính sách Core](../configuration-and-data.md#mvp-chat-history-retention). Core kiểm quyền đọc và điều khiển cho từng cuộc. Theo thiết kế 23/11, Staff được đọc cuộc AI mới theo phân công hiện hành; quyền điều khiển của cuộc cũ không chuyển sang cuộc mới. Copilot/internal/tool trace nằm ngoài context Customer. [Đặc tả Inbox](../ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái)
 
 UI New AI chat và Core create/receipt đã có source; tích hợp Agent/context isolation còn P. CH01-T05, I03-T06 và CH02/CH03 kiểm create/replay/timeout/reload, thread/context và callback/grant độc lập; có policy không đồng nghĩa các ca đã nghiệm thu toàn luồng.
 

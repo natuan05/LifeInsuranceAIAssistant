@@ -223,6 +223,8 @@ Yêu cầu hai điểm bắt đầu (Customer chủ động hoặc đồng ý g�
 
 ## Quyết định Inbox và quyền chat — 03/11/2026
 
+Mốc lịch sử. Các điểm về quyền đọc và takeover đã được thay bằng [quyết định 23/11](#quyết-định-staff-xem-chat-và-takeover--23112026).
+
 Người dùng đã xác nhận:
 
 1. Staff chỉ đọc chat Direct Customer gửi hợp lệ, hoặc cuộc AI đã được Customer đồng ý chuyển và Staff Accept thành công. Active assignment là điều kiện cần, không là quyền duyệt mọi chat AI của khách; không proactive takeover chat AI riêng.
@@ -234,6 +236,19 @@ Người dùng đã xác nhận:
 Đây là thay đổi/làm rõ nghiệp vụ local so với cách gộp handoff/Ticket và takeover chủ động trong một số đoạn SRS/menu cũ. Prisma và ERD/từ điển local đã cập nhật enum chat bằng migration mới; snapshot nguồn khác giữ để truy vết, Google Docs/ADR bên ngoài không chỉnh. I01–I06 đã có consent/Accept, read/entry/history/send/UI hai đầu và realtime/handoff notifications local (04/11). Không cấp quyền theo LLM hoặc state client; phần Agent do nhánh phụ trách riêng.
 
 Đã đồng bộ [spec chính](ui/staff/plans/inbox/00-inbox-spec.md), [chia phần trước triển khai](ui/staff/plans/03-inbox-contract.md), Customer chat/Ticket/notification và API map/routes. Đã viết [bảy phase triển khai](ui/staff/plans/03-inbox-contract.md) có API/luồng/test/vị trí code; I01 model/gate/legacy/receipt/sequence đã có code và tests từ 04/11; I02 read groups/lazy/request metadata đã triển khai 04/11; I03 entry/consent/Accept/transcript đã triển khai/kiểm chứng; I04/I05 UI Staff/Customer và send đã triển khai/kiểm chứng. I06 realtime/notification handoff và SYSTEM sau Accept đã triển khai/kiểm chứng local 04/11; I07/C01 Copilot chưa thành code, không phê duyệt ADR Agent/cloud từ việc có nền I01. Routing/reassignment/Agent pending/audience/cursor/receipt/queue còn cần contract chi tiết.
+
+## Quyết định Staff xem chat và takeover — 23/11/2026
+
+Người dùng xác nhận Staff phụ trách Customer được xem toàn bộ lịch sử Customer-facing của cuộc chat, kể cả khi Agent đang xử lý. Staff có thể chủ động takeover cuộc AI đang mở mà không cần chờ yêu cầu chuyển giao từ Customer.
+
+- Core kiểm phiên, phân công hiện hành, loại hội thoại và audience ở mỗi lần truy cập. Lịch sử trong phạm vi quyền bắt đầu từ tin đầu tiên của chính cuộc chat và chỉ gồm nội dung đã hiển thị cho Customer.
+- Quyền đọc và quyền điều khiển được kiểm riêng. Takeover chuyển quyền trả lời sang Staff trong cùng cuộc chat. Yêu cầu Customer chuyển Staff vẫn có luồng Request → Accept.
+- Khi đổi Staff phụ trách sau khi cuộc chat đã chuyển sang Staff, cuộc chat chờ Staff mới tiếp quản. Staff cũ mất quyền đọc/gửi, Staff mới xem toàn bộ lịch sử theo phân công mới và phải bấm Takeover để trả lời. Agent vẫn dừng.
+- Mỗi Customer có tối đa một Staff phụ trách tại một thời điểm. Khi Customer xác nhận yêu cầu hỗ trợ, UI báo trước yêu cầu đang chờ sẽ đi theo phân công hiện hành. Nếu đổi Staff trước Accept, Core chuyển yêu cầu sang Staff mới, thông báo Customer và giữ Agent dừng. Staff mới dùng Accept.
+- Trong lúc chờ Staff mới tiếp quản, Customer vẫn đọc lịch sử và tạm thời không gửi được tin. Core mở lại quyền gửi khi Takeover thành công.
+- Customer nhận thông báo trong ứng dụng khi đổi Staff của cuộc đã được tiếp quản. Khi Staff mới Takeover thành công, Customer thấy tin hệ thống xác nhận trong cùng cuộc. Staff mở xem cuộc AI_ACTIVE giữ nguyên trạng thái AI phía Customer và không phát thông báo chuyển giao.
+- Staff chỉ xem lịch sử trước khi có quyền trả lời; việc mở transcript lúc này không đánh dấu tin nhắn là đã đọc. Dấu Đã đọc được cập nhật khi Staff mở cuộc với quyền trả lời hiện hành.
+- Quyết định thay gate đọc theo consent/Accept ở mốc 03/11. [Đặc tả Inbox và takeover](ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái) là thiết kế đích; code hiện tại vẫn theo gate cũ.
 
 ## Hướng hợp đồng và PDF được người dùng xác nhận — 31/10/2026
 

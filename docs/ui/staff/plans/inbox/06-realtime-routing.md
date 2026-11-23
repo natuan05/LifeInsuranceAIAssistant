@@ -1,5 +1,7 @@
 # I06 — Realtime, outbox, thông báo handoff và thu hồi quyền
 
+Recipient và test phía dưới ghi baseline I06. Mở rộng event routing theo quyền đọc AI_ACTIVE/PENDING_HANDOFF và sự kiện Takeover còn P. [Thiết kế 23/11](00-inbox-spec.md#7-realtimecatch-up-để-chat-thực-sự)
+
 Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026 — local một Core process** · [Chung](../03-inbox-contract.md) · Trước: [I01](01-model-permissions.md)–[I05](05-messaging-customer.md) · Tiếp: [I07](../tickets/06-agent-confirmation.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026

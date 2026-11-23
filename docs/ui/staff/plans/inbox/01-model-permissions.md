@@ -1,5 +1,7 @@
 # I01 — Model, quyền và migration Inbox
 
+Phần dưới mô tả schema và quyền của baseline I01. Đích quyền đọc và điều khiển mới xem [thiết kế 23/11](00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái). Thay đổi schema và policy còn P.
+
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I01** · [Chỉ mục/contract chung](../03-inbox-contract.md) · [Nghiệp vụ](00-inbox-spec.md) · Tiếp: [I02](02-inbox-read-api.md).
 
 ## Data model và phạm vi ảnh hưởng

@@ -92,7 +92,7 @@ Không nhận query. Response:
 | allowedActions.accept | status===ASSIGNED, chỉ capability cho TK03, mutation endpoint thuộc TK03 |
 | chatLink | null nếu không cùng Customer/không qua I01; không lộ conversationId ngoài field này |
 
-chatLink hợp lệ gồm conversationId/capability/href. Pending handoff chỉ REQUEST_METADATA, href /staff/inbox/:id?filter=requests; Direct/đã Accept là TRANSCRIPT, filter=active. AI riêng/Copilot không được lộ link dù Ticket gắn conversationId. Khi mở chat, API hội thoại kiểm lại gate; Ticket không tạo grant.
+Baseline chatLink gồm conversationId/capability/href: pending dùng REQUEST_METADATA, Direct/đã Accept dùng TRANSCRIPT. Khi triển khai quyền đọc theo phân công, projection chatLink và deep link phải theo cùng policy Inbox. Ticket chỉ dẫn đường, Core kiểm quyền độc lập khi mở cuộc. [Đặc tả Inbox](../inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái)
 
 ### Session, snapshot, lỗi, quota
 

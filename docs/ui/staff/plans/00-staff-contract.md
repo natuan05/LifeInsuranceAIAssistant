@@ -18,7 +18,7 @@ Requirement FR-001/002/003/006/007/008/010/011/012/013, NFR-001–008; [SRS](../
 | StaffAssignment/CustomerProfile | Active assignment để đọc hồ sơ/policy; không đủ để đọc AI chat riêng |
 | InsurancePolicy/InsuranceProduct | Hợp đồng theo khách; sản phẩm inactive không ẩn policy lịch sử; financials/null/date-only theo DTO |
 | Document/DocumentVersion | PUBLIC/PRIVATE_POLICY; product current published version khác policy exact applied version; không PRIVATE_CUSTOMER/Document.kind |
-| Conversation/ConversationHandoff/Message (consent/acceptance trong handoff) | AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; Direct hợp lệ hoặc consent+Accept mới transcript, sau Accept toàn lịch sử Customer-facing |
+| Conversation/ConversationHandoff/Message (consent/acceptance trong handoff) | AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Runtime mở transcript qua Direct hoặc Accept. Quyền đọc theo phân công và Takeover còn P |
 | SupportTicket | TicketStatus giữ OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED; không chat Closed. TK01 version/policy nội bộ đã có; confirmed snapshot I07 còn P |
 | Notification/OutboxEvent | Recipient Staff hoặc Customer theo sự kiện và scope, dedup/retry/outbox sau commit. Message.readAt cập nhật qua REST, WS chỉ invalidation, DTO/event/read-cycle còn theo N01/N02 |
 

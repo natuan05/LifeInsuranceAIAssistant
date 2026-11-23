@@ -1,5 +1,7 @@
 # I04 — Giao diện Inbox Staff, accordion và chat cuộn
 
+Phần dưới ghi giao diện baseline I04. Thiết kế 23/11 thêm cuộc AI_ACTIVE vào All, cho đọc transcript khi chờ Accept hoặc Takeover và bật composer theo quyền điều khiển đã commit. [Đặc tả](00-inbox-spec.md#35-chat-và-requests-ở-vùng-chính)
+
 Ngày 03/11/2026 · **Đã triển khai/kiểm chứng 04/11/2026** · [Chung](../03-inbox-contract.md) · Trước: [I02](02-inbox-read-api.md), [I03](03-handoff-transcript.md) · Tiếp: [I05](05-messaging-customer.md).
 
 **Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
