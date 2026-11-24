@@ -20,7 +20,7 @@ Schema chỉ kiểm **dạng**. Việc ID thuộc đúng nguồn, quyền hiện
 - **ID:** UUID cho mọi ID do Core/Agent cấp; `evidence_id`, `operation_id` là chuỗi ngắn trong phạm vi một tin nhắn. ID chỉ để liên kết/đối soát, không cấp quyền.
 - **Cursor:** chuỗi opaque do Core cấp, cùng dạng cursor Core hiện có (base64url, tối đa 2731 ký tự). Agent và Web không giải mã cursor.
 - **Vị trí lịch sử:** `position` là số thứ tự xử lý của Core dạng chuỗi thập phân (an toàn cho BigInt).
-- **Văn bản:** `SafeText` cấm ký tự điều khiển trừ tab/xuống dòng. Giới hạn: tin người dùng 4.000; câu trả lời 8.000; query 1.000; nội dung bằng chứng 8.000; mục tóm tắt Ticket 500–1.000.
+- **Văn bản:** `SafeText` cấm ký tự điều khiển trừ tab/xuống dòng. Khi chuyển tin đã lưu sang Agent, Core chuyển ngắt trang/dòng dọc thành xuống dòng và ký tự điều khiển còn lại thành dấu cách. Nội dung hiển thị trong chat giữ theo dữ liệu gốc. Giới hạn: tin người dùng 4.000; câu trả lời 8.000; query 1.000; nội dung bằng chứng 8.000; mục tóm tắt Ticket 500–1.000.
 - **Phiên bản:** wire `schema_version = "agent-v1"`; state checkpoint `state_schema_version = "agent-state-v1"` kèm `graph_version`. Đổi không tương thích thì tăng phiên bản, không sửa nghĩa trường cũ.
 
 ### Đổi tên so với kế hoạch
@@ -69,7 +69,7 @@ Mở rộng module `apps/core/src/conversations` và API Web hiện có; không 
 | Gửi tin | Giữ `clientMessageId` (đã có trong `SendMessageDto`), `expectedVersion`, `content` và route role-specific `/conversations/:id/messages`. Không đổi tên key gửi tin thành `clientRequestId` |
 | Fence và ACK | Giữ `controlVersion`/capabilities, envelope message/replayed và lookup bằng key cũ; phần Agent bổ sung run liên kết. Với tin cần AI, tin + run + dispatch intent phải được lưu nguyên tử trước ACK; lỗi gửi HTTP sau commit được reconcile, không tạo trùng tin/run |
 | Discovery/history | Mở rộng list/detail/history hiện có với `currentRun` và projection kết quả/lỗi `AGENT_RESULT`/`RUN_OUTCOME`; giữ message sequence/cursor/REST envelope hiện tại, không trộn progress thành chat message. DTO bổ sung cụ thể còn P; reload/GET không tạo run |
-| Staff Copilot | API dự kiến dưới module conversations theo CP01. Nguồn là chat Customer Support đang mở ở Staff Inbox. Core kiểm quyền transcript và ánh xạ sang hội thoại STAFF_COPILOT đúng Staff/Customer. Tái dùng cùng run/attempt/event lifecycle, không tạo task store hoặc chat history độc lập thứ hai; không append vào transcript Customer |
+| Staff Copilot | A24/A25 dưới module conversations theo CP01. Nguồn là chat Customer Support đang mở ở Staff Inbox. Core kiểm quyền transcript và ánh xạ sang hội thoại STAFF_COPILOT đúng Staff/Customer. Tái dùng cùng run/attempt/event lifecycle, không tạo task store hoặc chat history độc lập thứ hai; không append vào transcript Customer |
 | Core → Agent | Adapter dựng `RunRequest` snake_case từ dữ liệu Core tin cậy; Core cấp run/attempt/message/conversation IDs và quyền, browser không gửi RunRequest hoặc tự chọn role/audience |
 
 Module mới `apps/core/src/agent/` chỉ sở hữu run/attempt/event, dispatcher/reconcile, HMAC và API nội bộ cho Agent. Public create/list/detail/messages/history/Copilot ở module conversations, gọi service Agent trong transaction phù hợp. `GET /agent-runs/:id` trong plan cũ không phải API mới bắt buộc; discovery qua conversation là đường chuẩn, lookup bổ sung chỉ review nếu cần cụ thể. DDL, request/response bổ sung và kiểm tích hợp còn P; chọn cách tổ chức không tự nghiệm thu G1/G2/G3.
@@ -107,6 +107,8 @@ LLM chỉ chọn **một** `ToolDecision {tool, arguments}` mỗi vòng, đúng 
 Copilot chọn hợp đồng theo [câu hỏi/lịch sử Staff](../docs/specifications/Agent_Design.md#copilot-policy-selection), không theo selector hoặc linkedPolicyId update API. Số hợp đồng rõ cho phép gọi tool ngay sau kiểm quyền; mơ hồ hỏi lại, không tự đổi Customer mục tiêu. Tích hợp còn P.
 
 **Scope (`DocumentScope`)** do Core trả cho adapter: `GRANTED` kèm cặp document/version (Private có `policy_id` để kiểm chéo, `scope_version`, `expires_at`) hoặc `DENIED`. Scope hợp lệ rỗng là `GRANTED` với `documents=[]`. Timeout/lỗi Core là lỗi giao tiếp, không phải một scope.
+
+Core trả `DENIED / ATTEMPT_INVALID` khi lượt hết hiệu lực hoặc mất quyền đọc ngữ cảnh. Agent dừng lượt trước lần gọi model tiếp theo. `DENIED / NOT_AUTHORIZED` áp dụng khi lượt còn quyền đọc ngữ cảnh nhưng hợp đồng được hỏi nằm ngoài phạm vi.
 
 | Tình huống | `RetrievalResult.status` | `error.code` | Agent xử lý |
 | --- | --- | --- | --- |
@@ -190,7 +192,8 @@ Chỉ pending `ASKED` được dùng để hiểu “cái thứ hai”; pending 
 
 - **`HistoryView` của hội thoại:** Core cấp `through_cursor` phủ mọi mục Core đã xử lý trước tin hiện tại theo thứ tự xử lý (`position`), gồm cả kết quả/lỗi lượt trước được Core chấp nhận sau khi tin hiện tại đã vào hàng đợi. Không cắt theo `createdAt`; không chứa tin xếp sau. `through_cursor = null` nghĩa là chưa có lịch sử trước đó.
 - **Lượt trước lỗi:** xuất hiện dưới dạng `RUN_OUTCOME` (mã đã lọc) tách khỏi tin của khách; không giả thành kết quả nghiệp vụ.
-- **`LinkedHistoryView` của Copilot:** Core lưu cùng run lúc nhận câu hỏi Staff. Mọi trang và mọi retry/resume của run đó dùng cùng view; tin nguồn commit sau mốc vào lượt Staff kế tiếp. Mỗi lần đọc Core vẫn kiểm quyền hiện hành, nên view cũ không giữ quyền đã bị thu hồi.
+- **`LinkedHistoryView` của Copilot:** Core lưu cùng run lúc nhận câu hỏi Staff. Mốc mới `m1_<sequence>` dựa trên tin Customer-facing đã commit trong chat nguồn. API trả các mục `SOURCE_MESSAGE` theo thứ tự thực tế, gồm tin Customer, Staff, AI và SYSTEM thuộc audience Customer-facing. Mọi trang và retry/resume dùng cùng mốc. Core kiểm lại quyền mỗi lần đọc. Mốc `p...` của lượt cũ giữ cách đánh số và dựng mục lịch sử theo định dạng cũ. Khi chuyển định dạng, Agent đồng bộ lại cache nguồn theo mốc của lượt.
+- **Phân trang wire:** mỗi trang lịch sử có tối đa 100 mục và tối đa 1 MiB JSON UTF-8. `/linked-history` mặc định đọc tiếp sau `cursor` và trả `nextCursor`. Với `direction=backward`, lần đọc đầu lấy các tin cuối đến mốc đã lưu. Phản hồi trả `previousCursor` để đọc các tin đứng trước, các mục trong mỗi trang vẫn theo thứ tự tăng. API hỗ trợ cả `p...` và `m1_...` theo định dạng mốc của lượt.
 - **Phiên bản:** checkpoint ghi `state_schema_version` + `graph_version`. Không tương thích thì dựng lại context từ lịch sử Core, không chạy lại nghiệp vụ.
 
 ## 10. Lỗi kỹ thuật của lượt

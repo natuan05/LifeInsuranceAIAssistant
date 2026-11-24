@@ -340,6 +340,28 @@ def ctx():
     return execution_context(run_request("ctx", "?"))
 
 
+def test_core_linked_history_signs_backward_cursor_and_rejects_a_forward_response():
+    ring = keyring("a2c-1")
+    page = {"items": [], "previousCursor": None}
+    server = CoreHttpDouble(ring, {"/linked-history": lambda _: (200, page)})
+    try:
+        client = HttpCoreClient(server.base, ring)
+        context = ctx()
+        view = context["history_view"]
+        assert client.linked_history(context, view, "m1_101", timeout=2, backward=True) == page
+        run = f"/api/v1/internal/agent/runs/{context['run_id']}"
+        assert server.seen[-1] == ("GET", f"{run}/linked-history", {
+            "attemptId": context["attempt_id"], "direction": "backward", "cursor": "m1_101",
+        }, None)
+        server.answers["/linked-history"] = lambda _: (200, {"items": [], "nextCursor": None})
+        with pytest.raises(CoreError) as error:
+            client.linked_history(context, view, None, timeout=2, backward=True)
+        assert error.value.code == "UNAVAILABLE"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
 def test_core_reads_use_the_plan_paths_are_signed_and_map_errors():
     ring = keyring("a2c-1")
     page = {"items": [], "nextCursor": None}

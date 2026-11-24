@@ -27,7 +27,18 @@ function conversationTestProviders(core) {
 }
 async function createConversationTestApp(core, options = {}) {
   class TestModule {}
-  Module({ controllers, providers: [...conversationTestProviders(core), ...(options.realtime ? [require('../../dist/realtime/realtime.service').RealtimeService] : [])] })(TestModule);
+  const copilot = options.copilot ? {
+    controllers: [require(folder + 'controllers/staff-copilot.controller').StaffCopilotController],
+    providers: [
+      require(folder + 'services/staff-copilot.service').StaffCopilotService,
+      require('../../dist/agent/services/agent-access.service').AgentAccessService,
+      require('../../dist/agent/services/agent-run.service').AgentRunService,
+      { provide: require('../../dist/agent/services/agent-transport.service').AgentTransportService,
+        useValue: options.copilot },
+    ],
+  } : { controllers: [], providers: [] };
+  Module({ controllers: [...controllers, ...copilot.controllers], providers: [...conversationTestProviders(core), ...copilot.providers,
+    ...(options.realtime ? [require('../../dist/realtime/realtime.service').RealtimeService] : [])] })(TestModule);
   const app = await NestFactory.create(TestModule, { logger: false });
   configureHttp(app, { origins: ['http://localhost:8080'], docsEnabled: true });
   await app.listen(0, '127.0.0.1');

@@ -489,6 +489,19 @@
         {
           "type": "object",
           "properties": {
+            "kind": { "const": "SOURCE_MESSAGE" },
+            "position": { "$ref": "#/$defs/HistoryPosition" },
+            "messageId": { "$ref": "#/$defs/Uuid" },
+            "senderType": { "enum": ["CUSTOMER", "STAFF", "AI_AGENT", "SYSTEM"] },
+            "content": { "type": "string", "$ref": "#/$defs/SafeText", "minLength": 1, "maxLength": 12000 },
+            "createdAt": { "$ref": "#/$defs/Timestamp" }
+          },
+          "required": ["kind", "position", "messageId", "senderType", "content", "createdAt"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
             "kind": {
               "const": "USER_MESSAGE"
             },
@@ -634,6 +647,16 @@
         "items",
         "nextCursor"
       ],
+      "additionalProperties": false
+    },
+    "LinkedHistoryBackwardPage": {
+      "description": "Linked source items in ascending display order. previousCursor requests items strictly before the first returned position.",
+      "type": "object",
+      "properties": {
+        "items": { "$ref": "#/$defs/ConversationHistoryPage/properties/items" },
+        "previousCursor": { "$ref": "#/$defs/ConversationHistoryPage/properties/nextCursor" }
+      },
+      "required": ["items", "previousCursor"],
       "additionalProperties": false
     },
     "HistoryView": {

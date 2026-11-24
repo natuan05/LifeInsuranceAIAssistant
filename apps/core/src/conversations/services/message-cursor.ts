@@ -1,13 +1,14 @@
 import { createHash } from 'node:crypto';
 import { SafeApiException } from '../../http/safe-api.exception';
 import type { ConversationRole } from './conversation-session.service';
-function scope(actor: string, id: string, role: ConversationRole, direction: 'before' | 'after') {
+type CursorScope = ConversationRole | 'STAFF_COPILOT';
+function scope(actor: string, id: string, role: CursorScope, direction: 'before' | 'after') {
   return createHash('sha256').update(JSON.stringify([actor.toLowerCase(), id.toLowerCase(), role, direction])).digest('hex');
 }
-export function encodeMessageCursor(actor: string, id: string, role: ConversationRole, direction: 'before' | 'after', sequence: bigint) {
+export function encodeMessageCursor(actor: string, id: string, role: CursorScope, direction: 'before' | 'after', sequence: bigint) {
   return Buffer.from(JSON.stringify({ v: 1, scope: scope(actor, id, role, direction), seq: sequence.toString() })).toString('base64url');
 }
-export function decodeMessageCursor(encoded: string, actor: string, id: string, role: ConversationRole, direction: 'before' | 'after') {
+export function decodeMessageCursor(encoded: string, actor: string, id: string, role: CursorScope, direction: 'before' | 'after') {
   try {
     if (!/^[A-Za-z0-9_-]+$/.test(encoded) || encoded.length > 2731) throw new Error();
     const bytes = Buffer.from(encoded, 'base64url');

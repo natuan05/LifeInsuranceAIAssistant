@@ -9,6 +9,9 @@ import { realtimeEvent } from '@/lib/realtime';
 import { ConversationTranscript, inboxButton, type TranscriptSnapshot } from './conversation-transcript';
 import { StaffInboxDirectory, type DirectorySnapshot } from './staff-inbox-directory';
 import { StaffInboxPolicyLookup } from './staff-inbox-policy-lookup';
+import { StaffCopilotPanel, type CopilotDraftSnapshot } from './staff-copilot-panel';
+
+const copilotWidths = ['tw:lg:w-1/4', 'tw:lg:w-[30%]', 'tw:lg:w-[35%]', 'tw:lg:w-[40%]', 'tw:lg:w-[45%]', 'tw:lg:w-1/2'] as const;
 
 function CollapseIcon({ open }: { open: boolean }) {
   return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/><path d={open ? 'm15 9-3 3 3 3' : 'm13 9 3 3-3 3'}/></svg>;
@@ -37,6 +40,20 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const [collapsed, setCollapsed] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const [rightPanelTab, setRightPanelTab] = useState<'details' | 'agent' | 'lookup'>('details');
+  const copilotTrigger = useRef<HTMLButtonElement | null>(null);
+  const chatLayout = useRef<HTMLDivElement>(null);
+  const [copilotWidth, setCopilotWidth] = useState(2);
+  const resizeCopilot = (step: number) => setCopilotWidth(Math.max(0, Math.min(copilotWidths.length - 1, step)));
+  const copilotOpen = rightPanelOpen && rightPanelTab === 'agent';
+  const toggleCopilot = (trigger: HTMLButtonElement) => {
+    copilotTrigger.current = trigger;
+    setRightPanelTab('agent');
+    setRightPanelOpen(!copilotOpen);
+  };
+  const closeCopilot = () => {
+    setRightPanelOpen(false);
+    copilotTrigger.current?.focus();
+  };
   const [detail, setDetail] = useState<Conversation | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,6 +64,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const [directoryEpoch, setDirectoryEpoch] = useState(0);
   const [denied, setDenied] = useState(false);
   const [composerMemory] = useState(() => new Map<string, ComposerSnapshot>());
+  const [copilotMemory] = useState(() => new Map<string, CopilotDraftSnapshot>());
   const [liveRevision, setLiveRevision] = useState(0);
   const [incoming, setIncoming] = useState<ChatMessage | null>(null);
   const [transcriptMemory] = useState(() => new Map<string, TranscriptSnapshot>());
@@ -115,10 +133,13 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
   const onDenied = useCallback((failure: ConversationError) => {
     privacyEpoch.current++; setDirectoryEpoch(value => value + 1); metadataController.current?.abort();
     transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear();
+    if (failure.status === 401) copilotMemory.clear();
+    else if (currentId.current) copilotMemory.delete(currentId.current);
     setDetail(null); setDenied(true); setError(failure.message);
     acceptController.current?.abort(); acceptLock.current = false; intent.current = null; setAccepting(false); setUncertain(false);
     if (failure.status === 401) router.replace('/staff/login');
-  }, [router, setDetail, setDenied, setError, setAccepting, setUncertain, transcriptMemory, directoryMemory, composerMemory]);
+  }, [router, setDetail, setDenied, setError, setAccepting, setUncertain, transcriptMemory, directoryMemory, composerMemory, copilotMemory]);
+  const onCopilotSessionExpired = useCallback(() => onDenied(new ConversationError(401, 'UNAUTHORIZED')), [onDenied]);
   const clearLiveScope = useCallback(() => {
     privacyEpoch.current++; setDirectoryEpoch(value => value + 1);
     transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear(); metadataController.current?.abort(); acceptController.current?.abort(); acceptLock.current = false;
@@ -136,7 +157,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           setLiveRevision(value => value + 1);
           if (result.conversation.allowedActions.readMessages) {
             void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => { if (!signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
-          }
+          } else copilotMemory.delete(selected);
         }
       }
       if (!signal.aborted && epoch === privacyEpoch.current) setDirectoryRevision(value => value + 1);
@@ -145,16 +166,17 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else setError('Live updates could not be loaded. Please retry.');
     }
-  }, [selected, csrfToken, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError]);
+  }, [selected, csrfToken, onDenied, setDetail, setDenied, setLoading, setLiveRevision, setDirectoryRevision, setError, copilotMemory]);
   useChatRefresh(refreshLive, clearLiveScope, !blocked);
   useEffect(() => {
     const invalidate = (event: Event) => {
       const type = (event as CustomEvent<{ type: string }>).detail?.type;
+      if (type === 'session-expired') copilotMemory.clear();
       if (type === 'invalidate' || type === 'session-expired') { privacyEpoch.current++; setDirectoryEpoch(value => value + 1); metadataController.current?.abort(); transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear(); setDetail(null); setDirectoryRevision(value => value + 1); setRevision(value => value + 1); }
     };
     window.addEventListener(realtimeEvent, invalidate);
     return () => window.removeEventListener(realtimeEvent, invalidate);
-  }, [onDenied, transcriptMemory, directoryMemory, composerMemory]);
+  }, [transcriptMemory, directoryMemory, composerMemory, copilotMemory]);
   useEffect(() => {
     acceptController.current?.abort(); acceptLock.current = false; intent.current = null;
     let disposed = false; queueMicrotask(() => { if (!disposed) { setAccepting(false); setUncertain(false); setIncoming(null); setDetail(null); setDenied(false); setError(''); } });
@@ -169,7 +191,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
         setDenied(false);
         if (result.conversation.allowedActions.readMessages) {
           void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => { if (!abort.signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
-        }
+        } else copilotMemory.delete(selected);
       }
     }).catch(failure => {
       if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
@@ -177,14 +199,14 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
       else setError(failure instanceof ConversationError ? failure.message : 'Unable to load this conversation. Retry to continue.');
     }).finally(() => { if (!abort.signal.aborted) setLoading(false); });
     return () => abort.abort();
-  }, [selected, revision, blocked, csrfToken, onDenied]);
+  }, [selected, revision, blocked, csrfToken, onDenied, copilotMemory]);
   useEffect(() => {
     if (!blocked) return;
-    acceptController.current?.abort(); transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear();
+    acceptController.current?.abort(); transcriptMemory.clear(); directoryMemory.clear(); composerMemory.clear(); copilotMemory.clear();
     let disposed = false;
     queueMicrotask(() => { if (!disposed) { setDetail(null); setAccepting(false); acceptLock.current = false; } });
     return () => { disposed = true; };
-  }, [blocked, transcriptMemory, directoryMemory, composerMemory]);
+  }, [blocked, transcriptMemory, directoryMemory, composerMemory, copilotMemory]);
   useEffect(() => () => acceptController.current?.abort(), []);
   const accept = async () => {
     if (!detail || !selected || acceptLock.current || blocked) return;
@@ -267,7 +289,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           Loading conversation…
         </div>
       ) : visible ? (
-        <div className="tw:flex tw:min-h-0 tw:min-w-0 tw:flex-1 tw:overflow-hidden">
+        <div ref={chatLayout} className="tw:relative tw:flex tw:min-h-0 tw:min-w-0 tw:flex-1 tw:overflow-hidden">
           {/* Main Chat Flow (Center) */}
           <div className="tw:flex tw:min-h-0 tw:min-w-0 tw:flex-1 tw:flex-col tw:border-r tw:border-slate-200/80 tw:bg-slate-50/30">
             {/* Top Customer Header Bar (Inside Center Column) */}
@@ -297,6 +319,11 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                 </div>
               </div>
 
+              {visible.allowedActions.readMessages && <button type="button"
+                className={inboxButton + ' tw:shrink-0 tw:lg:hidden'}
+                aria-controls="staff-copilot" aria-expanded={copilotOpen}
+                onClick={event => toggleCopilot(event.currentTarget)}>Copilot</button>}
+
               {/* Takeover button when customer requested support */}
               {visible.allowedActions.accept && (
                 <div className="tw:flex tw:items-center tw:gap-3 tw:shrink-0">
@@ -323,7 +350,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                   </div>
                   <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">Customer requested support handover</h3>
                   <p className="tw:mt-2 tw:text-xs tw:text-slate-600 tw:leading-relaxed">
-                    Accept this case to review the full customer conversation with AI Copilot and take over direct communications.
+                    Accept this case to review the full customer conversation and take over direct communications.
                   </p>
                   {visible.request?.sharedReason && (
                     <div className="tw:mt-4 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:p-3 tw:text-left tw:text-xs tw:text-slate-700 tw:italic">
@@ -364,9 +391,12 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
             </button>
 
-            <button 
-              onClick={() => { setRightPanelTab('agent'); setRightPanelOpen(true); }}
-              title="AI Copilot Insights"
+            <button type="button"
+              onClick={event => toggleCopilot(event.currentTarget)}
+              disabled={!visible.allowedActions.readMessages}
+              aria-controls={visible.allowedActions.readMessages ? 'staff-copilot' : undefined}
+              aria-expanded={visible.allowedActions.readMessages && copilotOpen}
+              aria-label="AI Copilot" title="AI Copilot"
               className={'tw:w-8 tw:h-8 tw:rounded-lg tw:grid tw:place-items-center tw:transition-all tw:cursor-pointer ' + (rightPanelOpen && rightPanelTab === 'agent' ? 'tw:bg-blue-600 tw:text-white tw:shadow-2xs' : 'tw:text-slate-400 tw:hover:text-slate-700 tw:hover:bg-slate-200/60')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
             </button>
@@ -380,17 +410,17 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           </div>
 
           {/* Right Panel: Case Details Dossier */}
-          {rightPanelOpen && (
+          {rightPanelOpen && (!copilotOpen || !visible.allowedActions.readMessages) && (
             <aside aria-label="Case Details" className="tw:hidden tw:lg:flex tw:w-80 tw:shrink-0 tw:bg-slate-50/60 tw:border-r tw:border-slate-200/80 tw:flex-col tw:overflow-hidden">
               <header className="tw:h-16 tw:px-5 tw:border-b tw:border-slate-200/80 tw:bg-white tw:flex tw:items-center tw:justify-between tw:shrink-0">
                 <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">
-                  {rightPanelTab === 'lookup' ? 'Policy Lookup' : rightPanelTab === 'agent' ? 'AI Copilot' : 'Case Details'}
+                  {rightPanelTab === 'lookup' ? 'Policy Lookup' : 'Case Details'}
                 </h3>
                 <span className="tw:text-[11px] tw:font-mono tw:text-slate-400">{visible.id.slice(0, 8)}</span>
               </header>
 
               <div className="tw:flex-1 tw:overflow-y-auto tw:p-4 tw:space-y-4">
-                {rightPanelTab === 'details' && (
+                {(rightPanelTab === 'details' || copilotOpen) && (
                   <>
                     {/* 1. CASE OVERVIEW */}
                     <div className="tw:rounded-2xl tw:bg-white tw:border tw:border-slate-200/80 tw:p-4 tw:shadow-2xs">
@@ -467,15 +497,6 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                   </>
                 )}
 
-                {rightPanelTab === 'agent' && (
-                  <div className="tw:rounded-2xl tw:bg-white tw:border tw:border-slate-200/80 tw:p-4 tw:shadow-2xs tw:text-xs">
-                    <span className="tw:text-[10px] tw:font-bold tw:uppercase tw:tracking-wider tw:text-slate-400 tw:block tw:mb-2">AI COPILOT</span>
-                    <p className="tw:text-slate-600 tw:leading-relaxed">
-                      AI Copilot is actively monitoring verified clauses and policy parameters for this case. Responses can be drafted using calibrated insurance guidelines.
-                    </p>
-                  </div>
-                )}
-
                 {rightPanelTab === 'lookup' && (
                   <StaffInboxPolicyLookup
                     customerId={visible.customer.id}
@@ -485,6 +506,37 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
               </div>
             </aside>
           )}
+          {visible.allowedActions.readMessages && <aside id="staff-copilot" aria-label="AI Copilot"
+            hidden={!copilotOpen}
+            onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeCopilot(); } }}
+            className={(copilotOpen ? 'tw:flex ' : 'tw:hidden ') + copilotWidths[copilotWidth] + ' tw:relative tw:z-20 tw:min-h-0 tw:flex-col tw:overflow-hidden tw:border-l tw:border-slate-200 tw:bg-slate-50 tw:max-lg:absolute tw:max-lg:inset-x-0 tw:max-lg:bottom-0 tw:max-lg:top-16 tw:lg:shrink-0'}>
+            <div role="separator" tabIndex={0} aria-label="Resize Copilot panel" aria-orientation="vertical"
+              aria-valuemin={25} aria-valuemax={50} aria-valuenow={25 + copilotWidth * 5}
+              className="tw:absolute tw:inset-y-0 tw:left-0 tw:z-10 tw:hidden tw:w-2 tw:cursor-col-resize tw:touch-none tw:hover:bg-blue-300/60 tw:focus-visible:bg-blue-400 tw:lg:grid tw:place-items-center"
+              onPointerDown={event => { if (event.button === 0) event.currentTarget.setPointerCapture(event.pointerId); }}
+              onPointerMove={event => {
+                if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                const bounds = chatLayout.current?.getBoundingClientRect();
+                if (bounds?.width) resizeCopilot(Math.round(((bounds.right - event.clientX) / bounds.width * 100 - 25) / 5));
+              }}
+              onKeyDown={event => {
+                const steps: Partial<Record<string, number>> = {
+                  ArrowLeft: copilotWidth + 1, ArrowRight: copilotWidth - 1, Home: 0, End: copilotWidths.length - 1,
+                };
+                const step = steps[event.key];
+                if (step === undefined) return;
+                event.preventDefault();
+                resizeCopilot(step);
+              }}><span aria-hidden="true" className="tw:h-8 tw:w-0.5 tw:rounded-full tw:bg-slate-400" /></div>
+            <header className="tw:flex tw:min-h-16 tw:shrink-0 tw:items-center tw:justify-between tw:gap-3 tw:border-b tw:border-slate-200 tw:bg-white tw:px-4">
+              <div className="tw:min-w-0">
+                <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">AI Copilot</h3>
+                <p className="tw:truncate tw:text-xs tw:text-slate-600">{visible.customer.fullName}</p>
+              </div>
+            </header>
+            <StaffCopilotPanel key={visible.id} id={visible.id} csrfToken={csrfToken} open={copilotOpen}
+              memory={copilotMemory} onSessionExpired={onCopilotSessionExpired} />
+          </aside>}
         </div>
       ) : !selected && (
         <div className="tw:relative tw:flex tw:flex-1 tw:flex-col tw:items-center tw:justify-center tw:p-8 tw:text-center tw:bg-slate-50/50">

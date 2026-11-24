@@ -93,7 +93,11 @@ export class InternalAgentController {
       const params = this.queryParams(req);
       const attemptId = this.getAttemptId(params);
       const cursor = params.get('cursor');
-      const page = await this.access.linkedHistory(runId, attemptId, cursor);
+      const direction = params.get('direction');
+      if (direction !== null && direction !== 'backward') {
+        return this.sendJson(res, 400, { error: { code: 'INVALID_INPUT' } });
+      }
+      const page = await this.access.linkedHistory(runId, attemptId, cursor, direction === 'backward');
       return this.sendJson(res, 200, page);
     } catch (error) {
       return this.handleError(res, error);

@@ -21,7 +21,7 @@ export class ConversationSessionService {
       return work(tx, actor.id);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
   }
-  async write<T>(request: ConversationRequest, role: ConversationRole, quota: 'CREATE' | 'HANDOFF' | 'ACCEPT' | 'NOTIFICATION_READ',
+  async write<T>(request: ConversationRequest, role: ConversationRole, quota: 'CREATE' | 'HANDOFF' | 'ACCEPT' | 'SEND_COPILOT' | 'NOTIFICATION_READ',
     lock: (tx: Prisma.TransactionClient, actorId: string) => Promise<unknown>,
     work: (tx: Prisma.TransactionClient, actorId: string) => Promise<T>) {
     const { actor } = await this.auth.authorizeWrite(request, this.database.prisma);

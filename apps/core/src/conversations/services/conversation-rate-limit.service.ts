@@ -15,8 +15,8 @@ export class ConversationRateLimitService {
   async read(actorId: string) {
     return this.consume(actorId, 'INBOX_READ', 240);
   }
-  async command(actorId: string, operation: 'CREATE' | 'HANDOFF' | 'ACCEPT' | 'LOOKUP' | 'SEND' | 'NOTIFICATION_READ') {
-    const limits = { CREATE: 10, HANDOFF: 5, ACCEPT: 30, LOOKUP: 120, SEND: 60, NOTIFICATION_READ: 120 };
+  async command(actorId: string, operation: 'CREATE' | 'HANDOFF' | 'ACCEPT' | 'LOOKUP' | 'SEND' | 'SEND_COPILOT' | 'NOTIFICATION_READ') {
+    const limits = { CREATE: 10, HANDOFF: 5, ACCEPT: 30, LOOKUP: 120, SEND: 60, SEND_COPILOT: 60, NOTIFICATION_READ: 120 };
     return this.consume(actorId, `CONVERSATION_${operation}`, limits[operation]);
   }
   private async consume(actorId: string, group: string, maximum: number) {

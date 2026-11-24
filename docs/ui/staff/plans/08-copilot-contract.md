@@ -1,13 +1,13 @@
 # Staff — Copilot nội bộ
 
-23/11/2026 · **Đã có nền Core–Agent và khung panel. API và luồng Staff Copilot qua Inbox còn P.** FR-007/012, UC-006/009.
+24/11/2026 · **A24/A25, panel Inbox và luồng Core–Agent đã có code. Nghiệm thu với model thật còn mở.** FR-007/012, UC-006/009.
 
 **Phạm vi đã xác nhận 06/11/2026:** Copilot MVP chỉ tra cứu, giải thích và tóm tắt. Không soạn nháp câu trả lời Customer hoặc có thao tác Use draft. Xem [Agent Design](../../../specifications/Agent_Design.md#copilot-summary-scope).
 
 <a id="c01--kế-hoạch-ai-copilot-riêng-cho-staff"></a>
 ## Truy vết data model và vị trí code theo phase
 
-Core đã có vòng đời run/attempt/event, API nội bộ `linked-history` và đường ghi kết quả Copilot với audience `INTERNAL`. Agent đã có xử lý `STAFF_COPILOT`, đồng bộ lịch sử liên kết và checkpoint. Hiện caller enqueue từ App chỉ phục vụ chat AI Customer. [Core](../../../../apps/core/src/agent/services/agent-run.service.ts), [Agent](../../../../apps/agent/src/life_agent/graph.py), [luồng gửi tin hiện tại](../../../../apps/core/src/conversations/services/conversation-message.service.ts).
+Core dùng vòng đời run/attempt/event hiện có cho câu hỏi từ Inbox. Kết quả Copilot được ghi với audience `INTERNAL`. Agent lấy ngữ cảnh qua `linked-history` và đồng bộ vào checkpoint. [Core](../../../../apps/core/src/conversations/services/staff-copilot.service.ts), [Agent](../../../../apps/agent/src/life_agent/graph.py).
 
 | Phase sở hữu | Dữ liệu và phạm vi chính |
 | --- | --- |
@@ -18,7 +18,7 @@ Core đã có vòng đời run/attempt/event, API nội bộ `linked-history` v�
 
 ## C01 — Kế hoạch AI Copilot riêng cho Staff
 
-**Copilot lấy cuộc chat đang mở trong Staff Inbox làm nguồn.** Staff mở panel rồi gửi câu hỏi. Web dùng ID cuộc đó trong route, Core kiểm quyền và cố định mốc lịch sử khi nhận câu hỏi. Mở panel chỉ tải lịch sử Copilot nếu có. Chuyển chat thì panel nạp ngữ cảnh của chat mới. API bên dưới còn là đề xuất.
+**Copilot lấy cuộc chat đang mở trong Staff Inbox làm nguồn.** Staff mở panel rồi gửi câu hỏi. Web dùng ID cuộc đó trong route, Core kiểm quyền và cố định mốc lịch sử khi nhận câu hỏi. Mở panel tải lịch sử Copilot nếu có. Chuyển chat thì panel nạp ngữ cảnh của chat mới.
 
 ### Giao diện và thao tác
 
@@ -45,7 +45,7 @@ Khi runtime chưa được cấu hình, báo Copilot chưa khả dụng và gi�
 
 ### API và vị trí triển khai dự kiến
 
-| API đề xuất | Contract cần có trước code |
+| API | Hành vi |
 | --- | --- |
 | A24 `GET /api/v1/staff/conversations/:conversationId/copilot` | History nội bộ đúng Staff/cuộc nguồn, cursor và trạng thái tác vụ; không trả thread của người khác |
 | A25 `POST /api/v1/staff/conversations/:conversationId/copilot/messages` | Câu hỏi và UUID intent; Core lấy nguồn từ route, tính mốc lịch sử và trả trạng thái để đối soát |
@@ -54,7 +54,7 @@ CP01 sở hữu DTO, ACK, lỗi và cách panel theo dõi kết quả. A12 thu�
 
 **Đã chốt phương án B.** Dùng kết nối WebSocket của Inbox với sự kiện riêng cho Copilot. Sự kiện báo lượt đã hoàn tất, lỗi hoặc bị hủy sau khi Core lưu trạng thái. Panel đọc kết quả qua REST và đối soát lại khi mở panel, tải lại trang hoặc kết nối lại. [Contract CP01](copilot/01-task-context-contract.md#3-api-spec-và-quyền).
 
-Core mở rộng module conversations và adapter Agent theo contract, tái dùng access gate và catalog Policy; không nới DTO/public send. Web dự kiến `staff-copilot-panel.tsx`, `lib/copilot-api.ts`, tích hợp tại `staff-inbox.tsx` và composer, giữ vòng đời transcript/PDF hiện có. Đây là các vị trí dự kiến, chưa tạo component/module/dependency ở lượt cập nhật tài liệu.
+Core triển khai API trong module conversations, dùng cùng quyền đọc transcript và catalog Policy. Web tích hợp [panel Copilot](../../../../apps/web/src/components/staff-copilot-panel.tsx) và [client API](../../../../apps/web/src/lib/copilot-api.ts) trong Staff Inbox.
 
 ```mermaid
 sequenceDiagram
@@ -93,12 +93,10 @@ Kiểm quyền theo gate Inbox đang chạy, gồm nguồn chỉ có metadata v�
 
 | Phase | Kết quả | Trạng thái |
 | --- | --- | --- |
-| [CP01](copilot/01-task-context-contract.md) | Task/context/service identity/checkpoint/DTO | P, chốt trước code |
-| [CP02](copilot/02-core-agent-service.md) | Internal history/Agent tools và recheck | P |
-| [CP03](copilot/03-panel-citations.md) | Panel/tra cứu/giải thích/summary/citations | P |
+| [CP01](copilot/01-task-context-contract.md) | Task/context/service identity/checkpoint/DTO | Có code |
+| [CP02](copilot/02-core-agent-service.md) | Internal history/Agent tools và recheck | Có code |
+| [CP03](copilot/03-panel-citations.md) | Panel/tra cứu/giải thích/summary/citations | Có code |
 | [CP04](copilot/04-agent-e2e.md) | Agent thật, privacy và kết quả chỉ nội bộ | P |
-
-API A24–A25 vẫn P cho đến khi triển khai và kiểm thử.
 
 ## API và routes của chức năng
 
@@ -106,8 +104,8 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 
 | ID | Method/path | Phạm vi |
 | --- | --- | --- |
-| A24 P | GET /staff/conversations/:conversationId/copilot | Lịch sử nội bộ/thread/context; không trộn transcript Customer |
-| A25 P | POST /staff/conversations/:conversationId/copilot/messages | Core kiểm actor/nguồn và tạo lượt Agent; DTO còn mở |
+| A24 | GET /staff/conversations/:conversationId/copilot | Lịch sử nội bộ, cursor và lượt đang hoạt động |
+| A25 | POST /staff/conversations/:conversationId/copilot/messages | Kiểm quyền nguồn, nhận câu hỏi và trả ID/trạng thái lượt |
 
 ## Phần còn lại theo chức năng
 

@@ -69,9 +69,13 @@ export class ConversationEntryService {
     const pending = routed && current.state === 'PENDING' && row.status === 'PENDING_HANDOFF';
     const transferred = routed && current.state === 'ACCEPTED' && row.status === 'STAFF_ACTIVE';
     const capability = review ? null : await this.access.requireCustomer(tx, actorId, id);
+    const latestRun = row.supportOrigin === 'AI' && row.status === 'AI_ACTIVE' && capability?.canSend
+      ? await tx.agentRun.findFirst({ where: { conversationId: id }, orderBy: { queuePosition: 'desc' }, select: { status: true } })
+      : null;
     return { id: row.id, subject: row.subject || 'Cuộc trò chuyện', status: row.status, controlVersion: row.controlVersion,
       entryType: review ? 'LEGACY_REVIEW' : pending ? 'REQUEST' : transferred ? 'TRANSFERRED' : row.supportOrigin === 'DIRECT' ? 'DIRECT' : 'AI',
       availability: review ? 'REVIEW_REQUIRED' : 'AVAILABLE',
+      aiReplyStatus: latestRun?.status ?? null,
       staff: capability?.canSend && row.status !== 'AI_ACTIVE' && route.available ? { fullName: route.assignment!.staff.fullName } : null,
       ...(current ? { request: { id: current.id, state: current.state, requestedAt: current.confirmedAt.toISOString(),
         acceptedAt: current.acceptedAt?.toISOString() ?? null, revokedAt: current.revokedAt?.toISOString() ?? null } } : {}),

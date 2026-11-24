@@ -12,7 +12,10 @@ The trusted ExecutionContext is LangGraph runtime context: it is never written i
 from __future__ import annotations
 
 import copy
+import json
 import math
+import re
+import unicodedata
 from typing import Any, Callable, Mapping, Protocol
 
 from langgraph.graph import END, START, StateGraph
@@ -29,6 +32,25 @@ from .store import AttemptInvalid, BudgetExhausted, RuntimeStore
 BUSINESS_TOOLS = ("list_contracts", "get_contract_overview")
 RETRIEVAL_TOOLS = ("retrieve_public", "retrieve_private")
 MAX_HISTORY_PAGES = 100
+FULL_CHAT_SUMMARY = re.compile(
+    r"(?:(?:(?:hay|vui\s+long)\s+)?(?:tom\s+tat|tong\s+hop)(?:\s+(?:giup(?:\s+toi)?|cho\s+toi))?\s+"
+    r"(?:toan(?:\s+bo)?\s+(?:cuoc\s+(?:chat|tro\s+chuyen|hoi\s+thoai)(?:\s+nay)?|lich\s+su(?:\s+chat)?)|"
+    r"(?:cuoc\s+(?:chat|tro\s+chuyen|hoi\s+thoai)(?:\s+nay)?\s+)?"
+    r"tu\s+(?:luc\s+)?(?:dau|bat\s+dau)(?:\s+den\s+(?:cuoi|hien\s+tai))?)"
+    r"|(?:please\s+)?(?:summari[sz]e|summary\s+of)\s+(?:(?:the|this|our)\s+)?"
+    r"(?:(?:entire|whole|full|all)\s+(?:chat|conversation|transcript|history)|"
+    r"(?:(?:chat|conversation|transcript|history)\s+)?from\s+(?:the\s+)?(?:start|beginning)"
+    r"(?:\s+to\s+(?:the\s+)?end)?))(?:\s*[.!?])?",
+    re.IGNORECASE,
+)
+SUMMARY_SCOPE_LIMIT = ("Chưa thể tóm tắt từ đầu đến mốc của lượt này. "
+                       "Bạn có thể yêu cầu tóm tắt diễn biến gần đây hoặc một đoạn cụ thể.")
+SUMMARY_SCOPE_DRAFT = {"response_type": "CLARIFICATION", "message": SUMMARY_SCOPE_LIMIT, "citations": [], "actions": []}
+
+
+def requests_full_chat_summary(text: str) -> bool:
+    normalized = unicodedata.normalize("NFD", text.lower().replace("đ", "d").replace("Đ", "d"))
+    return bool(FULL_CHAT_SUMMARY.fullmatch("".join(c for c in normalized if not unicodedata.combining(c)).strip()))
 
 
 class RetrievalTools(Protocol):
@@ -152,8 +174,11 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         # budget already spent; the old attempt's event is not reused.
         conversation = copy.deepcopy(state.get("conversation")) or new_conversation(config.graph_version)
         recent = list(state.get("recent_history") or [])
+        linked = list(state.get("linked_history") or [])
+        linked_tail_sync = state.get("linked_tail_sync")
         if conversation.get("state_schema_version") != STATE_SCHEMA_VERSION or conversation["graph_version"] != config.graph_version:
             conversation, recent = new_conversation(config.graph_version), []  # rebuild context from Core history
+            linked, linked_tail_sync = [], None
         work = copy.deepcopy(previous) if replay else new_work(message_id, execution["run_id"], state["incoming"]["text"])
         update: dict[str, Any] = {"decision": None, "draft": None, "finalize_issue": None, "failure": None,
                                   "result": None, "event": None, "finishing": bool(replay and state.get("finishing")),
@@ -165,12 +190,11 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             return {**update, "work": work, "conversation": conversation, "recent_history": recent,
                     "failure": {"code": "INTERNAL", "retryable": False}}
         store.open_message(message_id, limits.budget_caps())
-        linked = list(state.get("linked_history") or [])
         linked_status = state.get("linked_status", "NONE")
         try:
             guard(work, limits)
             recent = _sync_history(execution, conversation, recent, limits)
-            linked, linked_status = _sync_linked(execution, conversation, linked, linked_status, limits)
+            linked, linked_status, linked_tail_sync = _sync_linked(execution, conversation, linked, linked_tail_sync, limits)
             _reconcile_pending(conversation, recent)
             recent = _summarize_if_needed(work, conversation, recent, message_id, limits)
         except _Stop as stop:
@@ -178,7 +202,9 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         work["progress"] = "PREPARING"
         sync_counters(work, message_id)
         return {**update, "work": work, "conversation": conversation, "recent_history": recent,
-                "linked_history": linked, "linked_status": linked_status}
+                "linked_history": linked, "linked_status": linked_status, "linked_tail_sync": linked_tail_sync,
+                "linked_rollup": state.get("linked_rollup") if replay and linked_status == "SYNCED" else None,
+                "full_summary_requested": bool(replay and state.get("full_summary_requested"))}
 
     def _pages(fetch: Callable[[str | None, float], dict], start: str | None, limits: RunLimits) -> list[dict]:
         items, cursor = [], start
@@ -213,30 +239,150 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         conversation["history_synced_through"] = view["through_cursor"]
         return _merge(recent, items)
 
-    def _sync_linked(execution, conversation, linked, status, limits) -> tuple[list[dict], str]:
+    def _linked_char_limit(limits) -> int:
+        # At most one prompt plus all older segments that the remaining model-call budget could summarize.
+        return config.max_context_chars + config.history_summary_threshold_chars * limits.model_calls_max
+
+    def _linked_item_size(item: dict) -> int:
+        return len(json.dumps(compact_item(item), ensure_ascii=False)) + 2
+
+    def _cap_linked(items: list[dict], limits) -> tuple[list[dict], bool]:
+        char_limit = _linked_char_limit(limits)
+        size, start = 0, len(items)
+        for item in reversed(items):
+            size += _linked_item_size(item)
+            if size > char_limit and start < len(items):
+                break
+            start -= 1
+        return items[start:], start == 0
+
+    def _read_linked(execution, view, start, limits, *, backward: bool) -> tuple[list[dict], str]:
+        char_limit = _linked_char_limit(limits)
+        items, cursor, chars = [], start, 0
+        for _ in range(MAX_HISTORY_PAGES):
+            left = seconds_left(clock, limits)
+            if left <= 0:
+                raise _Stop("DEADLINE_EXCEEDED")
+            if items and left <= limits.core_request_timeout_s:
+                return items, "INTERRUPTED"  # leave time to use the material already read
+            try:
+                page = core.linked_history(execution, view, cursor,
+                                           timeout=min(left, limits.core_request_timeout_s), backward=backward)
+            except CoreError as error:
+                if backward and items and error.transient:
+                    return items, "INTERRUPTED"
+                raise
+            page_type = "LinkedHistoryBackwardPage" if backward else "ConversationHistoryPage"
+            page = contracts.validate(page_type, page)
+            batch = page["items"]
+            chars += sum(_linked_item_size(item) for item in batch)
+            if items and chars > char_limit:
+                break
+            items.extend(batch)
+            cursor = page["previousCursor" if backward else "nextCursor"]
+            if cursor is None:
+                return items, "COMPLETE"
+            if chars >= char_limit:
+                break
+        return items, "BOUNDED"
+
+    def _sync_linked(execution, conversation, linked, tail_view, limits) -> tuple[list[dict], str, dict | None]:
         if execution["channel_type"] != "STAFF_COPILOT":
-            return [], "NONE"
+            return [], "NONE", None
         view = execution["linked_history_view"]
         if view is None:
             conversation["linked_sync"] = None
-            return [], "NONE"
-        previous = conversation["linked_sync"]
-        # Even an unchanged frozen view must pass current Core authorization on resume/new turns.
-        # Reading after its watermark returns no additional items and never widens the source snapshot.
-        same_chat = previous is not None and previous["conversation_id"] == view["conversation_id"]
-        start = previous["through_cursor"] if same_chat else None
+            return [], "NONE", None
+        full_view = conversation["linked_sync"]
+        previous = full_view or tail_view
+        def cursor_parts(cursor):
+            return ("m1", int(cursor[3:])) if cursor and cursor.startswith("m1_") else ("p", int(cursor[1:]) if cursor else 0)
+
+        format_, position = cursor_parts(view["through_cursor"])
+        previous_format, previous_position = cursor_parts(previous.get("through_cursor") if previous else None)
+        same_chat = (previous is not None and "through_cursor" in previous and previous.get("conversation_id") == view["conversation_id"]
+                     and previous_format == format_ and previous_position <= position)
         base = linked if same_chat else []
-        try:
-            items = _pages(lambda cursor, left: core.linked_history(execution, view, cursor, timeout=left), start, limits)
-        except CoreError as error:
-            denied = {"NOT_AUTHORIZED": "PERMISSION_DENIED", "INVALID_ATTEMPT": "ATTEMPT_INVALID"}
-            if error.code in denied:
-                raise _Stop(denied[error.code]) from error
-            if not error.transient:
-                raise _Stop("SOURCE_UNAVAILABLE") from error
-            return base, "SYNC_FAILED"  # transient source error; never labelled as fully synced
-        conversation["linked_sync"] = dict(view)
-        return _merge(base, items), "SYNCED"
+        def publish(items, includes_start):
+            bounded, retained_start = _cap_linked(items, limits)
+            if includes_start and retained_start:
+                conversation["linked_sync"] = dict(view)
+                return bounded, "SYNCED", None
+            conversation["linked_sync"] = None
+            return bounded, "PARTIAL", dict(view)
+
+        # Reauthorize via Core on every turn. Cold reads start at the end. Both full and
+        # bounded snapshots can fetch appended messages, but only a full view has the start.
+        for backward in (not same_chat, same_chat):
+            start = previous["through_cursor"] if same_chat and not backward else None
+            try:
+                items, coverage = _read_linked(execution, view, start, limits, backward=backward)
+            except CoreError as error:
+                denied = {"NOT_AUTHORIZED": "PERMISSION_DENIED", "INVALID_ATTEMPT": "ATTEMPT_INVALID"}
+                if error.code in denied:
+                    raise _Stop(denied[error.code]) from error
+                if not error.transient:
+                    raise _Stop("SOURCE_UNAVAILABLE") from error
+                continue
+            if coverage == "COMPLETE":
+                return publish(_merge(base if not backward else [], items), backward or not same_chat or full_view is not None)
+            if backward and items:
+                if coverage == "INTERRUPTED":
+                    conversation["linked_sync"] = None
+                    bounded, _ = _cap_linked(_merge([], items), limits)
+                    return bounded, "PARTIAL", None  # retry the older pages on the next turn
+                return publish(_merge([], items), False)
+        # A cached watermark cannot authorize disclosure to the model for a new turn or attempt.
+        raise _Stop("SOURCE_UNAVAILABLE", retryable=True)
+
+    def _summarize_linked_sections(state, execution, limits, work) -> list[dict] | None:
+        items = [compact_item(item) for item in state["linked_history"]]
+        keep = config.copilot_recent_items
+        older = items[: max(0, len(items) - keep)]
+        if not older:
+            return None
+        max_input = min(config.history_summary_threshold_chars, config.max_context_chars // 2)
+        max_output = min(1200, config.max_context_chars // 12)
+        if max_input <= 0 or max_output <= 0:
+            return None
+        parts: list[list[dict]] = []
+        part: list[dict] = []
+        size = 2
+        for entry in older:
+            entry_size = len(json.dumps(entry, ensure_ascii=False)) + 2
+            if entry_size > max_input:
+                return None
+            if part and size + entry_size > max_input:
+                parts.append(part)
+                part, size = [], 2
+            part.append(entry)
+            size += entry_size
+        if part:
+            parts.append(part)
+        message_id = execution["message_id"]
+        if store.usage(message_id).get("model_calls", 0) + len(parts) >= limits.model_calls_max:
+            return None
+        summaries = []
+        for part in parts:
+            guard(work, limits)
+            operation = f"linked-summary-{store.usage(message_id).get('model_calls', 0) + 1}"
+            try:
+                store.reserve(message_id, "model_calls", operation)
+                store.reserve(message_id, "model_tokens", operation, tokens_for(len(json.dumps(part, ensure_ascii=False))))
+            except BudgetExhausted:
+                return None
+            try:
+                reply = model.summarize(part, max_chars=max_output)
+            except Exception:
+                return None
+            store.settle(message_id, "model_tokens", operation, reply.usage.total)
+            _count_tokens(work, reply)
+            check_model_limits(message_id, limits)
+            if not reply.complete or not isinstance(reply.output, str) or not reply.output.strip() or len(reply.output) > max_output:
+                return None
+            summaries.append({"from_position": part[0]["position"], "through_position": part[-1]["position"],
+                              "text": reply.output})
+        return summaries
 
     def _reconcile_pending(conversation, recent) -> None:
         pending = conversation["pending_clarification"]
@@ -271,16 +417,20 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             store.reserve(message_id, "model_tokens", operation, tokens_for(len(str(material))))
         except BudgetExhausted:
             return recent  # context assembly omits older turns with coverage metadata instead
+        max_output = min(4000, config.history_summary_threshold_chars)
         try:
-            reply = model.summarize(material, max_chars=config.history_summary_threshold_chars)
+            reply = model.summarize(material, max_chars=max_output)
         except Exception:
             add_error(work, "MODEL", "SUMMARY_FAILED", None)
             return recent
         store.settle(message_id, "model_tokens", operation, reply.usage.total)
         _count_tokens(work, reply)
         check_model_limits(message_id, limits)
+        if not reply.complete or not isinstance(reply.output, str) or not reply.output.strip() or len(reply.output) > max_output:
+            add_error(work, "MODEL", "SUMMARY_FAILED", None)
+            return recent
         covers = older[-1]["position"]
-        conversation["history_summary"] = {"text": str(reply.output)[:4000] or "-", "covers_through": covers}
+        conversation["history_summary"] = {"text": reply.output, "covers_through": covers}
         return [i for i in recent if int(i["position"]) > int(covers)]
 
     def _count_tokens(work, reply) -> None:
@@ -297,6 +447,8 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
         conversation = copy.deepcopy(state["conversation"])
         trace = state.get("trace", []) + ["agent"]
         finishing = bool(state.get("finishing") or state.get("finalize_issue"))
+        rollup = state.get("linked_rollup")
+        full_summary_requested = bool(state.get("full_summary_requested"))
         try:
             guard(work, limits)
             usage = store.usage(message_id)
@@ -309,6 +461,22 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
                 finishing = True
             view_state = {**state, "work": work, "conversation": conversation}
             context = assemble_context(view_state, execution, config, finishing=finishing, available_tools=available)
+            copilot = execution["channel_type"] == "STAFF_COPILOT"
+            full_summary = copilot and (full_summary_requested
+                                        or requests_full_chat_summary(work["original_question"]))
+            if full_summary:
+                linked = context.linked_source
+                if linked and linked["status"] == "SYNCED" and (context.overflow or not linked["coverage"]["includes_start"]) and not rollup:
+                    rollup = _summarize_linked_sections(view_state, execution, limits, work)
+                    view_state["linked_rollup"] = rollup
+                    finishing = True
+                    context = assemble_context(view_state, execution, config, finishing=True, available_tools=[])
+                    linked = context.linked_source
+                if not linked or linked["status"] != "SYNCED" or not linked["coverage"]["includes_start"] or context.overflow:
+                    sync_counters(work, message_id)
+                    return {"draft": copy.deepcopy(SUMMARY_SCOPE_DRAFT), "decision": None,
+                            "work": work, "conversation": conversation, "trace": trace}
+                usage = store.usage(message_id)
             estimate = tokens_for(context.size_chars)
             tokens_left = limits.turn_token_budget - usage.get("model_tokens", 0)
             if not finishing and tokens_left - estimate < limits.finish_reserve_tokens:
@@ -320,6 +488,10 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
                 store.reserve(message_id, "model_calls", operation)
                 store.reserve(message_id, "model_tokens", operation, estimate)
             except BudgetExhausted:
+                if full_summary:
+                    sync_counters(work, message_id)
+                    return {"draft": copy.deepcopy(SUMMARY_SCOPE_DRAFT), "decision": None,
+                            "work": work, "conversation": conversation, "trace": trace}
                 raise _Stop("BUDGET_EXHAUSTED")
             try:
                 reply = model.decide(context)
@@ -328,8 +500,21 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             store.settle(message_id, "model_tokens", operation, reply.usage.total)
             _count_tokens(work, reply)
             check_model_limits(message_id, limits)
-            _apply_notes(reply.notes, work, conversation, state)
             output = reply.output
+            linked = context.linked_source
+            summary_scope = reply.notes.get("summary_scope")
+            classified_full = copilot and summary_scope == "FULL"
+            full_coverage = linked and linked["status"] == "SYNCED" and linked["coverage"]["includes_start"] and not context.overflow
+            if classified_full and reply.complete and not full_summary and linked and linked["status"] == "SYNCED" and not full_coverage:
+                sync_counters(work, message_id)
+                return {"draft": None, "decision": None, "work": work, "conversation": conversation,
+                        "trace": trace, "full_summary_requested": True}
+            full_summary_requested = full_summary_requested or (classified_full and reply.complete)
+            wrong_answer_scope = isinstance(output, dict) and output.get("response_type") == "ANSWER" and summary_scope != "FULL"
+            if (full_summary or classified_full) and (not reply.complete or not full_coverage or wrong_answer_scope):
+                output = copy.deepcopy(SUMMARY_SCOPE_DRAFT)
+            else:
+                _apply_notes(reply.notes, work, conversation, state)
             if not contracts.is_valid("AgentDecision", output):
                 raise _Stop("OUTPUT_INVALID")  # e.g. several tools, unknown tool, identity/scope fields
             if "tool" in output and finishing:
@@ -339,7 +524,8 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
             update = {"failure": stop.failure}
         work["progress"] = "COMPOSING" if update.get("draft") else work["progress"]
         sync_counters(work, message_id)
-        return {**update, "work": work, "conversation": conversation, "finishing": finishing, "trace": trace}
+        return {**update, "work": work, "conversation": conversation, "finishing": finishing, "trace": trace,
+                "linked_rollup": rollup, "full_summary_requested": full_summary_requested}
 
     def _apply_notes(notes: Mapping[str, Any], work: dict, conversation: dict, state: Mapping[str, Any]) -> None:
         if not notes:
@@ -391,7 +577,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
                         else:
                             raw = retrieval.retrieve_private(execution, arguments["query"], arguments["policy_number"])
                         result = _namespace_evidence(contracts.validate("RetrievalResult", raw), operation)
-                    except AttemptInvalid:
+                    except (AttemptInvalid, CoreError):
                         raise
                     except Exception:
                         result = _error_result("INTERNAL")
@@ -400,9 +586,15 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
                 result = None
             except AttemptInvalid:
                 raise _Stop("ATTEMPT_INVALID")
+            except CoreError as error:
+                code = {"NOT_AUTHORIZED": "PERMISSION_DENIED", "INVALID_ATTEMPT": "ATTEMPT_INVALID"}.get(
+                    error.code, "SOURCE_UNAVAILABLE")
+                raise _Stop(code, retryable=error.transient) from error
             if result is not None:
-                if tool in BUSINESS_TOOLS and result["status"] == "DENIED" and result["error"]["code"] == "INVALID_ATTEMPT":
-                    raise _Stop("ATTEMPT_INVALID")
+                if tool in BUSINESS_TOOLS and result["status"] == "DENIED":
+                    # Core denies the run here. A missing individual contract returns NOT_FOUND.
+                    failure = "ATTEMPT_INVALID" if result["error"]["code"] == "INVALID_ATTEMPT" else "PERMISSION_DENIED"
+                    raise _Stop(failure)
                 for output in work["source_outputs"]:
                     if output["tool"] == tool and output["arguments"] == arguments:
                         output["replaced"] = True
@@ -485,6 +677,8 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
     def after_agent(state: AgentState) -> str:
         if state.get("failure") or state.get("draft"):
             return "finalize"
+        if state.get("full_summary_requested") and not state.get("decision"):
+            return "agent"
         return "execute_tools"
 
     def after_execute(state: AgentState) -> str:
@@ -500,7 +694,7 @@ def build_graph(store: RuntimeStore, core: CoreClient, retrieval: RetrievalTools
     graph.add_node("finalize", finalize)
     graph.add_edge(START, "prepare")
     graph.add_conditional_edges("prepare", after_prepare, ["agent", "finalize", END])
-    graph.add_conditional_edges("agent", after_agent, ["execute_tools", "finalize"])
+    graph.add_conditional_edges("agent", after_agent, ["agent", "execute_tools", "finalize"])
     graph.add_conditional_edges("execute_tools", after_execute, ["agent", "finalize"])
     graph.add_conditional_edges("finalize", after_finalize, ["agent", END])
     return graph.compile(checkpointer=checkpointer)

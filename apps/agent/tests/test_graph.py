@@ -1,5 +1,7 @@
 """Graph orchestration with a scripted fake model. These tests prove control flow, limits and provenance only;
 whether a real model chooses well (finds conditions, asks good questions) is measured in Task 9."""
+from dataclasses import replace
+
 import pytest
 
 from life_agent.core_client import CoreError
@@ -323,14 +325,24 @@ def test_missing_g4_limits_refuse_to_run():
     assert payload(event)["failure"]["code"] == "INTERNAL" and model.contexts == []
 
 
-def test_long_history_is_summarised_once_over_threshold_and_counted():
-    model = ScriptedModel([reply(draft("Đã nắm bối cảnh."))])
+@pytest.mark.parametrize("complete", [True, False])
+def test_long_history_only_advances_coverage_for_a_complete_summary(complete):
+    class SummaryModel(ScriptedModel):
+        def summarize(self, items, *, max_chars):
+            return replace(super().summarize(items, max_chars=max_chars), complete=complete)
+
+    model = SummaryModel([reply(draft("Đã nắm bối cảnh."))])
     core = FakeCore()
     core.histories[CONV] = [user_item(i, f"h{i}", "nội dung " * 60) for i in range(1, 11)]
     h = Harness(model, core=core, cfg=config(recent_turns=3, history_summary_threshold_chars=1000))
     h.run(run_request("m11", "Tiếp tục", history_cursor="p10"))
     summary = h.state()["conversation"]["history_summary"]
-    assert summary["covers_through"] == "7" and len(model.summaries) == 1
+    if complete:
+        assert summary["covers_through"] == "7"
+    else:
+        assert summary is None
+        assert [item["position"] for item in h.state()["recent_history"]] == [str(i) for i in range(1, 11)]
+    assert len(model.summaries) == 1
     assert [t["position"] for t in model.contexts[0].conversation["recent_turns"]] == ["8", "9", "10"]
     assert h.store.usage(uid("message:m11"))["model_calls"] == 2
 

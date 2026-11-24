@@ -1,6 +1,6 @@
 # CP03 — Panel Staff Copilot
 
-04/11/2026 · **P, sau CP02** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
+24/11/2026 · **Panel Copilot đã triển khai** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
@@ -19,8 +19,8 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Gate transcript chung theo CP01. Runtime mở Direct/Accepted; thiết kế 23/11 mở theo phân công hiện hành | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
 | insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
 | documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
-| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | P — tạo/append nội bộ Copilot, nền cột đã có | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; cần chốt uniqueness theo Staff/source trước migration | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
-| agent_runs + agent_attempts + agent_run_events | run/attempt, linked_history_view, status/result, event receipt | Có nền Core; P nối từ Staff | Dùng lifecycle hiện có và checkpoint riêng của Agent | Cao — retry/revoke/late callback |
+| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | Tạo thread và ghi tin nội bộ | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; unique theo Staff và chat nguồn | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
+| agent_runs + agent_attempts + agent_run_events | run/attempt, linked_history_view, status/result, event receipt | Lưu lượt từ Staff | Dùng lifecycle hiện có và checkpoint riêng của Agent | Cao — retry/revoke/late callback |
 
 **Schema/migration:** rà ràng buộc owner/chat nguồn và dữ liệu legacy theo CP01. Run/attempt/event và checkpoint đã có.
 
@@ -37,20 +37,20 @@ Panel bên chat đúng mẫu repo UI; tra cứu/giải thích/tóm tắt/citatio
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
 | [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Hiện có source grant; P adapter Copilot phải gọi lại | Cao | REST/WS transcript và source reassignment |
-| `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/components/staff-copilot-panel.tsx` | Đã có | Hiển thị hội thoại Copilot theo Staff và chat nguồn | Trung bình | Inbox transcript và composer giữ mounted |
+| `apps/web/src/lib/copilot-api.ts` | Đã có | Client A24/A25 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
-Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
+Prefix REST `/api/v1`. A24/A25 đã triển khai theo contract CP01.
 
 Dùng API theo CP01. ID trên route luôn lấy từ chat đang mở trong Inbox. Mở panel tải lịch sử Copilot, gửi câu hỏi mới tạo lượt. Khi đổi chat, tải lịch sử theo ID mới và bỏ response đến muộn của chat trước. Citation mở qua Core theo đúng phiên bản. Kết quả hiển thị trong panel nội bộ.
 
-Sự kiện WebSocket hợp lệ yêu cầu panel tải lại dữ liệu qua A24. Gộp thông báo trùng và dùng trạng thái Core để xử lý sự kiện đến sai thứ tự. Khi kết nối lại, đọc A24 cho chat đang mở để lấy kết quả có thể đã bỏ lỡ.
+Sự kiện WebSocket yêu cầu panel tải lại dữ liệu qua A24. Panel đang mở đọc A24 mỗi 5 giây khi có lượt chạy và mỗi 10 giây khi không có lượt chạy để kiểm lại quyền nguồn. Khi quay lại tab, panel xác minh lại quyền trước khi hiện nội dung. Dừng đọc định kỳ khi panel đóng hoặc Core xác nhận mất quyền.
 
-**Đổi quyền nguồn — đã chốt.** Dùng tín hiệu `chat-scope-invalidated` của Inbox. Panel ẩn dữ liệu đang hiển thị, hủy yêu cầu đang chờ và bỏ qua phản hồi cũ. Panel gọi A24 cho chat đang mở và chỉ hiển thị dữ liệu sau khi Core xác nhận Staff còn quyền.
+**Đổi quyền nguồn — đã chốt.** Panel ẩn dữ liệu khi Inbox báo đổi quyền hoặc A24 chưa xác minh được quyền, hủy yêu cầu đang chờ và bỏ qua phản hồi cũ. Bản nháp và câu hỏi chưa xác nhận được giữ trong bộ nhớ của phiên theo Staff và chat nguồn. Khi A24 xác nhận còn quyền, panel khôi phục bản nháp và dùng cùng UUID để retry câu hỏi chưa được Core xác nhận. Khi Core từ chối quyền đọc nguồn hoặc phiên hết hiệu lực, panel xóa bản nháp và câu hỏi chờ.
 
-Ô hỏi vẫn cho nhập và sửa trong lúc đang gửi hoặc khi lượt hiện tại chưa kết thúc. Nút gửi và phím tắt gửi chỉ hoạt động lại khi Core xác nhận lượt đã kết thúc và Staff vẫn có quyền. Nội dung mới soạn chờ Staff chủ động gửi.
+Ô hỏi vẫn cho nhập và sửa trong lúc đang gửi hoặc khi lượt hiện tại chưa kết thúc. Panel dùng trạng thái từ ACK của A25 trong lúc chờ đối soát A24, kể cả khi realtime yêu cầu đọc lại. Nút gửi và phím tắt gửi chỉ hoạt động lại khi Core xác nhận lượt đã kết thúc và Staff vẫn có quyền. Nội dung mới soạn chờ Staff chủ động gửi.
 
 ## 4. Luồng thực hiện
 
@@ -97,7 +97,7 @@ Các ca dưới đây là **kịch bản dự kiến**, chỉ thực thi sau dep
 2. Bấm citation ngoài quyền hoặc revoke source.
 3. Đổi cuộc chat trong khi request citation pending.
 
-**Kết quả mong đợi:** Chỉ exact version được cấp; denied không mở file; response nguồn cũ không ghi đè source mới.
+**Kết quả mong đợi:** Core cấp đúng phiên bản. Panel hiển thị vị trí trích dẫn trong tài liệu nguồn và mở PDF theo URL được cấp. Cần ánh xạ theo phiên bản để điều hướng tới một trang PDF cụ thể. Khi bị từ chối quyền hoặc đổi chat giữa yêu cầu, panel bỏ phản hồi cũ.
 
 ### CP03-T03 — Keyboard/mobile và late task
 

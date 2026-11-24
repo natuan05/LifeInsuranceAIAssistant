@@ -524,12 +524,20 @@ class LocalCore:
             raise CoreError("NOT_AUTHORIZED")
         return self._page(view["conversation_id"], view, cursor)
 
-    def linked_history(self, ctx, view, cursor, *, timeout):
+    def linked_history(self, ctx, view, cursor, *, timeout, backward=False):
         from life_agent.core_client import CoreError
 
         self.linked_views.append(dict(view))
         if not self.may_read_policy(ctx):
             raise CoreError("NOT_AUTHORIZED")
+        if backward:
+            items = [item for item in self.histories.get(view["conversation_id"], [])
+                     if int(item["position"]) <= _pos(view["through_cursor"])
+                     and (cursor is None or int(item["position"]) < _pos(cursor))]
+            page = items[-100:]
+            prefix = "m1_" if (view["through_cursor"] or "").startswith("m1_") else "p"
+            previous = f"{prefix}{page[0]['position']}" if len(items) > len(page) else None
+            return {"items": copy.deepcopy(page), "previousCursor": previous}
         return self._page(view["conversation_id"], view, cursor)
 
 

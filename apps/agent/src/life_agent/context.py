@@ -41,7 +41,7 @@ class ModelContext:
 
 def compact_item(item: Mapping[str, Any]) -> dict[str, Any]:
     kind = item["kind"]
-    if kind == "USER_MESSAGE":
+    if kind in ("USER_MESSAGE", "SOURCE_MESSAGE"):
         return {"position": item["position"], "role": item["senderType"], "text": item["content"]}
     if kind == "AGENT_RESULT":
         return {"position": item["position"], "role": "AGENT", "response_type": item["result"]["response_type"],
@@ -101,13 +101,17 @@ def assemble_context(state: Mapping[str, Any], execution: Mapping[str, Any], con
     linked = None
     if channel == "STAFF_COPILOT":
         items = [compact_item(i) for i in state.get("linked_history", [])]
+        rollup = state.get("linked_rollup")
         window = items[-config.copilot_recent_items:] if config.copilot_recent_items else []
         linked = {"status": state.get("linked_status", "NONE"),
-                  "view": conversation.get("linked_sync"),
-                  "older_items": items[: len(items) - len(window)],
+                  "view": (execution["linked_history_view"] if state.get("linked_status") == "PARTIAL"
+                           else conversation.get("linked_sync") or state.get("linked_tail_sync")),
+                  "older_items": [] if rollup else items[: len(items) - len(window)],
                   "recent_items": window,
                   "coverage": {"total_items": len(items), "recent_window": len(window),
-                               "includes_start": True, "omitted_older_items": 0}}
+                               "includes_start": state.get("linked_status") == "SYNCED", "omitted_older_items": 0}}
+        if rollup:
+            linked["older_sections"] = rollup
     tools = {} if finishing else {name: TOOL_DEFINITIONS[name] for name in available_tools}
     system_prompt = build_system_prompt(channel)
     conditions = list(work["unverified_conditions"])

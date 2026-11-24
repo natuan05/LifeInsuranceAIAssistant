@@ -70,7 +70,7 @@ Mã Axx chỉ để truy vết, không phải mã FR. Bảng endpoint và E/P n�
 | Policies/PDF | [A14/A15/A16/A18/A20](05-policies-contract.md#api-và-routes-của-chức-năng) |
 | Notifications | [A27/A28](06-notifications-contract.md#api-và-routes-của-chức-năng) |
 | Tickets | [A21–A23 E](07-tickets-contract.md#api-và-routes-của-chức-năng) |
-| Copilot | [A24–A25 P](08-copilot-contract.md#api-và-routes-của-chức-năng) |
+| Copilot | [A24–A25](08-copilot-contract.md#api-và-routes-của-chức-năng) |
 
 Customer APIs có baseline và owner tại [Customer plans](../../customer/plans/00-customer-contract.md); không gọi Staff API thay quyền owner. Health/Swagger là vận hành, operator /ops/v1 không phải Staff API. Đã có PATCH Ticket status resolve/close/reopen. Claim/payment/upload/global search/templates và đổi linkedPolicy không thuộc kế hoạch hiện hành.
 

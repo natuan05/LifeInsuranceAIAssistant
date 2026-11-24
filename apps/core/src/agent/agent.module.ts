@@ -6,9 +6,10 @@ import { AgentAccessService } from './services/agent-access.service';
 import { AgentDispatcherService } from './services/agent-dispatcher.service';
 import { AgentRunService } from './services/agent-run.service';
 import { AgentTransportService } from './services/agent-transport.service';
+import { PoliciesModule } from '../policies/policies.module';
 
 @Module({
-  imports: [DatabaseModule],
+  imports: [DatabaseModule, PoliciesModule],
   controllers: [InternalAgentController],
   providers: [
     ConversationAccessService,

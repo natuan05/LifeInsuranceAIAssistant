@@ -37,6 +37,7 @@ class ModelReply:
     output: Any
     usage: TokenUsage
     notes: dict[str, Any] = field(default_factory=dict)
+    complete: bool = True
 
 
 class ModelAdapter(Protocol):
@@ -286,6 +287,8 @@ def envelope_to_decision(envelope: Any) -> tuple[Any, dict[str, Any]]:
         return {"invalid": "not an object"}, {}
     notes = {"assessment": envelope.get("assessment"), "unverified_conditions": envelope.get("unverified_conditions") or [],
              "topic": envelope.get("topic")}
+    if envelope.get("summary_scope") in ("FULL", "RECENT", "NONE"):
+        notes["summary_scope"] = envelope["summary_scope"]
     if envelope.get("kind") == "TOOL" and isinstance(envelope.get("tool"), dict):
         tool = envelope["tool"]
         name = tool.get("name")
@@ -329,7 +332,8 @@ class GeminiModel:
         self._clock = clock
         self.latencies_s: list[float] = []
 
-    def _generate(self, system: str, user: str, *, schema: Mapping[str, Any] | None) -> tuple[str, TokenUsage]:
+    def _generate(self, system: str, user: str, *,
+                  schema: Mapping[str, Any] | None) -> tuple[str, TokenUsage, str | None]:
         generation: dict[str, Any] = {"maxOutputTokens": self.config.max_output_tokens}
         if self.config.temperature is not None:
             generation["temperature"] = self.config.temperature
@@ -347,24 +351,34 @@ class GeminiModel:
         usage = TokenUsage(int(meta.get("promptTokenCount", 0)), int(meta.get("candidatesTokenCount", 0)),
                            int(meta.get("thoughtsTokenCount", 0)))
         try:
-            parts = reply["candidates"][0]["content"]["parts"]
+            candidates = reply.get("candidates") or []
+            candidate = candidates[0] if candidates else {}
+            parts = (candidate.get("content") or {}).get("parts") or []
             text = "".join(p.get("text", "") for p in parts if not p.get("thought"))
-        except (KeyError, IndexError, TypeError):
+        except (AttributeError, KeyError, IndexError, TypeError):
             raise ProviderError("BAD_RESPONSE") from None
-        return text, usage
+        return text, usage, candidate.get("finishReason")
 
     def decide(self, context: Any) -> ModelReply:
-        text, usage = self._generate(context.system_prompt, render_context(context), schema=DECISION_SCHEMA)
+        schema = DECISION_SCHEMA
+        if context.channel_type == "STAFF_COPILOT":
+            schema = {**schema, "properties": {**schema["properties"],
+                      "summary_scope": {"type": "string", "enum": ["FULL", "RECENT", "NONE"]}},
+                      "required": [*schema["required"], "summary_scope"]}
+        text, usage, reason = self._generate(context.system_prompt, render_context(context), schema=schema)
         try:
             envelope = json.loads(text)
         except ValueError:
-            return ModelReply({"invalid": "not json"}, usage, {})
+            return ModelReply({"invalid": "not json"}, usage, complete=False)
         output, notes = envelope_to_decision(envelope)
-        return ModelReply(output, usage, notes)
+        return ModelReply(output, usage, notes, complete=reason == "STOP")
 
     def summarize(self, items: Sequence[dict[str, Any]], *, max_chars: int) -> ModelReply:
         from .prompts import summary_instructions
 
-        text, usage = self._generate(summary_instructions(max_chars), json.dumps(list(items), ensure_ascii=False),
-                                     schema=None)
-        return ModelReply(text.strip()[:max_chars], usage, {})
+        text, usage, reason = self._generate(
+            summary_instructions(max_chars), json.dumps(list(items), ensure_ascii=False), schema=None,
+        )
+        summary = text.strip()
+        complete = reason == "STOP" and 0 < len(summary) <= max_chars
+        return ModelReply(summary if complete else "", usage, complete=complete)

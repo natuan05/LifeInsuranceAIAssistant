@@ -333,7 +333,7 @@ Staff dùng Policy Lookup để xem hợp đồng và nêu số hợp đồng tr
 - Thiếu quyền/nguồn hoặc lỗi Core/retrieval phải trả trạng thái an toàn theo contract; không suy thiếu nguồn thành không có quyền lợi. Câu hỏi Public thuần túy không bắt chọn hợp đồng. Kết quả phải theo đúng run/view/hợp đồng, callback lượt cũ không ghi đè context của lượt sau.
 - Source chat phải qua cùng gate transcript như Staff Inbox theo CP01. Copilot dùng hội thoại/thread Staff riêng và source view cố định theo từng câu hỏi; số hợp đồng không mở transcript ngoài quyền hoặc gửi kết quả sang Customer.
 
-Code Agent có các tool đọc hợp đồng/retrieval và context theo thread; API/UI Core–Copilot và index Private portfolio runtime còn phải tích hợp/kiểm chứng. CP04-T05 sở hữu ca số hợp đồng rõ/câu nối tiếp/đổi hợp đồng/mơ hồ/PDF không đổi context/ngoài quyền và callback cũ. Chưa coi các ca này đã chạy hoặc Agent luôn hiểu đúng ý Staff.
+Code Agent có các tool đọc hợp đồng/retrieval và context theo thread; API/UI Core–Copilot đã triển khai. Index Private portfolio runtime và chất lượng model còn cần kiểm chứng. CP04-T05 sở hữu ca số hợp đồng rõ/câu nối tiếp/đổi hợp đồng/mơ hồ/PDF không đổi context/ngoài quyền và callback cũ. Chưa coi các ca này đã chạy hoặc Agent luôn hiểu đúng ý Staff.
 
 ## 4. Bằng chứng, phân quyền và trích dẫn
 

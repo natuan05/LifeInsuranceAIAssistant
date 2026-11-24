@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -6,11 +6,16 @@ import type { Prisma } from '../../generated/prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { sha256Json, validateContract } from '../hmac';
 import {
+  AgentApiError,
   AgentAccessService,
   type AuthorizedAttemptContext,
+  agentMessageText,
+  linkedMessageCursor,
   loadPublicManifestEntries,
+  publicManifestPdfVersion,
 } from './agent-access.service';
 import { AgentTransportService, type DurableAckDto } from './agent-transport.service';
+import { copilotDeadlinePassed, expireCopilotRun, fenceAgentConversation, finishAgentRun } from './agent-run-state';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -85,8 +90,13 @@ type AgentResultPayload = {
   >;
 };
 
+type MappedCitation = { documentId: string; versionId: string } &
+  ({ sourceLocation: AgentResultPayload['citations'][number]['location'] } | { page: number });
+
 @Injectable()
 export class AgentRunService {
+  private readonly logger = new Logger(AgentRunService.name);
+
   constructor(
     private readonly database: DatabaseService,
     private readonly access: AgentAccessService,
@@ -131,10 +141,11 @@ export class AgentRunService {
 
     let linkedHistoryView: { conversation_id: string; through_cursor: string | null } | null = null;
     if (params.linkedContextConversationId) {
-      const cursor = await this.computeThroughCursor(tx, params.linkedContextConversationId);
+      const last = await tx.message.findFirst({ where: { conversationId: params.linkedContextConversationId,
+        audience: 'CUSTOMER_VISIBLE' }, orderBy: { sequence: 'desc' }, select: { sequence: true } });
       linkedHistoryView = {
         conversation_id: params.linkedContextConversationId,
-        through_cursor: cursor,
+        through_cursor: linkedMessageCursor(last?.sequence ?? 0n),
       };
     }
 
@@ -188,7 +199,6 @@ export class AgentRunService {
         where: { state: 'INVALIDATING', run: { conversationId } },
         select: { id: true },
       });
-      if (invalidating) return null;
 
       const running = await tx.agentRun.findFirst({
         where: { conversationId, status: 'RUNNING' },
@@ -203,6 +213,13 @@ export class AgentRunService {
       });
       if (!nextRun) return null;
 
+      const isCopilot = conv.channelType === 'STAFF_COPILOT';
+      const now = new Date();
+      if (isCopilot && copilotDeadlinePassed(nextRun.limits, now)) {
+        await expireCopilotRun(tx, nextRun, now);
+        return null;
+      }
+      if (invalidating) return null;
       const actorId =
         conv.channelType === 'STAFF_COPILOT' ? conv.assignedStaffId : conv.customerId;
       const actorRole = conv.channelType === 'STAFF_COPILOT' ? 'STAFF' : 'CUSTOMER';
@@ -215,14 +232,22 @@ export class AgentRunService {
         current_message_id: nextRun.messageId,
       };
       const linkedHistoryView = (nextRun.linkedHistoryView as { conversation_id: string; through_cursor: string | null } | null) ?? null;
+      if (isCopilot) {
+        try {
+          if (linkedHistoryView?.conversation_id !== conv.linkedContextConvId) throw new AgentApiError(403, 'NOT_AUTHORIZED');
+          await this.access.requireCopilotSource(tx, actorId, conv.customerId, conv.linkedContextConvId);
+        } catch (error) {
+          if (!(error instanceof AgentApiError) || error.code !== 'NOT_AUTHORIZED') throw error;
+          await fenceAgentConversation(tx, conversationId, 'PERMISSION_CHANGED');
+          return null;
+        }
+      }
 
       const attemptId = randomUUID();
-      const now = new Date();
       const trialLimits = loadTrialLimits();
-      const deadlineAt = new Date(now.getTime() + trialLimits.deadline_s * 1000).toISOString();
       const storedLimits = (nextRun.limits ?? {}) as Record<string, unknown>;
       const limits = {
-        deadline_at: deadlineAt,
+        deadline_at: isCopilot ? storedLimits.deadline_at : new Date(now.getTime() + trialLimits.deadline_s * 1000).toISOString(),
         retrieval_calls_max: Number(storedLimits.retrieval_calls_max ?? trialLimits.retrieval_calls_max),
         core_read_requests_max: Number(storedLimits.core_read_requests_max ?? trialLimits.core_read_requests_max),
         core_request_timeout_ms: Number(storedLimits.core_request_timeout_ms ?? trialLimits.core_request_timeout_ms),
@@ -240,7 +265,7 @@ export class AgentRunService {
         attempt_id: attemptId,
         conversation_id: conversationId,
         message_id: nextRun.messageId,
-        message_text: nextRun.message.content,
+        message_text: agentMessageText(nextRun.message.content),
         channel_type: conv.channelType,
         actor: { id: actorId, role: actorRole },
         target_customer_id: conv.customerId,
@@ -250,6 +275,11 @@ export class AgentRunService {
       });
 
       const prevCount = await tx.agentAttempt.count({ where: { runId: nextRun.id } });
+      const claimedAt = new Date();
+      if (isCopilot && copilotDeadlinePassed(nextRun.limits, claimedAt)) {
+        await expireCopilotRun(tx, nextRun, claimedAt);
+        return null;
+      }
       await tx.agentAttempt.create({
         data: {
           id: attemptId,
@@ -258,7 +288,7 @@ export class AgentRunService {
           state: 'DISPATCHING',
           request: runRequest as Prisma.InputJsonObject,
           requestSha256: sha256Json(runRequest),
-          nextDispatchAt: now,
+          nextDispatchAt: claimedAt,
         },
       });
 
@@ -269,16 +299,14 @@ export class AgentRunService {
           currentAttemptId: attemptId,
           historyView: historyView as Prisma.InputJsonObject,
           limits: limits as Prisma.InputJsonObject,
-          startedAt: now,
+          startedAt: claimedAt,
         },
       });
 
       return { attemptId, request: runRequest };
     });
 
-    if (claimed) {
-      void this.dispatchAttempt(claimed.attemptId);
-    }
+    if (claimed) this.runInBackground(this.dispatchAttempt(claimed.attemptId), 'dispatch');
     return claimed;
   }
 
@@ -288,13 +316,30 @@ export class AgentRunService {
     return Math.round(baseSec * jitter * 1000);
   }
 
+  private runInBackground(work: Promise<unknown>, operation: 'dispatch' | 'revoke' | 'claim') {
+    // The transaction already committed. The dispatcher can recover the durable work on its next tick.
+    void work.catch(() => this.logger.warn(`Agent ${operation} failed in background; reconciliation will retry pending work.`));
+  }
+
   async dispatchAttempt(attemptId: string): Promise<DurableAckDto | null> {
     const attempt = await this.database.prisma.agentAttempt.findUnique({
       where: { id: attemptId },
-      include: { run: true },
+      include: { run: { include: { conversation: { select: { channelType: true } } } } },
     });
     if (!attempt || attempt.state !== 'DISPATCHING' || attempt.run.status !== 'RUNNING') {
       return null;
+    }
+
+    if (attempt.run.conversation.channelType === 'STAFF_COPILOT') {
+      try {
+        await this.database.prisma.$transaction(tx => this.access.authorizeInTx(tx, attempt.runId, attemptId));
+      } catch (error) {
+        if (!(error instanceof AgentApiError)) throw error;
+        if (error.code === 'NOT_AUTHORIZED') await this.invalidateAttempt(attemptId, 'PERMISSION_CHANGED');
+        else if (copilotDeadlinePassed(attempt.run.limits, new Date())) await this.invalidateAttempt(attemptId, 'DEADLINE');
+        else if (error.code !== 'INVALID_ATTEMPT') throw error;
+        return null;
+      }
     }
 
     const request = attempt.request as Record<string, unknown>;
@@ -324,14 +369,11 @@ export class AgentRunService {
           data: { state: 'FINISHED', dispatchCount: { increment: 1 } },
         });
         if (current.run.status === 'RUNNING') {
-          await tx.agentRun.update({
-            where: { id: current.runId },
-            data: {
+          await finishAgentRun(tx, current.runId, {
               status: 'FAILED',
               failure: { code: 'INTERNAL', retryable: false },
               finishedAt: now,
-            },
-          });
+            });
         }
       } else {
         const delayMs = this.backoffDelayMs(current.dispatchCount);
@@ -354,54 +396,7 @@ export class AgentRunService {
     reason: 'STAFF_TAKEOVER' | 'CANCELLED_BY_CORE' | 'PERMISSION_CHANGED',
     cancelQueued = true,
   ): Promise<string[]> {
-    const now = new Date();
-    const outcomeCode =
-      reason === 'PERMISSION_CHANGED'
-        ? 'PERMISSION_DENIED'
-        : reason === 'STAFF_TAKEOVER'
-          ? 'STAFF_TAKEOVER'
-          : 'CANCELLED_BY_CORE';
-
-    if (cancelQueued) {
-      await tx.agentRun.updateMany({
-        where: { conversationId, status: 'QUEUED' },
-        data: {
-          status: 'CANCELLED',
-          failure: { code: outcomeCode, retryable: false },
-          finishedAt: now,
-        },
-      });
-    }
-
-    const runningRuns = await tx.agentRun.findMany({
-      where: { conversationId, status: 'RUNNING' },
-      include: { currentAttempt: true },
-    });
-
-    const invalidatedAttemptIds: string[] = [];
-    for (const run of runningRuns) {
-      await tx.agentRun.update({
-        where: { id: run.id },
-        data: {
-          status: 'CANCELLED',
-          failure: { code: outcomeCode, retryable: false },
-          finishedAt: now,
-        },
-      });
-      if (run.currentAttempt && ['DISPATCHING', 'ACCEPTED'].includes(run.currentAttempt.state)) {
-        await tx.agentAttempt.update({
-          where: { id: run.currentAttempt.id },
-          data: {
-            state: 'INVALIDATING',
-            revocationReason: reason,
-            revocationRequestedAt: now,
-            nextDispatchAt: now,
-          },
-        });
-        invalidatedAttemptIds.push(run.currentAttempt.id);
-      }
-    }
-    return invalidatedAttemptIds;
+    return fenceAgentConversation(tx, conversationId, reason, cancelQueued);
   }
 
   async invalidateAttempt(
@@ -435,14 +430,11 @@ export class AgentRunService {
 
       if (fresh.run.status === 'RUNNING' && reason !== 'RETRY') {
         if (reason === 'DEADLINE') {
-          await tx.agentRun.update({
-            where: { id: fresh.runId },
-            data: {
+          await finishAgentRun(tx, fresh.runId, {
               status: 'FAILED',
               failure: { code: 'DEADLINE_EXCEEDED', retryable: false },
               finishedAt: now,
-            },
-          });
+            });
         } else {
           const code =
             reason === 'PERMISSION_CHANGED'
@@ -450,22 +442,17 @@ export class AgentRunService {
               : reason === 'STAFF_TAKEOVER'
                 ? 'STAFF_TAKEOVER'
                 : 'CANCELLED_BY_CORE';
-          await tx.agentRun.update({
-            where: { id: fresh.runId },
-            data: {
+          await finishAgentRun(tx, fresh.runId, {
               status: 'CANCELLED',
               failure: { code, retryable: false },
               finishedAt: now,
-            },
-          });
+            });
         }
       }
       return true;
     });
 
-    if (changed) {
-      void this.sendRevocation(attemptId);
-    }
+    if (changed) this.runInBackground(this.sendRevocation(attemptId), 'revoke');
     return changed;
   }
 
@@ -518,9 +505,7 @@ export class AgentRunService {
       }
     });
 
-    if (conversationToClaim) {
-      void this.claimNext(conversationToClaim);
-    }
+    if (conversationToClaim) this.runInBackground(this.claimNext(conversationToClaim), 'claim');
     return Boolean(ack);
   }
 
@@ -528,11 +513,13 @@ export class AgentRunService {
     tx: Prisma.TransactionClient,
     ctx: AuthorizedAttemptContext,
     citations: AgentResultPayload['citations'],
-  ): Promise<{ valid: boolean; mappedCitations: Array<{ documentId: string; versionId: string; page: number }> }> {
+  ): Promise<{ valid: boolean; mappedCitations: MappedCitation[] }> {
     if (!citations.length) return { valid: true, mappedCitations: [] };
 
     const publicEntries = loadPublicManifestEntries();
     const publicByRag = new Map(publicEntries.map(e => [`${e.ragDocumentId}:${e.ragVersion}`, e.businessDocumentId]));
+    const copilot = ctx.channelType === 'STAFF_COPILOT';
+    const citedIds = new Set(citations.map(citation => citation.document_id));
 
     const customerPolicies = await tx.insurancePolicy.findMany({
       where: { customerId: ctx.targetCustomerId },
@@ -545,6 +532,13 @@ export class AgentRunService {
     });
     const privateAllowed = new Map<string, { documentId: string; versionId: string }>();
     for (const policy of customerPolicies) {
+      if (copilot) {
+        if (!policy.documents.some(doc => citedIds.has(doc.id))) continue;
+        for (const version of await this.access.copilotPolicyVersions(tx, ctx.actor.id, policy.id)) {
+          privateAllowed.set(`${version.documentId}:${version.versionNumber}`, { documentId: version.documentId, versionId: version.versionId });
+        }
+        continue;
+      }
       for (const doc of policy.documents) {
         for (const ver of doc.versions) {
           if (doc.currentVersion === ver.versionNumber) {
@@ -555,7 +549,7 @@ export class AgentRunService {
     }
 
     const publicDocs = await tx.document.findMany({
-      where: { accessScope: 'PUBLIC', policyId: null, ownerCustomerId: null },
+      where: { accessScope: 'PUBLIC', policyId: null, ownerCustomerId: null, ...(copilot ? { product: { isActive: true } } : {}) },
       include: { versions: { where: { isActive: true } } },
     });
     const publicDbById = new Map<string, { documentId: string; versionId: string }>();
@@ -563,32 +557,36 @@ export class AgentRunService {
     for (const doc of publicDocs) {
       for (const ver of doc.versions) {
         if (doc.currentVersion === ver.versionNumber) {
-          publicDbById.set(doc.id, { documentId: doc.id, versionId: ver.id });
+          if (!copilot || ver.versionNumber === publicManifestPdfVersion) {
+            publicDbById.set(doc.id, { documentId: doc.id, versionId: ver.id });
+          }
           publicAllowed.set(`${doc.id}:${ver.versionNumber}`, { documentId: doc.id, versionId: ver.id });
         }
       }
     }
 
-    const mappedCitations: Array<{ documentId: string; versionId: string; page: number }> = [];
+    const mappedCitations: MappedCitation[] = [];
     for (const c of citations) {
       const key = `${c.document_id}:${c.document_version}`;
-      const page = c.location?.pages?.[0] ?? 1;
+      const location = copilot ? { sourceLocation: c.location } : { page: c.location?.pages?.[0] ?? 1 };
       if (publicByRag.has(key)) {
         const businessDocId = publicByRag.get(key)!;
         const dbMatch = publicDbById.get(businessDocId);
         if (dbMatch) {
-          mappedCitations.push({ documentId: dbMatch.documentId, versionId: dbMatch.versionId, page });
+          mappedCitations.push({ ...dbMatch, ...location });
+        } else if (copilot) {
+          return { valid: false, mappedCitations: [] };
         }
         continue;
       }
       if (publicAllowed.has(key)) {
         const dbMatch = publicAllowed.get(key)!;
-        mappedCitations.push({ documentId: dbMatch.documentId, versionId: dbMatch.versionId, page });
+        mappedCitations.push({ ...dbMatch, ...location });
         continue;
       }
       if (privateAllowed.has(key)) {
         const dbMatch = privateAllowed.get(key)!;
-        mappedCitations.push({ documentId: dbMatch.documentId, versionId: dbMatch.versionId, page });
+        mappedCitations.push({ ...dbMatch, ...location });
         continue;
       }
       return { valid: false, mappedCitations: [] };
@@ -683,29 +681,32 @@ export class AgentRunService {
         return { status: 409, body: ack('CONFLICT', 'SEQUENCE_CONFLICT') };
       }
 
+      const ignoreStale = async () => {
+        await tx.agentRunEvent.create({ data: { eventId: event.event_id, attemptId: event.attempt_id, runId: event.run_id,
+          sequence: event.sequence, kind: event.kind, payloadSha256, decision: 'IGNORED_STALE' } });
+        return { status: 200, body: ack('IGNORED_STALE', 'ATTEMPT_NOT_CURRENT') };
+      };
+      const liveRun = await tx.agentRun.findUniqueOrThrow({ where: { id: event.run_id },
+        include: { conversation: { select: { channelType: true } } } });
+      const checkedAt = new Date();
+      if (liveRun.conversation.channelType === 'STAFF_COPILOT' && liveRun.status === 'RUNNING'
+        && liveRun.currentAttemptId === event.attempt_id && copilotDeadlinePassed(liveRun.limits, checkedAt)) {
+        await expireCopilotRun(tx, liveRun, checkedAt);
+      }
+
       let ctx: AuthorizedAttemptContext | null = null;
       try {
         ctx = await this.access.authorizeInTx(tx, event.run_id, event.attempt_id);
-      } catch {
-        ctx = null;
+      } catch (error) {
+        if (!(error instanceof AgentApiError)) throw error;
+        if (error.code === 'NOT_AUTHORIZED' && liveRun.conversation.channelType === 'STAFF_COPILOT') {
+          await fenceAgentConversation(tx, conversationId, 'PERMISSION_CHANGED');
+        }
       }
 
-      if (!ctx) {
-        await tx.agentRunEvent.create({
-          data: {
-            eventId: event.event_id,
-            attemptId: event.attempt_id,
-            runId: event.run_id,
-            sequence: event.sequence,
-            kind: event.kind,
-            payloadSha256,
-            decision: 'IGNORED_STALE',
-          },
-        });
-        return { status: 200, body: ack('IGNORED_STALE', 'ATTEMPT_NOT_CURRENT') };
-      }
+      if (!ctx) return ignoreStale();
 
-      const run = await tx.agentRun.findUniqueOrThrow({ where: { id: event.run_id } });
+      const run = liveRun;
       const attempt = await tx.agentAttempt.findUniqueOrThrow({ where: { id: event.attempt_id } });
 
       if (event.kind === 'PROGRESS') {
@@ -756,14 +757,11 @@ export class AgentRunService {
           where: { id: attempt.id },
           data: { state: 'FINISHED' },
         });
-        await tx.agentRun.update({
-          where: { id: run.id },
-          data: {
+        await finishAgentRun(tx, run.id, {
             status: 'FAILED',
             failure: (event.payload.failure ?? { code: 'INTERNAL', retryable: false }) as Prisma.InputJsonObject,
             finishedAt: now,
-          },
-        });
+          });
         conversationIdToClaim = conversationId;
         return { status: 200, body: ack('ACCEPTED') };
       }
@@ -786,19 +784,21 @@ export class AgentRunService {
           where: { id: attempt.id },
           data: { state: 'FINISHED' },
         });
-        await tx.agentRun.update({
-          where: { id: run.id },
-          data: {
+        await finishAgentRun(tx, run.id, {
             status: 'FAILED',
             failure: { code: 'OUTPUT_INVALID', retryable: false },
             finishedAt: now,
-          },
-        });
+          });
         conversationIdToClaim = conversationId;
         return { status: 200, body: ack('ACCEPTED') };
       }
 
       const citationCheck = await this.resolveAndVerifyCitations(tx, ctx, result.citations);
+      const completedAt = new Date();
+      if (ctx.channelType === 'STAFF_COPILOT' && copilotDeadlinePassed(run.limits, completedAt)) {
+        await expireCopilotRun(tx, run, completedAt);
+        return ignoreStale();
+      }
       if (!citationCheck.valid) {
         await tx.agentRunEvent.create({
           data: {
@@ -815,14 +815,11 @@ export class AgentRunService {
           where: { id: attempt.id },
           data: { state: 'FINISHED' },
         });
-        await tx.agentRun.update({
-          where: { id: run.id },
-          data: {
+        await finishAgentRun(tx, run.id, {
             status: 'FAILED',
             failure: { code: 'OUTPUT_INVALID', retryable: false },
             finishedAt: now,
-          },
-        });
+          });
         conversationIdToClaim = conversationId;
         return { status: 200, body: ack('ACCEPTED') };
       }
@@ -912,23 +909,18 @@ export class AgentRunService {
         data: { state: 'FINISHED' },
       });
 
-      await tx.agentRun.update({
-        where: { id: run.id },
-        data: {
+      await finishAgentRun(tx, run.id, {
           status: 'COMPLETED',
           result: result as Prisma.InputJsonObject,
           resultMessageId: aiMessage.id,
           finishedAt: now,
-        },
-      });
+        });
 
       conversationIdToClaim = conversationId;
       return { status: 200, body: ack('ACCEPTED') };
     });
 
-    if (conversationIdToClaim) {
-      void this.claimNext(conversationIdToClaim);
-    }
+    if (conversationIdToClaim) this.runInBackground(this.claimNext(conversationIdToClaim), 'claim');
 
     return outcome;
   }
@@ -936,9 +928,24 @@ export class AgentRunService {
   async reconcileTick(): Promise<void> {
     const now = new Date();
 
+    // The queue deadline remains in force even while an old writer is being revoked.
+    const dueCopilots = await this.database.prisma.$queryRaw<{ conversation_id: string }[]>`
+      SELECT r.conversation_id FROM business.agent_runs r
+      JOIN business.conversations c ON c.id = r.conversation_id
+      WHERE c.channel_type = 'STAFF_COPILOT' AND r.status IN ('QUEUED', 'RUNNING')
+        AND COALESCE(r.limits->>'deadline_at', '') <= ${now.toISOString()}
+      ORDER BY COALESCE(r.limits->>'deadline_at', ''), r.id LIMIT 20`;
+    for (const { conversation_id: id } of dueCopilots) {
+      await this.database.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM business.conversations WHERE id = ${id}::uuid FOR UPDATE`;
+        const run = await tx.agentRun.findFirst({ where: { conversationId: id, status: { in: ['QUEUED', 'RUNNING'] } } });
+        if (run && copilotDeadlinePassed(run.limits, now)) await expireCopilotRun(tx, run, now);
+      });
+    }
+
     // 1. Check expired RUNNING runs past deadline + 5s grace
     const runningRuns = await this.database.prisma.agentRun.findMany({
-      where: { status: 'RUNNING', currentAttemptId: { not: null } },
+      where: { status: 'RUNNING', currentAttemptId: { not: null }, conversation: { channelType: 'CUSTOMER_SUPPORT' } },
       select: { id: true, currentAttemptId: true, limits: true },
       take: 20,
     });
@@ -952,7 +959,7 @@ export class AgentRunService {
       }
     }
 
-    // 2. Reconcile due DISPATCHING or INVALIDATING attempts
+    // Snapshot retries before claiming new work, which dispatches its first attempt immediately.
     const dueAttempts = await this.database.prisma.agentAttempt.findMany({
       where: {
         state: { in: ['DISPATCHING', 'INVALIDATING'] },
@@ -961,23 +968,41 @@ export class AgentRunService {
       orderBy: { nextDispatchAt: 'asc' },
       take: 20,
     });
-    for (const attempt of dueAttempts) {
-      if (attempt.state === 'DISPATCHING') {
-        await this.dispatchAttempt(attempt.id);
-      } else if (attempt.state === 'INVALIDATING') {
-        await this.sendRevocation(attempt.id);
-      }
+    // Filter blocked conversations before applying the batch limit. claimNext rechecks under lock.
+    const queued = await this.database.prisma.$queryRaw<{ conversation_id: string }[]>`
+      SELECT r.conversation_id
+      FROM business.agent_runs r
+      JOIN business.conversations c ON c.id = r.conversation_id
+      WHERE r.status = 'QUEUED'
+        AND (
+          (c.channel_type = 'STAFF_COPILOT' AND c.assigned_staff_id IS NOT NULL)
+          OR (
+            c.channel_type = 'CUSTOMER_SUPPORT' AND c.support_origin = 'AI' AND c.status = 'AI_ACTIVE'
+            AND NOT EXISTS (
+              SELECT 1 FROM business.conversation_handoffs h
+              WHERE h.conversation_id = c.id AND h.state IN ('PENDING', 'ACCEPTED') AND h.revoked_at IS NULL
+            )
+          )
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM business.agent_runs other
+          WHERE other.conversation_id = c.id
+            AND (other.status = 'RUNNING' OR (other.status = 'QUEUED' AND other.queue_position < r.queue_position))
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM business.agent_runs previous
+          JOIN business.agent_attempts a ON a.run_id = previous.id
+          WHERE previous.conversation_id = c.id AND a.state = 'INVALIDATING'
+        )
+      ORDER BY r.created_at, r.id
+      LIMIT 20`;
+    for (const { conversation_id: id } of queued) {
+      await this.claimNext(id);
     }
 
-    // 3. Claim queued runs on conversations that have no RUNNING run
-    const queuedConversations = await this.database.prisma.agentRun.findMany({
-      where: { status: 'QUEUED' },
-      select: { conversationId: true },
-      distinct: ['conversationId'],
-      take: 20,
-    });
-    for (const row of queuedConversations) {
-      await this.claimNext(row.conversationId);
-    }
+    // A transport timeout should delay this bounded batch by one timeout, not one per attempt.
+    await Promise.allSettled(dueAttempts.map(attempt => attempt.state === 'DISPATCHING'
+      ? this.dispatchAttempt(attempt.id)
+      : this.sendRevocation(attempt.id)));
   }
 }

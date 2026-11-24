@@ -31,7 +31,7 @@ Application Phase 0–5 đã hoàn tất, gồm tool local và hồi quy. Nối 
 | S02 | I01–I06 đã nối | Model/quyền/groups/lazy/search/cursor/Accept/chat/send/realtime, không counts | I07 Ticket riêng; QA tích hợp rộng hơn |
 | S03 | Đã nối API local | Customers list/detail/search/page/retry, policies/PDF; Conversations/Tickets theo customerId, Back/no-F5, regression + real E2E ba browser | Phase CU01/CU02 sở hữu bảo trì và test cases |
 | S04 | Đã nối API local | A14/A15/A16/A18/A20, lookup/dossier/PDF/download, PL05 Inbox lookup; regression + real Core/DB/MinIO E2E hai role trên ba browser | Agent citations/context còn P; native PDF toolbar/zoom không thuộc kiểm DOM |
-| S05 | Chat hai đầu/realtime đã nối | Consent/handoff/Accept/history/send/SYSTEM/catch-up. Core–Agent có run, callback và linked history; Web có khung panel | Nối API Staff và panel vào nền hiện có, kiểm quyền/ngữ cảnh tại [CP01–CP04](staff/plans/08-copilot-contract.md) |
+| S05 | Chat hai đầu/realtime và Staff Copilot đã có code | Staff hỏi trong Inbox. Core kiểm quyền chat nguồn, lưu lượt và báo trạng thái qua outbox/WebSocket. Agent đọc lịch sử theo mốc của lượt | Nghiệm thu với model thật và corpus được phép theo [CP01–CP04](staff/plans/08-copilot-contract.md) |
 | S06 | TK01–TK05 Core/UI/consumer đã có | A21/A22 read; A23 Accept/version/audit/outbox; UI list→detail/status dropdown/reopen, Notifications toolbar/portal/no-F5 | Phase 3 đã đồng bộ TICKET_CREATED/version và recipient Customer độc lập Staff; Phase 4 đã có unread cycle/cleanup hằng ngày; Phase 5 tool local/hồi quy đã kiểm theo spec Application. Nguồn Agent/summary thuộc I07 riêng; benchmark/fanout còn mở |
 | S07 | Handoff I06/Ticket TK05 đã có | A27/A28 union target, recipient/outbox/dedup/reconnect, WS Ticket/catch-up, badge đếm chưa đọc trên toolbar, inline mark read/mark all read, tích hợp Security Notice đổi mật khẩu | Customer center/message read status theo N01/N02 đã duyệt; N03 (Email SMTP cho Ticket qua MailHog) đã hoàn thành và kiểm thử; kiểm riêng quyền và delivery của cả hai role |
 
@@ -70,7 +70,7 @@ Application Phase 0–5 đã hoàn tất, gồm tool local và hồi quy. Nối 
 ## Phần tiếp theo
 
 - [x] Ngữ cảnh hợp đồng Copilot đã chốt B ngày 14/11, MVP dùng manual lookup và hợp đồng được nêu/làm rõ trong câu hỏi. Không bổ sung ô chọn hợp đồng hoặc API đổi `linkedPolicyId`.
-- [ ] Kiểm CP04-T05 về câu mơ hồ, scope hợp đồng và task/citation đúng view. Manual lookup đã có, Copilot còn P. [Quyết định chuẩn](../specifications/Agent_Design.md#copilot-policy-selection).
+- [ ] Kiểm CP04-T05 về câu mơ hồ, scope hợp đồng và task/citation đúng view. Manual lookup và Copilot đã có code, nghiệm thu model thật còn mở. [Quyết định chuẩn](../specifications/Agent_Design.md#copilot-policy-selection).
 
 - [x] Logout/hết phiên chốt B ngày 14/11, yêu cầu AI Core đã tiếp nhận tiếp tục xử lý theo quyền tài khoản/tài nguyên hiện hành. Phiên cũ bị chặn, người dùng login lại cùng actor xem kết quả. [Chính sách chuẩn](../specifications/Agent_Design.md#agent-logout-session-policy).
 - [ ] Nghiệm thu CH02-T08/CH03-T07/AU03-T05/CP04-T04 với accept/logout race, queued, expiry, callback, login lại và revoke. Baseline logout/session có code, tích hợp Agent còn P.

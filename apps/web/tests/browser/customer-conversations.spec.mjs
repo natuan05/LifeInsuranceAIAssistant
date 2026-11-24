@@ -16,13 +16,21 @@ async function setup(page, options = {}) {
     }
     if (url.pathname.endsWith('/read-state')) return json({ readThroughSequence: '0' });
     if (url.pathname.endsWith('/messages')) return json({ items: [], pageInfo: { beforeCursor: null, afterCursor: 'zero', hasMoreBefore: false, hasMoreAfter: false } });
-    if (url.pathname.endsWith('/conversations/one')) return json({ conversation: state.legacy ? { ...detail, allowedActions: { readMessages: false, send: false, requestStaff: false } } : detail });
+    if (url.pathname.endsWith('/conversations/one')) return json({ conversation: state.legacy ? { ...detail, allowedActions: { readMessages: false, send: false, requestStaff: false } } : { ...detail, aiReplyStatus: state.aiReplyStatus } });
     if (url.pathname.endsWith('/conversations')) return json({ items: [detail], pageInfo: { hasMore: false, nextCursor: null } });
     return json({ customer: { fullName: 'Synthetic Customer', accountCode: 'CUS-TEST', email: 'customer@synthetic.invalid', status: 'ACTIVE' }, staff: null, assignmentStatus: 'UNASSIGNED' });
   });
   await page.goto('/customer?conversationId=one');
   await expect(page.getByRole('region', { name: 'Customer conversations', exact: true })).toBeVisible(); return state;
 }
+test('AI chat shows reply dots and replaces them with a failure status without a realtime event', async ({ page }) => {
+  const state = await setup(page, { aiReplyStatus: 'RUNNING' });
+  const transcript = page.getByRole('region', { name: 'Conversation messages', exact: true });
+  await expect(transcript.getByText('AI đang chuẩn bị phản hồi', { exact: true })).toHaveCount(1);
+  state.aiReplyStatus = 'FAILED';
+  await expect(transcript.getByText('AI chưa thể trả lời tin nhắn này. Bạn có thể gửi lại câu hỏi.')).toBeVisible();
+  await expect(transcript.getByText('AI đang chuẩn bị phản hồi')).toHaveCount(0);
+});
 test('handoff cancel/Escape restores focus and never records consent', async ({ page }) => {
   const state = await setup(page); const open = page.getByRole('button', { name: 'Request Staff support', exact: true });
   await open.click(); const dialog = page.getByRole('dialog'); await expect(dialog).toContainText('entire Customer-visible history');

@@ -18,10 +18,12 @@ import { ConversationTranscriptService } from './services/conversation-transcrip
 import { ConversationAccessService } from './services/conversation-access.service';
 import { ConversationCommandService } from './services/conversation-command.service';
 import { ConversationMessageService } from './services/conversation-message.service';
+import { StaffCopilotController } from './controllers/staff-copilot.controller';
+import { StaffCopilotService } from './services/staff-copilot.service';
 
 // Customer/Staff messaging; no Agent impersonation endpoint.
-@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule, AgentModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController, CommonConversationController],
+@Module({ imports: [DatabaseModule, AuthModule, PoliciesModule, AgentModule], controllers: [StaffInboxController, StaffConversationController, CustomerConversationController, CommonConversationController, StaffCopilotController],
   providers: [ConversationEventService, ConversationSendingService, ConversationAccessService, ConversationCommandService, ConversationMessageService, ConversationRateLimitService, StaffInboxService,
-    ConversationSessionService, ConversationEntryService, ConversationHandoffService, ConversationTranscriptService],
+    ConversationSessionService, ConversationEntryService, ConversationHandoffService, ConversationTranscriptService, StaffCopilotService],
   exports: [ConversationSessionService, ConversationRateLimitService, ConversationEventService, ConversationAccessService, ConversationCommandService, ConversationMessageService] })
 export class ConversationsModule {}

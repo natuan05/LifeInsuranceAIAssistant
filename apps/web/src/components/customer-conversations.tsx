@@ -208,6 +208,32 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
   };
 
   const visible = !blocked && !denied && detail?.id === selected ? detail : null;
+  const aiChatId = visible?.status === 'AI_ACTIVE' && visible.allowedActions.send ? visible.id : null;
+  const waitingForAi = visible?.aiReplyStatus === 'QUEUED' || visible?.aiReplyStatus === 'RUNNING';
+  useEffect(() => {
+    if (!aiChatId || (!incoming && !waitingForAi)) return;
+    const abort = new AbortController();
+    const epoch = privacyEpoch.current;
+    let timer: ReturnType<typeof setTimeout>;
+    const checkReply = async () => {
+      try {
+        const { conversation } = await customerConversation(aiChatId, abort.signal);
+        if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
+        setDetail(current => current?.id === aiChatId && current.controlVersion <= conversation.controlVersion ? conversation : current);
+        if (conversation.aiReplyStatus === 'QUEUED' || conversation.aiReplyStatus === 'RUNNING') {
+          timer = setTimeout(checkReply, 3000);
+        } else if (conversation.aiReplyStatus === 'COMPLETED') {
+          setLiveRevision(value => value + 1);
+        }
+      } catch (failure) {
+        if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
+        if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
+        else timer = setTimeout(checkReply, 5000);
+      }
+    };
+    void checkReply();
+    return () => { abort.abort(); clearTimeout(timer); };
+  }, [aiChatId, incoming, waitingForAi, onDenied]);
 
   return (
     <section
@@ -437,6 +463,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
                 role="CUSTOMER"
                 memory={transcriptMemory}
                 incoming={incoming}
+                aiReplyStatus={visible.status === 'AI_ACTIVE' ? visible.aiReplyStatus : null}
                 refreshToken={liveRevision}
                 onDenied={onDenied}
               />

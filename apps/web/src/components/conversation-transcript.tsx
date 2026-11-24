@@ -1,11 +1,13 @@
 'use client';
 import { connectionEvent } from '@/lib/chat-realtime';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { ConversationError, conversationMessages, conversationReadState, mergeMessages, type ChatMessage, type MessagePage } from '@/lib/conversation-api';
+import { ConversationError, conversationMessages, conversationReadState, mergeMessages, type AiReplyStatus, type ChatMessage, type MessagePage } from '@/lib/conversation-api';
+import { AiReplyIndicator } from './ai-reply-indicator';
+import { AiReplyText } from './ai-reply-text';
 
 export const inboxButton = 'tw:rounded-lg tw:border tw:border-slate-300 tw:bg-white tw:px-3 tw:py-2 tw:text-sm tw:font-medium tw:text-slate-700 tw:hover:bg-slate-100 tw:disabled:opacity-50 tw:focus-visible:outline-2 tw:focus-visible:outline-offset-2 tw:focus-visible:outline-blue-600';
 export type TranscriptSnapshot = { messages: ChatMessage[]; page: MessagePage['pageInfo'] | null; top: number; readThroughSequence?: string };
-export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', incoming, refreshToken = 0 }: { id: string; role?: 'STAFF' | 'CUSTOMER'; incoming?: ChatMessage | null; refreshToken?: number; memory: Map<string, TranscriptSnapshot>; onDenied: (error: ConversationError) => void }) {
+export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', incoming, aiReplyStatus, refreshToken = 0 }: { id: string; role?: 'STAFF' | 'CUSTOMER'; incoming?: ChatMessage | null; aiReplyStatus?: AiReplyStatus | null; refreshToken?: number; memory: Map<string, TranscriptSnapshot>; onDenied: (error: ConversationError) => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>(() => memory.get(id)?.messages ?? []);
   const [readThroughSequence, setReadThroughSequence] = useState(() => memory.get(id)?.readThroughSequence ?? '0');
   const [page, setPage] = useState<MessagePage['pageInfo'] | null>(() => memory.get(id)?.page ?? null);
@@ -203,7 +205,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
                       <span className="tw:text-[11px] tw:font-semibold tw:font-mono tw:bg-blue-50 tw:text-blue-700 tw:border tw:border-blue-200/60 tw:rounded-full tw:px-2.5 tw:py-0.5">#TK-SUPPORT</span>
                     </div>
                     <div className="tw:py-3 tw:text-xs tw:leading-relaxed tw:whitespace-pre-wrap tw:break-words tw:[overflow-wrap:anywhere] tw:text-slate-700">
-                      {message.content}
+                      <AiReplyText text={message.content} />
                     </div>
                     <div className="tw:flex tw:items-center tw:gap-2 tw:pt-2.5 tw:border-t tw:border-slate-100 tw:text-[11px] tw:font-medium tw:text-emerald-700 tw:bg-emerald-50/50 tw:-mx-4 tw:-mb-4 tw:px-4 tw:py-2.5 tw:rounded-b-xl">
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="tw:text-emerald-600 tw:shrink-0"><polyline points="20 6 9 17 4 12"/></svg>
@@ -212,7 +214,7 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
                   </div>
                 ) : (
                   <div className={`tw:rounded-2xl tw:px-4 tw:py-3 tw:text-sm tw:leading-relaxed tw:whitespace-pre-wrap tw:break-words tw:[overflow-wrap:anywhere] tw:shadow-xs ${isMe ? 'tw:bg-[#0f172a] tw:text-white tw:rounded-tr-xs' : 'tw:bg-white tw:border tw:border-slate-200/80 tw:text-slate-900 tw:rounded-tl-xs'}`}>
-                    {message.content}
+                    {isAgent ? <AiReplyText text={message.content} /> : message.content}
                   </div>
                 )}
                 {!!message.citations?.length && (
@@ -251,6 +253,10 @@ export function ConversationTranscript({ id, memory, onDenied, role = 'STAFF', i
         })}
       </ol>
       {page?.hasMoreAfter && <button className={inboxButton + ' tw:mt-4!'} disabled={pending} onClick={() => void load('after')}>Load newer messages</button>}
+      {!page?.hasMoreAfter && (aiReplyStatus === 'QUEUED' || aiReplyStatus === 'RUNNING') &&
+        <div className="tw:mt-4"><AiReplyIndicator label="AI đang chuẩn bị phản hồi" /></div>}
+      {!page?.hasMoreAfter && aiReplyStatus === 'FAILED' &&
+        <p role="status" className="tw:mt-4 tw:text-sm tw:text-slate-600">AI chưa thể trả lời tin nhắn này. Bạn có thể gửi lại câu hỏi.</p>}
     </div>
     {jump && <button className={inboxButton} onClick={() => { viewport.current?.scrollTo({ top: viewport.current.scrollHeight, behavior: 'smooth' }); setJump(false); }}>Jump to latest</button>}
   </div>;

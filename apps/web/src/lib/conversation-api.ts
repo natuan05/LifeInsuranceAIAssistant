@@ -31,6 +31,7 @@ async function request<T>(path: string, signal?: AbortSignal, csrfToken?: string
   }
   return response.json();
 }
+export { request as conversationRequest };
 function query(values: Record<string, string | undefined>) {
   return new URLSearchParams(Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined)).toString();
 }
@@ -55,7 +56,8 @@ export type MessageAck = { message: ChatMessage & { clientMessageId: string }; c
 const conversationPath = (role: 'STAFF' | 'CUSTOMER', id: string) => `${role === 'STAFF' ? 'staff' : 'customers/me'}/conversations/${encodeURIComponent(id)}`;
 export const sendMessage = (role: 'STAFF' | 'CUSTOMER', id: string, intent: SendIntent, csrf: string, signal: AbortSignal) => request<MessageAck>(`${conversationPath(role, id)}/messages`, signal, csrf, intent);
 export const lookupMessage = (role: 'STAFF' | 'CUSTOMER', id: string, key: string, signal: AbortSignal) => request<MessageAck>(`${conversationPath(role, id)}/messages/by-client-id/${encodeURIComponent(key)}`, signal);
-export type CustomerConversation = { id: string; subject: string; status: 'AI_ACTIVE' | 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; controlVersion: number; entryType: string; activityAt?: string; staff: { fullName: string } | null; allowedActions: { readMessages: boolean; send: boolean; requestStaff: boolean } };
+export type AiReplyStatus = 'QUEUED' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type CustomerConversation = { id: string; subject: string; status: 'AI_ACTIVE' | 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; controlVersion: number; entryType: string; activityAt?: string; aiReplyStatus?: AiReplyStatus | null; staff: { fullName: string } | null; allowedActions: { readMessages: boolean; send: boolean; requestStaff: boolean } };
 export type ChatSupport = { availability: string; assignmentVersion: number; staff: { fullName: string } | null; handoffConsent: { textVersion: string; scope: string; text: string } };
 export const customerConversations = (cursor: string | undefined, signal: AbortSignal) => request<CursorPage<CustomerConversation>>(`customers/me/conversations?${query({ cursor })}`, signal);
 export const customerConversation = (id: string, signal: AbortSignal) => request<{ conversation: CustomerConversation }>(conversationPath('CUSTOMER', id), signal);

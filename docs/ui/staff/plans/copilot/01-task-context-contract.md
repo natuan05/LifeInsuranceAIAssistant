@@ -1,6 +1,6 @@
 # CP01 — Core–Agent, context và ownership
 
-23/11/2026 · **P, contract cho phần nối Staff Inbox vào nền Core–Agent hiện có** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
+24/11/2026 · **A24/A25 đã triển khai** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
@@ -21,8 +21,8 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Dùng gate transcript của Inbox. Runtime mở Direct/Accepted; thiết kế 23/11 mở theo phân công hiện hành | Cao — Inbox filter/deep link/REST/WS và Copilot dùng cùng gate |
 | insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
 | documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
-| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | P — tạo/append nội bộ Copilot, nền cột đã có | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; cần chốt uniqueness theo Staff/source trước migration | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
-| agent_runs + agent_attempts + agent_run_events | conversation/message, linked_history_view, status/attempt/result, event ID và sequence | Có nền Core; P nối từ Staff | Tái dùng lifecycle hiện có. Checkpoint nằm trong store riêng của Agent | Cao — retry/crash/revoke giữa enqueue/tool/result |
+| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | Tạo thread và ghi tin nội bộ | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; unique theo Staff và chat nguồn | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
+| agent_runs + agent_attempts + agent_run_events | conversation/message, linked_history_view, status/attempt/result, event ID và sequence | Lưu lượt từ Staff | Tái dùng lifecycle hiện có. Checkpoint nằm trong store riêng của Agent | Cao — retry/crash/revoke giữa enqueue/tool/result |
 
 **Ownership đã chốt:** một thread cho mỗi cặp Staff và chat nguồn. Khi Staff được phân công lại và có quyền đọc nguồn, Core mở lại thread của chính Staff đó. Lượt từng bị hủy giữ trạng thái `CANCELLED`. Rà dữ liệu legacy thiếu owner/source hoặc trùng cặp trước khi thêm ràng buộc DB. Kiểm hai request đầu đồng thời chỉ dùng một thread hợp lệ.
 
@@ -39,18 +39,18 @@ Model Conversation.channelType STAFF_COPILOT/linkedContextConvId; source grant I
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
 | [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Hiện có source grant; P adapter Copilot phải gọi lại | Cao | REST/WS transcript và source reassignment |
-| [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Hiện có module; Copilot controller/task adapter còn P | Cao | Không mở public endpoint giả quyền |
+| [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Controller A24/A25 và service Copilot | Cao | Không mở public endpoint giả quyền |
 | [apps/agent/](<../../../../../apps/agent>) | Hiện có | Owner phần Agent/checkpoint; chỉ ranh giới cần phối hợp, không triển khai trong đợt tài liệu này | Cao | Service identity, scope tools, durable attempt |
-| `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/components/staff-copilot-panel.tsx` | Đã có | Hiển thị hội thoại Copilot theo Staff và chat nguồn | Trung bình | Inbox transcript và composer giữ mounted |
+| `apps/web/src/lib/copilot-api.ts` | Đã có | Client A24/A25 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
 **Hợp đồng làm ngữ cảnh Copilot — đã chọn, tích hợp P.** Theo [chính sách chuẩn](../../../../specifications/Agent_Design.md#copilot-policy-selection): số hợp đồng rõ và đúng quyền thì tra cứu không bắt chọn lại; câu nối tiếp dùng context còn rõ, mơ hồ thì hỏi lại. Không selector/API đổi linkedPolicyId, mở Lookup/PDF không đổi context.
 
-Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
+Prefix REST `/api/v1`. A24/A25 đã triển khai theo contract CP01.
 
-A24 GET `/staff/conversations/:id/copilot` và A25 POST `.../copilot/messages` còn P. `:id` là chat Customer Support đang mở, kể cả khi chưa có thread Copilot. Core lấy Staff từ session, Customer từ nguồn và mốc lịch sử từ dữ liệu đã commit. A24 đọc lịch sử/trạng thái; A25 nhận câu hỏi và UUID chống trùng, ghi câu hỏi nội bộ và enqueue run trong cùng transaction. Theo [ánh xạ API chung](../../../../../contracts/agent-v1.md#application-conversation-api-mapping), public API ở module conversations và dùng lifecycle nội bộ hiện có.
+A24 GET `/staff/conversations/:id/copilot` và A25 POST `.../copilot/messages` đã triển khai. `:id` là chat Customer Support đang mở, kể cả khi chưa có thread Copilot. Core lấy Staff từ session, Customer từ nguồn và mốc lịch sử từ dữ liệu đã commit. A24 đọc lịch sử/trạng thái; A25 nhận câu hỏi và UUID chống trùng, ghi câu hỏi nội bộ và enqueue run trong cùng transaction. Theo [ánh xạ API chung](../../../../../contracts/agent-v1.md#application-conversation-api-mapping), public API ở module conversations và dùng lifecycle nội bộ hiện có.
 
 **Giao nhận kết quả đã chốt.** Tái dùng kết nối WebSocket Inbox và cơ chế outbox hiện có. Core ghi sự kiện đổi trạng thái cuối cùng trong cùng transaction với cập nhật run, rồi phát sau commit. Sự kiện riêng cho Copilot chỉ mang định danh và tín hiệu cập nhật. Core xác minh phiên, chủ thread và quyền transcript nguồn khi phát. Panel dùng A24 để đọc trạng thái/kết quả bền vững và đối soát khi kết nối lại. API đọc kiểm lại quyền ở từng yêu cầu.
 
@@ -60,7 +60,9 @@ A24 GET `/staff/conversations/:id/copilot` và A25 POST `.../copilot/messages` c
 
 **Kết quả API đã chốt.** A24 trả lịch sử rỗng và không có lượt đang chạy nếu Staff có quyền đọc nguồn và chưa có thread. Thread được tạo khi A25 tiếp nhận câu hỏi đầu tiên. Sau khi kiểm quyền, A25 tra UUID trước khi kiểm thread đang bận. Cùng UUID và payload trả ID và trạng thái hiện tại của đúng lượt cũ, kể cả khi một lượt mới đang chạy. Cùng UUID nhưng khác payload trả lỗi xung đột. UUID mới trong lúc có lượt chưa kết thúc trả lỗi đang bận để panel giữ nội dung đang soạn. A24 cung cấp nội dung kết quả và lịch sử.
 
-Staff gửi yêu cầu tóm tắt qua ô hỏi và A25 theo UC-006. Hình dạng DTO, mã lỗi và cursor cụ thể được hoàn thiện khi triển khai. Quyền nguồn và ownership phải được kiểm ở API Staff, khi Agent chạy/gọi tool và lúc commit/trả kết quả. Kiểm lại các đường cấp scope và callback hiện có vì kiểm active assignment ở nhánh Copilot chưa thay được gate transcript của chat nguồn.
+Staff gửi yêu cầu tóm tắt qua ô hỏi và A25 theo UC-006. A24 trả `items`, `beforeCursor` và `activeRun`. A25 nhận `clientMessageId` và `content`, trả `id`, `status` và `replayed` (201 cho lượt mới, 200 khi replay). Xung đột và đang bận trả 409 với mã `IDEMPOTENCY_CONFLICT` và `COPILOT_BUSY`. Quyền nguồn và ownership phải được kiểm ở API Staff, khi Agent chạy/gọi tool và lúc commit/trả kết quả. Kiểm lại các đường cấp scope và callback hiện có vì kiểm active assignment ở nhánh Copilot chưa thay được gate transcript của chat nguồn.
+
+Citation của A24 trả `documentId`, `versionId` và `sourceLocation` (trang, điều khoản hoặc anchor từ tài liệu retrieval). Citation cũ chỉ lưu số trang có `sourceLocation: null` và vẫn có thể mở phiên bản được cấp quyền.
 
 ## 4. Luồng thực hiện
 
@@ -71,6 +73,10 @@ Staff đủ grant → Core chốt mốc lịch sử nguồn → Agent xử lý t
 **Cấp lại quyền khi còn chờ xác nhận dừng — đã chốt.** Nếu thread chưa có lượt chưa kết thúc, A25 tiếp nhận câu hỏi mới ở trạng thái `QUEUED`. Panel hiện “Đang chờ”. Core chỉ chạy lượt mới sau khi Agent xác nhận dừng attempt cũ, lượt mới còn trong hạn và Staff vẫn có quyền. Nếu hết hạn chờ, Core lưu `FAILED` và phát tín hiệu cập nhật theo cơ chế chung. Staff có thể chủ động gửi lại thành lượt mới. Lượt cũ giữ `CANCELLED`.
 
 **Thời hạn Copilot — đã chốt.** Core lưu một deadline khi A25 tiếp nhận câu hỏi, dùng chung cho thời gian chờ và xử lý. Claim, retry giao nhận và khởi động lại giữ nguyên deadline. Core đối soát lượt hết hạn ở cả `QUEUED` và `RUNNING`, kể cả khi còn chờ xác nhận dừng lượt cũ. Core kiểm deadline trong giao dịch claim và khi xử lý callback kết quả. Lượt đã hết hạn chuyển `FAILED` và phát tín hiệu cập nhật. Kết quả đến sau hạn không thể chuyển lượt sang thành công.
+
+Khi khôi phục hàng đợi, Core lọc các thread đang chạy hoặc đang chờ thu hồi trước khi lấy batch. Mỗi thread chỉ xét lượt đầu hàng đợi và claim kiểm lại điều kiện trong transaction.
+
+Khi giao lượt hoặc gửi yêu cầu thu hồi gặp lỗi sau commit, Core giữ trạng thái bền vững để bộ đối soát thử lại.
 
 ```mermaid
 flowchart TD
