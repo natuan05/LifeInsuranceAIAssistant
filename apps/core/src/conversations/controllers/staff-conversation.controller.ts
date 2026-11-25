@@ -29,12 +29,20 @@ export class StaffConversationController {
     if (Object.keys(query).length) throw new BadRequestException();
     return this.handoff.accept(request, id, input);
   }
+  @Post(':conversationId/takeover') @HttpCode(200) @Header('Cache-Control', 'no-store')
+  @ApiOperation({ summary: 'A14 (FR-006): Proactively take over an AI_ACTIVE conversation, fencing pending/running Agent turns and appending a SYSTEM notice.' })
+  @ApiOkResponse({ type: AcceptResponseDto }) @ApiResponse({ status: 409, description: 'STALE_CONVERSATION, ALREADY_ACCEPTED or IDEMPOTENCY_CONFLICT.' })
+  takeover(@Req() request: ConversationRequest, @Param('conversationId', new ParseUUIDPipe()) id: string,
+    @Body() input: ConversationVersionCommandDto, @Query() query: Record<string, unknown>) {
+    if (Object.keys(query).length) throw new BadRequestException();
+    return this.handoff.takeover(request, id, input);
+  }
   @Get(':conversationId/commands/:clientRequestId') @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: 'Reconcile this Staff actor\'s committed Accept; receipt never bypasses the current grant.' }) @ApiOkResponse({ type: CommandReceiptDto })
+  @ApiOperation({ summary: 'Reconcile this Staff actor\'s committed Accept or Takeover; receipt never bypasses the current grant.' }) @ApiOkResponse({ type: CommandReceiptDto })
   reconcile(@Req() request: ConversationRequest, @Param('conversationId', new ParseUUIDPipe()) id: string,
     @Param('clientRequestId', new ParseUUIDPipe()) key: string, @Query() query: AcceptCommandQuery) {
-    if (query.operation !== 'ACCEPT_HANDOFF') throw new BadRequestException();
-    return this.handoff.reconcile(request, id, key);
+    if (query.operation !== 'ACCEPT_HANDOFF' && query.operation !== 'TAKEOVER_CONVERSATION') throw new BadRequestException();
+    return this.handoff.reconcile(request, id, key, query.operation);
   }
   @Post(':conversationId/messages') @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Send one Customer-visible message with current session/grant and idempotent clientMessageId; no delivery/read ACK.' })

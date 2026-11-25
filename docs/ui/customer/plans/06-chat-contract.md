@@ -30,7 +30,7 @@ FR-005/006/011, NFR-001/002/003/005/008. I03–I06 đã có own conversations/hi
 
 **Chat mới sau Staff — đã chốt 14/11/2026.** Customer muốn hỏi AI sau khi trao đổi với Staff thì chủ động chọn New AI chat. Core tạo conversation mới qua luồng create hiện có, Agent dùng thread/context riêng của cuộc mới. Cuộc cũ nằm trong lịch sử, quyền đọc/gửi tiếp tục theo allowedActions và grant hiện hành. ConversationStatus giữ AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Dừng trao đổi sau khi đã hỗ trợ xong không tạo trạng thái Close hoặc command kết thúc, cũng không tự khóa composer thành chỉ đọc. New AI chat/create đã có, CH01 giữ hành vi này, CH02/CH03 còn kiểm context/callback và tích hợp Agent/Core. [Quyết định chuẩn](../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
-**Thiết kế 23/11, chưa triển khai.** Staff phụ trách xem được toàn bộ lịch sử Customer-facing và có thể Takeover khi AI đang hỗ trợ. Customer tiếp tục trong cùng cuộc sau Takeover. Runtime hiện tại vẫn mở transcript Staff sau Direct hoặc consent + Accept. [Đặc tả Inbox](../../staff/plans/inbox/00-inbox-spec.md).
+**Thiết kế FR-006 đã chốt.** Staff có quyền xem (Staff được phân công hoặc Staff xem khách chưa phân công) xem được toàn bộ lịch sử Customer-facing từ tin đầu tiên (`canView = true`) và có thể chủ động Takeover khi AI đang hỗ trợ (`canTakeover = true`). Customer tiếp tục trong cùng cuộc sau Takeover. Các cơ chế phức tạp về đổi phân công được lược bỏ trong đợt này. [Đặc tả Inbox](../../staff/plans/inbox/00-inbox-spec.md).
 
 CH02 hoàn thiện contract và tích hợp theo các quyết định đã chốt trong Agent Design, gồm HTTP + callback, Starlette + uvicorn, LI-HMAC-SHA256-v1 và Gemini API. Storage/fence và hosting cụ thể theo phần review G2/G3 hiện hành. Cần test Core với adapter giả trong harness rồi Agent thật, nghiệm thu FR-005 theo chứng cứ từng luồng.
 
@@ -62,13 +62,9 @@ Yêu cầu Staff/Direct/Accept chat không tự tạo Ticket; Customer xác nh�
 
 AI_ACTIVE hiển thị AI đang hỗ trợ. PENDING_HANDOFF hiển thị đang chờ Staff. STAFF_ACTIVE hiển thị người đang hỗ trợ sau Direct, Accept hoặc Takeover. Core fence Agent từ lúc commit yêu cầu Customer hoặc Takeover theo từng luồng.
 
-Khi Staff chỉ mở xem cuộc đang do AI hỗ trợ, Customer vẫn thấy “Đang được AI hỗ trợ”.
+Khi Staff mở xem cuộc đang do AI hỗ trợ, Customer vẫn thấy “Đang được AI hỗ trợ”. Việc xem trước này hoàn toàn không làm gián đoạn AI và không gửi bất kỳ thông báo nào cho Customer.
 
-Nếu đổi Staff sau khi cuộc đã được tiếp quản, Customer nhận thông báo trong ứng dụng dẫn về cùng cuộc chat và thấy đang chờ Staff mới. Customer vẫn xem lịch sử, ô gửi tạm khóa và AI vẫn dừng. Khi Staff mới Takeover thành công, tin SYSTEM xác nhận đã tiếp quản và Customer gửi tiếp trong cùng cuộc. [Đặc tả Inbox](../../staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái)
-
-Khi xác nhận gửi yêu cầu, Customer được báo trước rằng yêu cầu đang chờ sẽ đi theo Staff phụ trách. Nếu đổi Staff trước Accept, Customer nhận thông báo yêu cầu đã chuyển sang Staff mới, vẫn thấy đang chờ nhân viên tiếp nhận và không cần gửi lại. AI vẫn dừng trong lúc chờ.
-
-Customer chỉ thấy dấu Đã đọc cập nhật khi Staff mở cuộc với quyền trả lời hiện hành. Việc Staff xem lịch sử trước Accept hoặc Takeover không đổi dấu Đã đọc.
+Customer chỉ thấy dấu Đã đọc cập nhật khi Staff mở cuộc với quyền trả lời hiện hành (`canSend = true`). Việc Staff xem lịch sử trước Accept hoặc Takeover không đổi dấu Đã đọc.
 
 ConversationStatus đã bỏ CLOSED qua migration 202611030001_remove_conversation_closed. Customer Support CLOSED cũ về AI_ACTIVE/controller NULL và có audit, giữ lịch sử/liên kết/thời gian; không tự tạo consent/Accept hoặc quyền Staff. Copilot CLOSED chưa review sẽ chặn migration và rollback. TicketStatus.CLOSED là miền khác, không đổi trong đợt này.
 
@@ -76,11 +72,11 @@ ConversationStatus đã bỏ CLOSED qua migration 202611030001_remove_conversati
 
 Danh sách có tiêu đề và thời gian. Transcript hiển thị nhãn AI/Staff và context tài liệu đúng quyền. Customer thấy thông tin Staff phụ trách có thể đọc và tiếp quản cuộc chat. “Yêu cầu Staff” và “Tạo Ticket” có bước xác nhận riêng.
 
-- [ ] Theo thiết kế 23/11, Staff phụ trách đọc được từ tin đầu tiên và theo dõi tin mới trong AI_ACTIVE/PENDING_HANDOFF. Staff ngoài phân công bị chặn.
+- [x] Theo thiết kế FR-006, Staff có quyền (chưa phân công hoặc đúng phân công) đọc được từ tin đầu tiên và theo dõi tin mới trong AI_ACTIVE/PENDING_HANDOFF (`canView = true`). Staff ngoài phân công bị chặn (404/403).
 - [x] Direct đúng người nhận, không đổi flag của AI cũ để mở quyền.
-- [ ] Theo thiết kế 23/11, Customer thấy chuyển quyền trong cùng cuộc. Staff gửi được sau Takeover/Accept commit; callback AI muộn bị chặn.
+- [x] Theo thiết kế FR-006, Customer thấy chuyển quyền trong cùng cuộc. Staff gửi được sau Takeover/Accept commit (`canSend = true`); callback AI muộn bị Core fence chặn.
 - [x] Ticket/xác nhận/gửi lại không tự mở chat hoặc tạo Ticket khi chỉ yêu cầu Staff.
-- [x] Mất mạng/không Staff/reassignment có trạng thái rõ; cursor/nháp/retry không F5 hoặc trùng tin.
+- [x] Mất mạng/không Staff có trạng thái rõ; cursor/nháp/retry không F5 hoặc trùng tin.
 
 <a id="6-chuyển-từ-agent-sang-staff--yêu-cầu-31102026"></a>
 ## 6. Chuyển từ Agent sang Staff — thiết kế 23/11/2026

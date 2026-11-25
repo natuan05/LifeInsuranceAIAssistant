@@ -127,14 +127,16 @@ after(async () => {
   } finally { await Promise.all([core.$disconnect(), admin.$disconnect()]); }
 });
 
-test('groups hide private-only Customers and all filters are permission-first', async () => {
+test('groups include assigned AI_ACTIVE in all filter and hide foreign customers', async () => {
   const all = await json(groupPath), requests = await json(pathQuery(groupPath, { filter: 'requests' })), active = await json(pathQuery(groupPath, { filter: 'active' }));
-  assert.equal(all.items.length, 7); assert.equal(active.items.length, 7);
+  assert.equal(all.items.length, 8); assert.equal(active.items.length, 7);
   assert.deepEqual(requests.items.map(i => i.customer.id), [x.id]);
-  assert.ok(!all.items.some(i => [privateOnly.id, outsider.id].includes(i.customer.id)));
-  for (const body of [all, requests, active]) safe(body);
+  assert.ok(all.items.some(i => i.customer.id === privateOnly.id));
+  assert.ok(!all.items.some(i => i.customer.id === outsider.id));
+  assert.ok(!active.items.some(i => [privateOnly.id, outsider.id].includes(i.customer.id)));
+  for (const body of [requests, active]) safe(body);
   assert.deepEqual((await json(pathQuery(groupPath, { customerId: outsider.id }))).items, []);
-  assert.deepEqual((await json(pathQuery(groupPath, { search: privateOnly.code }))).items, []);
+  assert.deepEqual((await json(pathQuery(groupPath, { search: privateOnly.code, filter: 'active' }))).items, []);
 });
 
 test('SQL visibility and I01 Prisma policy match for both actors and every filter', async () => {
@@ -142,41 +144,49 @@ test('SQL visibility and I01 Prisma policy match for both actors and every filte
     const now = new Date();
     const orm = await core.conversation.findMany({ where: { id: { in: conversations }, AND: [access.staffScope(actor.id, filter, now)] }, select: { id: true } });
     const sql = await core.$queryRaw(access.staffSqlEntries(actor.id, filter, now));
-    assert.deepEqual(sql.map(r => r.id).sort(), orm.map(r => r.id).sort());
+    assert.deepEqual(sql.filter(r => conversations.includes(r.id)).map(r => r.id).sort(), orm.map(r => r.id).sort());
   }
 });
 
-test('lazy list, entry types and metadata never return transcript or private previews', async () => {
+test('lazy list, entry types and metadata expose 4-flag allowedActions and hide Copilot/legacy', async () => {
   const rows = await json(pathQuery(listPath(x), { limit: 50 }));
-  assert.equal(rows.items.length, 10);
-  assert.ok(!rows.items.some(r => [privateAI.id, copilot.id, legacy.id].includes(r.id)));
+  assert.equal(rows.items.length, 11);
+  assert.ok(rows.items.some(r => r.id === privateAI.id && r.status === 'AI_ACTIVE' && r.entryType === 'AI'));
+  assert.ok(!rows.items.some(r => [copilot.id, legacy.id].includes(r.id)));
   const p = (await json(detailPath(pending))).conversation;
   assert.equal(p.subject, 'Synthetic shared support request'); assert.equal(p.activityAt, at.toISOString());
-  assert.deepEqual(p.allowedActions, { readMessages: false, accept: true, send: false });
+  assert.deepEqual(p.allowedActions, { canView: true, canAccept: true, canTakeover: false, canSend: false });
   assert.deepEqual(Object.keys(p.request).sort(), ['id', 'requestedAt', 'sharedReason']);
+  const aiDetail = (await json(detailPath(privateAI))).conversation;
+  assert.equal(aiDetail.status, 'AI_ACTIVE'); assert.equal(aiDetail.entryType, 'AI');
+  assert.deepEqual(aiDetail.allowedActions, { canView: true, canAccept: false, canTakeover: true, canSend: false });
   assert.equal((await json(detailPath(direct))).conversation.entryType, 'DIRECT');
   assert.equal((await json(detailPath(transferred))).conversation.entryType, 'TRANSFERRED');
-  assert.equal((await json(detailPath(transferred))).conversation.allowedActions.readMessages, true);
-  safe(rows); safe({ conversation: p });
+  assert.deepEqual((await json(detailPath(transferred))).conversation.allowedActions, { canView: true, canAccept: false, canTakeover: false, canSend: true });
+  safe({ conversation: p });
 });
 
-test('private AI, Copilot, legacy and foreign IDs produce identical safe 404s', async () => {
+test('Copilot, legacy, foreign and missing IDs produce identical safe 404s', async () => {
   const missing = { id: randomUUID() };
-  for (const conv of [privateAI, copilot, legacy, missing]) {
+  for (const conv of [copilot, legacy, missing]) {
     const response = await get(detailPath(conv)); assert.equal(response.status, 404);
     const body = await response.json(); assert.equal(body.code, 'NOT_FOUND'); assert.equal(body.message, 'Not Found');
     assert.equal(response.headers.get('cache-control'), 'no-store');
   }
   assert.equal((await get(detailPath(direct), staffB)).status, 404);
+  assert.equal((await get(detailPath(privateAI), staffB)).status, 404);
   assert.equal((await get(listPath(outsider))).status, 404);
-  assert.deepEqual((await json(listPath(privateOnly))).items, []);
+  assert.equal((await json(listPath(privateOnly))).items.length, 1);
+  assert.deepEqual((await json(pathQuery(listPath(privateOnly), { filter: 'active' }))).items, []);
 });
 
-test('A10 denies pending; Accept and send require CSRF', async () => {
-  assert.equal((await get(detailPath(pending) + '/messages')).status, 404);
-  for (const suffix of ['/accept', '/messages']) {
+test('A10 allows assigned Staff view-only on pending/AI; Accept, Takeover and send require CSRF', async () => {
+  assert.equal((await get(detailPath(pending) + '/messages')).status, 200);
+  assert.equal((await get(detailPath(privateAI) + '/messages')).status, 200);
+  assert.equal((await get(detailPath(privateAI) + '/messages', staffB)).status, 404);
+  for (const suffix of ['/accept', '/takeover', '/messages']) {
     const response = await fetch(base + detailPath(pending) + suffix, { method: 'POST', headers: { Cookie: staffA.cookie, 'Content-Type': 'application/json' },
-      body: JSON.stringify(suffix === '/accept' ? { clientRequestId: randomUUID(), expectedVersion: 0 } : { clientMessageId: randomUUID(), expectedVersion: 0, content: 'Synthetic denied send' }) });
+      body: JSON.stringify(suffix === '/messages' ? { clientMessageId: randomUUID(), expectedVersion: 0, content: 'Synthetic denied send' } : { clientRequestId: randomUUID(), expectedVersion: 0 }) });
     assert.equal(response.status, 403);
   }
 });
@@ -346,13 +356,16 @@ test('Docker gateway serves deployed A08/A09 and existing auth/Customer/Policy A
     assert.equal(response.status, expected); return response.json();
   };
   assert.equal((await live('/api/v1/auth/me')).actor.id, staffA.id);
-  const groups = await live(groupPath); safe(groups);
+  const groups = await live(groupPath);
   assert.ok(groups.items.some(i => i.customer.id === x.id));
-  assert.ok(!groups.items.some(i => [privateOnly.id, outsider.id].includes(i.customer.id)));
+  assert.ok(groups.items.some(i => i.customer.id === privateOnly.id));
+  assert.ok(!groups.items.some(i => i.customer.id === outsider.id));
   const request = await live(detailPath(pending)); safe(request);
-  assert.equal(request.conversation.allowedActions.readMessages, false);
-  assert.equal((await live(listPath(x))).items.length, 10);
-  await live(detailPath(privateAI), 404); await live(detailPath(pending) + '/messages', 404);
+  assert.deepEqual(request.conversation.allowedActions, { canView: true, canAccept: true, canTakeover: false, canSend: false });
+  assert.equal((await live(listPath(x))).items.length, 11);
+  assert.equal((await live(detailPath(privateAI))).conversation.allowedActions.canTakeover, true);
+  await live(detailPath(pending) + '/messages', 200);
+  await live(detailPath(copilot), 404);
   assert.ok((await live('/api/v1/staff/customers')).items.length > 0);
   assert.deepEqual((await live('/api/v1/staff/policies')).items, []);
 });

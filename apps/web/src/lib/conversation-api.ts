@@ -5,8 +5,8 @@ export function inboxFilter(value: string | null): InboxFilter {
   return value === 'requests' || value === 'request' ? 'requests' : value === 'active' || value === 'recent' ? 'active' : 'all';
 }
 export type InboxCustomer = { id: string; fullName: string; accountCode: string };
-export type ConversationRow = { id: string; subject: string; status: 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; entryType: 'REQUEST' | 'DIRECT' | 'TRANSFERRED'; activityAt: string };
-export type Conversation = ConversationRow & { customer: InboxCustomer; controlVersion: number; request?: { id: string; sharedReason: string | null; requestedAt: string }; allowedActions: { readMessages: boolean; accept: boolean; send: boolean } };
+export type ConversationRow = { id: string; subject: string; status: 'AI_ACTIVE' | 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; entryType: 'AI' | 'REQUEST' | 'DIRECT' | 'TRANSFERRED'; activityAt: string };
+export type Conversation = ConversationRow & { customer: InboxCustomer; controlVersion: number; request?: { id: string; sharedReason: string | null; requestedAt: string }; allowedActions: { canView: boolean; canAccept: boolean; canTakeover: boolean; canSend: boolean } };
 export type CursorPage<T> = { items: T[]; pageInfo: { hasMore: boolean; nextCursor: string | null } };
 export type ChatMessage = { id: string; sequence: string; senderType: 'CUSTOMER' | 'STAFF' | 'AI_AGENT' | 'SYSTEM'; sender: { displayName: string }; content: string; createdAt: string; readAt?: string | null; citations: { documentId: string; versionId: string; page: number | null; label: string }[] };
 export type MessagePage = { items: ChatMessage[]; pageInfo: { beforeCursor: string | null; afterCursor: string; hasMoreBefore: boolean; hasMoreAfter: boolean } };
@@ -44,6 +44,8 @@ export const conversationReadState = (id: string, signal: AbortSignal) =>
 export type AcceptIntent = { clientRequestId: string; expectedVersion: number };
 export const acceptConversation = (id: string, intent: AcceptIntent, csrfToken: string, signal: AbortSignal) => request<{ conversation: Conversation; replayed: boolean }>(`staff/conversations/${encodeURIComponent(id)}/accept`, signal, csrfToken, intent);
 export const reconcileAccept = (id: string, intent: AcceptIntent, signal: AbortSignal) => request<{ state: 'COMMITTED'; resourceId: string; conversationId: string; controlVersion: number }>(`staff/conversations/${encodeURIComponent(id)}/commands/${encodeURIComponent(intent.clientRequestId)}?operation=ACCEPT_HANDOFF`, signal);
+export const takeoverConversation = (id: string, intent: AcceptIntent, csrfToken: string, signal: AbortSignal) => request<{ conversation: Conversation; replayed: boolean }>(`staff/conversations/${encodeURIComponent(id)}/takeover`, signal, csrfToken, intent);
+export const reconcileTakeover = (id: string, intent: AcceptIntent, signal: AbortSignal) => request<{ state: 'COMMITTED'; resourceId: string; conversationId: string; controlVersion: number }>(`staff/conversations/${encodeURIComponent(id)}/commands/${encodeURIComponent(intent.clientRequestId)}?operation=TAKEOVER_CONVERSATION`, signal);
 
 export function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) {
   const byId = new Map(existing.map(message => [message.id, message]));

@@ -88,7 +88,7 @@ Application Phase 0–5 đã hoàn tất, gồm tool local và hồi quy. Nối 
 - [x] Gỡ API/UI/tests/routes lồng của bản thử Inbox/Ticket; giữ Account/Customers/Policy độc lập.
 - [x] Ghi [kế hoạch Inbox/chat](staff/plans/inbox/00-inbox-spec.md) có enum, accordion khách, tên/mã search, chat cuộn, API/schema/phase.
 - [x] I01–I06: model/gate/legacy/metadata/consent/Accept/history/send/UI/realtime đã triển khai; pending không đọc A10.
-- [ ] Triển khai quyết định 23/11: Staff phụ trách xem toàn bộ lịch sử Customer-facing trước Accept/Takeover và có thể takeover khi Agent đang xử lý. [Kế hoạch Inbox](staff/plans/03-inbox-contract.md#6-kế-hoạch-mở-rộng-quyền-đọc-và-takeover--p).
+- [ ] Triển khai FR-006 theo đặc tả kỹ thuật đã chốt: Staff có quyền xem toàn bộ lịch sử Customer-facing từ tin đầu tiên (Customer chưa gán thì Staff bất kỳ, đã gán thì đúng Staff phụ trách), Takeover chủ động khi AI đang xử lý (A14 takeover) và kiểm soát quyền đánh dấu đã đọc (readAt). [Kế hoạch Inbox](staff/plans/03-inbox-contract.md#6-đặc-tả-mở-rộng-quyền-đọc-và-takeover--fr-006).
 - [x] Consent/request/Accept/handoff notification/SYSTEM không tự tạo Ticket, fence nền đã có I01–I06.
 - [x] Application Phase 2: manual/draft Core, validation/CAS/fingerprint/snapshot/receipt và retry Web; có kiểm Core/DB/gateway/browser.
 - [x] A2-04: đổi actor khi manual/confirm pending, bỏ phản hồi cũ và tách intent/receipt theo actor.
@@ -110,7 +110,7 @@ Mã gap/điều kiện đóng nằm duy nhất tại [G01–G09](staff/plans/REA
 | FR-001 | Local login/session/logout/password đã có cho tài khoản cấp sẵn; tự đăng ký không thuộc MVP theo quyết định 07/11. External IdP không là điều kiện hoàn tất chức năng login local |
 | FR-002 | Staff xem khách đúng assignment; Customer xem own profile chỉ đọc theo phạm vi chốt 13/11. Staff self-edit là yêu cầu bổ sung đã triển khai |
 | FR-003 / UC-003 | Staff list/detail/search/phân trang đúng assignment đã nối; có Core tests và regression FE, chưa E2E đầy đủ |
-| FR-005/006/007 | Chat Customer–Staff/consent/Accept/send/realtime đã có; Agent có graph/adapter/store, luồng AI trả lời/Copilot qua Core và UI chưa được nghiệm thu, không đánh dấu đủ FR-005/007 |
+| FR-005/006/007 | Chat Customer–Staff/consent/Accept/send/realtime đã có; Agent có graph/adapter/store; FR-006 đã chốt toàn bộ đặc tả kỹ thuật (canView/takeover/readAt, bỏ qua đổi phân công) và sẵn sàng triển khai code; luồng AI trả lời/Copilot qua Core và UI chưa được nghiệm thu, không đánh dấu đủ FR-005/007 |
 | FR-008 / UC-007 | Staff/Customer policy/PDF và product catalog/documents/UI đã có. Retrieval AI và mapping nguồn áp dụng cho RAG là phần Agent riêng; không nghiệm thu từ UI đọc PDF |
 | FR-009/010/011/012/013 / UC-005/006 | Own/authorized history, Staff handoff và Ticket read/Accept/status/UI/notification đã có. Phase 2 đã sửa Customer draft/manual/confirmation, replay/CAS/snapshot/receipt; I07 còn tích hợp nguồn Agent/summary; AI Copilot còn phần triển khai; không đánh dấu đủ nhóm FR |
 | NFR-001/002 | Baseline auth/assignment/CSRF/allowlist/synthetic ở API hiện có; retrieval/tool scope chưa làm |

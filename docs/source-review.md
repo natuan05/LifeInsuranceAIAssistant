@@ -242,13 +242,13 @@ Người dùng đã xác nhận:
 Người dùng xác nhận Staff phụ trách Customer được xem toàn bộ lịch sử Customer-facing của cuộc chat, kể cả khi Agent đang xử lý. Staff có thể chủ động takeover cuộc AI đang mở mà không cần chờ yêu cầu chuyển giao từ Customer.
 
 - Core kiểm phiên, phân công hiện hành, loại hội thoại và audience ở mỗi lần truy cập. Lịch sử trong phạm vi quyền bắt đầu từ tin đầu tiên của chính cuộc chat và chỉ gồm nội dung đã hiển thị cho Customer.
-- Quyền đọc và quyền điều khiển được kiểm riêng. Takeover chuyển quyền trả lời sang Staff trong cùng cuộc chat. Yêu cầu Customer chuyển Staff vẫn có luồng Request → Accept.
-- Khi đổi Staff phụ trách sau khi cuộc chat đã chuyển sang Staff, cuộc chat chờ Staff mới tiếp quản. Staff cũ mất quyền đọc/gửi, Staff mới xem toàn bộ lịch sử theo phân công mới và phải bấm Takeover để trả lời. Agent vẫn dừng.
-- Mỗi Customer có tối đa một Staff phụ trách tại một thời điểm. Khi Customer xác nhận yêu cầu hỗ trợ, UI báo trước yêu cầu đang chờ sẽ đi theo phân công hiện hành. Nếu đổi Staff trước Accept, Core chuyển yêu cầu sang Staff mới, thông báo Customer và giữ Agent dừng. Staff mới dùng Accept.
-- Trong lúc chờ Staff mới tiếp quản, Customer vẫn đọc lịch sử và tạm thời không gửi được tin. Core mở lại quyền gửi khi Takeover thành công.
-- Customer nhận thông báo trong ứng dụng khi đổi Staff của cuộc đã được tiếp quản. Khi Staff mới Takeover thành công, Customer thấy tin hệ thống xác nhận trong cùng cuộc. Staff mở xem cuộc AI_ACTIVE giữ nguyên trạng thái AI phía Customer và không phát thông báo chuyển giao.
-- Staff chỉ xem lịch sử trước khi có quyền trả lời; việc mở transcript lúc này không đánh dấu tin nhắn là đã đọc. Dấu Đã đọc được cập nhật khi Staff mở cuộc với quyền trả lời hiện hành.
-- Quyết định thay gate đọc theo consent/Accept ở mốc 03/11. [Đặc tả Inbox và takeover](ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái) là thiết kế đích; code hiện tại vẫn theo gate cũ.
+- Ràng buộc phân công: Khi Customer bất kì chưa được phân công (unassigned), bất kì Staff nào cũng có thể nhìn thấy cuộc chat đó trong Inbox. Khi Customer đã được phân công, chỉ Staff được phân công mới được nhìn thấy cuộc chat.
+- Khi Staff có quyền xem (Staff phụ trách hoặc Staff xem khách chưa phân công) mở lịch sử cuộc AI_ACTIVE, Staff có quyền xem toàn bộ đoạn chat đó (từ tin đầu tiên, nội dung Customer-facing).
+- Xem trước không ảnh hưởng Customer & AI: Việc Staff xem trước lịch sử không làm dừng AI và không gửi bất kỳ thông báo nào cho Customer.
+- Tách quyền đánh dấu đã đọc (`readAt`): Khi Staff chỉ xem (view-only: `canView = true, canSend = false`), frontend không gọi và Core từ chối cập nhật `readAt`. Mốc đọc chỉ được ghi nhận khi Staff có quyền gửi tin (`canSend = true`).
+- Takeover chủ động và Agent fence: `POST /staff/conversations/:id/takeover` xử lý trong giao dịch atomic (khóa dòng, kiểm version, receipt idempotency), cập nhật controller sang Staff, kích hoạt `fenceConversationInTx` (hủy dở turn Agent đang xử lý/xếp hàng và chặn callback RESULT muộn), chèn 1 tin nhắn SYSTEM tiếp quản duy nhất và mở quyền gửi (`canSend = true`) cho cả hai bên.
+- Phạm vi đổi phân công (reassignment): Các cơ chế phức tạp về chuyển tuyến/trạng thái chờ khi đổi phân công được lược bỏ trong phạm vi triển khai đợt này.
+- Toàn bộ contract API (`POST /staff/conversations/:id/takeover`, cờ quyền `canView`/`canAccept`/`canTakeover`/`canSend` của A09) và kiểm tra dấu đã đọc đã được đồng bộ tại [Đặc tả Inbox và takeover](ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái) và [I03 Handoff Transcript](ui/staff/plans/inbox/03-handoff-transcript.md).
 
 ## Hướng hợp đồng và PDF được người dùng xác nhận — 31/10/2026
 

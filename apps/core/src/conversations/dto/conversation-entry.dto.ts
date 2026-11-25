@@ -33,5 +33,6 @@ export class CustomerCommandQuery {
   @IsIn(['CREATE_AI', 'CREATE_DIRECT', 'REQUEST_HANDOFF']) operation!: 'CREATE_AI' | 'CREATE_DIRECT' | 'REQUEST_HANDOFF';
 }
 export class AcceptCommandQuery {
-  @ApiProperty({ enum: ['ACCEPT_HANDOFF'] }) @Equals('ACCEPT_HANDOFF') operation!: 'ACCEPT_HANDOFF';
+  @ApiProperty({ enum: ['ACCEPT_HANDOFF', 'TAKEOVER_CONVERSATION'] })
+  @IsIn(['ACCEPT_HANDOFF', 'TAKEOVER_CONVERSATION']) operation!: 'ACCEPT_HANDOFF' | 'TAKEOVER_CONVERSATION';
 }

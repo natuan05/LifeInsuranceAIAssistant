@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const customer = { id: 'customer-one', fullName: 'Synthetic Inbox Customer', accountCode: 'CUS-INBOX-01' };
 const second = { id: 'customer-two', fullName: 'Synthetic Second Customer', accountCode: 'CUS-INBOX-02' };
-const conversation = (id, active = false) => ({ id, subject: `Synthetic topic ${id}`, status: active ? 'STAFF_ACTIVE' : 'PENDING_HANDOFF', entryType: active ? 'DIRECT' : 'REQUEST', activityAt: '2026-11-04T01:00:00Z', customer, controlVersion: active ? 2 : 1, request: { id: 'request-one', sharedReason: 'Synthetic help request', requestedAt: '2026-11-04T01:00:00Z' }, allowedActions: { readMessages: active, accept: !active, send: active } });
+const conversation = (id, active = false) => ({ id, subject: `Synthetic topic ${id}`, status: active ? 'STAFF_ACTIVE' : 'PENDING_HANDOFF', entryType: active ? 'DIRECT' : 'REQUEST', activityAt: '2026-11-04T01:00:00Z', customer, controlVersion: active ? 2 : 1, request: { id: 'request-one', sharedReason: 'Synthetic help request', requestedAt: '2026-11-04T01:00:00Z' }, allowedActions: { canView: true, canAccept: !active, canTakeover: false, canSend: active } });
 const message = index => ({ id: `message-${index}`, sequence: (9007199254740992n + BigInt(index)).toString(), senderType: index % 2 ? 'CUSTOMER' : 'AI_AGENT', sender: { displayName: 'Synthetic customer' }, content: `Synthetic message ${index} with enough text to verify scrolling and history.`, createdAt: '2026-11-04T01:00:00Z', citations: [] });
 async function setup(page, path = '/staff/inbox', options = {}) {
   const state = { active: false, requests: [], documents: [], accepts: [], failAccept: false, committed: false, denied: false, searchDelay: false, ...options };
@@ -371,15 +371,18 @@ test('accordion keyboard and multiple open groups load rows without transcripts'
   await expect(page.getByRole('link', { name: /Synthetic topic/ })).toHaveCount(2);
   expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
 });
-test('pending deep link never loads history until Accept commits', async ({ page }) => {
+test('pending deep link loads view-only history without marking read until Accept commits', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one?filter=requests');
   await expect(page.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
-  expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
+  await expect(messages(page)).toBeVisible();
+  expect(state.requests.filter(url => url.pathname.endsWith('/read'))).toHaveLength(0);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Accept request', exact: true }).click();
   await expect(messages(page)).toBeVisible();
   expect(state.accepts).toHaveLength(1); expect(state.accepts[0].csrf).toBe('synthetic-csrf');
   expect(state.accepts[0].body.expectedVersion).toBe(1);
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
+  await expect.poll(() => state.requests.filter(url => url.pathname.endsWith('/read')).length).toBeGreaterThan(0);
 });
 test('unknown Accept outcome reconciles committed receipt without another command', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { failAccept: true });
@@ -388,12 +391,12 @@ test('unknown Accept outcome reconciles committed receipt without another comman
   await expect(messages(page)).toBeVisible(); expect(state.accepts).toHaveLength(1);
   expect(state.requests.some(url => url.pathname.includes('/commands/'))).toBe(true);
 });
-test('conflicting Accept revalidates metadata and never loads pending messages', async ({ page }) => {
+test('conflicting Accept revalidates metadata and keeps view-only without marking read', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { conflict: true });
   await page.getByRole('button', { name: 'Accept request', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'has changed' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
-  expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
+  expect(state.requests.filter(url => url.pathname.endsWith('/read'))).toHaveLength(0);
 });
 test('history prepends in bigint order, preserves anchor and deduplicates refresh', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { active: true });

@@ -52,12 +52,12 @@ function CustomerGroup({ customer, filter, selected, href, expand, memory, onDen
         <Link key={row.id} href={href(row.id)} prefetch={false} aria-current={selected === row.id ? 'page' : undefined} className={'tw:block tw:border-t tw:border-slate-100 tw:px-4 tw:py-3 tw:no-underline tw:transition-colors ' + (selected === row.id ? 'tw:bg-blue-50/90 tw:border-l-4 tw:border-l-blue-600' : 'tw:hover:bg-blue-50/40')}>
           <div className="tw:flex tw:items-center tw:justify-between tw:gap-2">
             <span className="tw:block tw:truncate tw:text-xs tw:font-semibold tw:text-slate-900">{row.subject || 'Conversation'}</span>
-            <span className={`tw:shrink-0 tw:rounded-full tw:px-2 tw:py-0.5 tw:text-[10px] tw:font-semibold ${row.status === 'PENDING_HANDOFF' ? 'tw:bg-amber-100 tw:text-amber-800' : 'tw:bg-emerald-100 tw:text-emerald-800'}`}>
-              {row.status === 'PENDING_HANDOFF' ? 'Request' : 'Active'}
+            <span className={`tw:shrink-0 tw:rounded-full tw:px-2 tw:py-0.5 tw:text-[10px] tw:font-semibold ${row.status === 'PENDING_HANDOFF' ? 'tw:bg-amber-100 tw:text-amber-800' : row.status === 'AI_ACTIVE' ? 'tw:bg-purple-100 tw:text-purple-800' : 'tw:bg-emerald-100 tw:text-emerald-800'}`}>
+              {row.status === 'PENDING_HANDOFF' ? 'Request' : row.status === 'AI_ACTIVE' ? 'AI Active' : 'Active'}
             </span>
           </div>
           <div className="tw:mt-1.5 tw:flex tw:items-center tw:justify-between tw:text-[11px] tw:text-slate-500">
-            <span>{row.entryType === 'DIRECT' ? 'Direct message' : 'Transferred'}</span>
+            <span>{row.entryType === 'AI' ? 'AI conversation' : row.entryType === 'REQUEST' ? 'Support request' : row.entryType === 'DIRECT' ? 'Direct message' : 'Transferred'}</span>
             <time dateTime={row.activityAt}>{new Date(row.activityAt).toLocaleDateString([], { month: 'short', day: 'numeric' })}</time>
           </div>
         </Link>
@@ -101,7 +101,7 @@ export function StaffInboxDirectory({ filter, search, customerId, selected, sele
     {result?.items.map(({ customer }) => <CustomerGroup key={customer.id} customer={customer} filter={filter} selected={selected} href={href} expand={selectedCustomerId === customer.id || customerId === customer.id} memory={memory} onDenied={onDenied} refreshToken={refreshToken}/>)}
     {loading && !result && <p role="status" className="tw:p-4 tw:text-xs tw:text-slate-500">Loading customers…</p>}
     {error && <div role="alert" className="tw:p-4 tw:text-xs tw:text-red-700">{error}<button className={inboxButton + ' tw:mt-2! tw:text-xs!'} onClick={() => setRevision(value => value + 1)}>Retry</button></div>}
-    {!loading && !error && result?.items.length === 0 && <p className="tw:p-5 tw:text-xs tw:leading-relaxed tw:text-slate-500">No matching conversations. Direct messages and transferred customer cases appear here.</p>}
+    {!loading && !error && result?.items.length === 0 && <p className="tw:p-5 tw:text-xs tw:leading-relaxed tw:text-slate-500">No matching conversations. AI conversations, direct messages, and transferred customer cases appear here.</p>}
     {result?.pageInfo.hasMore && <button className={inboxButton + ' tw:m-4! tw:text-xs!'} disabled={loading} onClick={() => setCursor(result.pageInfo.nextCursor ?? undefined)}>Load more customers</button>}
   </div>;
 }

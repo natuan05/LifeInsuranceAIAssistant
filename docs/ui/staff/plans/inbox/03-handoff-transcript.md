@@ -150,17 +150,52 @@ AI_PRIVATE đủ ownership có thể yêu cầu; Direct cũ bị revoke có th�
 
 Body `{clientRequestId: UUID, expectedVersion: integer}`. Không nhận transcript scope/consent/customerId/staffId từ Staff. Thành công 200 `{conversation: <A09 active projection>, replayed:boolean}`; chỉ lúc này FE được gọi A10. Không nhúng history vào ACK.
 
-401/403/404 theo contract chung. Metadata đủ quyền nhưng version đổi →409 STALE_CONVERSATION; request đã nhận bởi hành động khác →409 ALREADY_ACCEPTED. Cùng key/payload đã commit →200 replay sau recheck current grant. AI riêng chưa request →404, không cho proactive takeover.
+401/403/404 theo contract chung. Metadata đủ quyền nhưng version đổi →409 STALE_CONVERSATION; request đã nhận bởi hành động khác →409 ALREADY_ACCEPTED. Cùng key/payload đã commit →200 replay sau recheck current grant. Cuộc chat `AI_ACTIVE` không dùng Accept mà dùng Takeover (mục 4.2).
 
 Reconcile `GET /api/v1/staff/conversations/:conversationId/commands/:clientRequestId?operation=ACCEPT_HANDOFF`: 200 minimal committed receipt của Staff đó hoặc safe 404. Sau timeout ưu tiên lookup + A09, replay cùng POST khi còn unknown; không báo “chưa nhận” chỉ vì lookup 404.
 
-### 4.2. A10 transcript, Customer cùng contract projection
+### 4.2. A14 Takeover chủ động (FR-006)
+
+`POST /api/v1/staff/conversations/:conversationId/takeover`
+
+Body:
+```json
+{
+  "clientRequestId": "40000000-0000-4000-8000-000000000003",
+  "expectedVersion": 2
+}
+```
+
+Áp dụng cho: Cuộc chat đang do AI hỗ trợ (`status: AI_ACTIVE`).
+- Nếu Customer chưa phân công: Bất kỳ Staff nào cũng có quyền Takeover.
+- Nếu Customer đã phân công: Chỉ Staff được phân công với Customer đó mới có quyền Takeover.
+
+Xử lý trong giao dịch atomic của Core:
+- Khóa hội thoại (`SELECT ... FOR UPDATE`).
+- Xác minh quyền của Staff gọi API (Staff được phân công hoặc Customer chưa phân công).
+- Kiểm tra `expectedVersion == conversation.control_version`, nếu lệch trả `409 STALE_CONVERSATION`.
+- Recheck receipt theo `(actorId, "TAKEOVER_CONVERSATION", clientRequestId)`. Nếu đã commit trả 200 replay cùng projection.
+- Cập nhật `conversations.status = 'STAFF_ACTIVE'`, `conversations.assigned_staff_id = currentStaffId`, tăng `control_version + 1`.
+- Kích hoạt `fenceConversationInTx`: hủy/ngắt các agent turn đang chạy hoặc đang xếp hàng trong hàng đợi, từ chối mọi callback `RESULT` đến muộn mang version cũ.
+- Tạo một tin nhắn `SYSTEM` duy nhất trong cùng transaction: thông báo nhân viên đã tiếp quản cuộc trò chuyện để hai bên cùng thấy trong transcript.
+- Ghi audit log allowlist + outbox event `CONVERSATION_TAKEOVER_COMMITTED` + receipt.
+- Trả về 200: `{conversation: <A09 active projection>, replayed: boolean}`. Sau khi commit, Staff và Customer đều có quyền gửi tin (`canSend = true`).
+
+Reconcile: `GET /api/v1/staff/conversations/:conversationId/commands/:clientRequestId?operation=TAKEOVER_CONVERSATION`: trả 200 receipt minimal hoặc safe 404.
+
+### 4.3. A10 transcript, Customer cùng contract projection
 
 Staff: `GET /api/v1/staff/conversations/:conversationId/messages?limit=50&before=...`
 
 Customer: `GET /api/v1/customers/me/conversations/:conversationId/messages?limit=50&before=...`
 
-limit 1–100/default50; before/after opaque cursor, không đồng thời cả hai, exclusive. Không query→batch mới nhất. Items luôn sequence tăng dần. Cursor bind actor/conversation/direction, vẫn recheck gate. Staff trước Accept safe 404, không response rỗng tiết lộ lastSequence. Customer owner đọc đúng audience kể cả AI private/pending.
+limit 1–100/default50; before/after opaque cursor, không đồng thời cả hai, exclusive. Không query→batch mới nhất. Items luôn sequence tăng dần. Cursor bind actor/conversation/direction, vẫn recheck gate.
+
+Theo thiết kế FR-006:
+- **Customer chưa phân công:** Bất kỳ Staff nào cũng có quyền đọc toàn bộ lịch sử Customer-facing (`canView = true`) từ tin đầu tiên.
+- **Customer đã phân công:** Chỉ Staff được phân công với Customer mới có quyền đọc (`canView = true`). Staff ngoài phân công trả về 404/403.
+- **Xem trước không ảnh hưởng Customer & AI:** Staff mở xem lịch sử cuộc `AI_ACTIVE` không làm dừng AI và không gửi thông báo nào cho Customer.
+- **Tách quyền đánh dấu đã đọc (`readAt`):** Khi Staff mở xem transcript thuần túy (`canView = true, canSend = false`), frontend không gọi và Core từ chối cập nhật `readAt`. Mốc đọc chỉ được cập nhật khi Staff có quyền gửi tin (`canSend = true`). Customer owner đọc đúng audience kể cả AI private/pending.
 
 ```json
 {
@@ -188,9 +223,13 @@ Auth/CSRF → locks I01 → recheck ownership/assignment/version → receipt loo
 
 Đã áp dụng AI dừng từ request commit. AI output đang chạy mang version cũ bị Core fence chặn; Customer vẫn được gửi tiếp ở I05, pending Staff không thấy các tin này cho đến Accept. Writer AI của Core đã kiểm status/controlVersion; không có endpoint browser giả danh AI, chưa nối Agent runtime.
 
-### 5.2. Accept
+### 5.2. Accept và Takeover
 
-Auth/CSRF → locks I01 → recheck assignment/user/request consent/recipient → replay receipt nếu có và quyền còn hiệu lực → kiểm expectedVersion/state → cập nhật ACCEPTED/accepted actor/time + controller/STAFF_ACTIVE/controlVersion+1 → audit + outbox HANDOFF_ACCEPTED + receipt → commit. Grant và control cùng transaction, không “status trước, grant sau”.
+- **Accept (xử lý yêu cầu Customer gửi - PENDING_HANDOFF):**
+  Auth/CSRF → locks I01 → recheck assignment/user/request consent/recipient → replay receipt nếu có và quyền còn hiệu lực → kiểm expectedVersion/state → cập nhật ACCEPTED/accepted actor/time + controller/STAFF_ACTIVE/controlVersion+1 → audit + outbox HANDOFF_ACCEPTED + receipt → commit. Grant và control cùng transaction, không “status trước, grant sau”.
+
+- **Takeover (Staff chủ động tiếp quản - AI_ACTIVE):**
+  Auth/CSRF → lock conversation → recheck quyền của Staff (Staff được phân công hoặc Customer chưa phân công) → replay receipt nếu có → kiểm expectedVersion (lệch trả 409 STALE_CONVERSATION) → cập nhật status STAFF_ACTIVE, gán controller sang Staff hiện tại (`assignedStaffId = currentStaffId`), tăng controlVersion+1 → kích hoạt `fenceConversationInTx` (hủy turn Agent đang xử lý/xếp hàng, chặn callback RESULT muộn) → chèn một tin nhắn SYSTEM tiếp nhận vào transcript → audit + outbox CONVERSATION_TAKEOVER_COMMITTED + receipt → commit. Sau commit cả Staff và Customer đều mở quyền gửi (`canSend = true`).
 
 ```mermaid
 sequenceDiagram
@@ -198,23 +237,29 @@ sequenceDiagram
   participant K as Core
   participant D as PostgreSQL
   participant S as Staff
-  C->>K: POST handoff + consent toàn bộ lịch sử
-  K->>D: Lock, request + control + outbox + receipt
-  D-->>K: Commit
-  K-->>C: Pending ACK
-  S->>K: GET request metadata
-  K-->>S: readMessages=false
-  S->>K: POST Accept + version + key
-  K->>D: Lock, recheck, grant + control + outbox + receipt
-  D-->>K: Commit
-  K-->>S: Active ACK
-  S->>K: GET latest messages, rồi before cursor
-  K-->>S: Toàn bộ Customer-facing, gồm trước request
+  Note over C,S: Staff có quyền xem (phụ trách hoặc chưa phân công) xem trước toàn bộ lịch sử (canView=true)
+  S->>K: GET /staff/conversations/:id/messages
+  K-->>S: Trả toàn bộ Customer-facing history (AI không dừng, Customer không nhận thông báo)
+  alt Customer yêu cầu hỗ trợ (Handoff Flow)
+    C->>K: POST handoff-requests + consent
+    K->>D: Lock, request PENDING_HANDOFF + controlVersion+1
+    D-->>K: Commit
+    S->>K: POST /accept + expectedVersion + key
+    K->>D: Lock, recheck, grant controller + STAFF_ACTIVE + controlVersion+1 + SYSTEM message
+    D-->>K: Commit
+    K-->>S: Active ACK (canSend=true)
+  else Staff chủ động tiếp quản (Proactive Takeover Flow)
+    S->>K: POST /takeover + expectedVersion + key
+    K->>D: Lock, recheck quyền, fence agent + STAFF_ACTIVE + controlVersion+1 + SYSTEM message
+    D-->>K: Commit
+    K-->>S: Active ACK (canSend=true)
+    K-->>C: Realtime notification: Staff tiếp quản cuộc trò chuyện
+  end
 ```
 
-### 5.3. Reassignment
+### 5.3. Phạm vi đổi phân công (Reassignment)
 
-Theo I01: revoke grant cũ, bỏ controller, tăng version; Staff mới không tự thấy transcript. Customer phải xác nhận request mới tới assignment mới. Consent/request cũ giữ audit, không sửa recipient để biến thành consent mới. Trước khi Customer xác nhận mới không phát transcript qua WS/REST/notification cho Staff mới.
+Các phần liên quan đến cơ chế chuyển tuyến và xử lý trạng thái chờ phức tạp khi đổi phân công được lược bỏ trong phạm vi triển khai của đợt này. Trạng thái và quyền truy cập duy trì theo snapshot phân công tại thời điểm truy vấn.
 
 ## 6. Các bước triển khai
 
@@ -268,18 +313,19 @@ Quy ước kiểm thử: [dữ liệu, các lớp kiểm tra và dọn fixture](
 
 **Kết quả mong đợi:** Một acceptance/SYSTEM, version đúng; cả lịch sử Customer-visible trong cùng cuộc được đọc, không internal/tool/Copilot.
 
-### I03-T04 — Reassignment giữa precheck và Accept
+### I03-T04 — Takeover chủ động và Fence Agent
 
 **Lớp kiểm thử:** API + DB barrier.
-**Điều kiện và dữ liệu:** S-A pending; barrier dừng trước lock; operator fixture chuyển C-A sang S-B.
+**Điều kiện và dữ liệu:** Cuộc chat đang `AI_ACTIVE` (Customer chưa phân công hoặc Staff được phân công); Agent đang có turn xử lý dở dang.
 
 **Các bước:**
 
-1. Bắt đầu Accept của S-A.
-2. Commit đổi assignment rồi thả barrier.
-3. Thử S-A đọc/gửi và S-B mở lịch sử cũ.
+1. Staff gọi `POST /staff/conversations/:id/takeover` với `expectedVersion` và `clientRequestId`.
+2. Replay cùng payload kiểm tra receipt trả về 200 idempotent.
+3. Giả lập callback `RESULT` của Agent cũ đến muộn sau mốc Takeover.
+4. Kiểm tra transcript và quyền gửi tin của hai bên.
 
-**Kết quả mong đợi:** S-A không commit Accept sau revoke; S-B không tự có grant; cần consent/Accept mới gắn assignment mới.
+**Kết quả mong đợi:** Takeover commit atomic: 1 tin nhắn SYSTEM tiếp quản duy nhất, `controlVersion` tăng, callback RESULT muộn bị Core chặn; cả Staff và Customer mở quyền gửi (`canSend = true`).
 
 ### I03-T05 — Lịch sử cursor và citations
 

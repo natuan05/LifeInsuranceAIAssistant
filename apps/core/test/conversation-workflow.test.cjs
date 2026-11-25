@@ -79,6 +79,10 @@ after(async () => {
       await tx.conversationCommandReceipt.deleteMany({ where: { actorId: { in: userIds } } });
       await tx.notification.deleteMany({ where: { conversationId: { in: convIds } } });
       await tx.supportTicket.deleteMany({ where: { customerId: { in: userIds } } });
+      await tx.agentRunEvent.deleteMany({ where: { run: { conversationId: { in: convIds } } } });
+      await tx.agentRun.updateMany({ where: { conversationId: { in: convIds } }, data: { currentAttemptId: null } });
+      await tx.agentAttempt.deleteMany({ where: { run: { conversationId: { in: convIds } } } });
+      await tx.agentRun.deleteMany({ where: { conversationId: { in: convIds } } });
       await tx.message.deleteMany({ where: { conversationId: { in: convIds } } });
       await tx.conversationHandoff.deleteMany({ where: { conversationId: { in: convIds } } });
       await tx.conversation.deleteMany({ where: { id: { in: convIds } } });
@@ -106,7 +110,10 @@ test('Customer creates AI-private and Direct with server provenance, routing and
   assert.equal(ai.status, 'AI_ACTIVE'); assert.equal(direct.status, 'STAFF_ACTIVE');
   const row = await admin.conversation.findUnique({ where: { id: direct.id } });
   assert.equal(row.createdByCustomerId, g.c.id); assert.equal(row.directAssignmentId, g.assignment.id); assert.equal(row.assignedStaffId, g.a.id);
-  await api(g.a, 'GET', `${staff}/${ai.id}`, undefined, 404);
+  const aiDetail = (await api(g.a, 'GET', `${staff}/${ai.id}`)).conversation;
+  assert.equal(aiDetail.status, 'AI_ACTIVE'); assert.equal(aiDetail.entryType, 'AI');
+  assert.deepEqual(aiDetail.allowedActions, { canView: true, canAccept: false, canTakeover: true, canSend: false });
+  await api(g.b, 'GET', `${staff}/${ai.id}`, undefined, 404);
   assert.equal((await api(g.a, 'GET', `${staff}/${direct.id}`)).conversation.entryType, 'DIRECT');
   assert.equal((await api(g.c, 'GET', owned)).items.length, 2);
 });
@@ -138,7 +145,9 @@ test('write endpoints require Customer/Staff role, CSRF, Origin and exact query/
   const other = await actor('CUSTOMER');
   await api(other, 'GET', `${owned}/${ai.id}`, undefined, 404);
   await api(other, 'POST', `${owned}/${ai.id}/handoff-requests`, handoffBody(), 404);
-  await api(g.a, 'POST', `${staff}/${ai.id}/accept`, { clientRequestId: randomUUID(), expectedVersion: 0 }, 404);
+  await api(g.a, 'POST', `${staff}/${ai.id}/accept`, { clientRequestId: randomUUID(), expectedVersion: 0 }, 409);
+  await api(g.b, 'POST', `${staff}/${ai.id}/accept`, { clientRequestId: randomUUID(), expectedVersion: 0 }, 404);
+  await api(g.b, 'POST', `${staff}/${ai.id}/takeover`, { clientRequestId: randomUUID(), expectedVersion: 0 }, 404);
 });
 
 test('create retry and same-key races return one conversation, audit, event and receipt', async () => {
@@ -186,13 +195,17 @@ test('Direct replay after rerouting never creates a new grant; a new stale inten
   await api(g.b, 'GET', `${staff}/${first.id}/messages`, undefined, 404);
 });
 
-test('request requires explicit full-history consent, exposes only shared metadata and creates no Ticket', async () => {
+test('request requires explicit full-history consent, exposes view-only transcript + shared metadata and creates no Ticket', async () => {
   const g = await group(), ai = (await create(g)).conversation;
   const sent = await request(g, ai.id);
   assert.equal(sent.conversation.status, 'PENDING_HANDOFF'); assert.equal(sent.conversation.controlVersion, 1);
   const metadata = (await api(g.a, 'GET', `${staff}/${ai.id}`)).conversation;
-  assert.equal(metadata.subject, 'Synthetic customer-shared request'); assert.equal(metadata.allowedActions.readMessages, false);
-  await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 404);
+  assert.equal(metadata.subject, 'Synthetic customer-shared request');
+  assert.deepEqual(metadata.allowedActions, { canView: true, canAccept: true, canTakeover: false, canSend: false });
+  await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 200);
+  await api(g.b, 'GET', `${staff}/${ai.id}/messages`, undefined, 404);
+  await api(g.a, 'POST', `${staff}/${ai.id}/read`, {}, 403);
+  await api(g.a, 'POST', `/api/v1/conversations/${ai.id}/read`, {}, 403);
   assert.equal(await admin.supportTicket.count({ where: { customerId: g.c.id } }), 0);
   assert.equal(await admin.notification.count({ where: { conversationId: ai.id } }), 0);
   const evidence = await admin.conversationHandoff.findUnique({ where: { id: sent.request.id } });
@@ -216,7 +229,7 @@ test('Accept commits current grant/control atomically, supports same-key retries
   await seedMessage({ data: { conversationId: ai.id, sequence: 1n, senderType: 'AI_AGENT', audience: 'CUSTOMER_VISIBLE', content: 'Synthetic before handoff', createdAt: new Date('2020-01-01') } });
   await request(g, ai.id); const accepted = await accept(g, ai.id, key);
   assert.equal(accepted.conversation.status, 'STAFF_ACTIVE'); assert.equal(accepted.conversation.controlVersion, 2);
-  assert.equal(accepted.conversation.allowedActions.readMessages, true);
+  assert.deepEqual(accepted.conversation.allowedActions, { canView: true, canAccept: false, canTakeover: false, canSend: true });
   assert.equal((await accept(g, ai.id, key)).replayed, true);
   assert.equal((await accept(g, ai.id, randomUUID(), 1, 409)).code, 'ALREADY_ACCEPTED');
   const receipt = await api(g.a, 'GET', `${staff}/${ai.id}/commands/${key}?operation=ACCEPT_HANDOFF`);
@@ -344,7 +357,7 @@ test('uncommitted Accept grants no history; queued reassignment revokes the comm
   let receiving;
   try {
     receiving = accept(g, ai.id); await atBarrier;
-    await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 404);
+    await api(g.a, 'POST', `${staff}/${ai.id}/messages`, { clientMessageId: randomUUID(), expectedVersion: 1, content: 'Uncommitted send denied' }, 404);
     const changing = assign(g, g.b, 0); release();
     await receiving; await changing;
   } finally { release(); commands.transaction = original; }
@@ -441,11 +454,103 @@ test('deployed gateway runs full create/request/Accept/history with genuine sess
   const ai = (await create(g, 'AI', randomUUID(), options)).conversation;
   await seedMessage({ data: { conversationId: ai.id, sequence: 1n, senderType: 'AI_AGENT', audience: 'CUSTOMER_VISIBLE', content: 'Synthetic gateway history' } });
   await request(g, ai.id, handoffBody(), 201, options);
-  await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 404, options);
+  const preTranscript = await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 200, options);
+  assert.equal(preTranscript.items[0].content, 'Synthetic gateway history');
   await accept(g, ai.id, randomUUID(), 1, 200, options);
   const transcript = await api(g.a, 'GET', `${staff}/${ai.id}/messages`, undefined, 200, options);
   assert.equal(transcript.items[0].content, 'Synthetic gateway history');
   const spec = await (await fetch('http://gateway/api/v1/docs-json')).json();
   assert.ok(spec.paths[owned]?.post); assert.ok(spec.paths[`${staff}/{conversationId}/messages`]?.get);
   assert.ok(spec.paths[`${staff}/{conversationId}/messages`]?.post);
+  assert.ok(spec.paths[`${staff}/{conversationId}/takeover`]?.post);
+});
+
+test('FR-006: unassigned vs assigned visibility, view-only readAt protection, proactive Takeover, concurrency and Agent fence', async () => {
+  // 1. Assigned customer: only assigned Staff A sees AI_ACTIVE; Staff B gets 404.
+  const assigned = await group(true);
+  const assignedAi = (await create(assigned, 'AI')).conversation;
+  const custMsg = await seedMessage({ data: { conversationId: assignedAi.id, sequence: 1n, senderType: 'CUSTOMER', senderId: assigned.c.id, audience: 'CUSTOMER_VISIBLE', content: 'Customer question to AI' } });
+  await seedMessage({ data: { conversationId: assignedAi.id, sequence: 2n, senderType: 'AI_AGENT', audience: 'CUSTOMER_VISIBLE', content: 'AI answer before takeover' } });
+  // Seed a RUNNING and QUEUED AgentRun to verify atomic fencing on Takeover.
+  const runningRun = await admin.agentRun.create({ data: { conversationId: assignedAi.id, messageId: custMsg.id, queuePosition: 1n, status: 'RUNNING', limits: {} } });
+  const activeAttempt = await admin.agentAttempt.create({ data: { runId: runningRun.id, attemptNo: 1, state: 'ACCEPTED', request: {}, requestSha256: '0'.repeat(64) } });
+  await admin.agentRun.update({ where: { id: runningRun.id }, data: { currentAttemptId: activeAttempt.id } });
+  const queuedMsg = await seedMessage({ data: { conversationId: assignedAi.id, sequence: 3n, senderType: 'CUSTOMER', senderId: assigned.c.id, audience: 'CUSTOMER_VISIBLE', content: 'Queued question' } });
+  const queuedRun = await admin.agentRun.create({ data: { conversationId: assignedAi.id, messageId: queuedMsg.id, queuePosition: 3n, status: 'QUEUED', limits: {} } });
+
+  // Staff A can view full transcript without stopping AI or updating readAt.
+  const preMeta = (await api(assigned.a, 'GET', `${staff}/${assignedAi.id}`)).conversation;
+  assert.deepEqual(preMeta.allowedActions, { canView: true, canAccept: false, canTakeover: true, canSend: false });
+  const preHistory = await api(assigned.a, 'GET', `${staff}/${assignedAi.id}/messages`);
+  assert.equal(preHistory.items.length, 3);
+  assert.equal(preHistory.items[0].content, 'Customer question to AI');
+  // View-only Staff is rejected on BOTH read routes; readAt stays null.
+  await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/read`, {}, 403);
+  await api(assigned.a, 'POST', `/api/v1/conversations/${assignedAi.id}/read`, {}, 403);
+  assert.equal((await admin.message.findUnique({ where: { id: custMsg.id } })).readAt, null);
+  assert.equal((await admin.conversation.findUnique({ where: { id: assignedAi.id } })).status, 'AI_ACTIVE');
+  assert.equal(await admin.notification.count({ where: { conversationId: assignedAi.id } }), 0);
+  // Staff B cannot view or takeover assigned customer's conversation.
+  await api(assigned.b, 'GET', `${staff}/${assignedAi.id}`, undefined, 404);
+  await api(assigned.b, 'GET', `${staff}/${assignedAi.id}/messages`, undefined, 404);
+  await api(assigned.b, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: randomUUID(), expectedVersion: 0 }, 404);
+
+  // Stale expectedVersion fails with 409.
+  assert.equal((await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: randomUUID(), expectedVersion: 9 }, 409)).code, 'STALE_CONVERSATION');
+
+  // Proactive Takeover commits atomically, fences Agent runs, inserts 1 SYSTEM message, supports replay & reconcile.
+  const takeoverKey = randomUUID();
+  const taken = await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: takeoverKey, expectedVersion: 0 }, 200);
+  assert.equal(taken.replayed, false);
+  assert.equal(taken.conversation.status, 'STAFF_ACTIVE');
+  assert.equal(taken.conversation.controlVersion, 1);
+  assert.deepEqual(taken.conversation.allowedActions, { canView: true, canAccept: false, canTakeover: false, canSend: true });
+  const replayed = await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: takeoverKey, expectedVersion: 0 }, 200);
+  assert.equal(replayed.replayed, true);
+  assert.equal((await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: takeoverKey, expectedVersion: 1 }, 409)).code, 'IDEMPOTENCY_CONFLICT');
+  assert.equal((await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/takeover`, { clientRequestId: randomUUID(), expectedVersion: 1 }, 409)).code, 'ALREADY_ACCEPTED');
+  const receipt = await api(assigned.a, 'GET', `${staff}/${assignedAi.id}/commands/${takeoverKey}?operation=TAKEOVER_CONVERSATION`);
+  assert.equal(receipt.state, 'COMMITTED'); assert.equal(receipt.conversationId, assignedAi.id);
+  // Verify Agent runs fenced & attempt invalidated + AI append fenced.
+  assert.equal((await admin.agentRun.findUnique({ where: { id: runningRun.id } })).status, 'CANCELLED');
+  assert.equal((await admin.agentRun.findUnique({ where: { id: queuedRun.id } })).status, 'CANCELLED');
+  assert.equal((await admin.agentAttempt.findUnique({ where: { id: activeAttempt.id } })).state, 'INVALIDATING');
+  await assert.rejects(app.get(ConversationMessageService).appendAI(assigned.c.id, assignedAi.id, randomUUID(), 0, 'Late AI', async () => {}), e => e.getStatus() === 409);
+  // Exactly 1 SYSTEM takeover message & 1 outbox CONVERSATION_TAKEOVER_COMMITTED event.
+  assert.equal(await admin.message.count({ where: { conversationId: assignedAi.id, senderType: 'SYSTEM' } }), 1);
+  assert.equal(await admin.outboxEvent.count({ where: { aggregateId: assignedAi.id, eventType: 'CONVERSATION_TAKEOVER_COMMITTED' } }), 1);
+  // Now Staff A has canSend=true so markAsRead succeeds and updates readAt!
+  await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/read`, {}, 201);
+  assert.ok((await admin.message.findUnique({ where: { id: custMsg.id } })).readAt !== null);
+  // Both Staff A and Customer can send messages in the same conversationId!
+  await api(assigned.a, 'POST', `${staff}/${assignedAi.id}/messages`, { clientMessageId: randomUUID(), expectedVersion: 1, content: 'Staff hello after takeover' }, 201);
+  await api(assigned.c, 'POST', `${owned}/${assignedAi.id}/messages`, { clientMessageId: randomUUID(), expectedVersion: 1, content: 'Customer reply after takeover' }, 201);
+
+  // 2. Unassigned customer: ANY active Staff sees AI_ACTIVE and can view & race Takeover; exactly 1 wins.
+  const unassigned = await group(false);
+  const unassignedAi = (await create(unassigned, 'AI')).conversation;
+  await seedMessage({ data: { conversationId: unassignedAi.id, sequence: 1n, senderType: 'CUSTOMER', senderId: unassigned.c.id, audience: 'CUSTOMER_VISIBLE', content: 'Unassigned customer hello' } });
+  for (const s of [unassigned.a, unassigned.b]) {
+    const meta = (await api(s, 'GET', `${staff}/${unassignedAi.id}`)).conversation;
+    assert.deepEqual(meta.allowedActions, { canView: true, canAccept: false, canTakeover: true, canSend: false });
+    const hist = await api(s, 'GET', `${staff}/${unassignedAi.id}/messages`);
+    assert.equal(hist.items[0].content, 'Unassigned customer hello');
+  }
+  const raceTakeover = who => fetch(base + `${staff}/${unassignedAi.id}/takeover`, { method: 'POST', headers: {
+    Cookie: who.cookie, Origin: 'http://localhost:8080', 'Content-Type': 'application/json', 'X-Auth-Request': '1', 'X-CSRF-Token': who.csrf },
+    body: JSON.stringify({ clientRequestId: randomUUID(), expectedVersion: 0 }) });
+  const raceResults = await Promise.all([raceTakeover(unassigned.a), raceTakeover(unassigned.b)]);
+  assert.deepEqual(raceResults.map(r => r.status).sort(), [200, 409]);
+  const winner = raceResults[0].status === 200 ? unassigned.a : unassigned.b;
+  const loser = winner === unassigned.a ? unassigned.b : unassigned.a;
+  // Winner can send; loser stays view-only on unassigned customer and cannot send or mark read.
+  assert.deepEqual((await api(winner, 'GET', `${staff}/${unassignedAi.id}`)).conversation.allowedActions, { canView: true, canAccept: false, canTakeover: false, canSend: true });
+  assert.deepEqual((await api(loser, 'GET', `${staff}/${unassignedAi.id}`)).conversation.allowedActions, { canView: true, canAccept: false, canTakeover: false, canSend: false });
+  await api(loser, 'POST', `${staff}/${unassignedAi.id}/read`, {}, 403);
+  await api(winner, 'POST', `${staff}/${unassignedAi.id}/messages`, { clientMessageId: randomUUID(), expectedVersion: 1, content: 'Winner staff reply' }, 201);
+  // Unassigned customer can continue sending after takeover and sees Staff name!
+  const custDetail = (await api(unassigned.c, 'GET', `${owned}/${unassignedAi.id}`)).conversation;
+  assert.equal(custDetail.status, 'STAFF_ACTIVE'); assert.equal(custDetail.entryType, 'TRANSFERRED');
+  assert.equal(custDetail.allowedActions.send, true); assert.ok(custDetail.staff?.fullName);
+  await api(unassigned.c, 'POST', `${owned}/${unassignedAi.id}/messages`, { clientMessageId: randomUUID(), expectedVersion: 1, content: 'Unassigned customer reply after takeover' }, 201);
 });

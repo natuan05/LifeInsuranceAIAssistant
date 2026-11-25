@@ -16,8 +16,8 @@ export class InboxGroupDto {
 export class InboxConversationItemDto {
   @ApiProperty({ format: 'uuid' }) id!: string;
   @ApiProperty() subject!: string;
-  @ApiProperty({ enum: ['PENDING_HANDOFF', 'STAFF_ACTIVE'] }) status!: 'PENDING_HANDOFF' | 'STAFF_ACTIVE';
-  @ApiProperty({ enum: ['REQUEST', 'DIRECT', 'TRANSFERRED'] }) entryType!: 'REQUEST' | 'DIRECT' | 'TRANSFERRED';
+  @ApiProperty({ enum: ['AI_ACTIVE', 'PENDING_HANDOFF', 'STAFF_ACTIVE'] }) status!: 'AI_ACTIVE' | 'PENDING_HANDOFF' | 'STAFF_ACTIVE';
+  @ApiProperty({ enum: ['AI', 'REQUEST', 'DIRECT', 'TRANSFERRED'] }) entryType!: 'AI' | 'REQUEST' | 'DIRECT' | 'TRANSFERRED';
   @ApiProperty({ format: 'date-time' }) activityAt!: string;
 }
 export class InboxGroupsResponseDto {
@@ -34,9 +34,10 @@ export class HandoffRequestMetadataDto {
   @ApiProperty({ format: 'date-time' }) requestedAt!: string;
 }
 export class ConversationActionsDto {
-  @ApiProperty() readMessages!: boolean;
-  @ApiProperty() accept!: boolean;
-  @ApiProperty() send!: boolean;
+  @ApiProperty() canView!: boolean;
+  @ApiProperty() canAccept!: boolean;
+  @ApiProperty() canTakeover!: boolean;
+  @ApiProperty() canSend!: boolean;
 }
 export class ConversationMetadataDto extends InboxConversationItemDto {
   @ApiProperty({ type: InboxCustomerDto }) customer!: InboxCustomerDto;

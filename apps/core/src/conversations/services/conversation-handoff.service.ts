@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { AgentRunService } from '../../agent/services/agent-run.service';
+import { fenceAgentConversation } from '../../agent/services/agent-run-state';
 import { SafeApiException } from '../../http/safe-api.exception';
 import type { ConversationVersionCommandDto, RequestHandoffDto } from '../dto/conversation-entry.dto';
 import { ConversationAccessService } from './conversation-access.service';
@@ -57,10 +58,10 @@ export class ConversationHandoffService {
         { conversationId: id.toLowerCase(), expectedVersion: input.expectedVersion },
         async () => { await this.access.requireMetadata(tx, actorId, id); }, async () => {
           const grant = await this.access.requireMetadata(tx, actorId, id);
-          if (!grant.canAccept) throw new SafeApiException(grant.capability === 'TRANSCRIPT' ? 'ALREADY_ACCEPTED' : 'STALE_CONVERSATION');
+          if (!grant.canAccept) throw new SafeApiException(grant.status === 'STAFF_ACTIVE' ? 'ALREADY_ACCEPTED' : 'STALE_CONVERSATION');
           if (grant.controlVersion !== input.expectedVersion) throw new SafeApiException('STALE_CONVERSATION');
           const evidence = await tx.conversationHandoff.findFirst({ where: { conversationId: id, state: 'PENDING',
-            recipientStaffId: actorId, assignment: { isActive: true }, revokedAt: null } });
+            recipientStaffId: actorId, revokedAt: null, OR: [{ assignment: { isActive: true } }, { conversation: { customer: { assignments: { none: { isActive: true } } } } }] } });
           if (!evidence) throw new NotFoundException();
           await tx.conversationHandoff.update({ where: { id: evidence.id }, data: { state: 'ACCEPTED', acceptedByStaffId: actorId, acceptedAt: new Date() } });
           const updated = await tx.conversation.update({ where: { id }, data: { status: 'STAFF_ACTIVE',
@@ -74,11 +75,42 @@ export class ConversationHandoffService {
       return { conversation: await this.inbox.metadataInTransaction(tx, actorId, id), replayed: receipt.replayed };
     });
   }
-  reconcile(request: ConversationRequest, id: string, key: string) {
+  async takeover(request: ConversationRequest, id: string, input: ConversationVersionCommandDto) {
+    const out = await this.session.write(request, 'STAFF', 'TAKEOVER', (tx, actorId) => this.commands.lock(tx, actorId, id), async (tx, actorId) => {
+      const receipt = await this.commands.execute(tx, actorId, 'TAKEOVER_CONVERSATION', input.clientRequestId,
+        { conversationId: id.toLowerCase(), expectedVersion: input.expectedVersion },
+        async () => { await this.access.requireMetadata(tx, actorId, id); }, async () => {
+          const grant = await this.access.requireMetadata(tx, actorId, id);
+          if (!grant.canTakeover) {
+            throw new SafeApiException(grant.status === 'STAFF_ACTIVE' ? 'ALREADY_ACCEPTED' : 'STALE_CONVERSATION');
+          }
+          if (grant.controlVersion !== input.expectedVersion) throw new SafeApiException('STALE_CONVERSATION');
+          const updated = await tx.conversation.update({
+            where: { id },
+            data: { status: 'STAFF_ACTIVE', assignedStaffId: actorId, controlVersion: { increment: 1 } },
+          });
+          if (this.agentRuns) {
+            await this.agentRuns.fenceConversationInTx(tx, id, 'STAFF_TAKEOVER', true);
+          } else {
+            await fenceAgentConversation(tx, id, 'STAFF_TAKEOVER', true);
+          }
+          await this.messages.takeoverSystemMessage(tx, id, input.clientRequestId, actorId);
+          await recordConversationCommand(tx, actorId, 'STAFF', id, 'CONVERSATION_TAKEOVER_COMMITTED', updated.controlVersion, request.requestId);
+          return { resourceId: id, resultVersion: updated.controlVersion };
+        });
+      await this.access.requireTranscript(tx, actorId, id);
+      return { conversation: await this.inbox.metadataInTransaction(tx, actorId, id), replayed: receipt.replayed };
+    });
+    if (this.agentRuns) {
+      void this.agentRuns.reconcileTick().catch(() => {});
+    }
+    return out;
+  }
+  reconcile(request: ConversationRequest, id: string, key: string, operation: 'ACCEPT_HANDOFF' | 'TAKEOVER_CONVERSATION' = 'ACCEPT_HANDOFF') {
     return this.session.read(request, 'STAFF', async (tx, actorId) => {
       await this.access.requireMetadata(tx, actorId, id);
       const receipt = await tx.conversationCommandReceipt.findUnique({ where: { actorId_operation_clientRequestId: {
-        actorId, operation: 'ACCEPT_HANDOFF', clientRequestId: key } } });
+        actorId, operation, clientRequestId: key } } });
       if (!receipt || receipt.resourceId !== id.toLowerCase()) throw new NotFoundException();
       const grant = await this.access.requireTranscript(tx, actorId, id);
       return { state: 'COMMITTED', resourceId: id, conversationId: id, controlVersion: grant.controlVersion };

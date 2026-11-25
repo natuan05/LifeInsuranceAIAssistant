@@ -4,7 +4,7 @@ import { useChatRefresh } from '@/lib/chat-realtime';
 import { ConversationComposer, type ComposerSnapshot } from './conversation-composer';
 import { useParams, usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { acceptConversation, ConversationError, conversationDetail, inboxFilter, markConversationRead, reconcileAccept, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
+import { acceptConversation, ConversationError, conversationDetail, inboxFilter, markConversationRead, reconcileAccept, reconcileTakeover, takeoverConversation, type AcceptIntent, type Conversation, type ChatMessage } from '@/lib/conversation-api';
 import { realtimeEvent } from '@/lib/realtime';
 import { ConversationTranscript, inboxButton, type TranscriptSnapshot } from './conversation-transcript';
 import { StaffInboxDirectory, type DirectorySnapshot } from './staff-inbox-directory';
@@ -155,9 +155,10 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           setDenied(false);
           setLoading(false);
           setLiveRevision(value => value + 1);
-          if (result.conversation.allowedActions.readMessages) {
+          if (result.conversation.allowedActions.canSend) {
             void markConversationRead('STAFF', selected, csrfToken, signal).catch(() => { if (!signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
-          } else copilotMemory.delete(selected);
+          }
+          if (!result.conversation.allowedActions.canView) copilotMemory.delete(selected);
         }
       }
       if (!signal.aborted && epoch === privacyEpoch.current) setDirectoryRevision(value => value + 1);
@@ -189,9 +190,10 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
       if (!abort.signal.aborted && epoch === privacyEpoch.current) {
         setDetail(result.conversation);
         setDenied(false);
-        if (result.conversation.allowedActions.readMessages) {
+        if (result.conversation.allowedActions.canSend) {
           void markConversationRead('STAFF', selected, csrfToken, abort.signal).catch(() => { if (!abort.signal.aborted && epoch === privacyEpoch.current) setError('Unable to update read status. Refresh the conversation to retry.'); });
-        } else copilotMemory.delete(selected);
+        }
+        if (!result.conversation.allowedActions.canView) copilotMemory.delete(selected);
       }
     }).catch(failure => {
       if (abort.signal.aborted || epoch !== privacyEpoch.current) return;
@@ -208,29 +210,42 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
     return () => { disposed = true; };
   }, [blocked, transcriptMemory, directoryMemory, composerMemory, copilotMemory]);
   useEffect(() => () => acceptController.current?.abort(), []);
-  const accept = async () => {
+  const runControlAction = async (mode: 'ACCEPT' | 'TAKEOVER') => {
     if (!detail || !selected || acceptLock.current || blocked) return;
     acceptLock.current = true; setAccepting(true); setError('');
     const id = selected;
     const command = intent.current ?? { clientRequestId: crypto.randomUUID(), expectedVersion: detail.controlVersion };
     intent.current = command;
     const abort = new AbortController(); acceptController.current = abort;
+    const reconcile = mode === 'TAKEOVER' ? reconcileTakeover : reconcileAccept;
+    const submit = mode === 'TAKEOVER' ? takeoverConversation : acceptConversation;
+    const applySuccess = (conversation: Conversation) => {
+      if (abort.signal.aborted || currentId.current !== id) return;
+      setDetail(conversation);
+      setUncertain(false);
+      intent.current = null;
+      setDirectoryRevision(value => value + 1);
+      setLiveRevision(value => value + 1);
+      if (conversation.allowedActions.canSend) {
+        void markConversationRead('STAFF', id, csrfToken, abort.signal).catch(() => {});
+      }
+    };
     try {
       if (uncertain) {
         try {
-          await reconcileAccept(id, command, abort.signal);
+          await reconcile(id, command, abort.signal);
           const result = await conversationDetail(id, abort.signal);
-          if (!abort.signal.aborted && currentId.current === id) { setDetail(result.conversation); setUncertain(false); intent.current = null; setDirectoryRevision(value => value + 1); }
+          applySuccess(result.conversation);
           return;
         } catch (failure) { if (!(failure instanceof ConversationError && failure.status === 404)) throw failure; }
       }
-      const result = await acceptConversation(id, command, csrfToken, abort.signal);
-      if (!abort.signal.aborted && currentId.current === id) { setDetail(result.conversation); setUncertain(false); intent.current = null; setDirectoryRevision(value => value + 1); }
+      const result = await submit(id, command, csrfToken, abort.signal);
+      applySuccess(result.conversation);
     } catch (failure) {
       if (abort.signal.aborted || currentId.current !== id) return;
       if (failure instanceof ConversationError && [401, 403, 404].includes(failure.status)) onDenied(failure);
       else if (failure instanceof ConversationError && failure.status === 409) { intent.current = null; setUncertain(false); setError(failure.message); setRevision(value => value + 1); }
-      else { setUncertain(true); setError('Acceptance could not be confirmed. Check the result before continuing.'); }
+      else { setUncertain(true); setError(mode === 'TAKEOVER' ? 'Takeover could not be confirmed. Check the result before continuing.' : 'Acceptance could not be confirmed. Check the result before continuing.'); }
     } finally { if (!abort.signal.aborted && currentId.current === id) { acceptLock.current = false; setAccepting(false); } }
   };
   const visible = !blocked && !denied && detail?.id === selected ? detail : null;
@@ -305,10 +320,16 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                   <div className="tw:min-w-0 tw:flex tw:flex-col tw:justify-center">
                     <div className="tw:flex tw:items-center tw:gap-2">
                       <h2 className="tw:m-0 tw:truncate tw:text-base tw:font-bold tw:text-slate-900 tw:leading-tight">{visible.customer.fullName}</h2>
-                      {visible.status !== 'STAFF_ACTIVE' && (
+                      {visible.status === 'PENDING_HANDOFF' && (
                         <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:px-2 tw:py-0.5 tw:rounded-full tw:text-[11px] tw:font-semibold tw:bg-amber-50 tw:text-amber-700 tw:border tw:border-amber-200/60">
                           <span className="tw:w-1.5 tw:h-1.5 tw:rounded-full tw:bg-amber-500 tw:animate-pulse"/>
                           Support Requested
+                        </span>
+                      )}
+                      {visible.status === 'AI_ACTIVE' && (
+                        <span className="tw:inline-flex tw:items-center tw:gap-1.5 tw:px-2 tw:py-0.5 tw:rounded-full tw:text-[11px] tw:font-semibold tw:bg-purple-50 tw:text-purple-700 tw:border tw:border-purple-200/60">
+                          <span className="tw:w-1.5 tw:h-1.5 tw:rounded-full tw:bg-purple-500"/>
+                          AI Active
                         </span>
                       )}
                     </div>
@@ -319,60 +340,67 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                 </div>
               </div>
 
-              {visible.allowedActions.readMessages && <button type="button"
+              {visible.allowedActions.canView && <button type="button"
                 className={inboxButton + ' tw:shrink-0 tw:lg:hidden'}
                 aria-controls="staff-copilot" aria-expanded={copilotOpen}
                 onClick={event => toggleCopilot(event.currentTarget)}>Copilot</button>}
 
-              {/* Takeover button when customer requested support */}
-              {visible.allowedActions.accept && (
+              {/* Accept button when customer requested support */}
+              {visible.allowedActions.canAccept && (
                 <div className="tw:flex tw:items-center tw:gap-3 tw:shrink-0">
-                  <button 
+                  <button
                     type="button"
-                    onClick={() => void accept()}
+                    onClick={() => void runControlAction('ACCEPT')}
+                    disabled={accepting || !csrfToken}
+                    className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-full tw:bg-blue-600 tw:px-3.5 tw:py-1.5 tw:text-xs tw:font-bold tw:text-white tw:shadow-xs tw:hover:bg-blue-700 tw:disabled:opacity-50 tw:cursor-pointer tw:transition-all">
+                    <span className="tw:w-2 tw:h-2 tw:rounded-full tw:bg-white tw:animate-pulse"/>
+                    {accepting ? 'Accepting…' : uncertain ? 'Check acceptance result' : 'Accept request'}
+                  </button>
+                </div>
+              )}
+
+              {/* Proactive Takeover button when conversation is AI_ACTIVE */}
+              {visible.allowedActions.canTakeover && (
+                <div className="tw:flex tw:items-center tw:gap-3 tw:shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => void runControlAction('TAKEOVER')}
                     disabled={accepting || !csrfToken}
                     className="tw:inline-flex tw:items-center tw:gap-1.5 tw:rounded-full tw:bg-emerald-600 tw:px-3.5 tw:py-1.5 tw:text-xs tw:font-bold tw:text-white tw:shadow-xs tw:hover:bg-emerald-700 tw:disabled:opacity-50 tw:cursor-pointer tw:transition-all">
                     <span className="tw:w-2 tw:h-2 tw:rounded-full tw:bg-white tw:animate-pulse"/>
-                    {accepting ? 'Connecting…' : '● Takeover'}
+                    {accepting ? 'Taking over…' : uncertain ? 'Check takeover result' : '● Takeover'}
                   </button>
                 </div>
               )}
             </header>
 
-            {/* Transcript or Hand-off Request Notice */}
-            {visible.allowedActions.readMessages ? (
-              <ConversationTranscript key={visible.id} id={visible.id} memory={transcriptMemory} incoming={incoming} refreshToken={liveRevision} onDenied={onDenied}/>
-            ) : (
-              <div className="tw:min-h-0 tw:flex-1 tw:overflow-auto tw:p-8 tw:flex tw:flex-col tw:items-center tw:justify-center tw:text-center">
-                <div className="tw:max-w-md tw:rounded-2xl tw:border tw:border-blue-200/60 tw:bg-gradient-to-b tw:from-blue-50/50 tw:to-white tw:p-6 tw:shadow-sm">
-                  <div className="tw:w-12 tw:h-12 tw:rounded-2xl tw:bg-blue-100 tw:text-blue-600 tw:grid tw:place-items-center tw:mx-auto tw:mb-4">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><polyline points="16 11 18 13 22 9"/></svg>
-                  </div>
-                  <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">Customer requested support handover</h3>
-                  <p className="tw:mt-2 tw:text-xs tw:text-slate-600 tw:leading-relaxed">
-                    Accept this case to review the full customer conversation and take over direct communications.
-                  </p>
-                  {visible.request?.sharedReason && (
-                    <div className="tw:mt-4 tw:rounded-xl tw:border tw:border-slate-200 tw:bg-white tw:p-3 tw:text-left tw:text-xs tw:text-slate-700 tw:italic">
-                      &ldquo;{visible.request.sharedReason}&rdquo;
-                    </div>
-                  )}
-                  {visible.allowedActions.accept && (
-                    <button 
-                      onClick={() => void accept()}
-                      disabled={accepting || !csrfToken}
-                      className="tw:mt-5 tw:w-full tw:rounded-xl tw:bg-blue-600 tw:py-2.5 tw:text-xs tw:font-bold tw:text-white tw:shadow-xs tw:hover:bg-blue-700 tw:disabled:opacity-50 tw:cursor-pointer tw:transition-all">
-                      {accepting ? 'Checking acceptance…' : uncertain ? 'Check acceptance result' : 'Accept request'}
-                    </button>
-                  )}
-                </div>
+            {/* Support Request Context Banner (non-blocking; full transcript visible below) */}
+            {visible.status === 'PENDING_HANDOFF' && visible.request && (
+              <div className="tw:shrink-0 tw:border-b tw:border-amber-200/70 tw:bg-amber-50/70 tw:px-6 tw:py-3">
+                <p className="tw:m-0 tw:text-xs tw:font-bold tw:text-amber-900">Customer requested staff support</p>
+                {visible.request.sharedReason && (
+                  <p className="tw:m-0 tw:mt-0.5 tw:text-xs tw:text-amber-800 tw:italic">&ldquo;{visible.request.sharedReason}&rdquo;</p>
+                )}
               </div>
             )}
 
-            {/* Message Composer */}
-            {visible.allowedActions.readMessages && visible.allowedActions.send && (
-              <ConversationComposer key={visible.id} id={visible.id} role="STAFF" version={visible.controlVersion} csrfToken={csrfToken} memory={composerMemory} onMessage={message => { setIncoming(message); setDirectoryRevision(v => v + 1); }} onDenied={onDenied} onStale={() => { setDetail(null); setRevision(v => v + 1); }}/>
+            {/* Full Customer-facing Transcript (viewable when canView is true) */}
+            {visible.allowedActions.canView && (
+              <ConversationTranscript key={visible.id} id={visible.id} memory={transcriptMemory} incoming={incoming} refreshToken={liveRevision} onDenied={onDenied}/>
             )}
+
+            {/* Message Composer (only when canSend is true) or Read-Only Notice */}
+            {visible.allowedActions.canView && visible.allowedActions.canSend ? (
+              <ConversationComposer key={visible.id} id={visible.id} role="STAFF" version={visible.controlVersion} csrfToken={csrfToken} memory={composerMemory} onMessage={message => { setIncoming(message); setDirectoryRevision(v => v + 1); }} onDenied={onDenied} onStale={() => { setDetail(null); setRevision(v => v + 1); }}/>
+            ) : visible.allowedActions.canView ? (
+              <div role="status" className="tw:shrink-0 tw:border-t tw:border-slate-200/80 tw:bg-slate-50 tw:px-6 tw:py-3 tw:text-xs tw:text-slate-600">
+                {visible.allowedActions.canTakeover
+                  ? 'Viewing AI conversation (read-only). Click Takeover to take control and reply directly.'
+                  : visible.allowedActions.canAccept
+                  ? 'Reviewing customer support request (read-only). Accept the request to reply.'
+                  : 'Viewing conversation (read-only).'}
+              </div>
+            ) : null}
           </div>
 
           {/* Sub-Rail Switcher (Slim vertical buttons) */}
@@ -393,9 +421,9 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
 
             <button type="button"
               onClick={event => toggleCopilot(event.currentTarget)}
-              disabled={!visible.allowedActions.readMessages}
-              aria-controls={visible.allowedActions.readMessages ? 'staff-copilot' : undefined}
-              aria-expanded={visible.allowedActions.readMessages && copilotOpen}
+              disabled={!visible.allowedActions.canView}
+              aria-controls={visible.allowedActions.canView ? 'staff-copilot' : undefined}
+              aria-expanded={visible.allowedActions.canView && copilotOpen}
               aria-label="AI Copilot" title="AI Copilot"
               className={'tw:w-8 tw:h-8 tw:rounded-lg tw:grid tw:place-items-center tw:transition-all tw:cursor-pointer ' + (rightPanelOpen && rightPanelTab === 'agent' ? 'tw:bg-blue-600 tw:text-white tw:shadow-2xs' : 'tw:text-slate-400 tw:hover:text-slate-700 tw:hover:bg-slate-200/60')}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
@@ -410,7 +438,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
           </div>
 
           {/* Right Panel: Case Details Dossier */}
-          {rightPanelOpen && (!copilotOpen || !visible.allowedActions.readMessages) && (
+          {rightPanelOpen && (!copilotOpen || !visible.allowedActions.canView) && (
             <aside aria-label="Case Details" className="tw:hidden tw:lg:flex tw:w-80 tw:shrink-0 tw:bg-slate-50/60 tw:border-r tw:border-slate-200/80 tw:flex-col tw:overflow-hidden">
               <header className="tw:h-16 tw:px-5 tw:border-b tw:border-slate-200/80 tw:bg-white tw:flex tw:items-center tw:justify-between tw:shrink-0">
                 <h3 className="tw:text-sm tw:font-bold tw:text-slate-900">
@@ -431,6 +459,8 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
                           <dd>
                             {visible.status === 'STAFF_ACTIVE' ? (
                               <span className="tw:font-semibold tw:text-blue-700">Staff Active</span>
+                            ) : visible.status === 'AI_ACTIVE' ? (
+                              <span className="tw:font-semibold tw:text-purple-700">AI Active</span>
                             ) : (
                               <span className="tw:font-semibold tw:text-amber-600">Support requested</span>
                             )}
@@ -506,7 +536,7 @@ export function StaffInbox({ csrfToken, blocked }: { csrfToken: string; blocked:
               </div>
             </aside>
           )}
-          {visible.allowedActions.readMessages && <aside id="staff-copilot" aria-label="AI Copilot"
+          {visible.allowedActions.canView && <aside id="staff-copilot" aria-label="AI Copilot"
             hidden={!copilotOpen}
             onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); closeCopilot(); } }}
             className={(copilotOpen ? 'tw:flex ' : 'tw:hidden ') + copilotWidths[copilotWidth] + ' tw:relative tw:z-20 tw:min-h-0 tw:flex-col tw:overflow-hidden tw:border-l tw:border-slate-200 tw:bg-slate-50 tw:max-lg:absolute tw:max-lg:inset-x-0 tw:max-lg:bottom-0 tw:max-lg:top-16 tw:lg:shrink-0'}>

@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { DatabaseService } from '../../database/database.service';
 import { Prisma } from '../../generated/prisma/client';
 
-export const conversationOperations = ['CREATE_AI', 'CREATE_DIRECT', 'REQUEST_HANDOFF', 'ACCEPT_HANDOFF', 'SEND_MESSAGE', 'SEND_COPILOT'] as const;
+export const conversationOperations = ['CREATE_AI', 'CREATE_DIRECT', 'REQUEST_HANDOFF', 'ACCEPT_HANDOFF', 'TAKEOVER_CONVERSATION', 'SEND_MESSAGE', 'SEND_COPILOT'] as const;
 export type ConversationOperation = typeof conversationOperations[number];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 class RoutingRace extends Error {}

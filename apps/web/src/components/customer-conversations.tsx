@@ -222,7 +222,7 @@ export function CustomerConversations({ csrfToken, blocked }: { csrfToken: strin
         setDetail(current => current?.id === aiChatId && current.controlVersion <= conversation.controlVersion ? conversation : current);
         if (conversation.aiReplyStatus === 'QUEUED' || conversation.aiReplyStatus === 'RUNNING') {
           timer = setTimeout(checkReply, 3000);
-        } else if (conversation.aiReplyStatus === 'COMPLETED') {
+        } else if (conversation.aiReplyStatus === 'COMPLETED' || conversation.status !== 'AI_ACTIVE') {
           setLiveRevision(value => value + 1);
         }
       } catch (failure) {

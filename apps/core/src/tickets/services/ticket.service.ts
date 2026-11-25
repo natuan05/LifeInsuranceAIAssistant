@@ -126,7 +126,7 @@ export class TicketService {
         ...projectTicketConfirmation(ticket), aiSummary: ticket.aiSummary, allowedActions: { accept: ticket.status === 'ASSIGNED' || ticket.status === 'OPEN', transitions: this.transitions(ticket.status) },
         chatLink: conversation ? { conversationId: conversation.id,
           capability: conversation.status === 'PENDING_HANDOFF' ? 'REQUEST_METADATA' : 'TRANSCRIPT',
-          href: `/staff/inbox/${conversation.id}?filter=${conversation.status === 'PENDING_HANDOFF' ? 'requests' : 'active'}` } : null } };
+          href: `/staff/inbox/${conversation.id}${conversation.status === 'PENDING_HANDOFF' ? '?filter=requests' : conversation.status === 'STAFF_ACTIVE' ? '?filter=active' : ''}` } : null } };
   }
 
 
