@@ -7,7 +7,7 @@ import { TicketEventService, ticketEventTypes } from '../../tickets/services/tic
 import { EmailNotificationService } from '../../notifications/services/email-notification.service';
 import { copilotRunChanged } from '../../agent/services/agent-run-state';
 
-const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
+const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'CONVERSATION_TAKEOVER_COMMITTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
 @Injectable()
 export class OutboxDispatcherService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly owner = randomUUID();
@@ -29,7 +29,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
     return this.database.prisma.$queryRaw`
       WITH due AS (
         SELECT id FROM business.outbox_events WHERE ((aggregate_type='CONVERSATION'
-          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED',${copilotRunChanged}))
+          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','CONVERSATION_TAKEOVER_COMMITTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED',${copilotRunChanged}))
           OR (aggregate_type='TICKET' AND event_type IN ('TICKET_CREATED','TICKET_ACCEPTED','TICKET_STATUS_CHANGED')))
           AND ((status='PENDING' AND next_attempt_at<=NOW()) OR (status='PROCESSING' AND (lease_expires_at IS NULL OR lease_expires_at<=NOW())))
         ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 20

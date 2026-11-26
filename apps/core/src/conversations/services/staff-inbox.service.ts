@@ -11,8 +11,8 @@ import { decodeInboxCursor, encodeInboxCursor, inboxCursorScope } from './inbox-
 
 type Entry = {
   id: string; customer_id: string; full_name: string; account_code: string; subject: string;
-  status: 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; entry_type: 'REQUEST' | 'DIRECT' | 'TRANSFERRED';
-  activity_at: Date; control_version: number; can_send: boolean;
+  status: 'AI_ACTIVE' | 'PENDING_HANDOFF' | 'STAFF_ACTIVE'; entry_type: 'AI' | 'REQUEST' | 'DIRECT' | 'TRANSFERRED';
+  activity_at: Date; control_version: number; can_view: boolean; can_accept: boolean; can_takeover: boolean; can_send: boolean;
   request_id: string | null; shared_reason: string | null; requested_at: Date | null;
 };
 type Group = Pick<Entry, 'customer_id' | 'full_name' | 'account_code' | 'activity_at'>;
@@ -61,8 +61,18 @@ export class StaffInboxService {
 
   conversations(request: IncomingMessage, customerId: string, query: InboxConversationsQuery): Promise<InboxConversationsResponseDto> {
     return this.read(request, async (tx, actorId, now) => {
-      const assignment = await tx.staffAssignment.findFirst({ where: { customerId, staffId: actorId, isActive: true }, select: { id: true } });
-      if (!assignment) throw new NotFoundException();
+      const profile = await tx.customerProfile.findUnique({
+        where: { userId: customerId },
+        select: {
+          user: { select: { status: true, lockedUntil: true } },
+          assignments: { where: { isActive: true }, take: 1, select: { staffId: true } },
+        },
+      });
+      if (!profile || profile.user.status !== 'ACTIVE' || (profile.user.lockedUntil && profile.user.lockedUntil > now)) {
+        throw new NotFoundException();
+      }
+      const activeAssignment = profile.assignments[0];
+      if (activeAssignment && activeAssignment.staffId !== actorId) throw new NotFoundException();
       const scope = inboxCursorScope(actorId, 'conversations', query.filter, '', customerId);
       const boundary = decodeInboxCursor(query.cursor, scope);
       const rows = await tx.$queryRaw<Entry[]>`WITH eligible AS (${this.access.staffSqlEntries(actorId, query.filter, now)})
@@ -85,6 +95,6 @@ export class StaffInboxService {
       const pending = row.entry_type === 'REQUEST';
       return { ...item(row), customer: customer(row), controlVersion: row.control_version,
         ...(pending ? { request: { id: row.request_id!, sharedReason: row.shared_reason, requestedAt: row.requested_at!.toISOString() } } : {}),
-        allowedActions: { readMessages: !pending, accept: pending, send: row.can_send } };
+        allowedActions: { canView: row.can_view, canAccept: row.can_accept, canTakeover: row.can_takeover, canSend: row.can_send } };
   }
 }

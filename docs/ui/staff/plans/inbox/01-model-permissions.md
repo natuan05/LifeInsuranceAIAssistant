@@ -119,38 +119,48 @@ erDiagram
 
 Direct trỏ assignment lúc tạo; handoff lưu assignment từng lần chuyển. Receipt resource reference được service kiểm đúng operation; không vẽ FK giả từ một UUID đa loại sang mọi bảng.
 
-Service trả capability `NONE`, `REQUEST_METADATA`, `TRANSCRIPT`, kèm canAccept/canSend. Predicate query và kiểm resource cùng quy tắc; không tải transcript rồi lọc/xóa sau paginate.
+Service trả các cờ quyền tách bạch: `canView`, `canAccept`, `canTakeover`, `canSend`. Predicate query và kiểm resource cùng quy tắc; không tải transcript rồi lọc/xóa sau paginate.
 
-| Staff case | Capability | Accept/send |
-| --- | --- | --- |
-| AI riêng/Copilot/legacy thiếu chứng cứ | NONE | Không |
-| Pending consent tới assignment hiện tại | REQUEST_METADATA | Accept có, send không |
-| Handoff ACCEPTED bởi đúng Staff/assignment còn active | TRANSCRIPT | Send khi STAFF_ACTIVE/controller khớp |
-| DIRECT với creator/assignment provenance hiện hành | TRANSCRIPT | Send khi STAFF_ACTIVE/controller khớp |
-| Assignment hết hạn/user khóa/phiên mất | NONE | Không |
-| Chỉ Ticket/notification/link/cursor/assignedStaffId | Không đổi capability | Không tự cấp |
+**Quy tắc phân công của Staff đối với Customer:**
+- **Customer chưa được phân công (Unassigned):** Bất kỳ Staff nào cũng có thể nhìn thấy cuộc chat trong Inbox (`canView = true`) và có thể tiếp nhận/tiếp quản.
+- **Customer đã được phân công (Assigned):** Chỉ Staff được phân công với Customer đó mới nhìn thấy cuộc chat (`canView = true`). Staff khác bị từ chối truy cập (trả về 404).
+
+| Staff case | canView | canAccept | canTakeover | canSend | Ghi chú |
+| --- | --- | --- | --- | --- | --- |
+| Customer chưa phân công: cuộc `AI_ACTIVE` | True | False | True | False | Bất kỳ Staff nào cũng xem được toàn bộ transcript; xem không dừng AI; có thể Takeover |
+| Customer chưa phân công: cuộc `PENDING_HANDOFF` | True | True | False | False | Bất kỳ Staff nào cũng xem được toàn bộ transcript; có thể Accept |
+| Customer đã phân công: cuộc `AI_ACTIVE` | True | False | True | False | Chỉ Staff được phân công xem được toàn bộ transcript; xem không dừng AI; có thể Takeover |
+| Customer đã phân công: cuộc `PENDING_HANDOFF` | True | True | False | False | Chỉ Staff được phân công xem được toàn bộ transcript; có thể Accept |
+| Cuộc `STAFF_ACTIVE` do chính Staff làm controller | True | False | False | True | Đọc và gửi tin hai chiều; cập nhật mốc đọc `readAt` |
+| Staff ngoài phân công (khi Customer đã gán cho Staff khác) | False | False | False | False | Trả 404 để không lộ tồn tại cuộc trò chuyện |
+| User khóa / phiên mất / legacy thiếu chứng cứ | False | False | False | False | Mất toàn bộ quyền truy cập |
 
 Customer chỉ đọc CUSTOMER_SUPPORT ownership, projection đúng audience; không STAFF_COPILOT dù customerId trùng. Legacy chưa review trả trạng thái không khả dụng an toàn, không suy consent từ actor cũ.
 
 ```mermaid
 flowchart TD
-  R[Request hoặc event] --> S{Session và role?}
+  R[Request hoặc event] --> S{Session và role Staff?}
   S -->|Không| Deny[401 hoặc 403]
-  S -->|Có| C{Customer Support và ownership hoặc assignment?}
-  C -->|Không| N[404 hoặc loại khỏi list]
-  C -->|Staff| G{Direct hoặc accepted handoff hợp lệ?}
-  G -->|Có| T[Transcript Customer-facing]
-  G -->|Không| P{Pending consent tới Staff?}
-  P -->|Có| M[Chỉ request metadata]
-  P -->|Không| N
-  C -->|Customer owner| O[Projection Customer-facing]
+  S -->|Có| C{Customer đã được phân công?}
+  C -->|Chưa phân công| V[canView = true: Bất kỳ Staff nào cũng xem được transcript]
+  C -->|Đã phân công| A{Staff hiện tại có phải Staff được phân công?}
+  A -->|Không| N[404: Loại khỏi danh sách và từ chối truy cập]
+  A -->|Có| V
+  V --> St{Trạng thái cuộc chat?}
+  St -->|AI_ACTIVE| TO[canTakeover = true, canSend = false]
+  St -->|PENDING_HANDOFF| AC[canAccept = true, canSend = false]
+  St -->|STAFF_ACTIVE controller| SD[canSend = true, cập nhật readAt]
 ```
 
-## 5. Locks, reassignment và Agent fence
+## 5. Locks, Takeover và Agent fence
 
 Chuẩn hóa writer: **users liên quan theo UUID tăng dần → CustomerProfile/assignment hiện hành → Conversation theo UUID tăng dần → handoff/message/receipt**. Account management hiện khóa users có thứ tự; review advisory locks cũ để không đảo thứ tự. Không khóa conversation rồi quay lại users. Auth/revocation đọc lại trong transaction, không từ cache ngoài transaction.
 
-Assignment mutation cùng transaction: kết thúc assignment cũ → revoke handoff → tăng controlVersion → bỏ controller cuộc bị ảnh hưởng. STAFF_ACTIVE/PENDING về AI_ACTIVE; AI writer vẫn bị chặn nếu provenance/routing chưa hợp lệ. Direct cũ Customer vẫn đọc lịch sử nhưng không gửi Staff, không tự bật AI. Không xóa messages/receipts. Staff mới cần request/Accept mới hoặc Direct mới; không đổi origin cuộc AI.
+Xử lý giao dịch Takeover và Handoff:
+- **Agent fence (`fenceConversationInTx`):** Khi commit `REQUEST_HANDOFF`, `ACCEPT_HANDOFF` hoặc `TAKEOVER_CONVERSATION`, Core tăng `controlVersion` và kích hoạt fence để hủy dở turn Agent đang xử lý hoặc đang xếp hàng, chặn callback `RESULT` đến muộn mang version cũ.
+- **Takeover atomic:** Khóa hội thoại, kiểm tra quyền (nếu Customer chưa gán thì Staff bất kỳ, nếu đã gán thì chỉ Staff phụ trách), kiểm tra version (`expectedVersion == controlVersion`), ghi nhận receipt idempotency, cập nhật `assignedStaffId = currentStaffId` và status `STAFF_ACTIVE`, chèn 1 tin nhắn `SYSTEM` duy nhất và mở quyền `canSend = true` cho cả hai bên.
+- **Tách quyền đánh dấu đã đọc (`readAt`):** Khi Staff mở xem transcript (`canView = true, canSend = false`), Core từ chối cập nhật `readAt`. Chỉ khi Staff có quyền gửi (`canSend = true`), Core mới cho phép cập nhật `readAt`.
+- *(Lưu ý: Các phần xử lý phức tạp về chuyển tuyến và trạng thái chờ khi đổi phân công được lược bỏ trong đợt triển khai này).*
 
 AI append tương lai nhận expectedControlVersion, kiểm origin AI + status AI_ACTIVE + audience dưới cùng lock. Request/Accept/revoke tăng version làm output cũ bị từ chối. Đề xuất dừng AI ngay khi request commit. Không thêm public endpoint giả mạo AI; transport/Agent auth phải có kế hoạch riêng.
 

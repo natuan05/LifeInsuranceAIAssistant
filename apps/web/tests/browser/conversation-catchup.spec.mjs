@@ -4,7 +4,7 @@ async function setup(page, role) {
   const state = { total: 50, requests: [], successful: [], documents: [], afterCount: 0, budget: Infinity, readThrough: '0' };
   const customer = { id: 'customer', fullName: 'Synthetic Catch-up Customer', accountCode: 'CUS-CATCHUP' };
   const detail = { id: 'one', subject: 'Synthetic catch-up', status: 'STAFF_ACTIVE', entryType: 'DIRECT', customer,
-    controlVersion: 0, allowedActions: { readMessages: true, send: true, accept: false } };
+    controlVersion: 0, allowedActions: { canView: true, canAccept: false, canTakeover: false, canSend: true } };
   await page.routeWebSocket('**/api/v1/realtime', () => {});
   page.on('request', r => { if (r.isNavigationRequest() && r.frame() === page.mainFrame()) state.documents.push(r.url()); });
   await page.route('**/api/v1/**', async route => {

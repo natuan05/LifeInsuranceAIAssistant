@@ -59,7 +59,8 @@ export class ConversationEntryService {
   }
   async customerMetadata(tx: Prisma.TransactionClient, actorId: string, id: string) {
     const row = await tx.conversation.findFirst({ where: { id, customerId: actorId, channelType: 'CUSTOMER_SUPPORT' },
-      select: { id: true, subject: true, status: true, supportOrigin: true, controlVersion: true,
+      select: { id: true, subject: true, status: true, supportOrigin: true, controlVersion: true, assignedStaffId: true,
+        staff: { select: { fullName: true } },
         handoffs: { orderBy: [{ confirmedAt: 'desc' }, { id: 'desc' }], take: 1,
           select: { id: true, state: true, assignmentId: true, confirmedAt: true, acceptedAt: true, revokedAt: true } } } });
     if (!row) throw new NotFoundException();
@@ -67,16 +68,17 @@ export class ConversationEntryService {
     const route = await this.routing(tx, actorId), current = row.handoffs[0];
     const routed = current && route.available && current.assignmentId === route.assignment?.id;
     const pending = routed && current.state === 'PENDING' && row.status === 'PENDING_HANDOFF';
-    const transferred = routed && current.state === 'ACCEPTED' && row.status === 'STAFF_ACTIVE';
+    const transferred = row.status === 'STAFF_ACTIVE' && ((routed && current.state === 'ACCEPTED') || (row.supportOrigin === 'AI' && !!row.assignedStaffId));
     const capability = review ? null : await this.access.requireCustomer(tx, actorId, id);
     const latestRun = row.supportOrigin === 'AI' && row.status === 'AI_ACTIVE' && capability?.canSend
       ? await tx.agentRun.findFirst({ where: { conversationId: id }, orderBy: { queuePosition: 'desc' }, select: { status: true } })
       : null;
+    const activeStaffName = row.staff?.fullName ?? (route.available ? route.assignment!.staff.fullName : null);
     return { id: row.id, subject: row.subject || 'Cuộc trò chuyện', status: row.status, controlVersion: row.controlVersion,
       entryType: review ? 'LEGACY_REVIEW' : pending ? 'REQUEST' : transferred ? 'TRANSFERRED' : row.supportOrigin === 'DIRECT' ? 'DIRECT' : 'AI',
       availability: review ? 'REVIEW_REQUIRED' : 'AVAILABLE',
       aiReplyStatus: latestRun?.status ?? null,
-      staff: capability?.canSend && row.status !== 'AI_ACTIVE' && route.available ? { fullName: route.assignment!.staff.fullName } : null,
+      staff: capability?.canSend && row.status !== 'AI_ACTIVE' && activeStaffName ? { fullName: activeStaffName } : null,
       ...(current ? { request: { id: current.id, state: current.state, requestedAt: current.confirmedAt.toISOString(),
         acceptedAt: current.acceptedAt?.toISOString() ?? null, revokedAt: current.revokedAt?.toISOString() ?? null } } : {}),
       allowedActions: { readMessages: !review, send: !!capability?.canSend,
@@ -103,7 +105,7 @@ export class ConversationEntryService {
       return { items: visible.map(row => ({ id: row.id, subject: row.subject || 'Cuộc trò chuyện', status: row.status,
         activityAt: row.activity_at.toISOString(), entryType: row.support_origin === 'LEGACY_UNKNOWN' ? 'LEGACY_REVIEW'
           : row.state === 'PENDING' && row.status === 'PENDING_HANDOFF' ? 'REQUEST'
-          : row.state === 'ACCEPTED' && row.status === 'STAFF_ACTIVE' ? 'TRANSFERRED' : row.support_origin })),
+          : (row.state === 'ACCEPTED' || row.support_origin === 'AI') && row.status === 'STAFF_ACTIVE' ? 'TRANSFERRED' : row.support_origin })),
         pageInfo: { hasMore, nextCursor: hasMore && last ? encodeInboxCursor(scope, last.activity_at, last.id) : null } };
     });
   }

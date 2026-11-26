@@ -127,9 +127,10 @@ test('detail projects legacy metadata without pretending AI summary is confirmed
  assert.equal(ticket.confirmationSource,'LEGACY_UNVERIFIED');assert.equal(ticket.confirmedContent,null);assert.equal(ticket.aiSummary,'AI_ONLY_SENTINEL');
  assert.equal(ticket.version,0);assert.equal(ticket.policy,null);assert.equal(ticket.chatLink,null);assert.equal(ticket.allowedActions.accept,i===0||i===1);assert(!('conversationId'in ticket));}
 });
-test('Ticket link never grants private AI or cross-customer transcript access; direct chat may link',async()=>{
- const privateChat=await admin.conversation.create({data:{customerId:customer.id,channelType:'CUSTOMER_SUPPORT',supportOrigin:'AI',status:'AI_ACTIVE',createdByCustomerId:customer.id}});chats.push(privateChat.id);
- await admin.supportTicket.update({where:{id:tickets[0]},data:{conversationId:privateChat.id}});assert.equal((await get('/'+tickets[0])).body.ticket.chatLink,null);
+test('Ticket link follows FR-006 scope and never grants cross-customer transcript access',async()=>{
+ const aiChat=await admin.conversation.create({data:{customerId:customer.id,channelType:'CUSTOMER_SUPPORT',supportOrigin:'AI',status:'AI_ACTIVE',createdByCustomerId:customer.id}});chats.push(aiChat.id);
+ await admin.supportTicket.update({where:{id:tickets[0]},data:{conversationId:aiChat.id}});
+ assert.deepEqual((await get('/'+tickets[0])).body.ticket.chatLink,{conversationId:aiChat.id,capability:'TRANSCRIPT',href:'/staff/inbox/'+aiChat.id});
  const direct=await admin.conversation.create({data:{customerId:customer.id,channelType:'CUSTOMER_SUPPORT',supportOrigin:'DIRECT',status:'STAFF_ACTIVE',assignedStaffId:staff.id,directAssignmentId:assignment.id,createdByCustomerId:customer.id}});chats.push(direct.id);
  await admin.supportTicket.update({where:{id:tickets[0]},data:{conversationId:direct.id}});
  assert.deepEqual((await get('/'+tickets[0])).body.ticket.chatLink,{conversationId:direct.id,capability:'TRANSCRIPT',href:'/staff/inbox/'+direct.id+'?filter=active'});
@@ -144,12 +145,13 @@ test('locked Customer remains serviceable; locked Staff loses session access',as
  await admin.user.update({where:{id:staff.id},data:{status:'LOCKED'}});await get('',staff,401);
  }finally{await admin.user.update({where:{id:customer.id},data:{status:'ACTIVE'}});await admin.user.update({where:{id:staff.id},data:{status:'ACTIVE'}});}
 });
-test('pending handoff link permits metadata only and accepted handoff links the transcript',async()=>{
+test('pending handoff link permits view-only transcript and accepted handoff links the active transcript',async()=>{
  const chat=await admin.conversation.create({data:{customerId:customer.id,channelType:'CUSTOMER_SUPPORT',supportOrigin:'AI',status:'PENDING_HANDOFF',createdByCustomerId:customer.id}});chats.push(chat.id);
  const handoff=await admin.conversationHandoff.create({data:{conversationId:chat.id,customerId:customer.id,assignmentId:assignment.id,recipientStaffId:staff.id,sharedSubject:'Synthetic shared subject',consentScope:'ENTIRE_CUSTOMER_VISIBLE_CONVERSATION',consentTextVersion:'handoff-v1',confirmedByCustomerId:customer.id}});
  await admin.supportTicket.update({where:{id:tickets[0]},data:{conversationId:chat.id}});
  assert.equal((await get('/'+tickets[0])).body.ticket.chatLink.capability,'REQUEST_METADATA');
- await assert.rejects(core.$transaction(tx=>new ConversationAccessService().requireTranscript(tx,staff.id,chat.id)),e=>e.getStatus()===404);
+ const pendingGrant = await core.$transaction(tx=>new ConversationAccessService().requireTranscript(tx,staff.id,chat.id));
+ assert.equal(pendingGrant.canView,true);assert.equal(pendingGrant.canSend,false);
  await admin.$transaction(async tx=>{await tx.conversationHandoff.update({where:{id:handoff.id},data:{state:'ACCEPTED',acceptedByStaffId:staff.id,acceptedAt:new Date()}});await tx.conversation.update({where:{id:chat.id},data:{status:'STAFF_ACTIVE',assignedStaffId:staff.id}});});
  assert.equal((await get('/'+tickets[0])).body.ticket.chatLink.capability,'TRANSCRIPT');
 });
@@ -195,13 +197,14 @@ test('TK03 concurrent acceptance and replay commit one transition/audit/event wi
  await admin.supportTicket.update({where:{id:ticket.id},data:{conversationId:chat.id}});
  const before=await admin.conversation.findUnique({where:{id:chat.id}});
  const results=await Promise.all(Array.from({length:5},()=>accept(ticket.id)));
- for(const {body} of results){assert.equal(body.ticket.status,'IN_PROGRESS');assert.equal(body.ticket.version,1);assert.equal(body.ticket.chatLink,null);assert.equal(body.ticket.allowedActions.accept,false);}
+ for(const {body} of results){assert.equal(body.ticket.status,'IN_PROGRESS');assert.equal(body.ticket.version,1);assert.equal(body.ticket.chatLink.conversationId,chat.id);assert.equal(body.ticket.allowedActions.accept,false);}
  await accept(ticket.id,0);
  await accept(ticket.id,0,staff,200,{},true);
  assert.equal(await admin.auditLog.count({where:{targetId:ticket.id,action:'TICKET_ACCEPTED'}}),1);
  assert.equal(await admin.outboxEvent.count({where:{aggregateId:ticket.id,eventType:'TICKET_ACCEPTED'}}),1);
  assert.deepEqual(await admin.conversation.findUnique({where:{id:chat.id}}),before);
- await assert.rejects(core.$transaction(tx=>new ConversationAccessService().requireTranscript(tx,staff.id,chat.id)),e=>e.getStatus()===404);
+ const aiGrant = await core.$transaction(tx=>new ConversationAccessService().requireTranscript(tx,staff.id,chat.id));
+ assert.equal(aiGrant.canView,true);assert.equal(aiGrant.canSend,false);
 });
 test('TK03 stale versions and terminal states cannot Accept; assigned OPEN can',async()=>{
  const ticket=await fixture();assert.equal((await accept(ticket.id,9,staff,409)).body.code,'STALE_TICKET');
