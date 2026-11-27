@@ -86,24 +86,36 @@ after(async () => {
   } finally { await Promise.all([admin.$disconnect(), core.$disconnect()]); }
 });
 
-test('AI private, Copilot and legacy controller never imply Staff visibility', async () => {
+test('AI_ACTIVE is readable by assigned Staff and any Staff when unassigned; Copilot and legacy stay hidden', async () => {
   const owner = await customer();
-  const rows = await Promise.all(['AI', 'COPILOT', 'LEGACY'].map(kind => conversation(owner, kind)));
-  for (const row of rows) {
+  const [ai, copilot, legacy] = await Promise.all(['AI', 'COPILOT', 'LEGACY'].map(kind => conversation(owner, kind)));
+  for (const row of [copilot, legacy]) {
     await assert.rejects(read(tx => access.requireMetadata(tx, staffA.id, row.id)), status(404));
     await assert.rejects(read(tx => access.requireTranscript(tx, staffA.id, row.id)), status(404));
   }
-  assert.equal(await core.conversation.count({ where: { id: { in: rows.map(r => r.id) }, AND: [access.staffScope(staffA.id)] } }), 0);
+  const aiGrant = await read(tx => access.requireTranscript(tx, staffA.id, ai.id));
+  assert.equal(aiGrant.canView, true); assert.equal(aiGrant.canTakeover, true); assert.equal(aiGrant.canAccept, false); assert.equal(aiGrant.canSend, false);
+  await assert.rejects(read(tx => access.requireMetadata(tx, staffB.id, ai.id)), status(404));
+  await assert.rejects(messages.send(staffA, ai.id, randomUUID(), 0, 'Synthetic denied AI send', authorized), status(404));
+  assert.equal(await core.conversation.count({ where: { id: { in: [ai.id, copilot.id, legacy.id] }, AND: [access.staffScope(staffA.id)] } }), 1);
+  // Unassigned customer's AI_ACTIVE conversation is visible to any active Staff.
+  const unassignedCustomer = { actor: await user('CUSTOMER') };
+  const unassignedAi = await conversation(unassignedCustomer, 'AI');
+  for (const actor of [staffA, staffB]) {
+    const grant = await read(tx => access.requireTranscript(tx, actor.id, unassignedAi.id));
+    assert.equal(grant.canView, true); assert.equal(grant.canTakeover, true); assert.equal(grant.canSend, false);
+  }
 });
 
-test('pending is metadata only; wrong Staff and send remain denied', async () => {
+test('pending is view-only for assigned Staff; wrong Staff, send and markAsRead remain denied', async () => {
   const owner = await customer(), conv = await conversation(owner);
   await handoff(owner, conv);
   const grant = await read(tx => access.requireMetadata(tx, staffA.id, conv.id));
-  assert.equal(grant.capability, 'REQUEST_METADATA'); assert.equal(grant.canAccept, true); assert.equal(grant.canSend, false);
-  await assert.rejects(read(tx => access.requireTranscript(tx, staffA.id, conv.id)), status(404));
+  assert.equal(grant.capability, 'TRANSCRIPT'); assert.equal(grant.canView, true); assert.equal(grant.canAccept, true); assert.equal(grant.canTakeover, false); assert.equal(grant.canSend, false);
+  await read(tx => access.requireTranscript(tx, staffA.id, conv.id));
   await assert.rejects(read(tx => access.requireMetadata(tx, staffB.id, conv.id)), status(404));
   await assert.rejects(messages.send(staffA, conv.id, randomUUID(), 1, 'Synthetic denied', authorized), status(404));
+  await assert.rejects(commands.transaction(tx => messages.markAsRead(tx, staffA, conv.id)), status(403));
 });
 
 test('accepted handoff permits all Customer-facing history from before consent', async () => {

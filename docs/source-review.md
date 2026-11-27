@@ -86,7 +86,7 @@ Ngày **27/10/2026** đã đối chiếu văn bản ba phần AI Agent Module, O
 | Ticket | Phase 2 đã triển khai phần Application: trim/validation, xác nhận đúng textVersion, khóa/CAS draft, fingerprint/replay, snapshot cơ bản và receipt/retry Web. Có kiểm DB cạnh tranh và gateway/browser; đã kiểm đổi Customer actor khi Ticket pending theo [tài liệu chức năng Application](ui/README.md). Nguồn Agent thật, sáu nhóm/source refs và Notification/read-status tiếp tục theo phase riêng. | [I07](ui/staff/plans/tickets/06-agent-confirmation.md), [Customer T01/T02](ui/customer/plans/07-tickets-contract.md) |
 | Notification | Có hai recipient và retention 30 ngày. [Service](../apps/core/src/notifications/notifications.service.ts) cleanup mỗi giờ thay vì 24 giờ; shape DTO/read/read-all còn lệch [Web](../apps/web/src/lib/conversation-api.ts). Gộp unread còn phụ thuộc isRead. Ticket create event thiếu version mà consumer yêu cầu; nhánh Customer còn phụ thuộc Staff assignment. | [Staff N01/N02](ui/staff/plans/06-notifications-contract.md), [Customer N01/N02](ui/customer/plans/09-notifications-contract.md), I07 |
 | Chat và phiên | Web/Core có tạo cuộc AI mới, trạng thái không có Close và lịch sử chưa tự TTL. Auth/logout/WS có kiểm phiên. Chưa nghiệm thu với Agent về thread/context riêng, FAILED không tự chạy lại, nhận lượt bền vững và tiếp tục sau logout theo quyền hiện hành. | [CH01–CH03](ui/customer/plans/06-chat-contract.md), [AU03](ui/staff/plans/auth/03-session-lifecycle.md) |
-| Agent/Copilot | Có graph, Gemini adapter, prompt và PostgreSQL store. Phạm vi prompt-only khớp B. Main chưa có tích hợp HTTP/Core/Copilot hoàn chỉnh; lookup chỉ đọc đã có, hiểu hợp đồng theo câu hỏi/hỏi lại còn cần tích hợp. Không tính ô chọn hợp đồng hoặc bộ lọc định danh bằng code là việc thiếu. | [Agent README](../apps/agent/README.md), [CP01–CP04](ui/staff/plans/08-copilot-contract.md) |
+| Agent/Copilot | Core có lifecycle run/attempt/event và API lịch sử liên kết. Agent có graph Copilot, checkpoint và đọc linked history. Staff Inbox đã đọc/gửi Copilot qua A24/A25. Core kiểm quyền nguồn và cố định mốc tin Customer-facing. Luồng qua gateway đã kiểm với model giả lập; còn nghiệm thu Gemini và corpus runtime. | [CP01–CP04](ui/staff/plans/08-copilot-contract.md) |
 | Schema/tool local | Prisma có 21 model/18 migrations. [verify-models](../apps/core/scripts/verify-models.mjs) đối chiếu tên bảng/quyền; [dev-data-reset](../apps/core/src/cli/dev-data-reset.ts) bao phủ đủ 21 bảng. Seed/reset được kiểm trong database synthetic cô lập; hồi quy theo Phase 5. | [Data Model](specifications/Data_Model.md), [Getting Started](getting-started.md) |
 
 AWS, nguồn RAG, giới hạn/ngưỡng cần đo và chính sách production chưa chốt tiếp tục giữ trạng thái hiện có. Trình tự làm việc: đồng bộ tài liệu → rà soát/kiểm chứng → thống nhất kế hoạch → sửa code.
@@ -223,6 +223,8 @@ Yêu cầu hai điểm bắt đầu (Customer chủ động hoặc đồng ý g�
 
 ## Quyết định Inbox và quyền chat — 03/11/2026
 
+Mốc lịch sử. Các điểm về quyền đọc và takeover đã được thay bằng [quyết định 23/11](#quyết-định-staff-xem-chat-và-takeover--23112026).
+
 Người dùng đã xác nhận:
 
 1. Staff chỉ đọc chat Direct Customer gửi hợp lệ, hoặc cuộc AI đã được Customer đồng ý chuyển và Staff Accept thành công. Active assignment là điều kiện cần, không là quyền duyệt mọi chat AI của khách; không proactive takeover chat AI riêng.
@@ -234,6 +236,19 @@ Người dùng đã xác nhận:
 Đây là thay đổi/làm rõ nghiệp vụ local so với cách gộp handoff/Ticket và takeover chủ động trong một số đoạn SRS/menu cũ. Prisma và ERD/từ điển local đã cập nhật enum chat bằng migration mới; snapshot nguồn khác giữ để truy vết, Google Docs/ADR bên ngoài không chỉnh. I01–I06 đã có consent/Accept, read/entry/history/send/UI hai đầu và realtime/handoff notifications local (04/11). Không cấp quyền theo LLM hoặc state client; phần Agent do nhánh phụ trách riêng.
 
 Đã đồng bộ [spec chính](ui/staff/plans/inbox/00-inbox-spec.md), [chia phần trước triển khai](ui/staff/plans/03-inbox-contract.md), Customer chat/Ticket/notification và API map/routes. Đã viết [bảy phase triển khai](ui/staff/plans/03-inbox-contract.md) có API/luồng/test/vị trí code; I01 model/gate/legacy/receipt/sequence đã có code và tests từ 04/11; I02 read groups/lazy/request metadata đã triển khai 04/11; I03 entry/consent/Accept/transcript đã triển khai/kiểm chứng; I04/I05 UI Staff/Customer và send đã triển khai/kiểm chứng. I06 realtime/notification handoff và SYSTEM sau Accept đã triển khai/kiểm chứng local 04/11; I07/C01 Copilot chưa thành code, không phê duyệt ADR Agent/cloud từ việc có nền I01. Routing/reassignment/Agent pending/audience/cursor/receipt/queue còn cần contract chi tiết.
+
+## Quyết định Staff xem chat và takeover — 23/11/2026
+
+Người dùng xác nhận Staff phụ trách Customer được xem toàn bộ lịch sử Customer-facing của cuộc chat, kể cả khi Agent đang xử lý. Staff có thể chủ động takeover cuộc AI đang mở mà không cần chờ yêu cầu chuyển giao từ Customer.
+
+- Core kiểm phiên, phân công hiện hành, loại hội thoại và audience ở mỗi lần truy cập. Lịch sử trong phạm vi quyền bắt đầu từ tin đầu tiên của chính cuộc chat và chỉ gồm nội dung đã hiển thị cho Customer.
+- Ràng buộc phân công: Khi Customer bất kì chưa được phân công (unassigned), bất kì Staff nào cũng có thể nhìn thấy cuộc chat đó trong Inbox. Khi Customer đã được phân công, chỉ Staff được phân công mới được nhìn thấy cuộc chat.
+- Khi Staff có quyền xem (Staff phụ trách hoặc Staff xem khách chưa phân công) mở lịch sử cuộc AI_ACTIVE, Staff có quyền xem toàn bộ đoạn chat đó (từ tin đầu tiên, nội dung Customer-facing).
+- Xem trước không ảnh hưởng Customer & AI: Việc Staff xem trước lịch sử không làm dừng AI và không gửi bất kỳ thông báo nào cho Customer.
+- Tách quyền đánh dấu đã đọc (`readAt`): Khi Staff chỉ xem (view-only: `canView = true, canSend = false`), frontend không gọi và Core từ chối cập nhật `readAt`. Mốc đọc chỉ được ghi nhận khi Staff có quyền gửi tin (`canSend = true`).
+- Takeover chủ động và Agent fence: `POST /staff/conversations/:id/takeover` xử lý trong giao dịch atomic (khóa dòng, kiểm version, receipt idempotency), cập nhật controller sang Staff, kích hoạt `fenceConversationInTx` (hủy dở turn Agent đang xử lý/xếp hàng và chặn callback RESULT muộn), chèn 1 tin nhắn SYSTEM tiếp quản duy nhất và mở quyền gửi (`canSend = true`) cho cả hai bên.
+- Phạm vi đổi phân công (reassignment): Các cơ chế phức tạp về chuyển tuyến/trạng thái chờ khi đổi phân công được lược bỏ trong phạm vi triển khai đợt này.
+- Toàn bộ contract API (`POST /staff/conversations/:id/takeover`, cờ quyền `canView`/`canAccept`/`canTakeover`/`canSend` của A09) và kiểm tra dấu đã đọc đã được đồng bộ tại [Đặc tả Inbox và takeover](ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái) và [I03 Handoff Transcript](ui/staff/plans/inbox/03-handoff-transcript.md).
 
 ## Hướng hợp đồng và PDF được người dùng xác nhận — 31/10/2026
 

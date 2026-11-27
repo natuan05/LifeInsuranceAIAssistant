@@ -95,7 +95,7 @@ flowchart TB
 | :--- | :--- |
 | **Access Policy and Request API** | Tiếp nhận request từ giao diện và AI Tool Adapter; xác thực ngữ cảnh người dùng, kiểm tra quyền truy cập, điều phối yêu cầu nghiệp vụ và cung cấp API được cho phép. |
 | **Customer, Profile and Policy** | Quản lý và cung cấp dữ liệu khách hàng, hồ sơ cá nhân, hợp đồng bảo hiểm và thông tin nghiệp vụ liên quan theo quyền truy cập. |
-| **Conversation and Human Handoff** | Quản lý lịch sử/lượt và quyền chat. Cuộc AI chỉ chuyển sau Customer consent và Staff Accept; trước Accept chỉ metadata. Direct là luồng riêng; assignment/Ticket không tự cấp quyền transcript. |
+| **Conversation and Human Handoff** | Core quản lý lịch sử, phân công và quyền điều khiển. Runtime có Direct và Customer request/Accept. Thiết kế 23/11 mở lịch sử Customer-facing cho Staff phụ trách trước Accept và bổ sung Takeover trong cùng cuộc khi AI đang hỗ trợ. |
 | **Ticket Management** | Quản lý Ticket, trạng thái và liên kết hội thoại. Agent chỉ đề xuất; Core ghi Ticket + outbox sau xác nhận hợp lệ và kiểm quyền/chống trùng. Nhận/đổi trạng thái Ticket không thay quyền đọc chat. |
 | **Document Catalog and Access** | Quản lý danh mục và quyền truy cập tài liệu; xác định phạm vi tài liệu được phép sử dụng hoặc cung cấp cho từng người dùng. |
 | **In-app & Email Notification Delivery** | Phát notification in-app (quản lý retention 30 ngày, quả chuông, SYSTEM chat, realtime WS) và điều phối gửi email thông báo qua SMTP cho các sự kiện Ticket (tạo thành công, thất bại, Staff tiếp nhận); kiểm soát PII, không gửi thông tin y tế/CCCD/chi tiết bồi thường; commit nghiệp vụ trước khi phát thông báo. |

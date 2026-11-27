@@ -157,11 +157,11 @@ InMemoryStore = MemoryStore  # moved to life_agent.store for local evaluation ru
 
 
 def _pos(cursor: str | None) -> int:
-    return int(cursor[1:]) if cursor else 0
+    return int(cursor.removeprefix("m1_") if cursor.startswith("m1_") else cursor[1:]) if cursor else 0
 
 
 class FakeCore:
-    """Core internal API double. Cursors are 'p<position>'; Core semantics (permissions) are NOT simulated."""
+    """Core internal API double; supports current and legacy pagination without simulating permissions."""
 
     def __init__(self, *, page_size: int = 50) -> None:
         self.page_size = page_size
@@ -178,15 +178,25 @@ class FakeCore:
                  if _pos(cursor) < int(i["position"]) <= _pos(view["through_cursor"])]
         page = items[: self.page_size]
         more = len(items) > self.page_size
-        return {"items": copy.deepcopy(page), "nextCursor": f"p{page[-1]['position']}" if more else None}
+        prefix = "m1_" if (view["through_cursor"] or "").startswith("m1_") else "p"
+        return {"items": copy.deepcopy(page), "nextCursor": f"{prefix}{page[-1]['position']}" if more else None}
 
     def history(self, ctx: dict, view: dict, cursor: str | None, *, timeout: float) -> dict:
         return self._page("history", view, cursor, timeout)
 
-    def linked_history(self, ctx: dict, view: dict, cursor: str | None, *, timeout: float) -> dict:
+    def linked_history(self, ctx: dict, view: dict, cursor: str | None, *, timeout: float, backward: bool = False) -> dict:
         if self.fail_linked:
             self.calls.append(("linked_history", copy.deepcopy(view), cursor, timeout))
             raise self.fail_linked
+        if backward:
+            self.calls.append(("linked_history", copy.deepcopy(view), cursor, timeout))
+            items = [i for i in self.histories.get(view["conversation_id"], [])
+                     if int(i["position"]) <= _pos(view["through_cursor"])
+                     and (cursor is None or int(i["position"]) < _pos(cursor))]
+            page = items[-self.page_size:]
+            prefix = "m1_" if (view["through_cursor"] or "").startswith("m1_") else "p"
+            before = f"{prefix}{page[0]['position']}" if len(items) > self.page_size else None
+            return {"items": copy.deepcopy(page), "previousCursor": before}
         return self._page("linked_history", view, cursor, timeout)
 
     def scope(self, ctx: dict, kind: str, policy_number: str | None, *, timeout: float) -> dict:

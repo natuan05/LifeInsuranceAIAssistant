@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 const customer = { id: 'customer-one', fullName: 'Synthetic Inbox Customer', accountCode: 'CUS-INBOX-01' };
 const second = { id: 'customer-two', fullName: 'Synthetic Second Customer', accountCode: 'CUS-INBOX-02' };
-const conversation = (id, active = false) => ({ id, subject: `Synthetic topic ${id}`, status: active ? 'STAFF_ACTIVE' : 'PENDING_HANDOFF', entryType: active ? 'DIRECT' : 'REQUEST', activityAt: '2026-11-04T01:00:00Z', customer, controlVersion: active ? 2 : 1, request: { id: 'request-one', sharedReason: 'Synthetic help request', requestedAt: '2026-11-04T01:00:00Z' }, allowedActions: { readMessages: active, accept: !active, send: active } });
+const conversation = (id, active = false) => ({ id, subject: `Synthetic topic ${id}`, status: active ? 'STAFF_ACTIVE' : 'PENDING_HANDOFF', entryType: active ? 'DIRECT' : 'REQUEST', activityAt: '2026-11-04T01:00:00Z', customer, controlVersion: active ? 2 : 1, request: { id: 'request-one', sharedReason: 'Synthetic help request', requestedAt: '2026-11-04T01:00:00Z' }, allowedActions: { canView: true, canAccept: !active, canTakeover: false, canSend: active } });
 const message = index => ({ id: `message-${index}`, sequence: (9007199254740992n + BigInt(index)).toString(), senderType: index % 2 ? 'CUSTOMER' : 'AI_AGENT', sender: { displayName: 'Synthetic customer' }, content: `Synthetic message ${index} with enough text to verify scrolling and history.`, createdAt: '2026-11-04T01:00:00Z', citations: [] });
 async function setup(page, path = '/staff/inbox', options = {}) {
   const state = { active: false, requests: [], documents: [], accepts: [], failAccept: false, committed: false, denied: false, searchDelay: false, ...options };
@@ -13,6 +13,27 @@ async function setup(page, path = '/staff/inbox', options = {}) {
     const json = (body, status = 200) => route.fulfill({ status, json: body });
     if (url.pathname.endsWith('/auth/me') && state.expired) return json({ code: 'UNAUTHORIZED' }, 401);
     if (url.pathname.endsWith('/auth/me')) return json({ actor: { id: 'staff-inbox-test', accountCode: 'STF-INBOX', fullName: 'Synthetic Staff', role: 'STAFF', email: 'staff.inbox@synthetic.invalid', passwordChangeRecommended: false }, csrfToken: 'synthetic-csrf' });
+    if (url.pathname.endsWith('/copilot/messages') && state.copilot) {
+      const intent = request.postDataJSON();
+      state.copilot.sends.push(intent);
+      if (state.copilot.holdFirst && state.copilot.sends.length === 1) {
+        await new Promise(resolve => { state.copilot.releaseFirst = resolve; });
+        return route.abort('failed').catch(() => {});
+      }
+      state.copilot.turn = { id: 'copilot-run', status: 'RUNNING', question: { id: 'question', ...intent }, answer: null, sourceThroughSequence: '9' };
+      return json({ id: 'copilot-run', status: 'RUNNING', replayed: false }, 201);
+    }
+    if (url.pathname.endsWith('/copilot') && state.copilot) {
+      if (state.copilot.revoked) return json({ code: 'NOT_FOUND' }, 404);
+      if (state.copilot.readUnavailable) return json({ code: 'UNAVAILABLE' }, 503);
+      if (state.copilot.holdRead) await state.copilot.holdRead;
+      const turn = state.copilot.turn;
+      return json({ items: turn ? [turn] : [], beforeCursor: null,
+        activeRun: turn?.status === 'RUNNING' ? { id: turn.id, status: turn.status } : null }).catch(() => {});
+    }
+    if (url.pathname.endsWith('/documents/copilot-doc/versions/copilot-v1/view')) {
+      return json({ url: new URL('/synthetic-copilot-source.pdf', request.url()).href });
+    }
     if (url.pathname.includes('/commands/')) return state.committed ? json({ state: 'COMMITTED', conversationId: 'one', resourceId: 'one', controlVersion: 2 }) : json({ code: 'NOT_FOUND' }, 404);
     if (url.pathname.endsWith('/accept')) {
       state.accepts.push({ body: request.postDataJSON(), csrf: request.headers()['x-csrf-token'] });
@@ -55,6 +76,220 @@ async function setup(page, path = '/staff/inbox', options = {}) {
 }
 const search = page => page.getByRole('searchbox', { name: 'Search customers', exact: true });
 const messages = page => page.getByRole('region', { name: 'Conversation messages', exact: true });
+
+test('Copilot receives its own update, keeps the next draft and clears revoked content', async ({ page }) => {
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [] } });
+  const trigger = page.getByRole('button', { name: 'AI Copilot', exact: true });
+  await trigger.click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  const draft = panel.getByRole('textbox', { name: 'Ask Copilot' });
+  const send = panel.getByRole('button', { name: 'Send', exact: true });
+  await draft.fill('Synthetic Copilot question');
+  await expect(send).toBeEnabled();
+  await send.click();
+  await expect(panel.getByRole('status')).toHaveText('Working on your question…');
+  await draft.fill('Synthetic next question');
+  await draft.press('Enter');
+  await expect(send).toBeDisabled();
+  expect(state.copilot.sends).toHaveLength(1);
+  state.copilot.turn = { ...state.copilot.turn, status: 'COMPLETED', answer: {
+    id: 'answer', content: '**Synthetic internal answer**', citations: [],
+  } };
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('core:copilot-changed', { detail: { conversationId: 'one' } })));
+  await expect(panel.getByText('Synthetic internal answer')).toBeVisible();
+  await expect(panel.locator('strong')).toHaveText('Synthetic internal answer');
+  await expect(panel.getByRole('status')).toHaveCount(0);
+  await expect(panel.getByText(/Chat through message/)).toHaveCount(0);
+  await expect(messages(page).getByText('Synthetic internal answer')).toHaveCount(0);
+  await expect(draft).toHaveValue('Synthetic next question');
+  await expect(send).toBeEnabled();
+  await draft.press('Escape');
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await expect(draft).toHaveValue('Synthetic next question');
+  state.copilot.revoked = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('core:chat-scope-changed')));
+  await expect(panel.getByText('Synthetic internal answer')).toHaveCount(0);
+  await expect(panel.getByText('Copilot is unavailable for this conversation.')).toBeVisible();
+  expect(state.documents).toHaveLength(1);
+});
+
+test('Copilot pane is resizable by dragging and keyboard', async ({ page }) => {
+  await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [] } });
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const handle = page.getByRole('separator', { name: 'Resize Copilot panel' });
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  await expect(handle).toHaveAttribute('aria-valuenow', '35');
+  const initialWidth = (await panel.boundingBox()).width;
+  const box = await handle.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x - 120, box.y + box.height / 2, { steps: 4 });
+  await page.mouse.up();
+  expect(Number(await handle.getAttribute('aria-valuenow'))).toBeGreaterThan(35);
+  expect((await panel.boundingBox()).width).toBeGreaterThan(initialWidth);
+  await handle.press('Home');
+  await expect(handle).toHaveAttribute('aria-valuenow', '25');
+  const draft = await panel.getByRole('textbox', { name: 'Ask Copilot' }).boundingBox();
+  const send = await panel.getByRole('button', { name: 'Send', exact: true }).boundingBox();
+  expect(send.x).toBeGreaterThanOrEqual(draft.x + draft.width);
+  expect(Math.abs(send.y + send.height - (draft.y + draft.height))).toBeLessThanOrEqual(1);
+});
+
+test('Staff can open and close Copilot at a narrow viewport', async ({ page }) => {
+  await page.setViewportSize({ width: 375, height: 680 });
+  await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [] } });
+  const trigger = page.getByRole('button', { name: 'Copilot', exact: true });
+  await trigger.click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  await expect(panel).toBeVisible();
+  const bounds = await panel.boundingBox();
+  expect(bounds.x).toBeGreaterThanOrEqual(0);
+  expect(bounds.x + bounds.width).toBeLessThanOrEqual(375);
+  const composer = await panel.locator('form').boundingBox();
+  expect(Math.abs(composer.y + composer.height - (bounds.y + bounds.height))).toBeLessThanOrEqual(1);
+  await trigger.click();
+  await expect(panel).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
+test('Copilot reconciles an active turn without any WebSocket event', async ({ page }) => {
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [] } });
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  const draft = panel.getByRole('textbox', { name: 'Ask Copilot' });
+  const send = panel.getByRole('button', { name: 'Send', exact: true });
+  await draft.fill('Synthetic question');
+  await send.click();
+  await expect(panel.getByText('Working on your question…')).toBeVisible();
+  await draft.fill('Synthetic next draft');
+  await expect(send).toBeDisabled();
+  state.copilot.turn = { ...state.copilot.turn, status: 'COMPLETED', answer: {
+    id: 'answer', content: 'Synthetic result after realtime stopped', citations: [],
+  } };
+  await expect(panel.getByText('Synthetic result after realtime stopped')).toBeVisible({ timeout: 10000 });
+  await expect(draft).toHaveValue('Synthetic next draft');
+  await expect(send).toBeEnabled();
+});
+
+test('Copilot rechecks access while idle and hides content if access cannot be verified', async ({ page }) => {
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [], turn: {
+    id: 'copilot-run', status: 'COMPLETED', question: { id: 'question', content: 'Synthetic internal question' },
+    answer: { id: 'answer', content: 'Synthetic private answer', citations: [] },
+  } } });
+  await page.clock.install();
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  const answer = panel.getByText('Synthetic private answer');
+  const draft = panel.getByRole('textbox', { name: 'Ask Copilot' });
+  await expect(answer).toBeVisible();
+  await draft.fill('Synthetic unsent draft');
+  state.copilot.readUnavailable = true;
+  await page.clock.fastForward(10000);
+  await expect(panel.getByText('Couldn’t load Copilot. Try again.')).toBeVisible();
+  await expect(answer).toHaveCount(0);
+  await expect(draft).toHaveValue('');
+  await expect(draft).toBeDisabled();
+
+  state.copilot.readUnavailable = false;
+  await page.clock.fastForward(10000);
+  await expect(answer).toBeVisible();
+  await expect(draft).toHaveValue('Synthetic unsent draft');
+
+  state.copilot.revoked = true;
+  await page.clock.fastForward(10000);
+  await expect(panel.getByText('Copilot is unavailable for this conversation.')).toBeVisible();
+  await expect(answer).toHaveCount(0);
+  await expect(draft).toHaveValue('');
+
+  state.copilot.revoked = false;
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(answer).toBeVisible();
+  await expect(draft).toHaveValue('');
+});
+
+test('Copilot keeps Send disabled when realtime supersedes the read after ACK', async ({ page }) => {
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [] } });
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  const draft = panel.getByRole('textbox', { name: 'Ask Copilot' });
+  const send = panel.locator('button[type=submit]');
+  const reads = () => state.requests.filter(url => url.pathname.endsWith('/copilot')).length;
+  await draft.fill('Synthetic first question');
+  const initialReads = reads();
+  let release;
+  state.copilot.holdRead = new Promise(resolve => { release = resolve; });
+  try {
+    await send.click();
+    await expect.poll(reads).toBe(initialReads + 1);
+    await draft.fill('Synthetic second question');
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('core:copilot-changed', { detail: { conversationId: 'one' } })));
+    await expect.poll(reads).toBe(initialReads + 2);
+    await expect(send).toHaveText('Send');
+    await expect(send).toBeDisabled();
+    await draft.press('Enter');
+    expect(state.copilot.sends).toHaveLength(1);
+    await expect(draft).toHaveValue('Synthetic second question');
+  } finally {
+    state.copilot.holdRead = null;
+    release();
+  }
+  await expect(panel.getByText('Working on your question…')).toBeVisible();
+  state.copilot.turn = { ...state.copilot.turn, status: 'COMPLETED', answer: {
+    id: 'answer', content: 'Synthetic result', citations: [],
+  } };
+  await page.evaluate(() => window.dispatchEvent(new CustomEvent('core:copilot-changed', { detail: { conversationId: 'one' } })));
+  await expect(send).toBeEnabled();
+});
+
+test('Copilot retries an interrupted send for the same source after rechecking the grant', async ({ page }) => {
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [], holdFirst: true } });
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const panel = page.getByRole('complementary', { name: 'AI Copilot', exact: true });
+  const draft = panel.getByRole('textbox', { name: 'Ask Copilot' });
+  await draft.fill('Synthetic interrupted question');
+  await panel.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect.poll(() => Boolean(state.copilot.releaseFirst)).toBe(true);
+  await draft.fill('Synthetic next draft');
+  await page.evaluate(() => window.dispatchEvent(new Event('core:chat-scope-changed')));
+  state.copilot.releaseFirst();
+
+  const retry = panel.getByRole('button', { name: 'Retry delivery' });
+  await expect(retry).toBeEnabled();
+  await expect(draft).toHaveValue('Synthetic next draft');
+  await retry.click();
+  await expect(panel.getByText('Working on your question…')).toBeVisible();
+  expect(state.copilot.sends).toEqual([state.copilot.sends[0], state.copilot.sends[0]]);
+  expect(state.copilot.sends[0].content).toBe('Synthetic interrupted question');
+  await expect(draft).toHaveValue('Synthetic next draft');
+
+  state.copilot.revoked = true;
+  await page.evaluate(() => window.dispatchEvent(new Event('core:chat-scope-changed')));
+  await expect(panel.getByText('Copilot is unavailable for this conversation.')).toBeVisible();
+  await expect(draft).toHaveValue('');
+  await expect(retry).toHaveCount(0);
+  state.copilot.revoked = false;
+  await panel.getByRole('button', { name: 'Retry', exact: true }).click();
+  await expect(draft).toBeEnabled();
+  await expect(draft).toHaveValue('');
+});
+
+test('Copilot displays source locators and opens the exact PDF without using source pagination', async ({ page, context }) => {
+  await context.route('**/synthetic-copilot-source.pdf', route => route.fulfill({ body: 'Synthetic PDF viewer' }));
+  const citation = { documentId: 'copilot-doc', versionId: 'copilot-v1', label: 'Synthetic terms',
+    sourceLocation: { pages: [28, 29], clause: '4.2', anchor: 'limitations' }, productId: 'copilot-product', policyId: null };
+  const state = await setup(page, '/staff/inbox/one', { active: true, copilot: { sends: [], turn: {
+    id: 'copilot-run', status: 'COMPLETED', question: { id: 'question', content: 'Synthetic question' },
+    answer: { id: 'answer', content: 'Synthetic cited answer', citations: [citation] },
+  } } });
+  await page.getByRole('button', { name: 'AI Copilot', exact: true }).click();
+  const source = page.getByRole('button', { name: 'Synthetic terms · Source p. 28, 29 · 4.2 · limitations' });
+  const [popup] = await Promise.all([page.waitForEvent('popup'), source.click()]);
+  await expect(popup).toHaveURL(/\/synthetic-copilot-source\.pdf$/);
+  expect(state.requests.some(url => url.pathname.endsWith('/products/copilot-product/documents/copilot-doc/versions/copilot-v1/view'))).toBe(true);
+  await popup.close();
+});
 
 test('A4 receipt resync stays bounded with 1000 loaded messages and catches up only new pages', async ({ page }) => {
   test.setTimeout(120000);
@@ -136,15 +371,18 @@ test('accordion keyboard and multiple open groups load rows without transcripts'
   await expect(page.getByRole('link', { name: /Synthetic topic/ })).toHaveCount(2);
   expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
 });
-test('pending deep link never loads history until Accept commits', async ({ page }) => {
+test('pending deep link loads view-only history without marking read until Accept commits', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one?filter=requests');
   await expect(page.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
-  expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
+  await expect(messages(page)).toBeVisible();
+  expect(state.requests.filter(url => url.pathname.endsWith('/read'))).toHaveLength(0);
+  await expect(page.getByRole('button', { name: 'Send', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Accept request', exact: true }).click();
   await expect(messages(page)).toBeVisible();
   expect(state.accepts).toHaveLength(1); expect(state.accepts[0].csrf).toBe('synthetic-csrf');
   expect(state.accepts[0].body.expectedVersion).toBe(1);
   await expect(page.getByRole('button', { name: 'Send', exact: true })).toBeVisible();
+  await expect.poll(() => state.requests.filter(url => url.pathname.endsWith('/read')).length).toBeGreaterThan(0);
 });
 test('unknown Accept outcome reconciles committed receipt without another command', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { failAccept: true });
@@ -153,12 +391,12 @@ test('unknown Accept outcome reconciles committed receipt without another comman
   await expect(messages(page)).toBeVisible(); expect(state.accepts).toHaveLength(1);
   expect(state.requests.some(url => url.pathname.includes('/commands/'))).toBe(true);
 });
-test('conflicting Accept revalidates metadata and never loads pending messages', async ({ page }) => {
+test('conflicting Accept revalidates metadata and keeps view-only without marking read', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { conflict: true });
   await page.getByRole('button', { name: 'Accept request', exact: true }).click();
   await expect(page.getByRole('alert').filter({ hasText: 'has changed' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
-  expect(state.requests.filter(url => url.pathname.endsWith('/messages'))).toHaveLength(0);
+  expect(state.requests.filter(url => url.pathname.endsWith('/read'))).toHaveLength(0);
 });
 test('history prepends in bigint order, preserves anchor and deduplicates refresh', async ({ page }) => {
   const state = await setup(page, '/staff/inbox/one', { active: true });

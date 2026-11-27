@@ -1,5 +1,7 @@
 # I02 — Read API nhóm khách, danh sách cuộc và request metadata
 
+DTO và test bên dưới ghi baseline I02. Đặc tả mở rộng A08–A10 cho `AI_ACTIVE`, takeover và cờ quyền 4 trạng thái đã chốt theo [FR-006](../03-inbox-contract.md#6-đặc-tả-mở-rộng-quyền-đọc-và-takeover--fr-006) sẵn sàng triển khai.
+
 Cập nhật 04/11/2026 · **Đã triển khai và kiểm chứng I02** · [Contract chung](../03-inbox-contract.md#9-contract-kỹ-thuật-dùng-chung--đề-xuất) · Trước: [I01](01-model-permissions.md) · Tiếp: [I03](03-handoff-transcript.md).
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
@@ -54,11 +56,15 @@ Chỉ Staff; auth/errors/no-store theo contract chung. Không trả raw Prisma e
 
 | Query | Quy tắc |
 | --- | --- |
-| filter | all mặc định; chỉ all/requests/active |
+| filter | all mặc định; chỉ all/requests/active. Filter `all` bao gồm cả các cuộc `AI_ACTIVE` (gắn nhãn đang được AI hỗ trợ) |
 | search | Trim, 0–100 ký tự, literal substring fullName/accountCode, case-insensitive, không bỏ dấu |
 | customerId | UUID tùy chọn, chỉ thu hẹp phạm vi |
 | limit | Integer 1–50/default 20 |
 | cursor | Versioned theo contract chung, không offset/page |
+
+**Quy tắc phân công hiển thị:**
+- Customer chưa được phân công: Bất kỳ Staff nào cũng thấy nhóm khách và cuộc chat tương ứng trong Inbox.
+- Customer đã được phân công: Chỉ Staff được phân công mới thấy nhóm khách đó. Staff khác không thấy (hoặc truyền `customerId` ngoài quyền sẽ trả về items rỗng).
 
 ```json
 {
@@ -76,7 +82,7 @@ Chỉ group có ít nhất một item visible trong filter; không email/phone/K
 
 `GET /api/v1/staff/inbox/customers/:customerId/conversations?filter=all&limit=10&cursor=...`
 
-limit 1–50/default 10. Không nhận search ở endpoint này: search cấp group đã chọn khách. Unknown query trả 400. Không assignment trả 404; có assignment nhưng không item đủ gate trả items rỗng.
+limit 1–50/default 10. Không nhận search ở endpoint này: search cấp group đã chọn khách. Unknown query trả 400. Khách đã gán cho Staff khác trả 404; có quyền nhưng không item đủ gate trả items rỗng.
 
 ```json
 {
@@ -90,15 +96,13 @@ limit 1–50/default 10. Không nhận search ở endpoint này: search cấp gr
 }
 ```
 
-entryType REQUEST/DIRECT/TRANSFERRED là DTO, không status chat mới. Request subject từ sharedSubject, fallback “Yêu cầu Staff hỗ trợ”; activityAt=confirmedAt, không last AI message. Active subject đủ grant mới trả; activityAt dùng lastCustomerFacingActivityAt hoặc mốc tạo/Accept an toàn. Không preview tin cuối.
-
-Thứ tự derive entryType: pending hiện hành → REQUEST; accepted handoff hiện hành → TRANSFERRED; còn Direct provenance hợp lệ → DIRECT. Nhờ vậy Direct cũ được chuyển tới Staff mới bằng xác nhận/Accept mới không bị hiển thị như grant Direct cũ tự sống lại.
+entryType `REQUEST` / `DIRECT` / `TRANSFERRED` / `AI` là DTO phân loại, không status chat mới. Với cuộc `AI_ACTIVE`, subject lấy từ cuộc trò chuyện hoặc fallback an toàn, nhãn hiển thị là "Đang được AI hỗ trợ", activityAt là mốc trao đổi gần nhất. Với cuộc `PENDING_HANDOFF`, request subject từ sharedSubject, fallback “Yêu cầu Staff hỗ trợ”; activityAt=confirmedAt. Không preview tin cuối.
 
 ### 3.3. A09 — Metadata một cuộc
 
 `GET /api/v1/staff/conversations/:conversationId`, không query.
 
-Pending response:
+Response ví dụ cho cuộc `PENDING_HANDOFF`:
 
 ```json
 {
@@ -108,18 +112,36 @@ Pending response:
     "subject": "Cần Staff giải thích quyền lợi", "status": "PENDING_HANDOFF",
     "entryType": "REQUEST", "controlVersion": 3,
     "request": {"id": "30000000-0000-4000-8000-000000000001", "sharedReason": "Tôi muốn được nhân viên hỗ trợ.", "requestedAt": "2026-11-03T08:00:00.000Z"},
-    "allowedActions": {"readMessages": false, "accept": true, "send": false}
+    "allowedActions": {"canView": true, "canAccept": true, "canTakeover": false, "canSend": false}
   }
 }
 ```
 
-Không lastSequence/messageCount/summary Private/aiTitle/createdAt cuộc AI/linked context/citations. sharedReason có thể là AI summary đã được Customer review và consent theo I03; không mở các summary khác. Chỉ requestedAt đã chia sẻ, không activity riêng. Active bỏ request nếu không cần, entryType DIRECT/TRANSFERRED; allowedActions do policy tính, không nhúng messages. send có thể true theo nghiệp vụ nhưng UI I04 chưa bật trước I05; không giả capability theo phase FE.
+Response ví dụ cho cuộc `AI_ACTIVE` (thuộc Staff phụ trách hoặc Customer chưa phân công):
+```json
+{
+  "conversation": {
+    "id": "20000000-0000-4000-8000-000000000002",
+    "customer": {"id": "10000000-0000-4000-8000-000000000001", "fullName": "Synthetic Customer A", "accountCode": "CUS-000001"},
+    "subject": "Tư vấn gói bảo hiểm", "status": "AI_ACTIVE",
+    "entryType": "AI", "controlVersion": 1,
+    "request": null,
+    "allowedActions": {"canView": true, "canAccept": false, "canTakeover": true, "canSend": false}
+  }
+}
+```
 
-No grant/AI riêng/Copilot/not found cùng 404. UUID sai 400. Biết id hoặc truyền query khác không đổi quyền.
+Bốn cờ quyền trong `allowedActions` phản ánh đúng nghiệp vụ:
+- `canView`: Cho phép xem toàn bộ transcript Customer-facing từ tin đầu tiên (`GET /api/v1/staff/conversations/:conversationId/messages`). Khi `canView = true`, Staff mở xem không làm gián đoạn AI, không thông báo Customer và không cập nhật mốc đọc `readAt`.
+- `canAccept`: Cho phép tiếp nhận yêu cầu chuyển giao (`POST .../accept`) khi cuộc đang ở trạng thái `PENDING_HANDOFF`.
+- `canTakeover`: Cho phép chủ động tiếp quản (`POST .../takeover`) khi cuộc đang do AI hỗ trợ (`AI_ACTIVE`).
+- `canSend`: Quyền gửi tin trực tiếp (`POST .../messages`). Chỉ `true` khi Staff là controller hiện hành (`STAFF_ACTIVE`). Cập nhật dấu đã đọc qua A13 chỉ chạy khi `canSend = true`.
 
-### 3.4. A10 ở mốc I02
+No grant/ngoài phân công/not found cùng trả 404. UUID sai trả 400.
 
-Pending đọc messages bằng URL trực tiếp luôn404. Sau I03, A10 đã là route thật và vẫn deny trước grant; không còn dùng route vắng để chứng minh quyền. Test I02 đã cập nhật theo A10/Accept thật, public send vẫn không có.
+### 3.4. A10 transcript và kiểm tra quyền
+
+A10 (`GET /api/v1/staff/conversations/:conversationId/messages`) kiểm tra quyền dựa trên cờ `canView`. Khi Staff có quyền (Staff được phân công hoặc Customer chưa phân công), Staff có quyền đọc toàn bộ lịch sử Customer-facing từ tin đầu tiên kể cả khi cuộc đang ở `AI_ACTIVE` hoặc `PENDING_HANDOFF`. Nếu Customer đã phân công cho Staff khác, trả về 404 để không lộ dữ liệu. Mở xem A10 với `canView = true` thuần túy tuyệt đối không cập nhật mốc `readAt`.
 
 ## 4. Query và cursor
 

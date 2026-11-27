@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from '../../generated/prisma/client';
 import { AccountProvisioningService, type ProvisioningContext } from './account-provisioning.service';
 import { generateInitialPassword, hashPassword } from '../utils/password';
 import { revokeCustomerConversations } from '../../conversations/services/conversation-revocation';
+import { fenceCopilotsForAccount } from '../../agent/services/agent-run-state';
 import type { AccountActionDto, AccountStatusDto, AssignmentDto, CreateManagedAccountDto, ManagedListQuery } from '../dto/account-management.dto';
 
 const select = { id: true, accountCode: true, email: true, role: true, status: true, updatedAt: true, passwordChangeRecommended: true,
@@ -67,6 +68,7 @@ export class AccountManagementService {
       const now = new Date(Math.max(Date.now(), user.updatedAt.getTime() + 1));
       await tx.user.update({ where: { id }, data: { status: input.status, lockedUntil: null, failedLoginAttempts: 0, updatedAt: now } });
       await tx.authSession.updateMany({ where: { userId: id, revokedAt: null }, data: { revokedAt: now } });
+      if (input.status !== 'ACTIVE') await fenceCopilotsForAccount(tx, { userId: id });
       return { id };
     }, { status: input.status });
   }
@@ -106,6 +108,7 @@ export class AccountManagementService {
       await tx.$queryRaw`SELECT user_id FROM business.customer_profiles WHERE user_id=${id}::uuid FOR UPDATE`;
       if (previous) await tx.$queryRaw`SELECT id FROM business.staff_assignments WHERE id=${previous.id}::uuid FOR UPDATE`;
       await revokeCustomerConversations(tx, id, now);
+      await fenceCopilotsForAccount(tx, { customerId: id });
       if (previous) await tx.staffAssignment.update({ where: { id: previous.id }, data: { isActive: false, endedAt: now } });
       if (input.staffId) await tx.staffAssignment.create({ data: { customerId: id, staffId: input.staffId, operatorId: context.operatorId, assignedAt: now } });
       await tx.customerProfile.update({ where: { userId: id }, data: { assignmentVersion: { increment: 1 } } });

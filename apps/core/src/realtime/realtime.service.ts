@@ -49,6 +49,33 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
+  async publishCopilot(event: ChatEvent) {
+    const owner = await this.database.prisma.conversation.findFirst({ where: { id: event.aggregateId, channelType: 'STAFF_COPILOT' },
+      select: { assignedStaffId: true, linkedContextConvId: true } });
+    if (!owner?.assignedStaffId || !owner.linkedContextConvId) return;
+    for (const [ws, peer] of this.peers) {
+      if (ws.readyState !== WebSocket.OPEN || peer.actorId !== owner.assignedStaffId) continue;
+      try {
+        const conversationId = await this.database.prisma.$transaction(async tx => {
+          const { actor } = await this.auth.me(peer.request, tx);
+          if (actor.id !== peer.actorId || actor.role !== 'STAFF') throw new UnauthorizedException();
+          const thread = await tx.conversation.findFirst({ where: { id: event.aggregateId,
+            channelType: 'STAFF_COPILOT', assignedStaffId: actor.id, linkedContextConvId: owner.linkedContextConvId },
+            select: { customerId: true } });
+          if (!thread) return null;
+          const grant = await this.access.requireTranscript(tx, actor.id, owner.linkedContextConvId!);
+          return grant.customerId === thread.customerId ? grant.conversationId : null;
+        }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+        if (!conversationId || ws.readyState !== WebSocket.OPEN) continue;
+        if (ws.bufferedAmount > 65536) { ws.close(1013, 'Slow consumer'); continue; }
+        ws.send(JSON.stringify({ type: 'copilot-invalidated', eventId: event.id, conversationId }));
+      } catch (failure) {
+        if (failure instanceof UnauthorizedException) ws.close(4001, 'Session expired');
+        else if (!(failure instanceof Error && 'getStatus' in failure && typeof failure.getStatus === 'function' && failure.getStatus() === 404)) throw failure;
+      }
+    }
+  }
+
   async publishChat(event: ChatEvent, recipients: ChatRecipient[]) {
     for (const [ws, peer] of this.peers) {
       if (ws.readyState !== WebSocket.OPEN) continue;
@@ -84,7 +111,7 @@ export class RealtimeService implements OnApplicationBootstrap, OnModuleDestroy 
       const data = actor.role === 'STAFF'
         ? await tx.customerProfile.findMany({ where: { assignments: { some: { staffId: actor.id, isActive: true } } },
           orderBy: { userId: 'asc' }, select: { userId: true, fullName: true, birth: true, address: true,
-            user: { select: { accountCode: true, email: true, phone: true, status: true } } } })
+            user: { select: { accountCode: true, email: true, phone: true, status: true, lockedUntil: true } } } })
         : await tx.customerProfile.findUnique({ where: { userId: actor.id }, select: { fullName: true, birth: true, address: true,
           user: { select: { email: true, phone: true, status: true } },
           assignments: { where: { isActive: true }, select: { staffId: true, staff: { select: { fullName: true, department: true,

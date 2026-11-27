@@ -5,8 +5,9 @@ import { ConversationEventService, type ChatEvent } from '../../conversations/se
 import { RealtimeService } from '../../realtime/realtime.service';
 import { TicketEventService, ticketEventTypes } from '../../tickets/services/ticket-event.service';
 import { EmailNotificationService } from '../../notifications/services/email-notification.service';
+import { copilotRunChanged } from '../../agent/services/agent-run-state';
 
-const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
+const types = ['CONVERSATION_CREATED', 'HANDOFF_REQUESTED', 'HANDOFF_ACCEPTED', 'CONVERSATION_TAKEOVER_COMMITTED', 'MESSAGE_COMMITTED', 'CONVERSATION_ACCESS_REVOKED'];
 @Injectable()
 export class OutboxDispatcherService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly owner = randomUUID();
@@ -28,7 +29,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
     return this.database.prisma.$queryRaw`
       WITH due AS (
         SELECT id FROM business.outbox_events WHERE ((aggregate_type='CONVERSATION'
-          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED'))
+          AND event_type IN ('CONVERSATION_CREATED','HANDOFF_REQUESTED','HANDOFF_ACCEPTED','CONVERSATION_TAKEOVER_COMMITTED','MESSAGE_COMMITTED','CONVERSATION_ACCESS_REVOKED',${copilotRunChanged}))
           OR (aggregate_type='TICKET' AND event_type IN ('TICKET_CREATED','TICKET_ACCEPTED','TICKET_STATUS_CHANGED')))
           AND ((status='PENDING' AND next_attempt_at<=NOW()) OR (status='PROCESSING' AND (lease_expires_at IS NULL OR lease_expires_at<=NOW())))
         ORDER BY next_attempt_at,id FOR UPDATE SKIP LOCKED LIMIT 20
@@ -40,7 +41,7 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
     for (const event of await this.claim()) await this.process(event);
   }
   async process(event: ChatEvent & { retryCount: number }) {
-      if (!types.includes(event.eventType) && !ticketEventTypes.some(type => type === event.eventType)) return;
+      if (event.eventType !== copilotRunChanged && !types.includes(event.eventType) && !ticketEventTypes.some(type => type === event.eventType)) return;
       // Renew before each bounded handler in the batch. Never hold a row lock across WS work.
       const lease = await this.database.prisma.outboxEvent.updateMany({ where: { id: event.id, status: 'PROCESSING', leaseOwner: this.owner }, data: { leaseExpiresAt: new Date(Date.now() + 30000) } });
       if (!lease.count) return;
@@ -53,7 +54,9 @@ export class OutboxDispatcherService implements OnApplicationBootstrap, OnModule
       }, 10000);
       renew.unref();
       try {
-        if (ticketEventTypes.some(type => type === event.eventType)) {
+        if (event.eventType === copilotRunChanged) {
+          await this.realtime.publishCopilot(event);
+        } else if (ticketEventTypes.some(type => type === event.eventType)) {
           const recipients = await this.tickets.route(event);
           if (lost) return;
           await this.realtime.publishTicket(event, recipients);

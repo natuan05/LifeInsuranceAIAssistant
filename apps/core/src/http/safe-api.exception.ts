@@ -11,6 +11,7 @@ const errors = {
   RATE_LIMITED: { status: 429, message: 'Too many requests.' },
   STALE_CONVERSATION: { status: 409, message: 'The conversation has changed. Check its current state.' },
   IDEMPOTENCY_CONFLICT: { status: 409, message: 'The request key was already used for different input.' },
+  COPILOT_BUSY: { status: 409, message: 'Copilot is already processing a question in this conversation.' },
   STAFF_UNAVAILABLE: { status: 409, message: 'No Staff member is currently available for this request.' },
   ROUTING_CHANGED: { status: 409, message: 'The Staff assignment has changed. Confirm the new recipient.' },
   HANDOFF_ALREADY_PENDING: { status: 409, message: 'A Staff support request is already pending.' },

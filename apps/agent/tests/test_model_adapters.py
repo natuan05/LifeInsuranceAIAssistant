@@ -89,7 +89,7 @@ def context(**kw):
 
 def reply(envelope, usage=None, thought=False):
     parts = ([{"text": "nghĩ", "thought": True}] if thought else []) + [{"text": json.dumps(envelope)}]
-    return {"candidates": [{"content": {"parts": parts}}],
+    return {"candidates": [{"content": {"parts": parts}, "finishReason": "STOP"}],
             "usageMetadata": usage or {"promptTokenCount": 100, "candidatesTokenCount": 20, "thoughtsTokenCount": 7}}
 
 
@@ -101,6 +101,7 @@ def test_decide_sends_json_schema_and_counts_thinking_tokens():
     opener = Opener(reply(TOOL, thought=True))
     out = GeminiModel(gen_config(), http=GeminiHttp(KEY, opener=opener)).decide(context())
     assert contracts.is_valid("AgentDecision", out.output)
+    assert out.complete
     assert out.output == {"tool": "retrieve_public", "arguments": {"query": "thời gian chờ"}}
     assert (out.usage.input_tokens, out.usage.output_tokens, out.usage.thinking_tokens) == (100, 20, 7)
     sent = body(opener)
@@ -126,6 +127,27 @@ def test_unparseable_output_is_left_for_the_graph_contract_check():
     assert not contracts.is_valid("AgentDecision", out.output)
     mismatch, _ = envelope_to_decision({**TOOL, "kind": "ANSWER"})
     assert not contracts.is_valid("AgentDecision", mismatch)
+
+
+@pytest.mark.parametrize(("reason", "text", "complete"), [
+    ("STOP", " Whole section. ", True),
+    ("STOP", "A section longer than the permitted output.", False),
+    ("MAX_TOKENS", "Partial", False),
+    ("MAX_TOKENS", None, False),
+    (None, "Looks complete.", False),
+])
+def test_summary_requires_a_complete_candidate_within_the_char_limit(reason, text, complete):
+    candidate = {} if reason is None else {"finishReason": reason}
+    if text is not None:
+        candidate["content"] = {"parts": [{"text": text}]}
+    opener = Opener({"candidates": [candidate], "usageMetadata": {
+        "promptTokenCount": 100, "candidatesTokenCount": 20, "thoughtsTokenCount": 7,
+    }})
+    model = GeminiModel(gen_config(), http=GeminiHttp(KEY, opener=opener))
+    out = model.summarize([{"position": "1", "text": "Synthetic chat"}], max_chars=20)
+    assert out.complete is complete
+    assert out.output == ("Whole section." if complete else "")
+    assert out.usage.total == 127
 
 
 def test_offline_document_embedding_waits_out_outages_but_queries_never_retry():

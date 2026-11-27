@@ -319,7 +319,7 @@ Customer chủ động chọn New AI chat để tạo conversation mới qua lu�
 
 - Ý định tạo mới dùng clientRequestId mới; retry cùng intent giữ key và đối soát receipt để nhận cùng conversation. GET/list/read/reload không tự tạo cuộc hoặc run.
 - Agent ánh xạ thread từ conversation mới (`conv:<conversation_id>`), context độc lập; không tự sao chép history/summary/checkpoint của cuộc Staff cũ. Run/attempt/message/callback luôn gắn đúng cuộc; callback cuộc cũ không được ghi sang cuộc mới.
-- Cuộc cũ giữ lịch sử theo [chính sách Core](../configuration-and-data.md#mvp-chat-history-retention); đọc/gửi theo allowedActions và owner/grant hiện hành. Staff không kế thừa transcript grant của cuộc cũ sang cuộc AI mới; phải qua consent/Accept hợp lệ của cuộc mới. Copilot/internal/tool trace không trở thành context Customer.
+- Cuộc cũ giữ lịch sử theo [chính sách Core](../configuration-and-data.md#mvp-chat-history-retention). Core kiểm quyền đọc và điều khiển cho từng cuộc. Theo thiết kế 23/11, Staff được đọc cuộc AI mới theo phân công hiện hành; quyền điều khiển của cuộc cũ không chuyển sang cuộc mới. Copilot/internal/tool trace nằm ngoài context Customer. [Đặc tả Inbox](../ui/staff/plans/inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái)
 
 UI New AI chat và Core create/receipt đã có source; tích hợp Agent/context isolation còn P. CH01-T05, I03-T06 và CH02/CH03 kiểm create/replay/timeout/reload, thread/context và callback/grant độc lập; có policy không đồng nghĩa các ca đã nghiệm thu toàn luồng.
 
@@ -331,9 +331,9 @@ Staff dùng Policy Lookup để xem hợp đồng và nêu số hợp đồng tr
 - Số hợp đồng rõ ràng thì không bắt Staff chọn lại hoặc xác nhận lại chỉ để tra cứu. Core kiểm hợp đồng thuộc Customer mục tiêu và Staff có quyền hiện hành; Agent có thể gọi `get_contract_overview` và `retrieve_private` khi cần trong budget. Biết số hợp đồng không cấp quyền hoặc cho phép chuyển sang Customer khác.
 - Câu hỏi tiếp theo kế thừa hợp đồng đang xét nếu context còn rõ và hợp lệ; câu hỏi nêu hợp đồng khác đổi đối tượng tra cứu sau kiểm quyền. Không giữ bằng chứng hợp đồng cũ làm căn cứ cho hợp đồng mới. Khi chưa xác định được hoặc có nhiều đối tượng phù hợp thì hỏi lại trước khi đọc Private, không đoán theo PDF đang mở.
 - Thiếu quyền/nguồn hoặc lỗi Core/retrieval phải trả trạng thái an toàn theo contract; không suy thiếu nguồn thành không có quyền lợi. Câu hỏi Public thuần túy không bắt chọn hợp đồng. Kết quả phải theo đúng run/view/hợp đồng, callback lượt cũ không ghi đè context của lượt sau.
-- Source chat vẫn cần transcript grant theo CP01, ngoài assignment. Copilot dùng hội thoại/thread Staff riêng và source view cố định theo từng câu hỏi; số hợp đồng không mở transcript ngoài quyền hoặc gửi kết quả sang Customer.
+- Source chat phải qua cùng gate transcript như Staff Inbox theo CP01. Copilot dùng hội thoại/thread Staff riêng và source view cố định theo từng câu hỏi; số hợp đồng không mở transcript ngoài quyền hoặc gửi kết quả sang Customer.
 
-Code Agent có các tool đọc hợp đồng/retrieval và context theo thread; API/UI Core–Copilot và index Private portfolio runtime còn phải tích hợp/kiểm chứng. CP04-T05 sở hữu ca số hợp đồng rõ/câu nối tiếp/đổi hợp đồng/mơ hồ/PDF không đổi context/ngoài quyền và callback cũ. Chưa coi các ca này đã chạy hoặc Agent luôn hiểu đúng ý Staff.
+Code Agent có các tool đọc hợp đồng/retrieval và context theo thread; API/UI Core–Copilot đã triển khai. Index Private portfolio runtime và chất lượng model còn cần kiểm chứng. CP04-T05 sở hữu ca số hợp đồng rõ/câu nối tiếp/đổi hợp đồng/mơ hồ/PDF không đổi context/ngoài quyền và callback cũ. Chưa coi các ca này đã chạy hoặc Agent luôn hiểu đúng ý Staff.
 
 ## 4. Bằng chứng, phân quyền và trích dẫn
 
@@ -719,8 +719,9 @@ Kiểm tích hợp theo CH02-T07/CH03 và Task 3/6/10: lưu lỗi/history, reloa
 
 - Phạm vi mặc định giúp Staff nắm diễn biến gần và vấn đề đang trao đổi; yêu cầu rõ “từ đầu” mở rộng phạm vi tóm tắt về đầu cùng cuộc chat được cấp quyền. Không tự mở sang các cuộc chat khác hoặc Customer khác.
 - Lịch sử cần thiết lấy qua Core API theo quyền hiện hành, không dùng riêng bản tóm tắt gần để giả thành đã đọc từ đầu. Chọn dữ liệu cho từng model call vẫn theo ngân sách/context đã chốt; “từ đầu” không yêu cầu nhét toàn bộ lịch sử vào một model call.
+- **Đã chốt:** chỉ trả bản tóm tắt từ đầu khi Agent đã xử lý đủ lịch sử được phép từ đầu cuộc chat đến mốc của lượt. Có thể xử lý theo từng đoạn trong cùng mốc. Nếu thiếu dữ liệu hoặc chạm giới hạn trước khi bao quát đủ, Copilot báo chưa thể tóm tắt từ đầu và đề nghị Staff thu hẹp phạm vi.
 - Giữ các sửa ý/phủ định, phân biệt thông tin khách cung cấp với phần đã xác minh và áp dụng quy tắc dữ liệu nhạy cảm. Nếu không lấy/kiểm tra được đủ phạm vi yêu cầu, nêu giới hạn; không tuyên bố đã tóm tắt toàn bộ.
-- Quyết định này chưa đặt số tin/phút/token cố định cho “gần”, thuật toán tóm tắt lịch sử dài hoặc schema request/result. [Cách cập nhật context theo từng lượt Staff hỏi](#copilot-linked-history-sync) đã chốt; định dạng mốc và giao thức lấy lịch sử còn cần đặc tả. Chưa triển khai code hoặc thêm tool lịch sử cho LLM.
+- Quyết định này chưa đặt số tin/phút/token cố định cho “gần”, thuật toán tóm tắt lịch sử dài hoặc schema request/result. [Cách cập nhật context theo từng lượt Staff hỏi](#copilot-linked-history-sync) đã chốt; Core và Agent đã có mốc linked view và API nội bộ đọc lịch sử. Còn nối Staff Inbox và kiểm phạm vi thực tế theo CP02/CP04.
 
 Đây là tóm tắt theo yêu cầu Staff, khác [bản tóm tắt Ticket được Customer xác nhận](#ticket-handoff-summary) và tóm tắt nội bộ để giảm context. Staff chat chung không gắn Customer vẫn tạm hoãn.
 
@@ -731,7 +732,7 @@ Kiểm tích hợp theo CH02-T07/CH03 và Task 3/6/10: lưu lỗi/history, reloa
 <a id="copilot-linked-history-sync"></a>
 ### Cập nhật context chat Customer cho từng lượt Copilot
 
-**Đã chốt với người dùng ngày 01/11/2026:** mỗi lần Staff gửi câu hỏi, Copilot lấy thêm các tin mới của cuộc chat Customer được liên kết đến thời điểm yêu cầu đó. Tin đến sau mốc này được bổ sung ở lượt Staff hỏi tiếp theo; không thay đổi phạm vi lịch sử giữa chừng khi Copilot đang trả lời cùng một lượt.
+**Đã chốt với người dùng ngày 01/11/2026:** mỗi lần Staff gửi câu hỏi, Copilot lấy thêm các tin mới đã commit của cuộc chat Customer đang mở trong Staff Inbox đến lúc Core nhận câu hỏi. Tin đến sau mốc này được bổ sung ở lượt Staff hỏi tiếp theo; không thay đổi phạm vi lịch sử giữa chừng khi Copilot đang trả lời cùng một lượt.
 
 - Core xác định cuộc chat liên kết, kiểm tra quyền hiện hành và cấp mốc lịch sử đến lúc tiếp nhận câu hỏi Staff. Code tích hợp lấy phần lịch sử còn thiếu qua Core API; LLM không tự chọn Customer hoặc tự cấp quyền đọc một cuộc chat khác.
 - Phạm vi có thể đọc khác phần context thực gửi model: vẫn chọn phần liên quan trong ngân sách token; yêu cầu tóm tắt áp dụng mặc định diễn biến gần hoặc từ đầu theo [quy tắc phạm vi](#copilot-summary-scope).
@@ -976,6 +977,8 @@ Theo UC-005, Agent chuẩn bị bản nháp/tóm tắt để trình Customer xá
 ### Xử lý tuần tự trong từng hội thoại
 
 **Đã chốt ngày 29/10/2026:** mỗi hội thoại chỉ có một lượt Agent đang xử lý tại một thời điểm. Tin nhắn mới chờ lượt hiện tại hoàn tất rồi được xử lý tuần tự, không tự hủy lượt cũ chỉ vì có tin nhắn mới.
+
+Staff Copilot chỉ tiếp nhận một lượt chưa kết thúc trên mỗi thread. Lượt `QUEUED` là lượt duy nhất đã được nhận và đang chờ chạy. Staff vẫn có thể soạn câu tiếp theo và gửi sau khi lượt hiện tại kết thúc. [Contract CP01](../ui/staff/plans/copilot/01-task-context-contract.md#3-api-spec-và-quyền).
 
 - Core xếp tin chờ theo thứ tự nhận. Đến lượt: context sau lượt trước, kiểm lại quyền/tiếp quản. Tin chờ không ghi đè input/state đang chạy.
 - Tính tuần tự áp dụng theo hội thoại; hội thoại độc lập có thể được xử lý đồng thời trong giới hạn hệ thống. Staff tiếp quản vẫn phải chặn thao tác Agent theo cơ chế riêng, không chờ lượt Agent hoàn tất mới có hiệu lực.

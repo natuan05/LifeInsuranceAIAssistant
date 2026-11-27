@@ -466,6 +466,7 @@ class RetrievalService:
         self._clock = clock or SystemClock()
 
     def _scope(self, execution: Mapping[str, Any], kind: str, policy_number: str | None) -> dict[str, Any] | None:
+        copilot = execution.get("channel_type") == "STAFF_COPILOT"
         left = (parse_timestamp(execution["limits"]["deadline_at"]) - self._clock.now()).total_seconds()
         if left <= 0:
             return None
@@ -475,6 +476,8 @@ class RetrievalService:
             if error.code == "INVALID_ATTEMPT":
                 raise AttemptInvalid() from None
             if error.code == "NOT_AUTHORIZED":
+                if copilot:
+                    raise
                 return {"decision": "DENIED", "kind": kind, "policy_number": policy_number, "reason": "NOT_AUTHORIZED"}
             return None
         scope = contracts.validate("DocumentScope", scope)
@@ -482,6 +485,17 @@ class RetrievalService:
             raise AttemptInvalid()
         if scope["kind"] != kind or (kind == "PRIVATE" and scope["policy_number"] != policy_number):
             return None
+        if copilot and scope["decision"] == "DENIED" and scope["reason"] == "NOT_AUTHORIZED":
+            # Older Core versions used the same reason for losing the chat and lacking a specific policy.
+            # A forward read at the frozen watermark checks permission without requesting transcript items.
+            view = execution["linked_history_view"]
+            if kind == "PUBLIC" or view is None:
+                raise CoreError("NOT_AUTHORIZED")
+            left = (parse_timestamp(execution["limits"]["deadline_at"]) - self._clock.now()).total_seconds()
+            if left <= 0:
+                raise CoreError("TIMEOUT")
+            self._core.linked_history(execution, view, view["through_cursor"],
+                                      timeout=min(self._config.scope_timeout_s, left))
         if scope["decision"] == "GRANTED" and parse_timestamp(scope["expires_at"]) <= self._clock.now():
             return None
         return scope

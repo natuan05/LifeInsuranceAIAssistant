@@ -50,7 +50,8 @@ class CoreClient(Protocol):
 
     def history(self, ctx: Mapping[str, Any], view: Mapping[str, Any], cursor: str | None, *, timeout: float) -> dict: ...
 
-    def linked_history(self, ctx: Mapping[str, Any], view: Mapping[str, Any], cursor: str | None, *, timeout: float) -> dict: ...
+    def linked_history(self, ctx: Mapping[str, Any], view: Mapping[str, Any], cursor: str | None, *,
+                       timeout: float, backward: bool = False) -> dict: ...
 
     def scope(self, ctx: Mapping[str, Any], kind: str, policy_number: str | None, *, timeout: float) -> dict: ...
 
@@ -185,9 +186,11 @@ class HttpCoreClient:
         return self._checked("ConversationHistoryPage",
                              self._call("GET", ctx, "/history", query={"cursor": cursor}, timeout=timeout))
 
-    def linked_history(self, ctx, view, cursor, *, timeout):
-        return self._checked("ConversationHistoryPage",
-                             self._call("GET", ctx, "/linked-history", query={"cursor": cursor}, timeout=timeout))
+    def linked_history(self, ctx, view, cursor, *, timeout, backward=False):
+        page_type = "LinkedHistoryBackwardPage" if backward else "ConversationHistoryPage"
+        return self._checked(page_type, self._call("GET", ctx, "/linked-history", timeout=timeout, query={
+            "cursor": cursor, "direction": "backward" if backward else None,
+        }))
 
     def scope(self, ctx, kind, policy_number, *, timeout):
         body = {"attempt_id": ctx["attempt_id"], "kind": kind, "policy_number": policy_number}

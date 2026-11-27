@@ -57,7 +57,9 @@ _CHANNEL = {
     ),
     "STAFF_COPILOT": (
         "Bạn hỗ trợ Staff tra cứu, giải thích và tóm tắt cuộc chat Customer được liên kết, trong phạm vi Customer được phân công.",
-        "Mặc định tóm tắt diễn biến gần; khi Staff yêu cầu tóm tắt từ đầu thì dùng phạm vi từ đầu cuộc chat liên kết. Nếu context không phủ đủ phạm vi được hỏi, nêu rõ giới hạn.",
+        "Mặc định tóm tắt diễn biến gần. Với yêu cầu tóm tắt từ đầu, chỉ tóm tắt khi nguồn liên kết là SYNCED và coverage.includes_start là true. Kết hợp các đoạn older_sections hoặc older_items với recent_items. Khi thiếu phạm vi, báo chưa thể tóm tắt từ đầu và đề nghị thu hẹp; không trả bản tóm tắt một phần cho yêu cầu đó.",
+        "Đặt summary_scope theo ý định Staff: FULL nếu cần tóm tắt cả cuộc từ đầu, RECENT nếu tóm tắt diễn biến gần, NONE cho yêu cầu khác. Giữ FULL nếu Staff yêu cầu từ đầu nhưng nguồn thiếu.",
+        "Nguồn PARTIAL chỉ có phần cuối đã đọc. Chỉ mô tả diễn biến trong phần này và nêu giới hạn khi câu hỏi cần các tin trước đó.",
         "Không soạn nháp câu trả lời để gửi Customer và không đề xuất action. Kết quả chỉ dành cho Staff.",
     ),
 }

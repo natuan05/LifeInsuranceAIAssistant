@@ -38,6 +38,7 @@ export class CustomerConversationDto {
   @ApiProperty({ enum: ['AI', 'DIRECT', 'REQUEST', 'TRANSFERRED', 'LEGACY_REVIEW'] }) entryType!: string;
   @ApiProperty() controlVersion!: number;
   @ApiProperty({ enum: ['AVAILABLE', 'REVIEW_REQUIRED'] }) availability!: string;
+  @ApiProperty({ enum: ['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'], nullable: true }) aiReplyStatus!: string | null;
   @ApiProperty({ type: StaffNameDto, nullable: true }) staff!: StaffNameDto | null;
   @ApiPropertyOptional({ type: CustomerRequestDto }) request?: CustomerRequestDto;
   @ApiProperty({ type: CustomerActionsDto }) allowedActions!: CustomerActionsDto;

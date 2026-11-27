@@ -22,9 +22,10 @@ test('real gateway: pending privacy, consent/Accept, full history and another St
     page.on('request', request => requests.push(new URL(request.url()).pathname));
     await page.goto(`/staff/inbox/${data.conversationId}?filter=requests`);
     await expect(page.getByRole('button', { name: 'Accept request', exact: true })).toBeVisible();
-    expect(requests.filter(path => path.endsWith('/messages'))).toHaveLength(0);
-    await page.getByRole('button', { name: 'Accept request', exact: true }).click();
     const transcript = page.getByRole('region', { name: 'Conversation messages', exact: true });
+    await expect(transcript).toBeVisible();
+    expect(requests.filter(path => path.endsWith('/read'))).toHaveLength(0);
+    await page.getByRole('button', { name: 'Accept request', exact: true }).click();
     await expect(transcript.locator('[data-message-id]')).toHaveCount(50);
     while (await page.getByRole('button', { name: 'Load earlier messages', exact: true }).count()) {
       const count = await transcript.locator('[data-message-id]').count();
@@ -37,8 +38,8 @@ test('real gateway: pending privacy, consent/Accept, full history and another St
     await expect(other.getByRole('button', { name: 'Retry inbox', exact: true })).toBeVisible();
     await expect(other.getByRole('region', { name: 'Conversation messages', exact: true })).toHaveCount(0);
     await page.goto(`/staff/inbox/${data.privateId}`);
-    await expect(page.getByRole('button', { name: 'Retry inbox', exact: true })).toBeVisible();
-    await expect(page.getByRole('region', { name: 'Conversation messages', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: '● Takeover', exact: true })).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Conversation messages', exact: true })).toBeVisible();
   } finally {
     await staffContext?.close(); await otherContext?.close(); fixture('cleanup', runId);
   }

@@ -17,17 +17,17 @@ Ngày **03/11/2026**. **I01–I06 đã triển khai/kiểm chứng 04/11/2026; I
 
 **Chat mới sau Staff — quyết định 14/11/2026.** Cuộc cũ theo trạng thái và allowedActions hiện hành. Customer chọn New AI chat để mở cuộc mới có thread/context riêng. UI/send/realtime và source Copilot kiểm đúng conversation/grant, callback hoặc event cuộc cũ không gắn sang cuộc mới. New AI chat/create đã có, kiểm tích hợp Agent/Core còn P. [Quyết định chuẩn](../../../specifications/Agent_Design.md#new-ai-chat-after-staff).
 
-- All / Requests / Active, không AI active/Closed/New trong Inbox Staff.
+- All / Requests / Active. AI_ACTIVE nằm trong All, không có filter riêng cho AI, Closed hoặc New.
 - Bỏ toàn bộ counts/badge/tổng số và A07 summary; lazy load bằng hasMore/nextCursor.
-- Staff không thấy AI chat riêng. Pending chỉ metadata yêu cầu đã chia sẻ, không transcript/preview/summary của AI trước Accept.
-- Core Accept thành công mới cho Staff đọc toàn bộ lịch sử Customer-facing trước và sau chuyển giao của chính cuộc đó. Direct là cuộc Customer thực sự gửi Staff, không phải đổi flag AI cũ để bypass Accept.
+- Thiết kế 23/11 đưa AI_ACTIVE vào All, cho Staff phụ trách xem toàn bộ transcript Customer-facing của cuộc đủ quyền ngay từ đầu, kể cả trong Requests.
+- Staff lấy quyền gửi bằng Takeover ở AI_ACTIVE hoặc bằng Accept ở PENDING_HANDOFF. Direct giữ provenance từ lúc tạo.
 - Tên/mã khách trong accordion; tiêu đề/thời gian từng cuộc giống danh sách chat, không CHT/preview/số cuộc ở bản đầu.
 - ConversationStatus đã bỏ CLOSED qua migration 202611030001_remove_conversation_closed; TicketStatus.CLOSED giữ nguyên. Legacy Customer Support về AI_ACTIVE/controller NULL, audit giữ trạng thái/controller cũ, không tạo grant; Copilot CLOSED chưa review sẽ chặn migration.
 - Handoff/Direct/Accept không tự tạo Ticket; Ticket do Agent gợi ý, Customer xác nhận rồi Core tạo riêng.
 
 ## 2. Điều đã chốt khác với implementation
 
-I01 đã có provenance/consent/acceptance schema, capability policy, sequence/receipt và revoke khi reassignment. I02 đã có public groups/lazy/metadata/cursor read API; I03 đã có Customer entry/request/Accept/transcript và command lookup; I04 Staff UI đã nối; I05 public send/Customer UI đã có; I06 realtime chat đã có. Workflow đã tạo chứng cứ thực qua session/consent/commit, không backfill grant cho legacy. AssignedStaffId/status/assignment không tự chứng minh quyền lịch sử AI.
+I01–I06 đã triển khai luồng cũ: Direct hoặc Customer request + Accept mới mở transcript. Bảng phase, checklist hoàn thành và API E bên dưới ghi baseline runtime. Phần 6 ghi công việc còn P theo thiết kế 23/11.
 
 [Inbox plan](inbox/00-inbox-spec.md) giữ nghiệp vụ/UX và spec tổng. File này là chỉ mục và contract chung; schema/API/thuật toán/test chi tiết nằm ở phase sở hữu bên dưới. Khi thay contract phải cập nhật phase sở hữu, spec tổng và API map, không giữ hai DTO khác nhau. SRS/model nguồn giữ để truy vết; [source review](../../../source-review.md#quyết-định-inbox-và-quyền-chat--03112026) ghi khác biệt.
 
@@ -77,11 +77,17 @@ I01–I03 chưa phải chat UI hoàn chỉnh. I04 là mốc review bố cục/đ
 - Dataset synthetic tự dọn cho kiểm thử, không thêm bootstrap seed cá nhân hoặc yêu cầu người dùng reset dữ liệu.
 - A10 phải có deny-before-Accept ngay từ đầu, không mở transcript tạm cho review FE.
 
-## 6. Hành vi sau Accept
+## 6. Đặc tả mở rộng quyền đọc và Takeover — FR-006
 
-Core commit acceptance/grant/control mode trước trả thành công; FE mới gọi A10. Lịch sử trước requestedAt/acceptedAt vẫn tải bằng cursor như phần mới, đúng cuộc/Customer-facing. Không tự tải Copilot/internal/tool payload hoặc dữ liệu cuộc khác. Link Ticket/notification/UUID không vượt gate.
+| Phần | API và vị trí code | Luồng và kiểm thử |
+| --- | --- | --- |
+| Quyền đọc | A08–A10, `apps/core/src/conversations` (policy, Inbox, transcript và event routing) | Áp quyền trước group/cursor/recipient. Customer chưa phân công: bất kỳ Staff nào cũng có quyền xem transcript Customer-facing từ tin đầu tiên (`canView = true`). Customer đã phân công: chỉ Staff được phân công mới có quyền xem (`canView = true`). Mở xem trước không làm dừng AI và không báo Customer |
+| Quyền điều khiển & Takeover | A11 Accept và A14 Takeover (`POST /staff/conversations/:id/takeover`), `apps/core/src/conversations` (command, handoff, send) và điểm tích hợp Agent | Khóa dòng, kiểm version (lệch trả 409), receipt chống trùng, cập nhật controller, tăng `controlVersion` và kích hoạt fence hủy dở agent run cùng transaction. Chèn 1 tin SYSTEM duy nhất vào transcript và mở quyền gửi (`canSend = true`) cho cả hai bên |
+| Đánh dấu đã đọc | A13 (`POST /staff/conversations/:id/read`) dùng `ConversationMessageService.markAsRead` | Chỉ cập nhật `readAt` khi Staff có quyền trả lời hiện hành (`canSend = true`). Mở xem view-only (`canView = true, canSend = false`) tuyệt đối không cập nhật `readAt` |
+| Phạm vi đổi phân công | Quản trị phân công | Các cơ chế chuyển tuyến và trạng thái chờ phức tạp khi đổi phân công được lược bỏ trong đợt triển khai này |
+| UI hai đầu | `apps/web/src/components/staff-inbox.tsx`, `customer-conversations.tsx` và live refresh | Staff xem log và nhận tin đã commit trước khi gửi được. Customer thấy Staff tiếp quản trong cùng cuộc. Kiểm reload/reconnect, nháp/cursor và xóa dữ liệu khi mất quyền |
 
-Yêu cầu Staff và sự kiện thông báo lưu bền vững riêng; không tạo SupportTicket. Ticket + outbox atomic chỉ áp dụng khi Customer xác nhận tạo Ticket. Tạo/nhận Ticket không tự nhận chat.
+Đặc tả chi tiết và các ca nghiệm thu: xem [00-inbox-spec.md](inbox/00-inbox-spec.md#4-quyền-và-hành-vi-trạng-thái) và [03-handoff-transcript.md](inbox/03-handoff-transcript.md).
 
 ## 7. Những điểm kỹ thuật còn mở
 
@@ -90,7 +96,8 @@ Các file phase đã đưa ra phương án cụ thể. I03 đã áp dụng: AI d
 ## 8. Checklist
 
 - [x] Ghi quyết định All/Requests/Active, không counts, không Closed cho chat đích.
-- [x] Ghi gate Direct/Accept và toàn bộ lịch sử Customer-facing sau Accept.
+- [x] Chốt đọc toàn bộ lịch sử theo phân công trước Accept/Takeover.
+- [ ] Triển khai, kiểm thử và cập nhật API E/P theo mục 6.
 - [x] Tách Ticket khỏi handoff, giữ đúng schema runtime/đích migration.
 - [x] Đồng bộ spec chính và tài liệu liên quan; đã migration I01 và read API I02; I04 UI Inbox đã nối.
 - [x] Viết bảy file phase có API/luồng/vị trí triển khai/test và checkpoint.
@@ -166,14 +173,16 @@ Bảng truy vết Axx được chuyển từ tài liệu tổng hợp; E/P giữ
 
 | ID | Method/path | Phạm vi |
 | --- | --- | --- |
-| A08 E | GET /staff/inbox/customers; GET /staff/inbox/customers/:customerId/conversations | Nhóm/lazy list, filter all/requests/active, search tên-mã và cursor; không counts/total/preview AI trước Accept |
-| A09 E | GET /staff/conversations/:conversationId | Pending chỉ metadata request đã chia sẻ + allowedActions.readMessages=false; Active đủ gate mới có metadata chat |
-| A10 E | GET /staff/conversations/:conversationId/messages | Chỉ Direct hợp lệ hoặc Accept hiện hành; sau Accept gồm toàn bộ lịch sử Customer-facing trước chuyển giao, không Copilot/internal |
-| A11 E | POST /staff/conversations/:conversationId/accept | Nhận yêu cầu Customer hợp lệ; quyền lịch sử/control commit atomic, không proactive đọc AI riêng và không tạo/accept Ticket |
+| A08 E | GET /staff/inbox/customers; GET /staff/inbox/customers/:customerId/conversations | Nhóm/lazy list, filter all/requests/active, search tên-mã và cursor. Tab `all` bao gồm cả `AI_ACTIVE` (gắn nhãn đang được AI hỗ trợ). Customer chưa phân công: Staff bất kỳ thấy; Customer đã phân công: chỉ Staff được phân công thấy |
+| A09 E | GET /staff/conversations/:conversationId | Metadata cuộc trò chuyện và DTO `allowedActions` tách bạch 4 cờ quyền: `canView`, `canAccept`, `canTakeover`, `canSend` |
+| A10 E | GET /staff/conversations/:conversationId/messages | Đọc toàn bộ lịch sử Customer-facing từ tin đầu tiên khi có quyền `canView = true` (Customer chưa phân công hoặc Staff được phân công). Xem trước không làm dừng AI, không báo Customer và không cập nhật mốc đọc |
+| A11 E | POST /staff/conversations/:conversationId/accept | Tiếp nhận yêu cầu chuyển giao từ Customer (`PENDING_HANDOFF`). Khóa atomic, cập nhật controller, tăng `controlVersion` và ghi nhận quyền gửi cùng transaction |
 | A11 E (reconcile) | GET /staff/conversations/:conversationId/commands/:clientRequestId?operation=ACCEPT_HANDOFF | Receipt chính Staff; recheck current grant, 404 không chứng minh chưa commit |
-| A12 E | POST /staff/conversations/:conversationId/messages | clientMessageId/content/expectedVersion; chống trùng và ACK sau commit |
+| A14 E (FR-006) | POST /staff/conversations/:conversationId/takeover | Tiếp quản cuộc chat `AI_ACTIVE`. Body `{clientRequestId, expectedVersion}`, khóa dòng atomic, kiểm tra version (409 nếu lệch), gán controller sang Staff, fence hủy dở agent turn, tăng `controlVersion`, chèn 1 tin SYSTEM tiếp quản, mở quyền gửi cho cả 2 bên |
+| A14 E (reconcile) | GET /staff/conversations/:conversationId/commands/:clientRequestId?operation=TAKEOVER_CONVERSATION | Tra cứu receipt takeover theo actorId và clientRequestId |
+| A12 E | POST /staff/conversations/:conversationId/messages | clientMessageId/content/expectedVersion; chống trùng và ACK sau commit. Chỉ gửi được khi `canSend = true` |
 | A12 E (reconcile) | GET /staff/conversations/:conversationId/messages/by-client-id/:clientMessageId | Tra tin của chính actor sau timeout, không gửi lại bằng key mới |
-| A13 E | POST /staff/conversations/:conversationId/read | Source có markAsRead, kiểm session/grant dưới lock và cập nhật readAt. Notification.isRead theo chuông riêng, read-cycle/DTO/event được review tại Customer N01/N02 |
+| A13 E | POST /staff/conversations/:conversationId/read; POST /conversations/:conversationId/read | Hai route dùng chung markAsRead. Core kiểm quyền trả lời hiện hành của Staff (`canSend = true`) trước khi cập nhật `readAt`. Mở xem view-only (`canView = true, canSend = false`) tuyệt đối không cập nhật mốc đọc |
 
 | Route | Trạng thái |
 | --- | --- |

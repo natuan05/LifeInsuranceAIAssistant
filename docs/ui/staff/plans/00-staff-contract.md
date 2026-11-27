@@ -18,7 +18,7 @@ Requirement FR-001/002/003/006/007/008/010/011/012/013, NFR-001–008; [SRS](../
 | StaffAssignment/CustomerProfile | Active assignment để đọc hồ sơ/policy; không đủ để đọc AI chat riêng |
 | InsurancePolicy/InsuranceProduct | Hợp đồng theo khách; sản phẩm inactive không ẩn policy lịch sử; financials/null/date-only theo DTO |
 | Document/DocumentVersion | PUBLIC/PRIVATE_POLICY; product current published version khác policy exact applied version; không PRIVATE_CUSTOMER/Document.kind |
-| Conversation/ConversationHandoff/Message (consent/acceptance trong handoff) | AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE; Direct hợp lệ hoặc consent+Accept mới transcript, sau Accept toàn lịch sử Customer-facing |
+| Conversation/ConversationHandoff/Message (consent/acceptance trong handoff) | AI_ACTIVE/PENDING_HANDOFF/STAFF_ACTIVE. Runtime mở transcript qua Direct hoặc Accept. Quyền đọc theo phân công và Takeover còn P |
 | SupportTicket | TicketStatus giữ OPEN/ASSIGNED/IN_PROGRESS/RESOLVED/CLOSED; không chat Closed. TK01 version/policy nội bộ đã có; confirmed snapshot I07 còn P |
 | Notification/OutboxEvent | Recipient Staff hoặc Customer theo sự kiện và scope, dedup/retry/outbox sau commit. Message.readAt cập nhật qua REST, WS chỉ invalidation, DTO/event/read-cycle còn theo N01/N02 |
 
@@ -70,7 +70,7 @@ Mã Axx chỉ để truy vết, không phải mã FR. Bảng endpoint và E/P n�
 | Policies/PDF | [A14/A15/A16/A18/A20](05-policies-contract.md#api-và-routes-của-chức-năng) |
 | Notifications | [A27/A28](06-notifications-contract.md#api-và-routes-của-chức-năng) |
 | Tickets | [A21–A23 E](07-tickets-contract.md#api-và-routes-của-chức-năng) |
-| Copilot | [A24–A26 P](08-copilot-contract.md#api-và-routes-của-chức-năng) |
+| Copilot | [A24–A25](08-copilot-contract.md#api-và-routes-của-chức-năng) |
 
 Customer APIs có baseline và owner tại [Customer plans](../../customer/plans/00-customer-contract.md); không gọi Staff API thay quyền owner. Health/Swagger là vận hành, operator /ops/v1 không phải Staff API. Đã có PATCH Ticket status resolve/close/reopen. Claim/payment/upload/global search/templates và đổi linkedPolicy không thuộc kế hoạch hiện hành.
 

@@ -22,7 +22,10 @@ class AgentState(TypedDict, total=False):
     conversation: dict[str, Any]      # ConversationContext
     recent_history: list[dict]        # Core HistoryItem copies of this conversation, ordered by position
     linked_history: list[dict]        # Copilot only: linked Customer chat items within the frozen view
-    linked_status: str                # NONE | SYNCED | SYNC_FAILED
+    linked_status: str                # NONE | SYNCED | PARTIAL
+    linked_tail_sync: dict | None      # frozen view of the cached suffix, without full coverage
+    linked_rollup: list[dict] | None   # summaries covering older source segments of the current request
+    full_summary_requested: bool       # model classified the current request as FULL
     work: dict[str, Any]              # MessageWork
     decision: dict[str, Any] | None   # pending ToolDecision
     draft: dict[str, Any] | None      # pending AnswerDraft

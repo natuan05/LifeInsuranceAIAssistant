@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-const row = { id: 'one', subject: 'Synthetic send', status: 'STAFF_ACTIVE', entryType: 'DIRECT', customer: { id: 'customer', fullName: 'Synthetic Customer', accountCode: 'CUS-SEND' }, controlVersion: 0, allowedActions: { readMessages: true, send: true, accept: false } };
+const row = { id: 'one', subject: 'Synthetic send', status: 'STAFF_ACTIVE', entryType: 'DIRECT', customer: { id: 'customer', fullName: 'Synthetic Customer', accountCode: 'CUS-SEND' }, controlVersion: 0, allowedActions: { canView: true, canAccept: false, canTakeover: false, canSend: true } };
 const chat = (body, sequence = '1') => ({ id: `message-${sequence}`, sequence, clientMessageId: body.clientMessageId, senderType: 'STAFF', sender: { displayName: 'Synthetic Staff' }, content: body.content, createdAt: '2026-11-04T00:00:00Z', citations: [] });
 async function setup(page, options = {}) {
   const state = { posts: [], messages: [], documents: [], detailReads: 0, pending: null, ...options };

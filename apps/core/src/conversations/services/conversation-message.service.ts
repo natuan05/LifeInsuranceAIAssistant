@@ -1,6 +1,6 @@
 import { readCycle } from './notification-cycle';
 import { SafeApiException } from '../../http/safe-api.exception';
-import { BadRequestException, Injectable, NotFoundException, Optional } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { Prisma } from '../../generated/prisma/client';
 import { AgentRunService } from '../../agent/services/agent-run.service';
@@ -97,9 +97,19 @@ export class ConversationMessageService {
       `Staff ${profile.fullName} has accepted your request and will respond as soon as possible.`, null, handoffId);
   }
 
+  async takeoverSystemMessage(tx: Prisma.TransactionClient, id: string, commandKey: string, staffId: string) {
+    const existing = await tx.message.findUnique({ where: { conversationId_internalMessageId: { conversationId: id, internalMessageId: commandKey } } });
+    if (existing) return existing;
+    const profile = await tx.staffProfile.findUniqueOrThrow({ where: { userId: staffId }, select: { fullName: true } });
+    return this.append(tx, id, 'SYSTEM', null,
+      `Staff ${profile.fullName} has taken over the conversation and will assist you directly.`, null, commandKey);
+  }
+
   async markAsRead(tx: Prisma.TransactionClient, actor: { id: string; role: 'CUSTOMER' | 'STAFF' }, id: string) {
-    if (actor.role === 'STAFF') await this.access.requireTranscript(tx, actor.id, id);
-    else await this.access.requireCustomer(tx, actor.id, id);
+    if (actor.role === 'STAFF') {
+      const grant = await this.access.requireTranscript(tx, actor.id, id);
+      if (!grant.canSend) throw new ForbiddenException();
+    } else await this.access.requireCustomer(tx, actor.id, id);
     const boundary = await tx.message.aggregate({ where: { conversationId: id, audience: 'CUSTOMER_VISIBLE' }, _max: { sequence: true } });
     const through = boundary._max.sequence ?? 0n;
     await readCycle(tx, id, actor.id, actor.role, through);

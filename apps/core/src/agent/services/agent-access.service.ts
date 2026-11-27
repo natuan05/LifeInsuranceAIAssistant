@@ -1,16 +1,49 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Prisma } from '../../generated/prisma/client';
 import { ConversationAccessService } from '../../conversations/services/conversation-access.service';
 import { DatabaseService } from '../../database/database.service';
-import { validateContract } from '../hmac';
+import { PolicyService } from '../../policies/services/policy.service';
+import { MAX_BODY_BYTES, validateContract } from '../hmac';
+import { copilotDeadlinePassed } from './agent-run-state';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CURSOR_RE = /^p(0|[1-9][0-9]{0,18})$/;
+const LINKED_CURSOR_RE = /^m1_(0|[1-9][0-9]{0,18})$/;
+export const linkedMessageCursor = (sequence: bigint) => `m1_${sequence}`;
+export const publicManifestPdfVersion = 'public-text-v2';
 const POLICY_NO_RE = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$/;
 const PUBLIC_UUID_NAMESPACE = Buffer.from('5d9a3f3e6c1b4f0e9a517f1d2c3b4a60', 'hex');
+const HISTORY_PAGE_ITEMS = 100;
+const HISTORY_PAGE_ENVELOPE_BYTES = Buffer.byteLength(JSON.stringify({
+  items: [], previousCursor: linkedMessageCursor(9223372036854775807n),
+}));
+
+function takeHistoryPage<T extends { position: string }>(
+  items: T[], hasMore: boolean, cursorFor: (position: string) => string,
+) {
+  let bytes = HISTORY_PAGE_ENVELOPE_BYTES;
+  let count = 0;
+  for (const item of items.slice(0, HISTORY_PAGE_ITEMS)) {
+    const itemBytes = Buffer.byteLength(JSON.stringify(item)) + (count ? 1 : 0);
+    if (bytes + itemBytes > MAX_BODY_BYTES) break;
+    bytes += itemBytes;
+    count++;
+  }
+  if (!count && items.length) throw new AgentApiError(503, 'UNAVAILABLE');
+  const page = items.slice(0, count);
+  const cursor = (count < items.length || hasMore) && count ? cursorFor(page[count - 1].position) : null;
+  return { items: page, nextCursor: cursor };
+}
+
+// Preserve line breaks from pasted text and keep transport-only control characters out of SafeText.
+export function agentMessageText(content: string): string {
+  // eslint-disable-next-line no-control-regex
+  return content.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g,
+    character => character === '\v' || character === '\f' ? '\n' : ' ');
+}
 
 export class AgentApiError extends Error {
   constructor(
@@ -94,12 +127,24 @@ export class AgentAccessService {
   constructor(
     private readonly database: DatabaseService,
     private readonly conversationAccess: ConversationAccessService,
+    private readonly policies: PolicyService,
   ) {}
 
   private parseCursor(cursor: string | undefined | null): bigint {
     if (!cursor) return 0n;
     if (!CURSOR_RE.test(cursor)) throw new AgentApiError(400, 'INVALID_INPUT');
     return BigInt(cursor.slice(1));
+  }
+
+  async requireCopilotSource(tx: Prisma.TransactionClient, staffId: string, customerId: string, sourceId: string | null) {
+    if (!sourceId) throw new AgentApiError(403, 'NOT_AUTHORIZED');
+    try {
+      const grant = await this.conversationAccess.requireTranscript(tx, staffId, sourceId);
+      if (grant.customerId === customerId) return;
+    } catch (error) {
+      if (!(error instanceof NotFoundException)) throw error;
+    }
+    throw new AgentApiError(403, 'NOT_AUTHORIZED');
   }
 
   async authorizeInTx(
@@ -177,18 +222,12 @@ export class AgentAccessService {
       ) {
         throw new AgentApiError(403, 'NOT_AUTHORIZED');
       }
-      const assignment = await tx.staffAssignment.findFirst({
-        where: {
-          staffId: actor.id,
-          customerId: targetCustomerId,
-          isActive: true,
-          customer: { user: { status: 'ACTIVE', OR: [{ lockedUntil: null }, { lockedUntil: { lte: now } }] } },
-        },
-        select: { id: true },
-      });
-      if (!assignment) {
+      const source = run.linkedHistoryView as AuthorizedAttemptContext['linkedHistoryView'];
+      if (!source || source.conversation_id !== run.conversation.linkedContextConvId) {
         throw new AgentApiError(403, 'NOT_AUTHORIZED');
       }
+      await this.requireCopilotSource(tx, actor.id, targetCustomerId, source.conversation_id);
+      if (copilotDeadlinePassed(run.limits, now)) throw new AgentApiError(409, 'INVALID_ATTEMPT');
     } else {
       throw new AgentApiError(400, 'INVALID_INPUT');
     }
@@ -215,7 +254,9 @@ export class AgentAccessService {
     conversationId: string,
     afterPos: bigint,
     throughPos: bigint,
-  ): Promise<{ items: Array<Record<string, unknown>>; nextCursor: string | null }> {
+    legacyLinked = false,
+    backward = false,
+  ): Promise<{ items: Array<{ position: string } & Record<string, unknown>>; nextCursor: string | null }> {
     if (throughPos <= 0n || afterPos >= throughPos) return { items: [], nextCursor: null };
     const minMessageSeq = afterPos / 2n + 1n;
     const maxMessageSeq = (throughPos + 1n) / 2n;
@@ -224,14 +265,15 @@ export class AgentAccessService {
         conversationId,
         sequence: { gte: minMessageSeq, lte: maxMessageSeq },
         senderType: { in: ['CUSTOMER', 'STAFF'] },
+        ...(legacyLinked ? { audience: 'CUSTOMER_VISIBLE' } : {}),
       },
-      orderBy: { sequence: 'asc' },
-      take: 101,
-      include: { triggerRun: true },
+      orderBy: { sequence: backward ? 'desc' : 'asc' },
+      take: HISTORY_PAGE_ITEMS + 1,
+      include: { triggerRun: { include: { resultMessage: { select: { content: true, audience: true } } } } },
     });
 
-    const items: Array<Record<string, unknown>> = [];
-    for (const msg of messages) {
+    const items: Array<{ position: string } & Record<string, unknown>> = [];
+    for (const msg of backward ? messages.reverse() : messages) {
       const userPos = msg.sequence * 2n - 1n;
       if (userPos > afterPos && userPos <= throughPos) {
         items.push({
@@ -239,24 +281,24 @@ export class AgentAccessService {
           position: userPos.toString(),
           messageId: msg.id,
           senderType: msg.senderType === 'STAFF' ? 'STAFF' : 'CUSTOMER',
-          content: msg.content,
+          content: agentMessageText(msg.content),
           createdAt: msg.createdAt.toISOString(),
-          run: msg.triggerRun ? { id: msg.triggerRun.id, status: msg.triggerRun.status } : null,
+          run: !legacyLinked && msg.triggerRun ? { id: msg.triggerRun.id, status: msg.triggerRun.status } : null,
         });
       }
       const outcomePos = msg.sequence * 2n;
       if (outcomePos > afterPos && outcomePos <= throughPos && msg.triggerRun) {
         const r = msg.triggerRun;
-        if (r.status === 'COMPLETED' && r.result) {
+        if (r.status === 'COMPLETED' && r.result && (!legacyLinked || r.resultMessage?.audience === 'CUSTOMER_VISIBLE')) {
           items.push({
             kind: 'AGENT_RESULT',
             position: outcomePos.toString(),
             runId: r.id,
             messageId: msg.id,
-            result: r.result,
+            result: legacyLinked ? { response_type: 'ANSWER', message: agentMessageText(r.resultMessage!.content), actions: [], citations: [] } : r.result,
             createdAt: (r.finishedAt ?? msg.createdAt).toISOString(),
           });
-        } else if ((r.status === 'FAILED' || r.status === 'CANCELLED') && r.failure) {
+        } else if (!legacyLinked && (r.status === 'FAILED' || r.status === 'CANCELLED') && r.failure) {
           const failureObj = r.failure as { code?: string };
           items.push({
             kind: 'RUN_OUTCOME',
@@ -270,11 +312,7 @@ export class AgentAccessService {
         }
       }
     }
-    const pageItems = items.slice(0, 100);
-    const hasMore = items.length > 100 || messages.length > 100;
-    const lastPos = pageItems.at(-1)?.position;
-    const nextCursor = hasMore && typeof lastPos === 'string' ? `p${lastPos}` : null;
-    return { items: pageItems, nextCursor };
+    return takeHistoryPage(backward ? items.reverse() : items, messages.length > HISTORY_PAGE_ITEMS, pos => `p${pos}`);
   }
 
   async history(runId: string, attemptId: string, cursor?: string | null) {
@@ -287,22 +325,43 @@ export class AgentAccessService {
     });
   }
 
-  async linkedHistory(runId: string, attemptId: string, cursor?: string | null) {
-    const afterPos = this.parseCursor(cursor);
+  async linkedHistory(runId: string, attemptId: string, cursor?: string | null, backward = false) {
     return this.database.prisma.$transaction(async tx => {
       const ctx = await this.authorizeInTx(tx, runId, attemptId);
       if (ctx.channelType !== 'STAFF_COPILOT' || !ctx.linkedHistoryView) {
         throw new AgentApiError(403, 'NOT_AUTHORIZED');
       }
-      try {
-        await this.conversationAccess.requireTranscript(tx, ctx.actor.id, ctx.linkedHistoryView.conversation_id);
-      } catch {
-        throw new AgentApiError(403, 'NOT_AUTHORIZED');
-      }
-      const throughPos = this.parseCursor(ctx.linkedHistoryView.through_cursor);
-      const page = await this.buildHistoryPage(tx, ctx.linkedHistoryView.conversation_id, afterPos, throughPos);
-      return validateContract('ConversationHistoryPage', page);
+      const { conversation_id: sourceId, through_cursor: through } = ctx.linkedHistoryView;
+      const page = await this.linkedHistoryPage(tx, sourceId, through, cursor, backward);
+      return backward
+        ? validateContract('LinkedHistoryBackwardPage', { items: page.items.reverse(), previousCursor: page.nextCursor })
+        : validateContract('ConversationHistoryPage', page);
     });
+  }
+
+  private async linkedHistoryPage(tx: Prisma.TransactionClient, sourceId: string, through: string | null,
+    cursor: string | null | undefined, backward: boolean) {
+    const window = (watermark: bigint, position: bigint) => ({
+      lower: backward ? 0n : position,
+      upper: backward && cursor && position <= watermark ? position - 1n : watermark,
+    });
+    if (!through || !LINKED_CURSOR_RE.test(through)) {
+      const { lower, upper } = window(this.parseCursor(through), this.parseCursor(cursor));
+      return this.buildHistoryPage(tx, sourceId, lower, upper, true, backward);
+    }
+    if (cursor && !LINKED_CURSOR_RE.test(cursor)) throw new AgentApiError(400, 'INVALID_INPUT');
+    const { lower, upper } = window(BigInt(through.slice(3)), cursor ? BigInt(cursor.slice(3)) : 0n);
+    if (lower >= upper) return { items: [], nextCursor: null };
+    const rows = await tx.message.findMany({
+      where: { conversationId: sourceId, audience: 'CUSTOMER_VISIBLE', sequence: { gt: lower, lte: upper } },
+      orderBy: { sequence: backward ? 'desc' : 'asc' }, take: HISTORY_PAGE_ITEMS + 1,
+      select: { id: true, sequence: true, senderType: true, content: true, createdAt: true },
+    });
+    const items = rows.map(row => ({
+      kind: 'SOURCE_MESSAGE', position: row.sequence.toString(), messageId: row.id,
+      senderType: row.senderType, content: agentMessageText(row.content), createdAt: row.createdAt.toISOString(),
+    }));
+    return takeHistoryPage(items, false, pos => linkedMessageCursor(BigInt(pos)));
   }
 
   async scope(
@@ -340,20 +399,13 @@ export class AgentAccessService {
       try {
         ctx = await this.authorizeInTx(tx, runId, attemptId);
       } catch (err) {
-        if (err instanceof AgentApiError && err.code === 'INVALID_ATTEMPT') {
+        if (err instanceof AgentApiError && (err.code === 'INVALID_ATTEMPT' || err.code === 'NOT_AUTHORIZED')) {
+          // An attempt-level denial must stop the turn before Agent can reuse the chat context.
           return validateContract('DocumentScope', {
             decision: 'DENIED',
             kind,
             policy_number: policyNumber,
             reason: 'ATTEMPT_INVALID',
-          });
-        }
-        if (err instanceof AgentApiError && err.code === 'NOT_AUTHORIZED') {
-          return validateContract('DocumentScope', {
-            decision: 'DENIED',
-            kind,
-            policy_number: policyNumber,
-            reason: 'NOT_AUTHORIZED',
           });
         }
         throw err;
@@ -363,12 +415,16 @@ export class AgentAccessService {
 
       if (kind === 'PUBLIC') {
         const manifestEntries = loadPublicManifestEntries();
+        const copilot = ctx.channelType === 'STAFF_COPILOT';
         const dbDocs = await tx.document.findMany({
-          where: { accessScope: 'PUBLIC', policyId: null, ownerCustomerId: null, currentVersion: { not: null } },
+          where: { accessScope: 'PUBLIC', policyId: null, ownerCustomerId: null, currentVersion: { not: null },
+            ...(copilot ? { current: { isActive: true }, product: { isActive: true } } : {}) },
           select: { id: true, currentVersion: true },
         });
+        const publishedManifestIds = new Set(dbDocs.filter(doc => doc.currentVersion === publicManifestPdfVersion).map(doc => doc.id));
         const docsMap = new Map<string, { document_id: string; document_version: string; policy_id: null }>();
         for (const entry of manifestEntries) {
+          if (copilot && !publishedManifestIds.has(entry.businessDocumentId)) continue;
           docsMap.set(`${entry.ragDocumentId}:${entry.ragVersion}`, {
             document_id: entry.ragDocumentId,
             document_version: entry.ragVersion,
@@ -376,7 +432,7 @@ export class AgentAccessService {
           });
         }
         for (const doc of dbDocs) {
-          if (doc.currentVersion && (doc.currentVersion !== 'public-text-v2' || manifestEntries.length === 0)) {
+          if (doc.currentVersion && (doc.currentVersion !== publicManifestPdfVersion || manifestEntries.length === 0)) {
             docsMap.set(`${doc.id}:${doc.currentVersion}`, {
               document_id: doc.id,
               document_version: doc.currentVersion,
@@ -413,12 +469,12 @@ export class AgentAccessService {
         });
       }
 
-      const documents = policy.documents
-        .filter(d => Boolean(d.currentVersion))
-        .map(d => ({
-          document_id: d.id,
-          document_version: d.currentVersion!,
-          policy_id: policy.id,
+      const documents = ctx.channelType === 'STAFF_COPILOT'
+        ? (await this.copilotPolicyVersions(tx, ctx.actor.id, policy.id)).map(d => ({
+          document_id: d.documentId, document_version: d.versionNumber, policy_id: policy.id,
+        }))
+        : policy.documents.filter(d => Boolean(d.currentVersion)).map(d => ({
+          document_id: d.id, document_version: d.currentVersion!, policy_id: policy.id,
         }));
 
       return validateContract('DocumentScope', {
@@ -430,6 +486,11 @@ export class AgentAccessService {
         expires_at: expiresAt,
       });
     });
+  }
+
+  async copilotPolicyVersions(tx: Prisma.TransactionClient, staffId: string, policyId: string) {
+    const catalog = await this.policies.citationCatalog(tx, staffId, 'STAFF', policyId);
+    return catalog.items.filter(item => item.accessScope === 'PRIVATE_POLICY');
   }
 
   async listContracts(runId: string, attemptId: string) {

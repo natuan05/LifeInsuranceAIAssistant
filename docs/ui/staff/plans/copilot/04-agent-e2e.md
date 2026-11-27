@@ -1,8 +1,8 @@
 # CP04 — Nghiệm thu Agent/Copilot
 
-04/11/2026 · **P, đợt Agent sau** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
+24/11/2026 · **Đã kiểm luồng Staff Inbox qua gateway, Core và Agent với model giả lập. Nghiệm thu Gemini và corpus runtime còn mở.** · [Contract](../08-copilot-contract.md) · [Chung](../00-staff-contract.md).
 
-**Phạm vi bàn giao:** CP01–CP04 triển khai và nghiệm thu trong cùng đợt nối Core–Agent với Customer theo [CH02](../../../customer/plans/chat/02-agent-boundary.md#quyết-định-triển-khai-đã-chốt). Giữ bộ giới hạn local hiện có. Copilot giữ kênh/thread và quyền Staff riêng; kết quả không tự gửi sang Customer hoặc thay consent handoff/Ticket. Đợt nối chưa hoàn tất nếu mới kiểm xong luồng Customer.
+**Phạm vi bàn giao:** kiểm Copilot độc lập qua gateway với Core và Agent thật. Chạy hồi quy chat Customer theo [CH02](../../../customer/plans/chat/02-agent-boundary.md#quyết-định-triển-khai-đã-chốt) nếu thay history builder, dispatcher, callback hoặc gate dùng chung.
 
 ## Bổ sung bảo vệ dữ liệu Customer — 12/11/2026
 
@@ -18,13 +18,13 @@ Bảng bên dưới mô tả tác động của phase, gồm cả ghi gián ti�
 | --- | --- | --- | --- | --- |
 | users + auth_sessions | users.id/role/status, auth_sessions.user_id/token_hash/expires_at/revoked_at | Đọc | AuthSession.user_id → User.id; session phải còn hạn, không bị thu hồi | Cao — mọi API dùng session; không trả token/hash trong DTO |
 | staff_assignments + customer_profiles + staff_profiles | staff_id/customer_id/is_active/ended_at, assignment_version, user_id/full_name | Đọc | Assignment gắn đúng Customer/Staff; Inbox còn ràng buộc assignment id cụ thể | Cao — Customers, Policy Lookup, Ticket và Inbox cùng phụ thuộc phân công |
-| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Direct đúng assignment lúc tạo hoặc handoff ACCEPTED còn grant; PENDING chỉ shared metadata, không AI subject/transcript | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
+| conversations + conversation_handoffs | customer_id/channel_type/support_origin/direct_assignment_id/assigned_staff_id/status/control_version/subject, state/assignment_id/recipient_staff_id/shared_subject/shared_reason/accepted_at/revoked_at | Đọc | Gate transcript chung theo CP01. Runtime mở Direct/Accepted; thiết kế 23/11 mở theo phân công hiện hành | Cao — Inbox filter/deep link/REST/WS phải cùng gate; không suy grant từ status/assigned_staff_id |
 | insurance_policies + insurance_products | customer_id/product_id/policy_number/status, premium_amount/payment_frequency/next_due_date, effective_date/expiry_date/sum_assured/benefits_snapshot, product_code/name | Đọc | Policy.customer_id → CustomerProfile.user_id; product_id → InsuranceProduct.id; unique policy_number | Cao — DTO tiền/ngày/snapshot dùng chung Staff/Customer; không OCR PDF để cập nhật DB |
 | documents + document_versions | access_scope/policy_id/owner_customer_id/product_id/current_version, document_id/version_number/is_active/checksum_sha256/storage_bucket/storage_object_key | Đọc | FK (policy_id,owner_customer_id) → Policy(id,customer_id); unique (document_id,version_number); policy dùng exact binding trong benefits_snapshot, Products dùng current_version | Cao — đổi version/scope ảnh hưởng viewer, download và nguồn retrieval; bucket/key không ra DTO |
-| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | P — tạo/append nội bộ Copilot, nền cột đã có | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; cần chốt uniqueness theo Staff/source trước migration | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
-| Copilot task/checkpoint — P, chưa có model task app | Dự kiến task id, owner, source, context watermark, state/attempt/lease/result | DDL/storage dự kiến, chưa chọn đầy đủ | Core giữ authorization/business fence; checkpoint Agent dùng store/credential riêng, không là transaction nghiệp vụ | Cao — retry/crash/revoke giữa enqueue/tool/return; không biến ConversationStatus thành task state |
+| conversations + messages | channel_type/assigned_staff_id/customer_id/linked_context_conv_id/linked_policy_id/control_version; messages.audience/sequence/citations/tool_calls_metadata | Tạo thread và ghi tin nội bộ | STAFF_COPILOT gắn source có transcript grant; INTERNAL không xuất Customer; unique theo Staff và chat nguồn | Cao — không dùng grant của Staff trước reassignment, không append trực tiếp Customer answer từ Copilot |
+| agent_runs + agent_attempts + agent_run_events | run/attempt, linked_history_view, status/result, event receipt | Lưu lượt từ Staff | Dùng lifecycle hiện có và checkpoint riêng của Agent | Cao — retry/revoke/late callback |
 
-**Schema/migration:** P — không chạy migration trong phase tài liệu. Nền Conversation/Message đã có; task ownership/uniqueness/schema checkpoint chưa chốt, phải migration mới khi triển khai.
+**Schema/migration:** rà ràng buộc owner/chat nguồn và dữ liệu legacy theo CP01. Run/attempt/event và checkpoint đã có.
 
 **Nhất quán và hồi quy:** Core recheck source/current grant ở enqueue/tool/return; UI không gửi draft thay Staff. Kiểm toàn bộ source lifecycle/Private citation exact version/INTERNAL isolation và stale task theo test của phase. Không mở rộng quyền từ model output.
 
@@ -39,14 +39,14 @@ Test harness provider/Agent/Core/Web qua Docker; fixtures synthetic approved, tr
 | Vị trí từ root repo | Hiện trạng | Trách nhiệm trong phase | Mức ảnh hưởng | Phạm vi cần kiểm lại |
 | --- | --- | --- | --- | --- |
 | [apps/core/src/conversations/services/conversation-access.service.ts](<../../../../../apps/core/src/conversations/services/conversation-access.service.ts>) | Hiện có | Hiện có source grant; P adapter Copilot phải gọi lại | Cao | REST/WS transcript và source reassignment |
-| [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Hiện có module; Copilot controller/task adapter còn P | Cao | Không mở public endpoint giả quyền |
+| [apps/core/src/conversations/conversations.module.ts](<../../../../../apps/core/src/conversations/conversations.module.ts>) | Hiện có | Controller A24/A25 và service Copilot | Cao | Không mở public endpoint giả quyền |
 | [apps/agent/](<../../../../../apps/agent>) | Hiện có | Owner phần Agent/checkpoint; chỉ ranh giới cần phối hợp, không triển khai trong đợt tài liệu này | Cao | Service identity, scope tools, durable attempt |
-| `apps/web/src/components/staff-copilot-panel.tsx` | Dự kiến — chưa có file | P — panel/history/task/citation theo actor/source | Trung bình | Inbox transcript và composer giữ mounted |
-| `apps/web/src/lib/copilot-api.ts` | Dự kiến — chưa có file | P — task/read DTO sau chốt CP01 | Cao | Không gọi provider/Agent trực tiếp từ browser |
+| `apps/web/src/components/staff-copilot-panel.tsx` | Đã có | Hiển thị hội thoại Copilot theo Staff và chat nguồn | Trung bình | Inbox transcript và composer giữ mounted |
+| `apps/web/src/lib/copilot-api.ts` | Đã có | Client A24/A25 | Cao | Không gọi provider/Agent trực tiếp từ browser |
 
 ## 3. API spec và quyền
 
-Prefix REST `/api/v1`; mọi API trong phase này là **P** trừ API nền được dẫn rõ là E. Quyết định kỹ thuật đề xuất phải review trước code; không sửa schema chỉ từ file plan.
+Prefix REST `/api/v1`. A24/A25 đã triển khai theo contract CP01.
 
 Dùng APIs thật và trusted task identity. Case hỏi kiến thức PUBLIC, policy PRIVATE đúng quyền, thiếu bằng chứng, summary watermark, từ chối yêu cầu soạn nháp Customer, revoke giữa execution, provider timeout. Ticket draft/confirmation theo I07 và Customer T01/T02, không tự tạo từ Copilot.
 
@@ -131,6 +131,53 @@ Chỉ đánh dấu FR-007/012/Agent boundary sau E2E thật có scope. Không g�
 
 **Kết quả mong đợi.** Mở PDF không đổi linkedPolicy/controlVersion hoặc tự cấp scope. Câu mơ hồ được hỏi lại, câu rõ P2 chỉ đọc nguồn Core cho phép. Task/citation cũ giữ view P1, không bị gắn thành P2. Hợp đồng ngoài Customer/grant bị chặn.
 
+### CP04-T06 — Nguồn đang mở và lịch sử cố định theo lượt
+
+**Điều kiện:** một Customer có hai chat đủ quyền với dữ kiện phân biệt được, chat A có nhiều trang tin và xen dữ liệu legacy/nội bộ. Có thể giữ callback của một câu AI cũ chưa commit.
+
+1. Mở A, bật Copilot và hỏi điều đã nói trong A. Sau khi Core nhận yêu cầu, thêm tin mới rồi cho callback AI cũ commit. Đọc tiếp các trang và mô phỏng resume cùng run.
+2. Hỏi lại bằng lượt mới. Chuyển sang B khi response A còn pending, rồi thử Staff ngoài quyền nguồn.
+
+**Kỳ vọng:** lần đầu dùng nội dung Customer-facing đã commit ở mốc nhận câu hỏi, gồm câu AI đã hiển thị; bỏ nội bộ/legacy chưa phân loại và phần commit muộn. Lượt sau thấy nội dung mới. Response A không xuất hiện ở B. Staff ngoài quyền không đọc được history hoặc kết quả.
+
+### CP04-T07 — Giao nhận trạng thái Copilot
+
+Kiểm hoàn tất, lỗi và hủy lượt qua WebSocket sau commit. Mô phỏng mất ACK sau khi Core nhận A25, sự kiện hoàn tất đến trước ACK, mất kết nối lúc lưu kết quả, thông báo trùng hoặc sai thứ tự và Staff đổi chat. Retry A25 cùng UUID trả đúng lượt. A24 sau reconnect trả trạng thái đã lưu cho đúng chat và ACK đến muộn không đưa panel về trạng thái đang xử lý. Customer, Staff khác và Staff đã mất quyền nguồn không nhận sự kiện Copilot hoặc đọc được kết quả. Rollback không phát sự kiện.
+
+### CP04-T08 — Soạn câu tiếp theo khi đang xử lý
+
+Giữ lượt A ở trạng thái chờ rồi đang chạy. Kiểm ô hỏi cho nhập, còn nút gửi và phím tắt gửi bị khóa. Hai tab gửi UUID khác nhau đồng thời chỉ tạo một lượt; replay UUID đã nhận trả cùng lượt. Khi A kết thúc và A24 xác nhận, Staff vẫn thấy nội dung đã soạn và có thể chủ động gửi.
+
+### CP04-T09 — Tóm tắt từ đầu với chat dài
+
+Tạo chat nhiều trang có dữ kiện riêng ở đầu, giữa và cuối trước mốc của lượt. Kiểm bản tóm tắt phản ánh cả ba đoạn khi Agent xử lý đủ. Chạy lại với lỗi đọc làm thiếu một đoạn, đầu ra vượt giới hạn ký tự hoặc provider dừng giữa chừng. Copilot báo chưa thể tóm tắt từ đầu và đề nghị thu hẹp phạm vi. Kiểm yêu cầu tóm tắt mặc định vẫn dùng diễn biến gần.
+
+Dùng cách diễn đạt khác cho cùng yêu cầu tóm tắt toàn bộ. Nếu model nhận diện `FULL` sau lần đọc ngữ cảnh đầu tiên, Agent có thể tóm tắt các đoạn cũ và trả lời trong ngân sách còn lại. Với chat vượt phạm vi có thể đồng bộ, kiểm yêu cầu gần đây vẫn dùng được tin cuối tại mốc của lượt.
+
+Kiểm yêu cầu tóm tắt gần đây có nhắc một mốc thời gian khác trong cùng câu. Với yêu cầu tóm tắt toàn bộ, Agent chỉ công bố câu trả lời khi model báo phạm vi `FULL` và dữ liệu bao phủ từ đầu tới mốc của lượt.
+
+### CP04-T10 — Đổi quyền khi panel đang đọc kết quả
+
+Giữ phản hồi A24 cũ rồi đổi Staff phụ trách. Khi nhận tín hiệu đổi quyền của Inbox, panel ẩn dữ liệu và bỏ qua phản hồi cũ. A24 mới bị từ chối với chat đã mất quyền. Lặp lại khi đổi quyền ở chat khác và xác nhận panel hiện lại dữ liệu sau khi A24 kiểm quyền thành công.
+
+### CP04-T11 — Đồng bộ lại checkpoint dùng mốc cũ
+
+Khôi phục checkpoint thiếu phiên bản hoặc dùng phiên bản mốc cũ. Kiểm Agent đọc lại theo trang đến đúng mốc của lượt, không bỏ sót hoặc lặp tin. Mô phỏng lỗi giữa các trang và kiểm checkpoint chưa đánh dấu đồng bộ hoàn tất. Sau khi đồng bộ thành công, lượt kế tiếp chỉ đọc phần mới. Kiểm cả trường hợp lượt đã tiếp nhận trước khi nâng cấp để cursor mới không diễn giải lại mốc cũ.
+
+### CP04-T12 — Mở lần đầu, gửi đồng thời và được phân công lại
+
+A24 trả lịch sử rỗng cho Staff có quyền và chưa tạo thread. Hai tab gửi đồng thời chỉ tạo một thread và một lượt. Kiểm ba kết quả của A25 cho replay đúng payload, UUID cũ với payload khác và UUID mới khi lượt đang chạy. Đổi phân công từ Staff A sang B rồi về A. Khi quyền đọc được cấp lại, A xem thread cũ của mình với lượt đã hủy giữ nguyên trạng thái. B giữ thread riêng.
+
+### CP04-T13 — Cấp lại quyền khi Agent chưa xác nhận dừng
+
+Hủy lượt A khi thu hồi quyền, giữ phản hồi xác nhận dừng của Agent, rồi cấp lại quyền đọc cho cùng Staff. Gửi lượt B và kiểm Core lưu `QUEUED` cùng deadline, panel hiện “Đang chờ” và B chưa được gọi tới Agent. Khi xác nhận dừng đến trong hạn, B chỉ dùng thời gian còn lại sau khi Core kiểm quyền. Khởi động lại Core trong lúc chờ và kiểm deadline giữ nguyên. Nếu hết hạn trước, B chuyển `FAILED`, panel nhận tín hiệu cập nhật và xác nhận đến muộn không khởi chạy B. A giữ `CANCELLED` ở cả hai nhánh.
+
+Kiểm claim cạnh deadline và callback đến sau deadline nhưng trước khi bộ đối soát quét lượt. Kết quả đến muộn không thể chuyển B sang thành công. Chạy hồi quy luồng Customer khi sửa dispatcher hoặc bộ đối soát dùng chung.
+
+### CP04-T14 — Gửi lại câu cũ khi có lượt mới đang chạy
+
+Cho lượt A hoàn tất và lượt B đang chạy. Gửi lại A qua A25 với cùng UUID và payload. Kiểm phản hồi trả ID và trạng thái hiện tại của A. Gửi lại UUID của A với payload khác thì nhận lỗi xung đột. B tiếp tục xử lý và chỉ có hai lượt trong lịch sử.
+
 ## Sequence diagram
 
 **Luồng dự kiến:** chỉ áp dụng sau khi các dependency và API ở phần phạm vi được chốt.
@@ -145,18 +192,21 @@ sequenceDiagram
     U->>W: Gửi câu hỏi theo channel
     W->>C: A25 theo contract đã chốt
     C->>D: Session, source grant và durable intent
-    D-->>C: Run/attempt theo contract đã chốt
-    C->>A: Trusted service envelope và context version
+    D-->>C: Lượt đã lưu cùng mốc lịch sử và deadline
+    C-->>W: ACK kèm ID và trạng thái lượt
+    C->>A: Giao lượt trong hạn
     A->>C: Business API hoặc retrieval scope
     C->>D: Recheck actor, owner và exact source version
     D-->>C: Dữ liệu đúng quyền
     C-->>A: Context allowlist
     A->>C: Result gắn run, attempt và watermark
-    C->>D: Recheck fence và quyền trước lưu hoặc trả result
-    alt Scope hoặc control version đã đổi
-        C-->>W: Result không khả dụng, không Private muộn
+    C->>D: Kiểm quyền, fence và deadline trước khi ghi
+    alt Staff đã mất quyền đọc nguồn
+        C-->>W: Tín hiệu đổi quyền Inbox
     else Hợp lệ
-        C-->>W: Kết quả tra cứu/giải thích/tóm tắt nội bộ
-        W-->>U: Đọc kết quả; không sửa composer hoặc gửi Customer
+        C-->>W: WebSocket báo cập nhật sau commit
     end
+    W->>C: A24 kiểm quyền và đối soát
+    C-->>W: Dữ liệu theo quyền hiện hành
+    W-->>U: Cập nhật panel nội bộ
 ```

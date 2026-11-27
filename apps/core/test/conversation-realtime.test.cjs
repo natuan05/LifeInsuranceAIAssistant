@@ -1,6 +1,7 @@
 require('reflect-metadata');
 const { test, before, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { once } = require('node:events');
 const { randomUUID, randomBytes, createHash } = require('node:crypto');
 const { readFileSync } = require('node:fs');
 const { PrismaClient } = require('../dist/generated/prisma/client');
@@ -408,6 +409,19 @@ test('socket rechecks grant immediately before send, even if a recipient was res
   const recipients = await events().route(event), connection = await socket(g.a);
   try { await assign(g, g.b, 0); await app.get(RealtimeService).publishChat(event, recipients); assert.equal(connection.frames.filter(row => row.type === 'chat-invalidated').length, 0); }
   finally { connection.ws.terminate(); }
+});
+
+test('Staff socket invalidates visible sources when an assigned Customer is locked', async () => {
+  const g = await group(), id = (await create(g, 'DIRECT')).conversation.id;
+  const connection = await socket(g.a);
+  try {
+    await api(g.a, 'GET', `${staff}/${id}/messages`);
+    const changed = once(connection.ws, 'message', { signal: AbortSignal.timeout(7000) });
+    await admin.user.update({ where: { id: g.c.id }, data: { lockedUntil: new Date(Date.now() + 60000) } });
+    const [frame] = await changed;
+    assert.deepEqual(JSON.parse(frame.toString()), { type: 'invalidate' });
+    await api(g.a, 'GET', `${staff}/${id}/messages`, undefined, 404);
+  } finally { connection.ws.terminate(); }
 });
 
 
