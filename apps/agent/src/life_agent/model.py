@@ -361,7 +361,13 @@ def render_context(context: Any) -> str:
 class GeminiModel:
     """ModelAdapter over generateContent with JSON output. Counts input/output/thinking tokens per call."""
 
-    _DEFAULT_FALLBACKS = ("gemini-3.5-flash", "gemini-3-flash-preview", "gemini-3.5-flash-lite")
+    _DEFAULT_FALLBACKS = (
+        "gemini-3-flash-preview",
+        "gemini-3.5-flash-lite",
+        "gemini-3.1-flash-lite",
+        "gemini-flash-lite-latest",
+        "gemini-3.5-flash",
+    )
 
     def __init__(self, config: GenerationConfig, env: Mapping[str, str] | None = None, *,
                  http: GeminiHttp | None = None, clock: Callable[[], float] = time.monotonic,

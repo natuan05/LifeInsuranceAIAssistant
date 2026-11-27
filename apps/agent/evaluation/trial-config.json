@@ -44,13 +44,13 @@
   "scope_timeout_s": 2.0
  },
  "generation": {
-  "config_id": "gemini-3.5-flash.low.v1",
+  "config_id": "gemini-3-flash-preview.low.v1",
   "provider": "gemini",
-  "model_id": "gemini-3.5-flash",
+  "model_id": "gemini-3-flash-preview",
   "thinking_level": "low",
   "max_output_tokens": 4096,
   "temperature": null,
-  "timeout_s": 45
+  "timeout_s": 15
  },
  "agent": {
   "graph_version": "graph-0.1",
